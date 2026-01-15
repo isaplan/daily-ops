@@ -35,10 +35,19 @@ export async function GET(request: NextRequest) {
     const location_id = searchParams.get('location_id');
     const team_id = searchParams.get('team_id');
     const member_id = searchParams.get('member_id');
+    const viewing_member_id = searchParams.get('viewing_member_id'); // For team/location visibility
     const archived = searchParams.get('archived');
     
     interface NoteQuery {
       is_archived: boolean;
+      $or?: Array<{
+        'connected_to.location_id'?: string | mongoose.Types.ObjectId;
+        'connected_to.team_id'?: string | mongoose.Types.ObjectId;
+        'connected_to.member_id'?: string | mongoose.Types.ObjectId;
+        'connected_to.location_id'?: { $exists: false };
+        'connected_to.team_id'?: { $exists: false };
+        'connected_to.member_id'?: { $exists: false };
+      }>;
       'connected_to.location_id'?: string;
       'connected_to.team_id'?: string;
       'connected_to.member_id'?: string;
@@ -46,14 +55,61 @@ export async function GET(request: NextRequest) {
     
     const query: NoteQuery = { is_archived: archived === 'true' };
     
-    if (location_id) {
-      query['connected_to.location_id'] = location_id;
-    }
-    if (team_id) {
-      query['connected_to.team_id'] = team_id;
-    }
-    if (member_id) {
-      query['connected_to.member_id'] = member_id;
+    // If viewing_member_id is provided, show notes for that member's team and location
+    if (viewing_member_id && !location_id && !team_id && !member_id) {
+      const viewingMember = await Member.findById(viewing_member_id)
+        .select('team_id location_id')
+        .lean();
+      
+      if (viewingMember) {
+        const orConditions: any[] = [
+          { 'connected_to.member_id': new mongoose.Types.ObjectId(viewing_member_id) },
+        ];
+        
+        // Add notes connected to member's team
+        if (viewingMember.team_id) {
+          orConditions.push({
+            'connected_to.team_id': new mongoose.Types.ObjectId(
+              typeof viewingMember.team_id === 'object' 
+                ? viewingMember.team_id._id 
+                : viewingMember.team_id
+            ),
+          });
+        }
+        
+        // Add notes connected to member's location
+        if (viewingMember.location_id) {
+          orConditions.push({
+            'connected_to.location_id': new mongoose.Types.ObjectId(
+              typeof viewingMember.location_id === 'object' 
+                ? viewingMember.location_id._id 
+                : viewingMember.location_id
+            ),
+          });
+        }
+        
+        // Also show notes with no connections (global notes)
+        orConditions.push({
+          $and: [
+            { 'connected_to.location_id': { $exists: false } },
+            { 'connected_to.team_id': { $exists: false } },
+            { 'connected_to.member_id': { $exists: false } },
+          ],
+        });
+        
+        query.$or = orConditions;
+      }
+    } else {
+      // Direct filtering by location, team, or member
+      if (location_id) {
+        query['connected_to.location_id'] = location_id;
+      }
+      if (team_id) {
+        query['connected_to.team_id'] = team_id;
+      }
+      if (member_id) {
+        query['connected_to.member_id'] = member_id;
+      }
     }
     
     const notes = await Note.find(query)

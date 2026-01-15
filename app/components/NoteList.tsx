@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import NoteForm from './NoteForm';
+import { useAuth } from '@/lib/hooks/useAuth';
 
 interface Note {
   _id: string;
@@ -23,6 +24,7 @@ interface Note {
 }
 
 export default function NoteList() {
+  const { user } = useAuth();
   const [notes, setNotes] = useState<Note[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -33,9 +35,19 @@ export default function NoteList() {
   const loadNotes = () => {
     setLoading(true);
     const params = new URLSearchParams();
-    if (filter.location_id) params.append('location_id', filter.location_id);
-    if (filter.team_id) params.append('team_id', filter.team_id);
-    if (filter.member_id) params.append('member_id', filter.member_id);
+    
+    // If no specific filters are set and user is logged in, show notes for their team/location
+    const hasFilters = filter.location_id || filter.team_id || filter.member_id;
+    
+    if (!hasFilters && user?.id) {
+      params.append('viewing_member_id', user.id);
+    } else {
+      // Use explicit filters if set
+      if (filter.location_id) params.append('location_id', filter.location_id);
+      if (filter.team_id) params.append('team_id', filter.team_id);
+      if (filter.member_id) params.append('member_id', filter.member_id);
+    }
+    
     if (filter.archived) params.append('archived', filter.archived);
 
     fetch(`/api/notes?${params.toString()}`)
@@ -56,7 +68,7 @@ export default function NoteList() {
 
   useEffect(() => {
     loadNotes();
-  }, [filter]);
+  }, [filter, user?.id]);
 
   const handleDelete = async (id: string) => {
     if (!confirm('Are you sure you want to delete this note?')) return;
