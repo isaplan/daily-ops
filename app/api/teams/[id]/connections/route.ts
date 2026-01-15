@@ -3,12 +3,13 @@
  * @created: 2026-01-15T10:00:00.000Z
  * @last-modified: 2026-01-15T10:00:00.000Z
  * @description: Get all connections for a team (aggregated from members)
- * @last-fix: [2026-01-15] Initial POC setup
+ * @last-fix: [2026-01-15] Updated to use M:M associations
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import dbConnect from '@/lib/mongodb';
 import Member from '@/models/Member';
+import MemberTeamAssociation from '@/models/MemberTeamAssociation';
 import Note from '@/models/Note';
 import Todo from '@/models/Todo';
 import Decision from '@/models/Decision';
@@ -23,9 +24,19 @@ export async function GET(
     const { id } = await params;
     const teamId = id;
     
-    // Get all members in this team
-    const teamMembers = await Member.find({ team_id: teamId, is_active: true });
-    const memberIds = teamMembers.map(m => m._id);
+    // Get all members in this team via associations
+    const teamAssociations = await MemberTeamAssociation.find({
+      team_id: teamId,
+      is_active: true
+    }).select('member_id');
+    
+    const memberIds = teamAssociations.map(a => a.member_id);
+    
+    // Get member details
+    const teamMembers = await Member.find({
+      _id: { $in: memberIds },
+      is_active: true
+    });
     
     const [notes, todos, decisions, channels, memberCount] = await Promise.all([
       Note.find({

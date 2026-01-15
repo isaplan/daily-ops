@@ -13,6 +13,8 @@ import Note from '@/models/Note';
 import Member from '@/models/Member';
 import Location from '@/models/Location';
 import Team from '@/models/Team';
+import MemberTeamAssociation from '@/models/MemberTeamAssociation';
+import MemberLocationAssociation from '@/models/MemberLocationAssociation';
 import { generateSlug } from '@/lib/utils/slug';
 import { getErrorMessage } from '@/lib/types/errors';
 
@@ -57,34 +59,59 @@ export async function GET(request: NextRequest) {
     
     // If viewing_member_id is provided, show notes for that member's team and location
     if (viewing_member_id && !location_id && !team_id && !member_id) {
-      const viewingMember = await Member.findById(viewing_member_id)
-        .select('team_id location_id')
-        .lean();
+      const viewingMember = await Member.findById(viewing_member_id).lean();
       
       if (viewingMember) {
+        // Get member's teams and locations from associations
+        const [teamAssociations, locationAssociations] = await Promise.all([
+          MemberTeamAssociation.find({ 
+            member_id: viewing_member_id, 
+            is_active: true 
+          }).select('team_id').lean(),
+          MemberLocationAssociation.find({ 
+            member_id: viewing_member_id, 
+            is_active: true 
+          }).select('location_id').lean()
+        ]);
+
+        const teamIds = teamAssociations.map(a => 
+          typeof a.team_id === 'object' ? a.team_id._id : a.team_id
+        );
+        const locationIds = locationAssociations.map(a => 
+          typeof a.location_id === 'object' ? a.location_id._id : a.location_id
+        );
+
+        // Fallback to deprecated fields if no associations found
+        if (teamIds.length === 0 && viewingMember.team_id) {
+          teamIds.push(
+            typeof viewingMember.team_id === 'object' 
+              ? viewingMember.team_id._id 
+              : viewingMember.team_id
+          );
+        }
+        if (locationIds.length === 0 && viewingMember.location_id) {
+          locationIds.push(
+            typeof viewingMember.location_id === 'object' 
+              ? viewingMember.location_id._id 
+              : viewingMember.location_id
+          );
+        }
+
         const orConditions: any[] = [
           { 'connected_to.member_id': new mongoose.Types.ObjectId(viewing_member_id) },
         ];
         
-        // Add notes connected to member's team
-        if (viewingMember.team_id) {
+        // Add notes connected to member's teams
+        if (teamIds.length > 0) {
           orConditions.push({
-            'connected_to.team_id': new mongoose.Types.ObjectId(
-              typeof viewingMember.team_id === 'object' 
-                ? viewingMember.team_id._id 
-                : viewingMember.team_id
-            ),
+            'connected_to.team_id': { $in: teamIds.map(id => new mongoose.Types.ObjectId(id)) },
           });
         }
         
-        // Add notes connected to member's location
-        if (viewingMember.location_id) {
+        // Add notes connected to member's locations
+        if (locationIds.length > 0) {
           orConditions.push({
-            'connected_to.location_id': new mongoose.Types.ObjectId(
-              typeof viewingMember.location_id === 'object' 
-                ? viewingMember.location_id._id 
-                : viewingMember.location_id
-            ),
+            'connected_to.location_id': { $in: locationIds.map(id => new mongoose.Types.ObjectId(id)) },
           });
         }
         

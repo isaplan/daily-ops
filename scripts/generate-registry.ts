@@ -62,12 +62,13 @@ function extractMetadata(content: string): Partial<RegistryEntry> | null {
   if (!headerMatch) return null
 
   const header = headerMatch[1]
-  const registryId = header.match(/@registry-id:\s*(\S+)/)?.[1]
+  if (!header) return null
+  
   const description = header.match(/@description:\s*(.+)/)?.[1]
   
   // Parse @exports-to
   const exportsMatch = header.match(/@exports-to:([\s\S]*?)(?=@|\*\/)/m)
-  const exportsTo = exportsMatch
+  const exportsTo = exportsMatch && exportsMatch[1]
     ? exportsMatch[1]
         .split('\n')
         .map(line => line.match(/✓?\s*([^\s→=>]+)/)?.[1])
@@ -182,7 +183,10 @@ function generateRegistry() {
   // Calculate statistics
   const totalByType: Record<string, number> = {}
   for (const type in byType) {
-    totalByType[type] = byType[type].length
+    const typeArray = byType[type]
+    if (typeArray) {
+      totalByType[type] = typeArray.length
+    }
   }
 
   const registry: Registry = {

@@ -3,7 +3,7 @@
  * @created: 2026-01-15T10:00:00.000Z
  * @last-modified: 2026-01-15T10:00:00.000Z
  * @description: Member schema and model
- * @last-fix: [2026-01-15] Initial POC setup
+ * @last-fix: [2026-01-15] Added M:M relationships via association tables
  * 
  * @exports-to:
  * ✓ app/api/members/** => Member CRUD operations
@@ -19,6 +19,8 @@ export interface IMember extends Document {
   slack_username?: string;
   slack_avatar?: string;
   
+  // DEPRECATED: Use MemberTeamAssociation and MemberLocationAssociation instead
+  // Kept for backward compatibility during migration
   location_id?: mongoose.Types.ObjectId;
   team_id?: mongoose.Types.ObjectId;
   

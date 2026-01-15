@@ -28,6 +28,7 @@ function parseMetadata(filePath: string): MetadataHeader | null {
 
     if (!headerMatch) return null
     const header = headerMatch[1]
+    if (!header) return null
 
     const registryId = header.match(/@registry-id:\s*(\S+)/)?.[1]
     const lastModified = header.match(/@last-modified:\s*(\S+)/)?.[1]
@@ -40,7 +41,7 @@ function parseMetadata(filePath: string): MetadataHeader | null {
     if (exportsMatch) {
       const exportText = exportsMatch[1]
       // Skip lines with "(none" or empty lines
-      if (!exportText.toLowerCase().includes('(none')) {
+      if (exportText && !exportText.toLowerCase().includes('(none')) {
         exportsTo = exportText
           .split('\n')
           .map(line => {
@@ -57,7 +58,7 @@ function parseMetadata(filePath: string): MetadataHeader | null {
     let importsFrom: string[] = []
     if (importsMatch) {
       const importText = importsMatch[1]
-      if (!importText.toLowerCase().includes('(none')) {
+      if (importText && !importText.toLowerCase().includes('(none')) {
         importsFrom = importText
           .split('\n')
           .map(line => {
