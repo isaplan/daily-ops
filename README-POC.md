@@ -39,8 +39,19 @@ This will start MongoDB on port 27017.
 
 ### 4. Run the Development Server
 
+**Recommended (auto-kills port conflicts):**
+```bash
+npm run dev:clean
+```
+
+**Standard (may fail if port 8080 is in use):**
 ```bash
 npm run dev
+```
+
+**If you need to manually kill port 8080:**
+```bash
+npm run dev:kill
 ```
 
 Open [http://localhost:8080](http://localhost:8080) in your browser.
@@ -127,7 +138,20 @@ The app connects to MongoDB using the connection string in `.env.local`. The con
 
 ### Port Already in Use
 
-The app is strictly configured to use port 8080. Make sure nothing else is using this port, or stop the conflicting service.
+The app is strictly configured to use port 8080. 
+
+**Solution:** Use the `dev:clean` script which automatically kills any process on port 8080 before starting:
+
+```bash
+npm run dev:clean
+```
+
+Or manually kill the port:
+```bash
+npm run dev:kill
+```
+
+This prevents the `EADDRINUSE` error that occurs when a previous dev server instance is still running.
 
 ### Clear MongoDB Data
 
