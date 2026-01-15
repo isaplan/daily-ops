@@ -6,10 +6,10 @@
  * @last-fix: [2026-01-15] Initial test file
  * 
  * @exports-to:
- *   ✓ app/lib/hooks/useAuth.ts (hypothetical - for testing)
+ *   (none - test file)
  * 
  * @imports-from:
- *   - app/lib/types/test.ts (hypothetical)
+ *   (none - test file)
  */
 
 export function useTestHook() {
