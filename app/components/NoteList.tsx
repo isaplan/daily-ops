@@ -7,6 +7,7 @@ interface Note {
   _id: string;
   title: string;
   content: string;
+  slug: string;
   author_id?: { name: string; email: string };
   connected_to?: {
     location_id?: { _id: string; name: string };
@@ -16,6 +17,7 @@ interface Note {
   tags?: string[];
   is_pinned: boolean;
   is_archived: boolean;
+  status?: 'draft' | 'published';
   created_at: string;
   updated_at: string;
 }
@@ -224,15 +226,12 @@ export default function NoteList() {
               </div>
 
               <div className="flex gap-2">
-                <button
-                  onClick={() => {
-                    setEditingNote(note);
-                    setShowForm(true);
-                  }}
-                  className="px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
+                <a
+                  href={`/notes/${note.slug}`}
+                  className="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200 inline-block"
                 >
-                  Edit
-                </button>
+                  View
+                </a>
                 <button
                   onClick={() => handleArchive(note)}
                   className="px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200"

@@ -1,9 +1,9 @@
 /**
  * @registry-id: notesAPI
  * @created: 2026-01-15T10:00:00.000Z
- * @last-modified: 2026-01-15T10:00:00.000Z
- * @description: Notes API route - GET and POST
- * @last-fix: [2026-01-15] Initial POC setup
+ * @last-modified: 2026-01-15T14:30:00.000Z
+ * @description: Notes API route - GET and POST with slug generation
+ * @last-fix: [2026-01-15] Added slug generation and status field for individual pages
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -13,6 +13,7 @@ import Note from '@/models/Note';
 import Member from '@/models/Member';
 import Location from '@/models/Location';
 import Team from '@/models/Team';
+import { generateSlug } from '@/lib/utils/slug';
 
 export async function GET(request: NextRequest) {
   try {
@@ -70,9 +71,11 @@ export async function POST(request: NextRequest) {
     await dbConnect();
     const body = await request.json();
     
+    const slug = generateSlug(body.title);
     const note = await Note.create({
       title: body.title,
       content: body.content,
+      slug,
       author_id: body.author_id,
       connected_to: {
         location_id: body.location_id,
@@ -81,6 +84,7 @@ export async function POST(request: NextRequest) {
       },
       tags: body.tags || [],
       is_pinned: body.is_pinned || false,
+      status: 'draft',
     });
     
     await note.populate('author_id', 'name email');

@@ -22,6 +22,7 @@ interface Note {
   _id?: string;
   title: string;
   content: string;
+  slug?: string;
   author_id?: string;
   connected_to?: {
     location_id?: string | { _id: string; name: string };
@@ -30,6 +31,7 @@ interface Note {
   };
   tags?: string[];
   is_pinned?: boolean;
+  status?: 'draft' | 'published';
 }
 
 interface NoteFormProps {
