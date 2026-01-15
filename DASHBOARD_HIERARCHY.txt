@@ -1,0 +1,227 @@
+================================================================================
+                        DASHBOARD HIERARCHY
+================================================================================
+
+Every user gets routed to ONE primary dashboard based on their role.
+From there, they can access dashboards within their permission scope.
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                          /dashboard (Router)                                │
+│                     (Determines user role, auto-redirects)                  │
+└────────────┬──────────────────────────────────────────────────────────────┬─┘
+             │                                                              │
+      ┌──────▼──────────┐                                        ┌──────────▼──┐
+      │   MEMBER        │                                        │   ADMIN     │
+      │  (kitchen_staff)│◄──────────────────────────────────────►│ (manager)   │
+      │    (waitress)   │                                        └──────┬──────┘
+      └──────┬──────────┘                                               │
+             │                                                          │
+      ┌──────▼─────────────┐                           ┌──────────────▼──────┐
+      │ MEMBER DASHBOARD   │                           │  LOCATION DASHBOARD │
+      │ /dashboard/member  │                           │ /dashboard/location │
+      │                    │                           │                     │
+      │ Shows:             │                           │ Shows:              │
+      │ ✓ Personal stats   │                           │ ✓ Location KPIs     │
+      │ ✓ Team overview    │                           │ ✓ All teams         │
+      │ ✓ Team members     │                           │ ✓ All members       │
+      │ ✓ Recent activity  │                           │ ✓ Financials*       │
+      │ ✓ Assigned tasks   │                           │ ✓ Events            │
+      │                    │                           │                     │
+      │ Can edit:          │                           │ Can edit:           │
+      │ ✗ NOTHING          │                           │ ✓ Location data     │
+      │                    │                           │ ✓ Team/member data  │
+      └──────┬─────────────┘                           │                     │
+             │                                         └──────┬──────────────┘
+             │                                                │
+      ┌──────▼─────────────┐                           ┌──────▼──────────────┐
+      │  TEAM DASHBOARD    │                           │   ADMIN DASHBOARD   │
+      │  /dashboard/team   │                           │  /dashboard/admin   │
+      │                    │                           │                     │
+      │ Shows:             │                           │ Shows:              │
+      │ ✓ Team KPIs        │                           │ ✓ Company KPIs      │
+      │ ✓ Team members     │                           │ ✓ All locations     │
+      │ ✓ Team tasks       │                           │ ✓ All teams         │
+      │ ✓ Team notes       │                           │ ✓ All members       │
+      │ ✓ Analytics*       │                           │ ✓ All financials    │
+      │                    │                           │ ✓ Reports           │
+      │ Can edit:          │                           │                     │
+      │ ✗ NOTHING          │                           │ Can edit:           │
+      │   (member level)   │                           │ ✓ EVERYTHING        │
+      │ ✓ EVERYTHING       │                           │                     │
+      │   (manager level)  │                           │ Admin-only:         │
+      │                    │                           │ ✓ User management   │
+      └────────────────────┘                           │ ✓ System settings   │
+                 │                                      │ ✓ Integrations      │
+                 │                                      │                     │
+                 │                                      └─────────────────────┘
+                 │
+         (members can also
+           access team
+           dashboard via
+            team link)
+
+================================================================================
+                        ACCESS MATRIX
+================================================================================
+
+MEMBER (kitchen_staff, waitress):
+─────────────────────────────────
+  ✅ Access /dashboard/member
+  ✅ Access /dashboard/team  
+  ❌ Access /dashboard/location
+  ❌ Access /dashboard/admin
+  
+  See:
+    ✓ Own personal data (hours, tasks, revenue, stats)
+    ✓ Team members and their basic info
+    ✓ Team tasks and notes
+    ✓ Team messages
+    ✓ Assigned todos
+    
+  Cannot See:
+    ✗ Location financial data
+    ✗ Other teams' data
+    ✗ Other locations' data
+    ✗ Company-wide analytics
+    ✗ User management
+    
+  Can Edit:
+    ✓ Own profile
+    ✓ Own status/availability
+    ✓ Content they own
+    
+  Cannot Edit:
+    ✗ Team data
+    ✗ Anything else
+
+─────────────────────────────────
+
+MANAGER (team_manager, location_manager):
+─────────────────────────────────────────
+  ✅ Access /dashboard/member
+  ✅ Access /dashboard/team
+  ✅ Access /dashboard/location
+  ❌ Access /dashboard/admin
+  
+  See:
+    ✓ All team/location data
+    ✓ All team/location members
+    ✓ All team/location tasks, notes, decisions
+    ✓ Financial data for their location
+    ✓ Team performance analytics
+    
+  Cannot See:
+    ✗ Other locations' data
+    ✗ Other locations' financials
+    ✗ Company-wide analytics (only aggregate)
+    ✗ User role management
+    
+  Can Edit:
+    ✓ Team/location data
+    ✓ Team member assignments
+    ✓ Team/location content
+    ✓ Location-level settings
+    ✓ Team/location notes and tasks
+    
+  Can Delete:
+    ✓ Team/location content
+    ✓ Team tasks/notes
+    
+  Cannot Delete:
+    ✗ Users
+    ✗ Teams or locations
+
+─────────────────────────────────
+
+ADMIN (overall_manager):
+───────────────────────
+  ✅ Access /dashboard/member
+  ✅ Access /dashboard/team
+  ✅ Access /dashboard/location
+  ✅ Access /dashboard/admin
+  
+  See:
+    ✓ ALL data across all locations
+    ✓ ALL users
+    ✓ ALL financial data
+    ✓ Company-wide analytics
+    ✓ System logs
+    
+  Can Edit:
+    ✓ EVERYTHING
+    
+  Can Delete:
+    ✓ ANYTHING
+    
+  Admin Panel Access:
+    ✓ User management (create, edit, delete roles)
+    ✓ System settings
+    ✓ Integration settings
+    ✓ Report generation
+    ✓ Audit logs
+    ✓ Backup/restore
+
+================================================================================
+                        SCOPE HIERARCHY
+================================================================================
+
+SCOPES (in order of broadness):
+
+  self → team → location → company
+  
+  What can each role access at each scope?
+
+  MEMBER:
+    self:      ✅ View & Edit
+    team:      ✅ View (linked members only)
+    location:  ✅ View (read-only, location info only)
+    company:   ❌ No access
+
+  MANAGER:
+    self:      ✅ View & Edit
+    team:      ✅ View & Edit
+    location:  ✅ View & Edit
+    company:   ❌ No access
+
+  ADMIN:
+    self:      ✅ View & Edit & Delete
+    team:      ✅ View & Edit & Delete
+    location:  ✅ View & Edit & Delete
+    company:   ✅ View & Edit & Delete
+
+================================================================================
+                    EXAMPLE USER JOURNEYS
+================================================================================
+
+JOHN (Member):
+──────────────
+  1. Logs in
+  2. /dashboard redirects to /dashboard/member
+  3. Sees: Personal stats, team overview, team members
+  4. Clicks "My Team" → goes to /dashboard/team
+  5. Sees: Team KPIs, team members, assigned tasks
+  6. Tries to access /dashboard/location → 403 Forbidden
+  7. Cannot edit team data
+  
+SARAH (Manager):
+────────────────
+  1. Logs in
+  2. /dashboard redirects to /dashboard/location
+  3. Sees: Location KPIs, all teams, all members, financials
+  4. Can edit team assignments, location settings
+  5. Clicks member name → sees member's team dashboard
+  6. Tries to access /dashboard/admin → 403 Forbidden
+  7. Cannot see other locations' data
+  
+BOSS (Admin):
+─────────────
+  1. Logs in
+  2. /dashboard redirects to /dashboard/admin
+  3. Sees: Company KPIs, all locations, all teams, all members
+  4. Can view all financial data
+  5. Clicks "User Management" → manage all roles
+  6. Clicks "Settings" → system configuration
+  7. Can access any other dashboard for detail view
+  8. Has access to everything
+
+================================================================================
