@@ -69,11 +69,15 @@ export default function NoteDetailPage({ slug }: NoteDetailPageProps) {
     try {
       const res = await fetch('/api/members');
       const data = await res.json();
-      if (data.success) {
+      if (data.success && Array.isArray(data.data)) {
         setMembers(data.data);
+      } else {
+        console.error('Invalid members response:', data);
+        setMembers([]);
       }
     } catch (err) {
       console.error('Failed to load members:', err);
+      setMembers([]);
     }
   };
 
@@ -463,20 +467,37 @@ export default function NoteDetailPage({ slug }: NoteDetailPageProps) {
 
             {showAddMember && (
               <div className="mb-3 p-3 bg-white rounded border">
-                <select
-                  value={selectedMemberId}
-                  onChange={(e) => setSelectedMemberId(e.target.value)}
-                  className="w-full mb-2 px-3 py-2 border rounded text-gray-900"
-                >
-                  <option value="">Select Member</option>
-                  {members
-                    .filter((m) => !note.connected_members?.some((cm) => getMemberId(cm.member_id) === m._id))
-                    .map((member) => (
-                      <option key={member._id} value={member._id}>
-                        {member.name} ({member.email})
-                      </option>
-                    ))}
-                </select>
+                {members.length === 0 ? (
+                  <div className="text-sm text-gray-500 mb-2">
+                    {members.length === 0 && !loading ? 'No members available' : 'Loading members...'}
+                  </div>
+                ) : (
+                  <>
+                    <select
+                      value={selectedMemberId}
+                      onChange={(e) => setSelectedMemberId(e.target.value)}
+                      className="w-full mb-2 px-3 py-2 border rounded text-gray-900"
+                    >
+                      <option value="">Select Member</option>
+                      {members
+                        .filter((m) => {
+                          if (!note.connected_members || note.connected_members.length === 0) return true;
+                          return !note.connected_members.some((cm) => getMemberId(cm.member_id) === m._id);
+                        })
+                        .map((member) => (
+                          <option key={member._id} value={member._id}>
+                            {member.name} ({member.email})
+                          </option>
+                        ))}
+                    </select>
+                    {members.filter((m) => {
+                      if (!note.connected_members || note.connected_members.length === 0) return true;
+                      return !note.connected_members.some((cm) => getMemberId(cm.member_id) === m._id);
+                    }).length === 0 && (
+                      <div className="text-xs text-gray-500 mb-2">All members are already connected to this note</div>
+                    )}
+                  </>
+                )}
                 <select
                   value={selectedRole}
                   onChange={(e) => setSelectedRole(e.target.value as typeof selectedRole)}

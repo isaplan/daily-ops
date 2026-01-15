@@ -107,10 +107,13 @@ export async function PUT(
     }
     
     // Handle publish/unpublish
-    if (body.publish === true) {
+    const wasPublishing = body.publish === true;
+    const wasUnpublishing = body.publish === false;
+    
+    if (wasPublishing) {
       updateData.status = 'published';
       updateData.published_at = new Date();
-    } else if (body.publish === false) {
+    } else if (wasUnpublishing) {
       updateData.status = 'draft';
       updateData.published_at = undefined;
     }
@@ -127,6 +130,76 @@ export async function PUT(
         { success: false, error: 'Note not found' },
         { status: 404 }
       );
+    }
+    
+    // Auto-parse todos when note is published
+    if (wasPublishing && note.content) {
+      try {
+        // Import parse todos function dynamically to avoid circular dependencies
+        const { parseTodosFromText } = await import('@/lib/utils/todoParser');
+        const Member = (await import('@/models/Member')).default;
+        const Todo = (await import('@/models/Todo')).default;
+        
+        const members = await Member.find({ is_active: true }).select('name email').lean();
+        const parsedTodos = parseTodosFromText(note.content, members);
+        
+        if (parsedTodos.length > 0) {
+          const todoIds = [];
+          
+          for (const parsedTodo of parsedTodos) {
+            if (!parsedTodo.memberId) continue;
+            
+            // Check if todo already exists
+            const existingTodo = await Todo.findOne({
+              title: parsedTodo.title,
+              assigned_to: parsedTodo.memberId,
+              linked_note: note._id,
+            });
+            
+            if (existingTodo) {
+              // Update existing todo if needed
+              if (parsedTodo.dueDate && (!existingTodo.due_date || existingTodo.due_date.getTime() !== parsedTodo.dueDate.getTime())) {
+                existingTodo.due_date = parsedTodo.dueDate;
+              }
+              if (parsedTodo.priority !== existingTodo.priority) {
+                existingTodo.priority = parsedTodo.priority;
+              }
+              await existingTodo.save();
+              todoIds.push(existingTodo._id);
+            } else {
+              // Create new todo
+              const todo = await Todo.create({
+                title: parsedTodo.title,
+                description: `Auto-generated from note: ${note.title}`,
+                assigned_to: parsedTodo.memberId,
+                created_by: note.author_id,
+                priority: parsedTodo.priority,
+                due_date: parsedTodo.dueDate,
+                linked_note: note._id,
+                connected_to: {
+                  location_id: note.connected_to?.location_id,
+                  team_id: note.connected_to?.team_id,
+                  member_id: parsedTodo.memberId,
+                },
+                status: 'pending',
+              });
+              todoIds.push(todo._id);
+            }
+          }
+          
+          // Update note's linked_todos array
+          const existingTodoIds = note.linked_todos.map((tid) => tid.toString());
+          const newTodoIds = todoIds.filter((tid) => !existingTodoIds.includes(tid.toString()));
+          
+          if (newTodoIds.length > 0) {
+            note.linked_todos = [...note.linked_todos, ...newTodoIds];
+            await note.save();
+          }
+        }
+      } catch (parseError) {
+        // Log error but don't fail the publish operation
+        console.error('Error auto-parsing todos on publish:', parseError);
+      }
     }
     
     return NextResponse.json({ success: true, data: note });
