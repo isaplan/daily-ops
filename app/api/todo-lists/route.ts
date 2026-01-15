@@ -1,9 +1,9 @@
 /**
  * @registry-id: todoListsAPI
  * @created: 2026-01-15T10:00:00.000Z
- * @last-modified: 2026-01-15T10:00:00.000Z
+ * @last-modified: 2026-01-15T14:30:00.000Z
  * @description: TodoLists API route - GET and POST
- * @last-fix: [2026-01-15] Initial implementation
+ * @last-fix: [2026-01-15] Fixed MissingSchemaError by importing Todo model and explicitly specifying model in populate calls
  * 
  * @exports-to:
  * ✓ app/components/todos/** => TodoList display components
@@ -12,6 +12,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import dbConnect from '@/lib/mongodb';
 import TodoList from '@/models/TodoList';
+import Todo from '@/models/Todo'; // Import Todo model to register schema for populate
 import { getErrorMessage } from '@/lib/types/errors';
 import type { ITodoList } from '@/models/TodoList';
 
@@ -44,7 +45,10 @@ export async function GET(request: NextRequest) {
       .populate('created_by', 'name email')
       .populate('connected_to.location_id', 'name')
       .populate('connected_to.team_id', 'name')
-      .populate('todos')
+      .populate({
+        path: 'todos',
+        model: 'Todo', // Explicitly specify model for populate
+      })
       .sort({ created_at: -1 })
       .limit(100);
     

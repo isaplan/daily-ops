@@ -1,9 +1,9 @@
 /**
  * @registry-id: todoListTodosAPI
  * @created: 2026-01-15T10:00:00.000Z
- * @last-modified: 2026-01-15T10:00:00.000Z
+ * @last-modified: 2026-01-15T14:30:00.000Z
  * @description: Add/remove todos from a todo list
- * @last-fix: [2026-01-15] Initial implementation
+ * @last-fix: [2026-01-15] Fixed populate calls to explicitly specify Todo model
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -55,7 +55,10 @@ export async function POST(
     todo.list_id = new mongoose.Types.ObjectId(id);
     await todo.save();
     
-    await list.populate('todos');
+    await list.populate({
+      path: 'todos',
+      model: 'Todo', // Explicitly specify model for populate
+    });
     
     return NextResponse.json({ success: true, data: list });
   } catch (error: unknown) {
@@ -99,7 +102,10 @@ export async function DELETE(
     
     await Todo.findByIdAndUpdate(todo_id, { $unset: { list_id: 1 } });
     
-    await list.populate('todos');
+    await list.populate({
+      path: 'todos',
+      model: 'Todo', // Explicitly specify model for populate
+    });
     
     return NextResponse.json({ success: true, data: list });
   } catch (error: unknown) {

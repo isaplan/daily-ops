@@ -1,9 +1,9 @@
 /**
  * @registry-id: todoListByIdAPI
  * @created: 2026-01-15T10:00:00.000Z
- * @last-modified: 2026-01-15T10:00:00.000Z
+ * @last-modified: 2026-01-15T14:30:00.000Z
  * @description: Individual TodoList API route - GET, PATCH, DELETE
- * @last-fix: [2026-01-15] Initial implementation
+ * @last-fix: [2026-01-15] Fixed populate calls to explicitly specify Todo model
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -28,6 +28,7 @@ export async function GET(
       .populate('connected_to.team_id', 'name')
       .populate({
         path: 'todos',
+        model: 'Todo', // Explicitly specify model for populate
         populate: [
           { path: 'assigned_to', select: 'name email' },
           { path: 'created_by', select: 'name email' },
