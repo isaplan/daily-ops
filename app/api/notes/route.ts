@@ -117,7 +117,11 @@ export async function GET(request: NextRequest) {
       .populate('connected_to.location_id', 'name')
       .populate('connected_to.team_id', 'name')
       .populate('connected_to.member_id', 'name email')
-      .populate('connected_members.member_id', 'name email')
+      .populate({
+        path: 'connected_members.member_id',
+        select: 'name email',
+        model: 'Member',
+      })
       .sort({ is_pinned: -1, created_at: -1 })
       .limit(100);
     
@@ -156,6 +160,11 @@ export async function POST(request: NextRequest) {
     await note.populate('connected_to.location_id', 'name');
     await note.populate('connected_to.team_id', 'name');
     await note.populate('connected_to.member_id', 'name email');
+    await note.populate({
+      path: 'connected_members.member_id',
+      select: 'name email',
+      model: 'Member',
+    });
     
     return NextResponse.json({ success: true, data: note }, { status: 201 });
   } catch (error: unknown) {
