@@ -17,6 +17,7 @@ import Todo from '@/models/Todo';
 import Member from '@/models/Member';
 import Location from '@/models/Location';
 import Team from '@/models/Team';
+import { getErrorMessage } from '@/lib/types/errors';
 
 export async function GET(request: NextRequest) {
   try {
@@ -31,7 +32,18 @@ export async function GET(request: NextRequest) {
     const is_public = searchParams.get('is_public');
     const current_user_id = searchParams.get('current_user_id');
     
-    const query: any = {};
+    interface TodoQuery {
+      status?: string;
+      list_id?: string;
+      'connected_to.location_id'?: string;
+      'connected_to.team_id'?: string;
+      linked_note?: string;
+      linked_chat?: string;
+      is_public?: boolean;
+      $or?: Array<Record<string, unknown>>;
+    }
+    
+    const query: TodoQuery = {};
     
     if (status) {
       query.status = status;
@@ -160,10 +172,10 @@ export async function POST(request: NextRequest) {
     await todo.populate('linked_chat', 'text');
     
     return NextResponse.json({ success: true, data: todo }, { status: 201 });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error creating todo:', error);
     return NextResponse.json(
-      { success: false, error: error.message || 'Failed to create todo' },
+      { success: false, error: getErrorMessage(error) },
       { status: 400 }
     );
   }

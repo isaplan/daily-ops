@@ -16,6 +16,7 @@ import Note from '@/models/Note';
 import Todo from '@/models/Todo';
 import Event from '@/models/Event';
 import Decision from '@/models/Decision';
+import { getErrorMessage } from '@/lib/types/errors';
 
 export async function GET(request: NextRequest) {
   try {
@@ -32,12 +33,21 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const channel_id = searchParams.get('channel_id');
     
-    const query: any = {};
+    interface MessageQuery {
+      channel_id?: string;
+      is_deleted: boolean;
+    }
+    
+    const query: MessageQuery = { is_deleted: false };
     if (channel_id) {
       query.channel_id = channel_id;
     }
     
-    const messages = await Message.find({ ...query, is_deleted: false })
+    if (channel_id) {
+      query.channel_id = channel_id;
+    }
+    
+    const messages = await Message.find(query)
       .populate('member_id', 'name email')
       .populate('channel_id', 'name')
       .populate('mentioned_members', 'name email')
@@ -149,7 +159,7 @@ export async function POST(request: NextRequest) {
     if (body.channel_id && mentionedMemberIds.length > 0) {
       const channel = await Channel.findById(body.channel_id);
       if (channel) {
-        const currentMemberIds = channel.members.map((id: any) => id.toString());
+        const currentMemberIds = channel.members.map((id: mongoose.Types.ObjectId) => id.toString());
         const newMemberIds = mentionedMemberIds.filter(
           (id) => !currentMemberIds.includes(id)
         );
@@ -199,10 +209,10 @@ export async function POST(request: NextRequest) {
       data: message,
       addedMembers: addedMembers.length > 0 ? addedMembers : undefined
     }, { status: 201 });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error creating message:', error);
     return NextResponse.json(
-      { success: false, error: error.message || 'Failed to create message' },
+      { success: false, error: getErrorMessage(error) },
       { status: 400 }
     );
   }

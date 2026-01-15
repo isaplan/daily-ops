@@ -13,6 +13,7 @@ import Event from '@/models/Event';
 import Member from '@/models/Member';
 import Location from '@/models/Location';
 import Channel from '@/models/Channel';
+import { getErrorMessage } from '@/lib/types/errors';
 
 export async function GET(request: NextRequest) {
   try {
@@ -35,7 +36,14 @@ export async function GET(request: NextRequest) {
     const date = searchParams.get('date');
     const assigned_to = searchParams.get('assigned_to');
     
-    const query: any = {};
+    interface EventQuery {
+      location_id?: string;
+      status?: string;
+      date?: { $gte: Date; $lt: Date };
+      assigned_to?: string;
+    }
+    
+    const query: EventQuery = {};
     
     if (location_id) {
       query.location_id = location_id;
@@ -104,10 +112,10 @@ export async function POST(request: NextRequest) {
     await event.populate('created_by', 'name email');
     
     return NextResponse.json({ success: true, data: event }, { status: 201 });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error creating event:', error);
     return NextResponse.json(
-      { success: false, error: error.message || 'Failed to create event' },
+      { success: false, error: getErrorMessage(error) },
       { status: 400 }
     );
   }

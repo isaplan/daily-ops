@@ -13,7 +13,6 @@
  */
 
 import mongoose, { Schema, Document, Model } from 'mongoose';
-import { generateSlug } from '@/lib/utils/slug';
 
 export interface INote extends Document {
   title: string;
@@ -80,15 +79,6 @@ NoteSchema.index({ 'connected_to.member_id': 1 });
 NoteSchema.index({ linked_todos: 1 });
 NoteSchema.index({ is_archived: 1 });
 NoteSchema.index({ status: 1 });
-
-// Pre-save hook to generate slug if not present
-NoteSchema.pre('save', function (next) {
-  if (!this.slug) {
-    let slug = generateSlug(this.title);
-    this.slug = slug;
-  }
-  next();
-});
 
 const Note: Model<INote> = mongoose.models.Note || mongoose.model<INote>('Note', NoteSchema);
 
