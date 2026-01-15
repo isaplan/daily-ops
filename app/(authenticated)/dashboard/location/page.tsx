@@ -36,7 +36,7 @@ interface LocationData {
 }
 
 export default function LocationDashboard() {
-  const { user, loading: authLoading, canView, canEdit, isManager, isAdmin } = useAuth();
+  const { user, loading: authLoading, canView, canEdit, isManager, isAdmin, canViewOtherLocations } = useAuth();
   const [locationData, setLocationData] = useState<LocationData | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -156,7 +156,8 @@ export default function LocationDashboard() {
           <TabsTrigger value="teams">Teams</TabsTrigger>
           <TabsTrigger value="members">Members</TabsTrigger>
           <TabsTrigger value="events">Events</TabsTrigger>
-          {canView('company') && <TabsTrigger value="financials">Financials</TabsTrigger>}
+          {(isManager || isAdmin) && <TabsTrigger value="financials">Financials</TabsTrigger>}
+          {canViewOtherLocations() && <TabsTrigger value="other-locations">Other Locations</TabsTrigger>}
         </TabsList>
 
         {/* Teams Tab */}
@@ -208,16 +209,36 @@ export default function LocationDashboard() {
           </Card>
         </TabsContent>
 
-        {/* Financials Tab - Only for admins viewing all locations */}
-        {canView('company') && (
+        {/* Financials Tab - For managers and admins */}
+        {(isManager || isAdmin) && (
           <TabsContent value="financials" className="space-y-4">
             <Card>
               <CardHeader>
                 <CardTitle>Financial Summary</CardTitle>
-                <CardDescription>Financial data for this location</CardDescription>
+                <CardDescription>
+                  Financial data for this location {isManager && '(read-only)'}
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 <p className="text-muted-foreground">Financial summary coming soon...</p>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
+
+        {/* Other Locations Tab - For managers and admins */}
+        {canViewOtherLocations() && (
+          <TabsContent value="other-locations" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Other Locations</CardTitle>
+                <CardDescription>View other company locations</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-muted-foreground">Other locations list coming soon...</p>
+                <p className="text-sm text-muted-foreground mt-2">
+                  You can also view the <a href="/dashboard/company" className="text-blue-600 underline">consolidated company view</a>.
+                </p>
               </CardContent>
             </Card>
           </TabsContent>

@@ -38,26 +38,32 @@ export interface UserPermissions {
   canAccessAdminPanel: boolean;
   canViewFinancials: boolean;
   canManageUsers: boolean;
+  // Specific action permissions
+  canEditTeamMembers: boolean;
+  canCreateTeams: boolean;
+  canViewOtherLocations: boolean;
+  canViewConsolidatedView: boolean; // Company-wide consolidated view
 }
 
 /**
  * Permission Matrix
  * 
  * MEMBER (kitchen_staff, waitress):
- * - View: Personal data, team content/notes/todos/messages, their location
+ * - View: Personal data, team content/notes/todos/messages, their location (read-only)
  * - Edit: Personal data, content they own
- * - Can't: Delete anything, view financial data, access admin
+ * - Can't: Delete anything, view financial data, access admin, edit team/location
  * 
  * MANAGER (team manager, location manager):
- * - View: Team/location data, all member content within scope
- * - Edit: Team/location data, content within scope
- * - Can't: Delete users, access company-wide data (unless location manager)
+ * - View: Team/location data, all member content within scope, company (read-only), other locations, consolidated view
+ * - Edit: Team data, team members (can edit team members)
+ * - Can't: Edit location, create new teams, delete users, access admin panel
+ * - Can: View other locations, view consolidated company-wide view
  * 
  * ADMIN (overall_manager):
  * - View: EVERYTHING
  * - Edit: EVERYTHING
  * - Delete: ANYTHING
- * - Access: Admin panel, all financials, user management
+ * - Access: Admin panel, all financials, user management, all locations
  */
 
 export const PERMISSIONS_MATRIX: Record<Role, UserPermissions> = {
@@ -67,7 +73,7 @@ export const PERMISSIONS_MATRIX: Record<Role, UserPermissions> = {
     canView: {
       self: true,
       team: true,
-      location: true, // Read-only team's location info
+      location: true, // Read-only: can see location they're part of
       company: false,
     },
     canEdit: {
@@ -85,32 +91,40 @@ export const PERMISSIONS_MATRIX: Record<Role, UserPermissions> = {
     canAccessAdminPanel: false,
     canViewFinancials: false,
     canManageUsers: false,
+    canEditTeamMembers: false,
+    canCreateTeams: false,
+    canViewOtherLocations: false,
+    canViewConsolidatedView: false,
   },
 
   manager: {
     role: 'manager',
-    scopes: ['team', 'location'],
+    scopes: ['team', 'location', 'company'], // Can view company (read-only)
     canView: {
       self: true,
       team: true,
       location: true,
-      company: false,
+      company: true, // Can view company data (consolidated view)
     },
     canEdit: {
       self: true,
       team: true,
-      location: true,
+      location: false, // Cannot edit location settings
       company: false,
     },
     canDelete: {
       self: false,
       team: true, // Can delete team content, not team itself
-      location: true, // Can delete location content
+      location: false, // Cannot delete location content
       company: false,
     },
     canAccessAdminPanel: false,
     canViewFinancials: true,
     canManageUsers: true, // Within their location
+    canEditTeamMembers: true, // Can edit team members
+    canCreateTeams: false, // Cannot create new teams
+    canViewOtherLocations: true, // Can view other locations
+    canViewConsolidatedView: true, // Can view company-wide consolidated view
   },
 
   admin: {
@@ -137,6 +151,10 @@ export const PERMISSIONS_MATRIX: Record<Role, UserPermissions> = {
     canAccessAdminPanel: true,
     canViewFinancials: true,
     canManageUsers: true,
+    canEditTeamMembers: true,
+    canCreateTeams: true,
+    canViewOtherLocations: true,
+    canViewConsolidatedView: true,
   },
 };
 
@@ -203,6 +221,34 @@ export function getContentVisibilityRules(userRole: Role): ContentVisibilityRule
  */
 export const DASHBOARD_ROUTES: Record<Role, string[]> = {
   member: ['/dashboard', '/dashboard/team'],
-  manager: ['/dashboard', '/dashboard/team', '/dashboard/location'],
-  admin: ['/dashboard', '/dashboard/team', '/dashboard/location', '/dashboard/admin'],
+  manager: ['/dashboard', '/dashboard/team', '/dashboard/location', '/dashboard/company'], // Managers can view company consolidated view
+  admin: ['/dashboard', '/dashboard/team', '/dashboard/location', '/dashboard/company', '/dashboard/admin'],
 };
+
+/**
+ * Check if user can edit team members
+ */
+export function canEditTeamMembers(role: Role): boolean {
+  return PERMISSIONS_MATRIX[role].canEditTeamMembers;
+}
+
+/**
+ * Check if user can create new teams
+ */
+export function canCreateTeams(role: Role): boolean {
+  return PERMISSIONS_MATRIX[role].canCreateTeams;
+}
+
+/**
+ * Check if user can view other locations (not just their own)
+ */
+export function canViewOtherLocations(role: Role): boolean {
+  return PERMISSIONS_MATRIX[role].canViewOtherLocations;
+}
+
+/**
+ * Check if user can view consolidated company-wide view
+ */
+export function canViewConsolidatedView(role: Role): boolean {
+  return PERMISSIONS_MATRIX[role].canViewConsolidatedView;
+}

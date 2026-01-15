@@ -112,24 +112,36 @@ export async function GET(request: NextRequest) {
       }
     }
     
-    const notes = await Note.find(query)
+    let notesQuery = Note.find(query)
       .populate('author_id', 'name email')
       .populate('connected_to.location_id', 'name')
       .populate('connected_to.team_id', 'name')
-      .populate('connected_to.member_id', 'name email')
-      .populate({
+      .populate('connected_to.member_id', 'name email');
+    
+    // Only populate connected_members if the field exists (for backward compatibility)
+    try {
+      notesQuery = notesQuery.populate({
         path: 'connected_members.member_id',
         select: 'name email',
         model: 'Member',
-      })
+        strictPopulate: false,
+      });
+    } catch (populateError) {
+      console.warn('Could not populate connected_members (may not exist on all notes):', populateError);
+    }
+    
+    const notes = await notesQuery
       .sort({ is_pinned: -1, created_at: -1 })
       .limit(100);
     
     return NextResponse.json({ success: true, data: notes });
   } catch (error) {
     console.error('Error fetching notes:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorStack = error instanceof Error ? error.stack : undefined;
+    console.error('Error details:', { errorMessage, errorStack });
     return NextResponse.json(
-      { success: false, error: 'Failed to fetch notes' },
+      { success: false, error: `Failed to fetch notes: ${errorMessage}` },
       { status: 500 }
     );
   }

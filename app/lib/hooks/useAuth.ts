@@ -79,7 +79,7 @@ export function useAuth() {
       case 'member':
         return scope === 'self' || scope === 'team' || scope === 'location';
       case 'manager':
-        return scope !== 'company';
+        return true; // Managers can view all scopes including company
       case 'admin':
         return true;
       default:
@@ -97,7 +97,7 @@ export function useAuth() {
       case 'member':
         return scope === 'self';
       case 'manager':
-        return scope === 'self' || scope === 'team' || scope === 'location';
+        return scope === 'self' || scope === 'team'; // Cannot edit location
       case 'admin':
         return true;
       default:
@@ -165,6 +165,38 @@ export function useAuth() {
     return state.user.role === 'admin';
   };
 
+  /**
+   * Check if user can edit team members
+   */
+  const canEditTeamMembers = (): boolean => {
+    if (!state.user) return false;
+    return state.user.role === 'manager' || state.user.role === 'admin';
+  };
+
+  /**
+   * Check if user can create new teams
+   */
+  const canCreateTeams = (): boolean => {
+    if (!state.user) return false;
+    return state.user.role === 'admin';
+  };
+
+  /**
+   * Check if user can view other locations (not just their own)
+   */
+  const canViewOtherLocations = (): boolean => {
+    if (!state.user) return false;
+    return state.user.role === 'manager' || state.user.role === 'admin';
+  };
+
+  /**
+   * Check if user can view consolidated company-wide view
+   */
+  const canViewConsolidatedView = (): boolean => {
+    if (!state.user) return false;
+    return state.user.role === 'manager' || state.user.role === 'admin';
+  };
+
   return {
     user: state.user,
     loading: state.loading,
@@ -180,5 +212,9 @@ export function useAuth() {
     canViewFinancials,
     canManageUsers,
     canAccessAdminPanel,
+    canEditTeamMembers,
+    canCreateTeams,
+    canViewOtherLocations,
+    canViewConsolidatedView,
   };
 }

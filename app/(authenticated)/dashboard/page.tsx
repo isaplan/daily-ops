@@ -26,7 +26,7 @@ export default function DashboardPage() {
     if (isAdmin) {
       router.push('/dashboard/admin');
     } else if (isManager) {
-      router.push('/dashboard/location');
+      router.push('/dashboard/location'); // Managers default to location, but can access company view
     } else if (isMember) {
       router.push('/dashboard/member');
     } else {
