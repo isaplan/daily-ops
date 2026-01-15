@@ -44,7 +44,7 @@ const NoteSchema = new Schema<INote>(
   {
     title: { type: String, required: true },
     content: { type: String, required: true },
-    slug: { type: String, required: true, unique: true, lowercase: true },
+    slug: { type: String, lowercase: true, sparse: true, index: true },
     
     author_id: { type: Schema.Types.ObjectId, ref: 'Member', required: true },
     
@@ -72,13 +72,30 @@ const NoteSchema = new Schema<INote>(
 );
 
 NoteSchema.index({ author_id: 1 });
-NoteSchema.index({ slug: 1 });
+NoteSchema.index({ slug: 1 }, { sparse: true });
 NoteSchema.index({ 'connected_to.location_id': 1 });
 NoteSchema.index({ 'connected_to.team_id': 1 });
 NoteSchema.index({ 'connected_to.member_id': 1 });
 NoteSchema.index({ linked_todos: 1 });
 NoteSchema.index({ is_archived: 1 });
 NoteSchema.index({ status: 1 });
+
+// Pre-save hook to generate slug if not present
+NoteSchema.pre('save', async function (next) {
+  if (!this.slug) {
+    const { generateSlug } = await import('@/lib/utils/slug');
+    let slug = generateSlug(this.title);
+    
+    // Check for duplicate slugs and append timestamp if needed
+    let existingSlug = await mongoose.model('Note').findOne({ slug });
+    if (existingSlug) {
+      slug = `${slug}-${Date.now()}`;
+    }
+    
+    this.slug = slug;
+  }
+  next();
+});
 
 const Note: Model<INote> = mongoose.models.Note || mongoose.model<INote>('Note', NoteSchema);
 

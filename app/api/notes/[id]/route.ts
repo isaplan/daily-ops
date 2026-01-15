@@ -24,11 +24,21 @@ export async function GET(
     const { id } = await params;
     const filter = slugToFilter(id);
     
-    const note = await Note.findOne(filter)
+    // Try to find by the primary filter (slug or _id)
+    let note = await Note.findOne(filter)
       .populate('author_id', 'name email')
       .populate('connected_to.location_id', 'name')
       .populate('connected_to.team_id', 'name')
       .populate('connected_to.member_id', 'name email');
+    
+    // If not found and we searched by slug, try by ID as fallback
+    if (!note && !filter._id) {
+      note = await Note.findById(id)
+        .populate('author_id', 'name email')
+        .populate('connected_to.location_id', 'name')
+        .populate('connected_to.team_id', 'name')
+        .populate('connected_to.member_id', 'name email');
+    }
     
     if (!note) {
       return NextResponse.json(
