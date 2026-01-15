@@ -412,12 +412,10 @@ function TodosContent() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">Created By (Member ID) *</label>
-                  <input
+                  <MemberSelect
                     name="created_by"
+                    label="Created By"
                     required
-                    className="w-full px-3 py-2 border rounded"
-                    placeholder="member_id"
                   />
                 </div>
                 <div className="flex items-center gap-2">
