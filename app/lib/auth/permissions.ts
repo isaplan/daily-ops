@@ -1,9 +1,9 @@
 /**
  * @registry-id: permissions
  * @created: 2026-01-15T12:00:00.000Z
- * @last-modified: 2026-01-15T12:00:00.000Z
+ * @last-modified: 2026-01-15T14:00:00.000Z
  * @description: Role-based access control system with permissions matrix
- * @last-fix: [2026-01-15] Initial implementation
+ * @last-fix: [2026-01-15] Updated permissions: managers can view company/other locations, edit team members, cannot edit location or create teams
  * 
  * @exports-to:
  * ✓ app/lib/hooks/useAuth.ts => useAuth hook for permission checks

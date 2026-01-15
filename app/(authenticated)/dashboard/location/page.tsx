@@ -83,6 +83,11 @@ export default function LocationDashboard() {
         <p className="text-muted-foreground">
           {locationData.address} • {locationData.city}, {locationData.country}
         </p>
+        {isManager && !isAdmin && (
+          <p className="text-sm text-muted-foreground mt-1">
+            View-only mode • You can view but not edit location settings
+          </p>
+        )}
       </div>
 
       {/* Key KPIs */}

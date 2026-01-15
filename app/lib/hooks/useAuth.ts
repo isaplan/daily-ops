@@ -1,9 +1,9 @@
 /**
  * @registry-id: useAuth
  * @created: 2026-01-15T12:00:00.000Z
- * @last-modified: 2026-01-15T12:00:00.000Z
+ * @last-modified: 2026-01-15T14:00:00.000Z
  * @description: Auth hook with role/scope checking and permission evaluation
- * @last-fix: [2026-01-15] Initial implementation
+ * @last-fix: [2026-01-15] Added new permission checks: canEditTeamMembers, canCreateTeams, canViewOtherLocations, canViewConsolidatedView
  * 
  * @exports-to:
  * ✓ app/components/** => useAuth() for permission checks in UI
@@ -126,14 +126,14 @@ export function useAuth() {
   /**
    * Check if user can access specific dashboard
    */
-  const canAccessDashboard = (dashboard: 'member' | 'team' | 'location' | 'admin'): boolean => {
+  const canAccessDashboard = (dashboard: 'member' | 'team' | 'location' | 'company' | 'admin'): boolean => {
     if (!state.user) return false;
 
     switch (state.user.role) {
       case 'member':
         return dashboard === 'member' || dashboard === 'team';
       case 'manager':
-        return dashboard !== 'admin';
+        return dashboard === 'member' || dashboard === 'team' || dashboard === 'location' || dashboard === 'company';
       case 'admin':
         return true;
       default:

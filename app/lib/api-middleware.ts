@@ -1,9 +1,9 @@
 /**
  * @registry-id: apiMiddleware
  * @created: 2026-01-15T12:00:00.000Z
- * @last-modified: 2026-01-15T12:00:00.000Z
+ * @last-modified: 2026-01-15T14:00:00.000Z
  * @description: API middleware for permission checks and access control
- * @last-fix: [2026-01-15] Initial implementation
+ * @last-fix: [2026-01-15] Added middleware for new permissions: editTeamMembers, createTeams, viewOtherLocations, viewConsolidatedView
  * 
  * @exports-to:
  * ✓ app/api/** => All API routes using requireAuth, requireRole, requireScope
@@ -126,6 +126,50 @@ export function requireDeleteAccess(scope: Scope) {
     if (!user) return false;
     const permissions = PERMISSIONS_MATRIX[user.role];
     return permissions.canDelete[scope];
+  };
+}
+
+/**
+ * Middleware: Check if user can edit team members
+ */
+export function requireEditTeamMembers() {
+  return function (user: AuthUser | undefined) {
+    if (!user) return false;
+    const permissions = PERMISSIONS_MATRIX[user.role];
+    return permissions.canEditTeamMembers;
+  };
+}
+
+/**
+ * Middleware: Check if user can create new teams
+ */
+export function requireCreateTeams() {
+  return function (user: AuthUser | undefined) {
+    if (!user) return false;
+    const permissions = PERMISSIONS_MATRIX[user.role];
+    return permissions.canCreateTeams;
+  };
+}
+
+/**
+ * Middleware: Check if user can view other locations
+ */
+export function requireViewOtherLocations() {
+  return function (user: AuthUser | undefined) {
+    if (!user) return false;
+    const permissions = PERMISSIONS_MATRIX[user.role];
+    return permissions.canViewOtherLocations;
+  };
+}
+
+/**
+ * Middleware: Check if user can view consolidated company view
+ */
+export function requireViewConsolidatedView() {
+  return function (user: AuthUser | undefined) {
+    if (!user) return false;
+    const permissions = PERMISSIONS_MATRIX[user.role];
+    return permissions.canViewConsolidatedView;
   };
 }
 
