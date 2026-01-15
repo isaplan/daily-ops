@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:7.0
+    container_name: daily-ops-mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_DATABASE: daily-ops
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - daily-ops-network
+
+volumes:
+  mongodb_data:
+
+networks:
+  daily-ops-network:
+    driver: bridge

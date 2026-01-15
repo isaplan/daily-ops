@@ -5,13 +5,11 @@
  * Runs on pre-commit to:
  * 1. Parse @registry-id, @exports-to, @last-modified from critical files
  * 2. Validate all @exports-to files exist
- * 3. Update function-registry with dependency metadata
- * 4. Fail commit if dependencies broken
+ * 3. Fail commit if dependencies broken
  */
 
-import { readFileSync, writeFileSync } from 'fs'
-import { glob } from 'glob'
-import { join } from 'path'
+import { readFileSync } from 'fs'
+import { globSync } from 'glob'
 
 interface MetadataHeader {
   registryId?: string
@@ -22,45 +20,53 @@ interface MetadataHeader {
   description?: string
 }
 
-interface RegistryEntry {
-  id: string
-  file: string
-  type: string
-  dependencies?: string[]
-  exports_to?: string[]
-  last_sync?: string
-}
-
 // Parse metadata header from file
 function parseMetadata(filePath: string): MetadataHeader | null {
   try {
     const content = readFileSync(filePath, 'utf-8')
     const headerMatch = content.match(/\/\*\*([\s\S]*?)\*\//m)
-    
+
     if (!headerMatch) return null
     const header = headerMatch[1]
 
     const registryId = header.match(/@registry-id:\s*(\S+)/)?.[1]
     const lastModified = header.match(/@last-modified:\s*(\S+)/)?.[1]
     const lastFix = header.match(/@last-fix:\s*(.+)/)?.[1]
-    
-    // Parse @exports-to dependencies
+    const description = header.match(/@description:\s*(.+)/)?.[1]
+
+    // Parse @exports-to dependencies - more robust
     const exportsMatch = header.match(/@exports-to:([\s\S]*?)(?=@|\*\/)/m)
-    const exportsTo = exportsMatch
-      ? exportsMatch[1]
+    let exportsTo: string[] = []
+    if (exportsMatch) {
+      const exportText = exportsMatch[1]
+      // Skip lines with "(none" or empty lines
+      if (!exportText.toLowerCase().includes('(none')) {
+        exportsTo = exportText
           .split('\n')
-          .map(line => line.match(/✓?\s*([^\s→=>]+)/)?.[1])
+          .map(line => {
+            // Extract file paths from lines like "✓ path/to/file.ts => description"
+            const match = line.match(/(?:✓\s+)?([^\s=>\n]+(?:\.ts|\.tsx|\.js|\.jsx))/)
+            return match?.[1]
+          })
           .filter(Boolean) as string[]
-      : []
-    
+      }
+    }
+
     // Parse @imports-from dependencies
     const importsMatch = header.match(/@imports-from:([\s\S]*?)(?=@|\*\/)/m)
-    const importsFrom = importsMatch
-      ? importsMatch[1]
+    let importsFrom: string[] = []
+    if (importsMatch) {
+      const importText = importsMatch[1]
+      if (!importText.toLowerCase().includes('(none')) {
+        importsFrom = importText
           .split('\n')
-          .map(line => line.match(/[-–]\s*([^\s=>]+)/)?.[1])
+          .map(line => {
+            const match = line.match(/[-–]\s*([^\s=>\n]+(?:\.ts|\.tsx|\.js|\.jsx))/)
+            return match?.[1]
+          })
           .filter(Boolean) as string[]
-      : []
+      }
+    }
 
     return {
       registryId,
@@ -68,7 +74,7 @@ function parseMetadata(filePath: string): MetadataHeader | null {
       lastFix,
       exportsTo,
       importsFrom,
-      description: header.match(/@description:\s*(.+)/)?.[1],
+      description,
     }
   } catch (err) {
     return null
@@ -77,22 +83,26 @@ function parseMetadata(filePath: string): MetadataHeader | null {
 
 // Critical file patterns that require metadata
 const CRITICAL_PATTERNS = [
-  'app/lib/hooks/*.ts',
-  'app/lib/services/*.ts',
-  'app/lib/types/*.ts',
+  'app/lib/hooks/**/*.ts',
+  'app/lib/services/**/*.ts',
+  'app/lib/types/**/*.ts',
   'app/api/**/*.ts',
 ]
 
 // Main validation
 async function validateMetadata() {
   let errors: string[] = []
-  const criticalFiles = await glob(CRITICAL_PATTERNS, { cwd: process.cwd() })
+  const criticalFiles = globSync(CRITICAL_PATTERNS, {
+    cwd: process.cwd(),
+    ignore: ['node_modules/**', 'dist/**', '.next/**'],
+  })
 
+  console.log(`🔍 Validating metadata headers...`)
   console.log(`📋 Validating ${criticalFiles.length} critical files...`)
 
   for (const file of criticalFiles) {
     const metadata = parseMetadata(file)
-    
+
     if (!metadata?.registryId) {
       errors.push(`⚠️  MISSING: No @registry-id in ${file}`)
       continue
@@ -100,9 +110,8 @@ async function validateMetadata() {
 
     // Validate @exports-to files exist
     for (const exportFile of metadata.exportsTo) {
-      const fullPath = join(process.cwd(), exportFile)
       try {
-        readFileSync(fullPath)
+        readFileSync(exportFile)
       } catch {
         errors.push(`❌ BROKEN: ${file} exports-to ${exportFile} (file not found)`)
       }

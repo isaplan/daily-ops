@@ -5,7 +5,7 @@
     },
     "totalFiles": 1,
     "version": "2.0.0",
-    "generated_at": "2026-01-15T00:55:47.754Z"
+    "generated_at": "2026-01-15T00:57:42.892Z"
   },
   "index": {
     "byName": {
@@ -33,9 +33,9 @@
       "touch_again": true,
       "description": "Test hook to verify metadata validation system",
       "auto_detected": true,
-      "detected_at": "2026-01-15T00:55:47.754Z",
-      "last_seen": "2026-01-15T00:55:47.754Z",
-      "last_seen_ms": 1768438547756,
+      "detected_at": "2026-01-15T00:57:42.892Z",
+      "last_seen": "2026-01-15T00:57:42.892Z",
+      "last_seen_ms": 1768438662894,
       "size": 461,
       "lines": 21,
       "checksum": "20ff5e5e35f52a09",

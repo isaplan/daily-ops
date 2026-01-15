@@ -1,0 +1,73 @@
+/**
+ * @registry-id: NoteModel
+ * @created: 2026-01-15T10:00:00.000Z
+ * @last-modified: 2026-01-15T10:00:00.000Z
+ * @description: Note schema and model
+ * @last-fix: [2026-01-15] Added linked_todos array for project management
+ * 
+ * @exports-to:
+ * ✓ app/api/notes/** => Note CRUD operations
+ * ✓ app/api/notes/[id]/todos/** => Note-todo linking
+ */
+
+import mongoose, { Schema, Document, Model } from 'mongoose';
+
+export interface INote extends Document {
+  title: string;
+  content: string;
+  
+  author_id: mongoose.Types.ObjectId;
+  
+  connected_to: {
+    location_id?: mongoose.Types.ObjectId;
+    team_id?: mongoose.Types.ObjectId;
+    member_id?: mongoose.Types.ObjectId;
+  };
+  
+  linked_todos: mongoose.Types.ObjectId[];
+  
+  tags?: string[];
+  is_pinned: boolean;
+  is_archived: boolean;
+  
+  created_at: Date;
+  updated_at: Date;
+}
+
+const NoteSchema = new Schema<INote>(
+  {
+    title: { type: String, required: true },
+    content: { type: String, required: true },
+    
+    author_id: { type: Schema.Types.ObjectId, ref: 'Member', required: true },
+    
+    connected_to: {
+      location_id: { type: Schema.Types.ObjectId, ref: 'Location' },
+      team_id: { type: Schema.Types.ObjectId, ref: 'Team' },
+      member_id: { type: Schema.Types.ObjectId, ref: 'Member' },
+    },
+    
+    linked_todos: [{ type: Schema.Types.ObjectId, ref: 'Todo' }],
+    
+    tags: [{ type: String }],
+    is_pinned: { type: Boolean, default: false },
+    is_archived: { type: Boolean, default: false },
+    
+    created_at: { type: Date, default: Date.now },
+    updated_at: { type: Date, default: Date.now },
+  },
+  {
+    timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' },
+  }
+);
+
+NoteSchema.index({ author_id: 1 });
+NoteSchema.index({ 'connected_to.location_id': 1 });
+NoteSchema.index({ 'connected_to.team_id': 1 });
+NoteSchema.index({ 'connected_to.member_id': 1 });
+NoteSchema.index({ linked_todos: 1 });
+NoteSchema.index({ is_archived: 1 });
+
+const Note: Model<INote> = mongoose.models.Note || mongoose.model<INote>('Note', NoteSchema);
+
+export default Note;
