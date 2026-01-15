@@ -4,6 +4,7 @@ import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import type { ITodo } from '@/models/Todo';
 import type { ITodoList } from '@/models/TodoList';
+import MemberSelect from '@/components/MemberSelect';
 
 function TodosContent() {
   const [todos, setTodos] = useState<ITodo[]>([]);
@@ -339,21 +340,17 @@ function TodosContent() {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">Assigned To (Member ID) *</label>
-                  <input
+                  <MemberSelect
                     name="assigned_to"
+                    label="Assigned To"
                     required
-                    className="w-full px-3 py-2 border rounded"
-                    placeholder="member_id"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">Created By (Member ID) *</label>
-                  <input
+                  <MemberSelect
                     name="created_by"
+                    label="Created By"
                     required
-                    className="w-full px-3 py-2 border rounded"
-                    placeholder="member_id"
                   />
                 </div>
                 <div>
