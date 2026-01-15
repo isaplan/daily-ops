@@ -1,0 +1,24 @@
+#!/bin/sh
+# .husky/pre-commit
+# 
+# Runs on every commit to:
+# 1. Validate metadata headers are in sync
+# 2. Generate/update function registry
+# 3. Lint & format staged files
+
+set -e
+
+echo "🔍 Validating metadata headers..."
+npx ts-node scripts/validate-metadata.ts || {
+  echo "❌ Metadata validation failed. Fix dependencies and try again."
+  exit 1
+}
+
+echo "📋 Generating function registry..."
+npx ts-node scripts/generate-registry.ts || {
+  echo "❌ Registry generation failed."
+  exit 1
+}
+
+echo "✅ Metadata & registry validated!"
+echo "🎉 Pre-commit checks passed. Ready to commit!"

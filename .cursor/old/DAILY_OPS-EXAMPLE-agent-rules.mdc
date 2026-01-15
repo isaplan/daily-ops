@@ -1,0 +1,67 @@
+---
+alwaysApply: false
+---
+# Development Guidelines
+
+## Stack
+Next.js 14 • React 18 • TypeScript • Tailwind • Shadcn UI • MongoDB Atlas
+
+## Code Output (Token Efficient - CRITICAL)
+- **NEVER show code examples** unless user explicitly asks "show me the code"
+- **NEVER show code blocks** in explanations - just make the changes directly
+- **NEVER show "before/after" code** - just execute the fix
+- Use ```startLine:endLine:filepath only when referencing existing code
+- NO .md files unless requested
+- Workflow: Plan → get approval → execute silently → summary only
+- **Token cost = money** - every line of code shown costs tokens unnecessarily
+
+## Workflow (MANDATORY - FOLLOW THIS EXACTLY)
+1. **Summary:** "Plan: [what] in [file] (lines X-Y). Proceed?"
+2. **Wait:** User approval ("Yes"/"Proceed")
+3. **Execute:** Make changes silently (NO code shown)
+4. **Result:** "✅ Done: [file] updated"
+
+**NEVER skip steps. NEVER show code during execution.**
+
+## Critical Rules
+1. Check `function-registry.json` for `"touch_again": false` before editing
+2. Search existing code before creating (avoid duplicates)
+3. Keep changes ~100 lines max
+4. NO TypeScript `any` without justification - types over interfaces
+5. NO logic in GraphQL resolvers - use server/services/
+6. SSR-first: use `<Suspense>`, `useFetch()`, `useAsyncData()`
+7. Use aggregated collections only (never raw_data)
+8. Database pagination (skip/limit) - never fetch all
+9. NO console.log() in production code
+10. V1 code is reference only (src-v1/) - don't use
+
+## Function Registry
+Don't load full registry. Instead:
+```bash
+grep '"file": "src/path/to/file"' function-registry.json
+grep '"touch_again": false' function-registry.json
+```
+
+## Smart Lookups (O(1) - Use These)
+```bash
+# Find by file
+ID=$(jq -r '.index.byFile["src/path/file.ts"]' function-registry.json)
+
+# Get most recent
+jq '.index.byLastSeen[0:10]' function-registry.json
+
+# Find by type
+jq '.index.byType.viewmodel' function-registry.json
+```
+
+## Registry Protection
+- If `"touch_again": false` → ASK FIRST (protected)
+- If `"touch_again": true` → Can modify
+
+## Token Efficiency (CRITICAL)
+- **Conciseness = efficiency = cost savings**
+- **NEVER show code** unless user explicitly requests it
+- **Just make changes** - don't explain with code examples
+- **Summary only** - "✅ Fixed: Updated field mapping in sales.resolvers.ts"
+- Every code block shown = wasted tokens = wasted money
+

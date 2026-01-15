@@ -1,0 +1,183 @@
+---
+alwaysApply: true
+---
+
+# Agent Rules: Daily Ops (Next.js 15 + React 18 + Socket.io)
+
+**Stack:** Next.js 15 • React 18 • TypeScript • Tailwind • Shadcn UI • MongoDB • Socket.io
+
+---
+
+## 🎯 CORE PRINCIPLE: Token Efficiency = Cost Savings
+
+- **NEVER** show code unless asked "show me"
+- **ALWAYS** use ```startLine:endLine:filepath for existing code references
+- Concise summaries only: "✅ Fixed: Updated auth state in useAuth.ts"
+
+---
+
+## 🔄 WORKFLOW (MANDATORY)
+
+1. **Plan:** "Plan: [what] in [file] (lines X-Y). Proceed?"
+2. **Wait:** User approval only
+3. **Execute:** Changes silently (NO code shown)
+4. **Result:** Brief summary
+
+---
+
+## ⚡ CRITICAL RULES (10 Max)
+
+1. **Registry Check:** Always grep `function-registry.json` before editing
+   ```bash
+   grep '"file": "app/path"' function-registry.json
+   ```
+
+2. **Protected Files:** If `"touch_again": false` → ASK FIRST
+
+3. **Metadata Headers:** Read `@exports-to` before modifying critical code (see RULE #11)
+
+4. **Size Limits:** Max ~100 lines/change, ~20 lines/delete, avoid >80% replacements
+
+5. **No `any`:** Always use types, never `any` without justification
+
+6. **SSR First:** Use `<Suspense>`, client-side data fetching only in Client Components
+
+7. **No DB Fetches in UI:** Server Functions + API routes only (app/api/)
+
+8. **Pagination Always:** Never fetch all → use skip/limit
+
+9. **No console.log():** Production code stays silent
+
+10. **Small Commits:** Plan small, get approval, commit once per feature chunk
+
+---
+
+## 🔴 RULE #11: METADATA HEADERS = MANDATORY SYNC ⚡
+
+**BEFORE modifying ANY critical file (composables, services, API routes, types):**
+
+1. **Read the metadata header** at file top
+2. **Check @exports-to** → See all dependent files
+3. **Plan ALL updates together** → Don't modify in isolation
+4. **Update @last-modified** → ISO timestamp
+5. **Update @last-fix** → `[YYYY-MM-DD] what was fixed`
+6. **Update dependents** → Verify imports still match
+7. **Commit together** → All files in one commit
+
+**GOLDEN RULE:** If metadata says "exports-to X, Y, Z" and you don't update them → **AUTOMATIC FAILURE**
+
+### Critical Code Types (METADATA REQUIRED)
+- ✅ `app/lib/hooks/*.ts` (custom hooks)
+- ✅ `app/lib/services/*.ts` (business logic)
+- ✅ `app/lib/types/*.ts` (type definitions)
+- ✅ `app/api/**/*.ts` (API endpoints)
+- ✅ Complex components (>150 lines, multi-use)
+
+### Metadata Format
+```typescript
+/**
+ * @registry-id: useAuth
+ * @created: 2026-01-15T10:00:00.000Z
+ * @last-modified: 2026-01-15T10:00:00.000Z
+ * @description: Auth state + login/logout/register
+ * @last-fix: [2026-01-15] Fixed session refresh timing
+ * 
+ * @exports-to:
+ *   ✓ app/middleware.ts => useAuth() for route protection
+ *   ✓ app/components/Navbar.tsx => useAuth() for user display
+ */
+```
+
+---
+
+## 📋 RULE #0: UNDERSTAND → CLARIFY → CONFIRM
+
+**Before ANY action:**
+1. Read request carefully (don't skim)
+2. **Show FULL PLAN** → All files you'll touch (create/modify/delete)
+3. **Check function-registry.json** → Protected files?
+4. **Ask permission** → If touching protected code
+5. **Get explicit approval** → "Go ahead" / "Proceed"
+6. **THEN execute** (no more discussion)
+
+---
+
+## 🛡️ ABSOLUTE PROHIBITIONS
+
+### NEVER DELETE
+- `function-registry.json`, `.cursor/rules/`, any metadata headers
+
+### NEVER DO
+- Load full function-registry (~15K tokens) → use grep instead
+- Show code during execution → plan only
+- Edit protected files (`touch_again: false`) without permission
+- Modify metadata headers without updating @last-modified/@last-fix
+- Create files without checking registry first
+
+---
+
+## 🚀 NEXT.JS 15 + REACT 18 SPECIFICS
+
+**App Router Only:**
+- `app/` directory (no pages/)
+- Server Components by default
+- Client Components only when needed (`'use client'`)
+- Route handlers: `app/api/[route]/route.ts`
+
+**Data Fetching:**
+- Server Functions for backend work
+- `fetch()` with `{ cache: 'no-store' }` or `revalidate: 60`
+- Suspense boundaries for async components
+
+**State Management:**
+- Use React Context + useContext (simple)
+- Zustand for complex state (if needed)
+- NO Redux, NO Pinia
+
+**Socket.io (Real-Time):**
+- Client: `useSocket()` hook → emit/on events
+- Server: WebSocket handler in `lib/socket/`
+- Emit on state changes, subscribe in Suspense boundaries
+
+**Naming:**
+- Components: PascalCase (Button.tsx)
+- Hooks: camelCase (useAuth.ts)
+- Utilities: camelCase (helpers.ts)
+- Directories: lowercase (app/lib/hooks/)
+
+---
+
+## 🔍 FUNCTION REGISTRY (Token-Efficient Queries)
+
+**Smart Lookups (O(1)):**
+```bash
+# Find by file
+grep '"file": "app/lib/hooks/useAuth"' function-registry.json
+
+# Check if protected
+grep -A 1 '"file": "app/api"' function-registry.json | grep "touch_again"
+
+# Get all services
+grep '"type": "service"' function-registry.json
+```
+
+**DON'T:**
+- Load full registry (15K tokens wasted)
+- Scan manually (grep is instant)
+
+---
+
+## 📊 AFTER COMPLETING WORK
+
+1. Update `function-registry.json`:
+   - Set `"status": "completed"` for finished features
+   - Set `"touch_again": false` for production code
+2. Commit with clear message: `feat: [what] in [where]`
+
+---
+
+## 🔗 RELATED DOCS
+
+- `.cursor/rules/metadata-header-system.md` → Full metadata format + examples
+- IMPLEMENTATION_PLAN.md → Project architecture + timelines
+- See `function-registry.json` for all tracked code

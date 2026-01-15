@@ -1,0 +1,170 @@
+---
+alwaysApply: false
+---
+# Agent Rules
+
+## Stack
+Nuxt 3 • Vue 3 Composition API • TypeScript • Tailwind • Shadcn Vue • MongoDB • GraphQL
+
+## Code Output (Token Efficient)
+- NO full code examples (use ```startLine:endLine:filepath)
+- NO .md files unless requested
+- Workflow: Plan → get approval → execute silently → summary only
+
+## Workflow
+**Request:** "Plan: Add X to file Y (lines A-B). Proceed?"
+**Approval:** "Yes"
+**Execution:** Changes made silently
+**Result:** "✅ Done: file X updated"
+
+## Critical Rules
+1. Check `function-registry.json` for `"touch_again": false` before editing
+2. Search existing code before creating (avoid duplicates)
+3. Keep changes ~100 lines max
+4. NO Pinia (removed) - use composables + useState()
+5. NO logic in GraphQL resolvers - use server/services/
+6. NO `any` without justification - types over interfaces
+7. NO enums - use const objects with `as const`
+8. SSR-first: use `<ClientOnly>`, `useFetch()`, `useAsyncData()`
+9. Use `createModuleLogger()` in composables/services/utils
+10. NO console.log() in production code
+
+## RULE #0: UNDERSTAND → CLARIFY → CONFIRM → BUILD
+
+**Before ANY action:**
+1. Understand EXACTLY what user wants (read carefully, don't skim)
+2. **SHOW FULL PLAN FIRST** - List ALL files you'll touch (create/modify/delete)
+3. Check `function-registry.json` for protected files (`"touch_again": false`)
+4. Ask for permission if touching protected files
+5. Get explicit approval ("Go ahead" / "Confirm")
+6. THEN execute (no more, no less)
+
+**IF IN DOUBT → ASK. IF ASSUMING → ASK. IF UNCLEAR → ASK.**
+
+## File Protection
+
+### Before Modifying ANY File:
+
+**1. Check `function-registry.json`:**
+```bash
+grep -A 1 "\"file\": \"path/to/file\"" function-registry.json
+```
+
+**2. If `"touch_again": false`:**
+- ⚠️ PROTECTED FILE - Ask for permission before proceeding
+- Show what you want to do and why
+- Wait for user approval
+
+**3. If `"touch_again": true` or file not in registry:**
+- ✅ Proceed freely
+- Update registry when done if completing a feature
+
+## Absolute Prohibitions
+
+### NEVER DELETE THESE FILES
+- ✅ `function-registry.json` - Registry of all functions/components
+- ✅ `ai-tracking-system.json` - AI task tracking
+- ✅ `build-log.json` - Build history
+- ✅ `progress-log.json` - Development milestones
+- ✅ `test-results.json` - Test results
+- ✅ `.ai-compliance-permissions.json` - Permission logs
+- ✅ `.ai-compliance-status.json` - Compliance status
+- ✅ `.ai-compliance-messages.json` - Compliance messages
+- ✅ `.cursor/rules/` - All cursor rules (.mdc files)
+- ✅ `ai-compliance-export/` - Backup documentation
+
+## Size Limits
+
+**Recommended limits per change:**
+- Max ~100 lines changed per file
+- Max ~20 lines deleted per file
+- Avoid full file replacements (>80% changed)
+
+**If you need more:**
+- Break into smaller tasks
+- Ask user to approve each step
+
+## Loop Prevention
+
+After 2 failed attempts at same fix:
+1. **STOP** and reconsider
+2. **ANALYZE** what didn't work
+3. **PROPOSE** a different approach
+4. **ASK** user for permission
+5. **MOVE ON** if no solution after 3 attempts
+
+## After Completing Work
+
+**Update `function-registry.json`:**
+1. Set `"status": "completed"` for finished features
+2. Set `"touch_again": false` for production-ready code
+3. Commit the registry update
+
+## Debug Mode
+
+Only when user asks "add debug to [page]":
+- Add `<DebugPanel ref="debugPanel" />` to page
+- Update composable to call: `debugPanel.value?.addEntry({category, title, data, duration})`
+- That's it - no extra explanation
+
+## Function Registry
+
+Don't load full registry (~15K tokens). Instead:
+```bash
+grep '"file": "composables/useSearch"' function-registry.json
+grep '"status": "pending"' function-registry.json
+```
+Ask specific questions instead.
+
+## Token Efficiency
+
+Assume: concise = efficient = cheaper. Only show what's needed.
+
+## TypeScript & Vue 3 Best Practices
+
+- Use composition API and declarative programming patterns; avoid options API
+- Prefer iteration and modularization over code duplication
+- Use descriptive variable names with auxiliary verbs (e.g., isLoading, hasError)
+- Use arrow functions for methods and computed properties
+- Use `<script setup>` syntax for concise component definitions
+- Leverage ref, reactive, and computed for reactive state management
+- Use provide/inject for dependency injection when appropriate
+- Implement custom composables for reusable logic
+
+## Naming Conventions
+
+- Use lowercase with dashes for directories (e.g., components/auth-wizard)
+- Use PascalCase for component names (e.g., AuthWizard.vue)
+- Use camelCase for composables (e.g., useAuthState.ts)
+
+## TypeScript Usage
+
+- Use TypeScript for all code; prefer types over interfaces
+- Avoid enums; use const objects instead
+- Use Vue 3 with TypeScript, leveraging defineComponent and PropType
+
+## UI and Styling
+
+- Use Shadcn Vue, Radix Vue, and Tailwind for components and styling
+- Implement responsive design with Tailwind CSS; use a mobile-first approach
+
+## Performance Optimization
+
+- Leverage Nuxt's built-in performance optimizations
+- Use Suspense for asynchronous components
+- Implement lazy loading for routes and components
+- Optimize images: use WebP format, include size data, implement lazy loading
+- Use VueUse for common composables and utility functions
+- Optimize Web Vitals (LCP, CLS, FID)
+- Utilize Nuxt's auto-imports feature for components and composables
+
+## Nuxt-specific Guidelines
+
+- Follow Nuxt 3 directory structure (e.g., pages/, components/, composables/)
+- Use Nuxt's built-in features:
+  - Auto-imports for components and composables
+  - File-based routing in the pages/ directory
+  - Server routes in the server/ directory
+  - Leverage Nuxt plugins for global functionality
+- Use useFetch and useAsyncData for data fetching
+- Implement SEO best practices using Nuxt's useHead and useSeoMeta
