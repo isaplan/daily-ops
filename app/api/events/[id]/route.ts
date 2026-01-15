@@ -13,6 +13,8 @@ import Event from '@/models/Event';
 import Member from '@/models/Member';
 import Location from '@/models/Location';
 import Channel from '@/models/Channel';
+import { getErrorMessage } from '@/lib/types/errors';
+import type { IEvent } from '@/models/Event';
 
 export async function GET(
   request: NextRequest,
@@ -67,7 +69,7 @@ export async function PUT(
     const body = await request.json();
     const { id } = await params;
     
-    const updateData: any = {};
+    const updateData: Partial<IEvent> = {};
     if (body.name !== undefined) updateData.name = body.name;
     if (body.client_name !== undefined) updateData.client_name = body.client_name;
     if (body.guest_count !== undefined) updateData.guest_count = body.guest_count;
@@ -105,10 +107,10 @@ export async function PUT(
     }
     
     return NextResponse.json({ success: true, data: event });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error updating event:', error);
     return NextResponse.json(
-      { success: false, error: error.message || 'Failed to update event' },
+      { success: false, error: getErrorMessage(error) },
       { status: 400 }
     );
   }

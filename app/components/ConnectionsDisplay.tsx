@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import type { ConnectionsResponse } from '@/lib/types/connections';
 
 interface ConnectionsDisplayProps {
   type: 'member' | 'team' | 'location';
@@ -9,7 +10,7 @@ interface ConnectionsDisplayProps {
 }
 
 export default function ConnectionsDisplay({ type, id }: ConnectionsDisplayProps) {
-  const [connections, setConnections] = useState<any>(null);
+  const [connections, setConnections] = useState<ConnectionsResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
@@ -90,7 +91,7 @@ export default function ConnectionsDisplay({ type, id }: ConnectionsDisplayProps
         <div>
           <h3 className="text-lg font-semibold text-gray-900 mb-3">Notes ({connections.details.notes.length})</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {connections.details.notes.map((note: any) => (
+            {connections.details.notes.map((note) => (
               <div 
                 key={note._id} 
                 className="p-4 bg-white border rounded-lg cursor-pointer hover:shadow-md transition-shadow"
@@ -130,7 +131,7 @@ export default function ConnectionsDisplay({ type, id }: ConnectionsDisplayProps
         <div>
           <h3 className="text-lg font-semibold text-gray-900 mb-3">Todos ({connections.details.todos.length})</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {connections.details.todos.map((todo: any) => (
+            {connections.details.todos.map((todo) => (
               <div 
                 key={todo._id} 
                 className="p-4 bg-white border rounded-lg cursor-pointer hover:shadow-md transition-shadow"
@@ -180,7 +181,7 @@ export default function ConnectionsDisplay({ type, id }: ConnectionsDisplayProps
         <div>
           <h3 className="text-lg font-semibold text-gray-900 mb-3">Decisions ({connections.details.decisions.length})</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {connections.details.decisions.map((decision: any) => (
+            {connections.details.decisions.map((decision) => (
               <div 
                 key={decision._id} 
                 className="p-4 bg-white border rounded-lg cursor-pointer hover:shadow-md transition-shadow"
@@ -230,7 +231,7 @@ export default function ConnectionsDisplay({ type, id }: ConnectionsDisplayProps
         <div>
           <h3 className="text-lg font-semibold text-gray-900 mb-3">Channels ({connections.details.channels.length})</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {connections.details.channels.map((channel: any) => (
+            {connections.details.channels.map((channel) => (
               <div 
                 key={channel._id} 
                 className="p-4 bg-white border rounded-lg cursor-pointer hover:shadow-md transition-shadow"

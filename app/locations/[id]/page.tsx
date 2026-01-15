@@ -3,13 +3,14 @@
 import { Suspense, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import ConnectionsDisplay from '@/components/ConnectionsDisplay';
+import type { ILocation } from '@/models/Location';
 
 function LocationDetailContent() {
   const params = useParams();
   const router = useRouter();
   const locationId = typeof params.id === 'string' ? params.id : (Array.isArray(params.id) ? params.id[0] : '');
   
-  const [location, setLocation] = useState<any>(null);
+  const [location, setLocation] = useState<ILocation | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {

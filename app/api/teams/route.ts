@@ -10,6 +10,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import dbConnect from '@/lib/mongodb';
 import Team from '@/models/Team';
 import Location from '@/models/Location';
+import { getErrorMessage } from '@/lib/types/errors';
 
 export async function GET() {
   try {
@@ -41,10 +42,10 @@ export async function POST(request: NextRequest) {
     });
     
     return NextResponse.json({ success: true, data: team }, { status: 201 });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error creating team:', error);
     return NextResponse.json(
-      { success: false, error: error.message || 'Failed to create team' },
+      { success: false, error: getErrorMessage(error) },
       { status: 400 }
     );
   }

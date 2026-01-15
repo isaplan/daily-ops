@@ -9,6 +9,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import dbConnect from '@/lib/mongodb';
 import Location from '@/models/Location';
+import { getErrorMessage } from '@/lib/types/errors';
 
 export async function GET() {
   try {
@@ -40,10 +41,10 @@ export async function POST(request: NextRequest) {
     });
     
     return NextResponse.json({ success: true, data: location }, { status: 201 });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error creating location:', error);
     return NextResponse.json(
-      { success: false, error: error.message || 'Failed to create location' },
+      { success: false, error: getErrorMessage(error) },
       { status: 400 }
     );
   }

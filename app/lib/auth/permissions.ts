@@ -156,7 +156,16 @@ export function canPerformAction(
   scope: Scope
 ): boolean {
   const permissions = PERMISSIONS_MATRIX[userRole];
-  return permissions[`can${action.charAt(0).toUpperCase() + action.slice(1)}`]?.[scope] ?? false;
+  switch (action) {
+    case 'view':
+      return permissions.canView[scope];
+    case 'edit':
+      return permissions.canEdit[scope];
+    case 'delete':
+      return permissions.canDelete[scope];
+    default:
+      return false;
+  }
 }
 
 /**

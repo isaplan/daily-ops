@@ -11,6 +11,8 @@ import dbConnect from '@/lib/mongodb';
 import Message from '@/models/Message';
 import Todo from '@/models/Todo';
 import Channel from '@/models/Channel';
+import { getErrorMessage } from '@/lib/types/errors';
+import mongoose from 'mongoose';
 
 export async function POST(
   request: NextRequest,
@@ -68,16 +70,16 @@ export async function POST(
       await TodoList.findByIdAndUpdate(body.list_id, {
         $addToSet: { todos: todo._id },
       });
-      todo.list_id = body.list_id as any;
+      todo.list_id = new mongoose.Types.ObjectId(body.list_id);
       await todo.save();
       await todo.populate('list_id', 'name');
     }
     
     return NextResponse.json({ success: true, data: todo }, { status: 201 });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error converting message to todo:', error);
     return NextResponse.json(
-      { success: false, error: error.message || 'Failed to convert message to todo' },
+      { success: false, error: getErrorMessage(error) },
       { status: 400 }
     );
   }

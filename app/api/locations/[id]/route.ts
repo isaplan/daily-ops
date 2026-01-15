@@ -9,6 +9,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import dbConnect from '@/lib/mongodb';
 import Location from '@/models/Location';
+import { getErrorMessage } from '@/lib/types/errors';
+import type { ILocation } from '@/models/Location';
 
 export async function GET(
   request: NextRequest,
@@ -45,7 +47,7 @@ export async function PUT(
     const body = await request.json();
     const { id } = await params;
     
-    const updateData: any = {};
+    const updateData: Partial<ILocation> = {};
     if (body.name !== undefined) updateData.name = body.name;
     if (body.address !== undefined) updateData.address = body.address;
     if (body.city !== undefined) updateData.city = body.city;
@@ -66,10 +68,10 @@ export async function PUT(
     }
     
     return NextResponse.json({ success: true, data: location });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error updating location:', error);
     return NextResponse.json(
-      { success: false, error: error.message || 'Failed to update location' },
+      { success: false, error: getErrorMessage(error) },
       { status: 400 }
     );
   }

@@ -15,13 +15,14 @@ import { useAuth } from '@/lib/hooks/useAuth';
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import type { IMember } from '@/models/Member';
 
 interface TeamData {
   _id: string;
   name: string;
   type: string;
   location_id: string;
-  members: any[];
+  members: IMember[];
   this_period: {
     total_hours: number;
     total_labor_cost: number;
@@ -146,7 +147,7 @@ export default function TeamDashboard() {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {teamData.members?.map((member: any) => (
+                {teamData.members?.map((member) => (
                   <div key={member._id} className="flex items-center justify-between p-3 border rounded-lg">
                     <div className="flex items-center gap-3">
                       {member.slack_avatar && (

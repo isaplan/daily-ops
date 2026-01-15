@@ -72,9 +72,16 @@ export async function requireAuth(req: NextRequest) {
 /**
  * Middleware: Require specific role
  */
+interface AuthUser {
+  id: string;
+  role: Role;
+  location_id?: string;
+  team_id?: string;
+}
+
 export function requireRole(...roles: Role[]) {
-  return function (user: any) {
-    return roles.includes(user?.role);
+  return function (user: AuthUser | undefined) {
+    return user ? roles.includes(user.role) : false;
   };
 }
 
@@ -82,8 +89,9 @@ export function requireRole(...roles: Role[]) {
  * Middleware: Require specific scope
  */
 export function requireScope(...scopes: Scope[]) {
-  return function (user: any) {
-    const permissions = PERMISSIONS_MATRIX[user?.role];
+  return function (user: AuthUser | undefined) {
+    if (!user) return false;
+    const permissions = PERMISSIONS_MATRIX[user.role];
     return scopes.some(scope => permissions.scopes.includes(scope));
   };
 }
@@ -92,8 +100,9 @@ export function requireScope(...scopes: Scope[]) {
  * Middleware: Check if user can view content at scope
  */
 export function requireViewAccess(scope: Scope) {
-  return function (user: any) {
-    const permissions = PERMISSIONS_MATRIX[user?.role];
+  return function (user: AuthUser | undefined) {
+    if (!user) return false;
+    const permissions = PERMISSIONS_MATRIX[user.role];
     return permissions.canView[scope];
   };
 }
@@ -102,8 +111,9 @@ export function requireViewAccess(scope: Scope) {
  * Middleware: Check if user can edit content at scope
  */
 export function requireEditAccess(scope: Scope) {
-  return function (user: any) {
-    const permissions = PERMISSIONS_MATRIX[user?.role];
+  return function (user: AuthUser | undefined) {
+    if (!user) return false;
+    const permissions = PERMISSIONS_MATRIX[user.role];
     return permissions.canEdit[scope];
   };
 }
@@ -112,8 +122,9 @@ export function requireEditAccess(scope: Scope) {
  * Middleware: Check if user can delete content at scope
  */
 export function requireDeleteAccess(scope: Scope) {
-  return function (user: any) {
-    const permissions = PERMISSIONS_MATRIX[user?.role];
+  return function (user: AuthUser | undefined) {
+    if (!user) return false;
+    const permissions = PERMISSIONS_MATRIX[user.role];
     return permissions.canDelete[scope];
   };
 }
@@ -122,7 +133,7 @@ export function requireDeleteAccess(scope: Scope) {
  * Determine role based on member's roles array
  * Priority: admin > manager > member
  */
-export function determineRole(roles: any[]): Role {
+export function determineRole(roles: Array<{ role: string; scope: string }>): Role {
   if (roles?.some(r => r.role === 'overall_manager')) return 'admin';
   if (roles?.some(r => r.role === 'manager')) return 'manager';
   return 'member';

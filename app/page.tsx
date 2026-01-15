@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import type { IEvent } from '@/models/Event';
 
 export default function Home() {
-  const [assignedEvents, setAssignedEvents] = useState<any[]>([]);
+  const [assignedEvents, setAssignedEvents] = useState<IEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
@@ -43,7 +44,7 @@ export default function Home() {
       })
       .then((data) => {
         if (data && data.success) {
-          setAssignedEvents(data.data.filter((e: any) => e.status === 'planning' || e.status === 'confirmed'));
+          setAssignedEvents(data.data.filter((e: IEvent) => e.status === 'planning' || e.status === 'confirmed'));
         }
         setLoading(false);
       })

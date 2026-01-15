@@ -24,11 +24,19 @@ export interface ParsedLink {
   endIndex: number;
 }
 
+export interface ParsedMessagePart {
+  type: 'text' | 'mention' | 'link';
+  content: string;
+  data?: ParsedMention | ParsedLink;
+  startIndex?: number;
+  endIndex?: number;
+}
+
 export interface ParsedMessage {
   text: string;
   mentions: ParsedMention[];
   links: ParsedLink[];
-  parts: Array<{ type: 'text' | 'mention' | 'link'; content: string; data?: any }>;
+  parts: ParsedMessagePart[];
 }
 
 export function parseMessage(
@@ -42,7 +50,7 @@ export function parseMessage(
 ): ParsedMessage {
   const mentions: ParsedMention[] = [];
   const links: ParsedLink[] = [];
-  const parts: Array<{ type: 'text' | 'mention' | 'link'; content: string; data?: any }> = [];
+  const parts: ParsedMessagePart[] = [];
   
   let lastIndex = 0;
   let currentIndex = 0;
@@ -90,13 +98,18 @@ export function parseMessage(
   // Parse #links
   const linkRegex = /#(\w+)/g;
   let linkMatch;
-  const linkMatches: Array<{ match: RegExpMatchArray; type: string; item: any }> = [];
+  interface LinkMatch {
+    match: RegExpMatchArray;
+    type: string;
+    item: { _id: string; title?: string; name?: string };
+  }
+  const linkMatches: LinkMatch[] = [];
   
   while ((linkMatch = linkRegex.exec(text)) !== null) {
     const linkText = linkMatch[1].toLowerCase();
     
     // Try to find in different content types
-    let foundItem: any = null;
+    let foundItem: { _id: string; title?: string; name?: string } | null = null;
     let itemType: string = '';
     
     // Check notes
@@ -165,7 +178,7 @@ export function parseMessage(
   ].sort((a, b) => a.index - b.index);
   
   lastIndex = 0;
-  const finalParts: Array<{ type: 'text' | 'mention' | 'link'; content: string; data?: any; startIndex?: number; endIndex?: number }> = [];
+  const finalParts: ParsedMessagePart[] = [];
   
   allMatches.forEach((match) => {
     if (match.index > lastIndex) {
@@ -195,7 +208,7 @@ export function parseMessage(
         endIndex: match.end,
       });
       links.push({
-        type: match.data.type as any,
+        type: match.data.type as ParsedLink['type'],
         id: match.data.id,
         name: match.data.name,
         startIndex: match.index,

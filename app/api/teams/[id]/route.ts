@@ -12,6 +12,8 @@ import mongoose from 'mongoose';
 import Team from '@/models/Team';
 import Location from '@/models/Location';
 import Member from '@/models/Member';
+import { getErrorMessage } from '@/lib/types/errors';
+import type { ITeam } from '@/models/Team';
 
 export async function GET(
   request: NextRequest,
@@ -59,7 +61,7 @@ export async function PUT(
     const body = await request.json();
     const { id } = await params;
     
-    const updateData: any = {};
+    const updateData: Partial<ITeam> = {};
     if (body.name !== undefined) updateData.name = body.name;
     if (body.description !== undefined) updateData.description = body.description;
     if (body.location_id !== undefined) updateData.location_id = body.location_id;
@@ -80,10 +82,10 @@ export async function PUT(
     }
     
     return NextResponse.json({ success: true, data: team });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error updating team:', error);
     return NextResponse.json(
-      { success: false, error: error.message || 'Failed to update team' },
+      { success: false, error: getErrorMessage(error) },
       { status: 400 }
     );
   }

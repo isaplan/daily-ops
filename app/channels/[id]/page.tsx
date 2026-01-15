@@ -4,25 +4,32 @@ import { Suspense, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { parseMessage, getLinkUrl, getMentionUrl } from '@/lib/messageParser';
 import MessageInput from '@/components/MessageInput';
+import type { IChannel } from '@/models/Channel';
+import type { IMessage } from '@/models/Message';
+import type { IMember } from '@/models/Member';
+import type { INote } from '@/models/Note';
+import type { ITodo } from '@/models/Todo';
+import type { IEvent } from '@/models/Event';
+import type { IDecision } from '@/models/Decision';
 
 function ChannelDetailContent() {
   const params = useParams();
   const router = useRouter();
   const channelId = typeof params.id === 'string' ? params.id : (Array.isArray(params.id) ? params.id[0] : '');
   
-  const [channel, setChannel] = useState<any>(null);
-  const [messages, setMessages] = useState<any[]>([]);
+  const [channel, setChannel] = useState<IChannel | null>(null);
+  const [messages, setMessages] = useState<IMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
-  const [members, setMembers] = useState<any[]>([]);
-  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [members, setMembers] = useState<IMember[]>([]);
+  const [currentUser, setCurrentUser] = useState<IMember | null>(null);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
-  const [allMembers, setAllMembers] = useState<any[]>([]);
-  const [notes, setNotes] = useState<any[]>([]);
-  const [todos, setTodos] = useState<any[]>([]);
-  const [events, setEvents] = useState<any[]>([]);
-  const [channels, setChannels] = useState<any[]>([]);
-  const [decisions, setDecisions] = useState<any[]>([]);
+  const [allMembers, setAllMembers] = useState<IMember[]>([]);
+  const [notes, setNotes] = useState<INote[]>([]);
+  const [todos, setTodos] = useState<ITodo[]>([]);
+  const [events, setEvents] = useState<IEvent[]>([]);
+  const [channels, setChannels] = useState<IChannel[]>([]);
+  const [decisions, setDecisions] = useState<IDecision[]>([]);
 
   useEffect(() => {
     if (!channelId) return;

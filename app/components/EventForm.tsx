@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import type { IEvent } from '@/models/Event';
 
 interface Location {
   _id: string;
@@ -135,7 +136,7 @@ export default function EventForm({ event, onSave, onCancel }: EventFormProps) {
     });
   };
 
-  const updateSection = (index: number, field: string, value: any) => {
+  const updateSection = (index: number, field: string, value: string | number | boolean) => {
     const updated = [...formData.sections];
     updated[index] = { ...updated[index], [field]: value };
     setFormData({ ...formData, sections: updated });
@@ -147,7 +148,7 @@ export default function EventForm({ event, onSave, onCancel }: EventFormProps) {
     setFormData({ ...formData, sections: updated });
   };
 
-  const updateSectionItem = (sectionIndex: number, itemIndex: number, field: string, value: any) => {
+  const updateSectionItem = (sectionIndex: number, itemIndex: number, field: string, value: string | number | boolean) => {
     const updated = [...formData.sections];
     updated[sectionIndex].items[itemIndex] = { ...updated[sectionIndex].items[itemIndex], [field]: value };
     setFormData({ ...formData, sections: updated });
@@ -160,7 +161,7 @@ export default function EventForm({ event, onSave, onCancel }: EventFormProps) {
     });
   };
 
-  const updateTimelineItem = (index: number, field: string, value: any) => {
+  const updateTimelineItem = (index: number, field: string, value: string | number | boolean) => {
     const updated = [...formData.timeline];
     updated[index] = { ...updated[index], [field]: value };
     setFormData({ ...formData, timeline: updated });
@@ -173,7 +174,7 @@ export default function EventForm({ event, onSave, onCancel }: EventFormProps) {
     });
   };
 
-  const updateInventoryItem = (index: number, field: string, value: any) => {
+  const updateInventoryItem = (index: number, field: string, value: string | number | boolean) => {
     const updated = [...formData.inventory];
     updated[index] = { ...updated[index], [field]: value };
     setFormData({ ...formData, inventory: updated });
@@ -186,7 +187,7 @@ export default function EventForm({ event, onSave, onCancel }: EventFormProps) {
     });
   };
 
-  const updateStaffingItem = (index: number, field: string, value: any) => {
+  const updateStaffingItem = (index: number, field: string, value: string | number | boolean) => {
     const updated = [...formData.staffing];
     updated[index] = { ...updated[index], [field]: value };
     setFormData({ ...formData, staffing: updated });
@@ -234,8 +235,8 @@ export default function EventForm({ event, onSave, onCancel }: EventFormProps) {
       } else {
         setError(data.error || 'Failed to save event');
       }
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to save event');
     } finally {
       setLoading(false);
     }
@@ -343,7 +344,7 @@ export default function EventForm({ event, onSave, onCancel }: EventFormProps) {
               <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
               <select
                 value={formData.status}
-                onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
+                onChange={(e) => setFormData({ ...formData, status: e.target.value as IEvent['status'] })}
                 className="w-full px-3 py-2 border rounded bg-white text-gray-900"
               >
                 <option value="planning">Planning</option>

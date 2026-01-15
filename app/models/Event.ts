@@ -29,7 +29,7 @@ export interface IEvent extends Document {
     filename: string;
     url: string;
     uploaded_at: Date;
-    extracted_data?: any;
+    extracted_data?: Record<string, unknown>;
   };
   
   sections: Array<{

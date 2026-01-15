@@ -7,7 +7,7 @@ interface Note {
   _id: string;
   title: string;
   content: string;
-  slug: string;
+  slug?: string | null;
   author_id?: { name: string; email: string };
   connected_to?: {
     location_id?: { _id: string; name: string };
@@ -69,8 +69,8 @@ export default function NoteList() {
       } else {
         setError(data.error || 'Failed to delete note');
       }
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to delete note');
     }
   };
 
@@ -85,8 +85,8 @@ export default function NoteList() {
       if (data.success) {
         loadNotes();
       }
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to archive note');
     }
   };
 
@@ -227,7 +227,7 @@ export default function NoteList() {
 
               <div className="flex gap-2">
                 <a
-                  href={`/notes/${note.slug}`}
+                  href={`/notes/${note.slug || note._id}`}
                   className="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200 inline-block"
                 >
                   View

@@ -101,7 +101,15 @@ export default function MessageInput({
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (!showAutocomplete) {
       if (e.key === 'Enter' && !e.shiftKey) {
-        onSubmit(e as any);
+        e.preventDefault();
+        const syntheticEvent = {
+          ...e,
+          preventDefault: () => {},
+          stopPropagation: () => {},
+          currentTarget: e.currentTarget,
+          target: e.target,
+        } as React.FormEvent<HTMLInputElement>;
+        onSubmit(syntheticEvent);
       }
       return;
     }
@@ -188,7 +196,12 @@ export default function MessageInput({
           setCursorPosition(cursorPos);
           const textBeforeCursor = value.substring(0, cursorPos);
           if (textBeforeCursor.match(/@(\w*)$/) || textBeforeCursor.match(/#(\w*)$/)) {
-            handleInputChange(e as any);
+            const syntheticEvent = {
+              ...e,
+              target: e.target,
+              currentTarget: e.currentTarget,
+            } as React.ChangeEvent<HTMLInputElement>;
+            handleInputChange(syntheticEvent);
           }
         }}
         placeholder={placeholder}

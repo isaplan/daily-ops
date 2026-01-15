@@ -2,11 +2,13 @@
 
 import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
+import type { ITodo } from '@/models/Todo';
+import type { ITodoList } from '@/models/TodoList';
 
 function TodosContent() {
-  const [todos, setTodos] = useState<any[]>([]);
-  const [todoLists, setTodoLists] = useState<any[]>([]);
-  const [selectedTodo, setSelectedTodo] = useState<any>(null);
+  const [todos, setTodos] = useState<ITodo[]>([]);
+  const [todoLists, setTodoLists] = useState<ITodoList[]>([]);
+  const [selectedTodo, setSelectedTodo] = useState<ITodo | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [showListForm, setShowListForm] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -26,7 +28,7 @@ function TodosContent() {
       setTodos(data.data);
       const todoId = searchParams.get('todo');
       if (todoId) {
-        const todo = data.data.find((t: any) => t._id === todoId);
+        const todo = data.data.find((t: ITodo) => t._id.toString() === todoId);
         if (todo) setSelectedTodo(todo);
       }
     }

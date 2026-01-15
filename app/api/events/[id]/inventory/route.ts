@@ -9,6 +9,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import dbConnect from '@/lib/mongodb';
 import Event from '@/models/Event';
+import { getErrorMessage } from '@/lib/types/errors';
 
 export async function GET(
   request: NextRequest,
@@ -79,10 +80,10 @@ export async function POST(
     const updatedEvent = await Event.findById(params.id);
     
     return NextResponse.json({ success: true, data: updatedEvent?.inventory || [] });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error updating event inventory:', error);
     return NextResponse.json(
-      { success: false, error: error.message || 'Failed to update inventory' },
+      { success: false, error: getErrorMessage(error) },
       { status: 400 }
     );
   }

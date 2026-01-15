@@ -88,8 +88,8 @@ export default function LocationList() {
       } else {
         setError(data.error || 'Failed to create location');
       }
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to delete location');
     }
   };
 

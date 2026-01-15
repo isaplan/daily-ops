@@ -15,6 +15,7 @@ import { useAuth } from '@/lib/hooks/useAuth';
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import type { IMember } from '@/models/Member';
 
 interface MemberData {
   _id: string;
@@ -34,7 +35,7 @@ interface TeamData {
   _id: string;
   name: string;
   type: string;
-  members: any[];
+  members: IMember[];
   this_period: {
     total_hours: number;
     total_labor_cost: number;
@@ -173,7 +174,7 @@ export default function MemberDashboard() {
                 <div>
                   <h3 className="font-semibold mb-2">Team Members</h3>
                   <div className="space-y-2">
-                    {teamData.members?.slice(0, 5).map((member: any) => (
+                    {teamData.members?.slice(0, 5).map((member) => (
                       <div key={member._id} className="flex justify-between text-sm p-2 bg-muted rounded">
                         <span>{member.name}</span>
                         <span className="text-muted-foreground">{member.role}</span>

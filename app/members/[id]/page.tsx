@@ -3,13 +3,14 @@
 import { Suspense, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import ConnectionsDisplay from '@/components/ConnectionsDisplay';
+import type { IMember } from '@/models/Member';
 
 function MemberDetailContent() {
   const params = useParams();
   const router = useRouter();
   const memberId = typeof params.id === 'string' ? params.id : (Array.isArray(params.id) ? params.id[0] : '');
   
-  const [member, setMember] = useState<any>(null);
+  const [member, setMember] = useState<IMember | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -94,7 +95,7 @@ function MemberDetailContent() {
             <div className="mt-4">
               <h3 className="font-semibold text-gray-900 mb-2">Roles</h3>
               <div className="flex flex-wrap gap-2">
-                {member.roles.map((role: any, idx: number) => (
+                {member.roles.map((role, idx: number) => (
                   <span
                     key={idx}
                     className="px-2 py-1 bg-gray-100 text-gray-800 text-xs rounded"

@@ -14,6 +14,8 @@ import Location from '@/models/Location';
 import Team from '@/models/Team';
 import mongoose from 'mongoose';
 import { slugToFilter, generateSlug } from '@/lib/utils/slug';
+import { getErrorMessage } from '@/lib/types/errors';
+import type { INote } from '@/models/Note';
 
 export async function GET(
   request: NextRequest,
@@ -22,6 +24,14 @@ export async function GET(
   try {
     await dbConnect();
     const { id } = await params;
+    
+    if (!id || id === 'undefined' || id.trim() === '') {
+      return NextResponse.json(
+        { success: false, error: 'Invalid note identifier' },
+        { status: 400 }
+      );
+    }
+    
     const filter = slugToFilter(id);
     
     // Try to find by the primary filter (slug or _id)
@@ -67,7 +77,16 @@ export async function PUT(
     const { id } = await params;
     const filter = slugToFilter(id);
     
-    const updateData: any = {
+    interface UpdateNoteData extends Partial<Pick<INote, 'title' | 'content' | 'tags' | 'is_pinned' | 'is_archived' | 'status' | 'published_at'>> {
+      slug?: string;
+      connected_to?: {
+        location_id?: string;
+        team_id?: string;
+        member_id?: string;
+      };
+    }
+    
+    const updateData: UpdateNoteData = {
       title: body.title,
       content: body.content,
       connected_to: {
@@ -108,10 +127,10 @@ export async function PUT(
     }
     
     return NextResponse.json({ success: true, data: note });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error updating note:', error);
     return NextResponse.json(
-      { success: false, error: error.message || 'Failed to update note' },
+      { success: false, error: getErrorMessage(error) },
       { status: 400 }
     );
   }

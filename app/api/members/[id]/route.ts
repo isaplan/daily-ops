@@ -12,6 +12,8 @@ import mongoose from 'mongoose';
 import Member from '@/models/Member';
 import Location from '@/models/Location';
 import Team from '@/models/Team';
+import { getErrorMessage } from '@/lib/types/errors';
+import type { IMember } from '@/models/Member';
 
 export async function GET(
   request: NextRequest,
@@ -59,7 +61,7 @@ export async function PUT(
     const body = await request.json();
     const { id } = await params;
     
-    const updateData: any = {};
+    const updateData: Partial<IMember> = {};
     if (body.name !== undefined) updateData.name = body.name;
     if (body.email !== undefined) updateData.email = body.email;
     if (body.slack_id !== undefined) updateData.slack_id = body.slack_id;
@@ -85,10 +87,10 @@ export async function PUT(
     }
     
     return NextResponse.json({ success: true, data: member });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error updating member:', error);
     return NextResponse.json(
-      { success: false, error: error.message || 'Failed to update member' },
+      { success: false, error: getErrorMessage(error) },
       { status: 400 }
     );
   }

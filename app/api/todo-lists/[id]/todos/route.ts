@@ -10,6 +10,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import dbConnect from '@/lib/mongodb';
 import TodoList from '@/models/TodoList';
 import Todo from '@/models/Todo';
+import { getErrorMessage } from '@/lib/types/errors';
+import mongoose from 'mongoose';
 
 export async function POST(
   request: NextRequest,
@@ -44,21 +46,22 @@ export async function POST(
       );
     }
     
-    if (!list.todos.includes(todo_id as any)) {
-      list.todos.push(todo_id as any);
+    const todoObjectId = new mongoose.Types.ObjectId(todo_id);
+    if (!list.todos.some(t => t.toString() === todo_id)) {
+      list.todos.push(todoObjectId);
       await list.save();
     }
     
-    todo.list_id = id as any;
+    todo.list_id = new mongoose.Types.ObjectId(id);
     await todo.save();
     
     await list.populate('todos');
     
     return NextResponse.json({ success: true, data: list });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error adding todo to list:', error);
     return NextResponse.json(
-      { success: false, error: error.message || 'Failed to add todo to list' },
+      { success: false, error: getErrorMessage(error) },
       { status: 400 }
     );
   }
@@ -90,8 +93,8 @@ export async function DELETE(
     }
     
     list.todos = list.todos.filter(
-      (id) => id.toString() !== todo_id
-    ) as any;
+      (todoId) => todoId.toString() !== todo_id
+    );
     await list.save();
     
     await Todo.findByIdAndUpdate(todo_id, { $unset: { list_id: 1 } });
@@ -99,10 +102,10 @@ export async function DELETE(
     await list.populate('todos');
     
     return NextResponse.json({ success: true, data: list });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error removing todo from list:', error);
     return NextResponse.json(
-      { success: false, error: error.message || 'Failed to remove todo from list' },
+      { success: false, error: getErrorMessage(error) },
       { status: 400 }
     );
   }

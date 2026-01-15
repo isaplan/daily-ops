@@ -9,6 +9,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import dbConnect from '@/lib/mongodb';
 import Event from '@/models/Event';
+import { getErrorMessage } from '@/lib/types/errors';
 
 export async function GET(
   request: NextRequest,
@@ -88,10 +89,10 @@ export async function POST(
       .populate('staffing.member_id', 'name email slack_avatar');
     
     return NextResponse.json({ success: true, data: updatedEvent?.staffing || [] });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error updating event staffing:', error);
     return NextResponse.json(
-      { success: false, error: error.message || 'Failed to update staffing' },
+      { success: false, error: getErrorMessage(error) },
       { status: 400 }
     );
   }

@@ -9,6 +9,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import dbConnect from '@/lib/mongodb';
 import Event from '@/models/Event';
+import { getErrorMessage } from '@/lib/types/errors';
 
 export async function GET(
   request: NextRequest,
@@ -78,10 +79,10 @@ export async function POST(
       .populate('timeline.assigned_to', 'name email');
     
     return NextResponse.json({ success: true, data: updatedEvent?.timeline });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error updating event timeline:', error);
     return NextResponse.json(
-      { success: false, error: error.message || 'Failed to update timeline' },
+      { success: false, error: getErrorMessage(error) },
       { status: 400 }
     );
   }

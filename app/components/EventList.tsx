@@ -61,8 +61,8 @@ export default function EventList() {
       } else {
         setError(data.error || 'Failed to delete event');
       }
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to delete event');
     }
   };
 

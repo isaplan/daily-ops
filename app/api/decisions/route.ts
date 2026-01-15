@@ -13,6 +13,7 @@ import Decision from '@/models/Decision';
 import Member from '@/models/Member';
 import Location from '@/models/Location';
 import Team from '@/models/Team';
+import { getErrorMessage } from '@/lib/types/errors';
 
 export async function GET() {
   try {
@@ -71,10 +72,10 @@ export async function POST(request: NextRequest) {
     await decision.populate('created_by', 'name email');
     
     return NextResponse.json({ success: true, data: decision }, { status: 201 });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error creating decision:', error);
     return NextResponse.json(
-      { success: false, error: error.message || 'Failed to create decision' },
+      { success: false, error: getErrorMessage(error) },
       { status: 400 }
     );
   }

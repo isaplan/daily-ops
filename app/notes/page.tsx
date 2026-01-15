@@ -4,9 +4,10 @@ import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import NoteList from '../components/NoteList';
 import NoteForm from '../components/NoteForm';
+import type { INote } from '@/models/Note';
 
 function NotesContent() {
-  const [selectedNote, setSelectedNote] = useState<any>(null);
+  const [selectedNote, setSelectedNote] = useState<INote | null>(null);
   const searchParams = useSearchParams();
   const router = useRouter();
 

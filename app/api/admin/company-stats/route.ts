@@ -12,9 +12,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuth, requireRole } from '@/lib/api-middleware';
 import dbConnect from '@/lib/mongodb';
-import { Member } from '@/models/Member';
-import { Location } from '@/models/Location';
-import { Team } from '@/models/Team';
+import Member from '@/models/Member';
+import Location from '@/models/Location';
+import Team from '@/models/Team';
+import type { ILocation } from '@/models/Location';
 
 export async function GET(req: NextRequest) {
   try {
@@ -37,16 +38,16 @@ export async function GET(req: NextRequest) {
     ]);
 
     // Fetch location stats for aggregation
-    const locationStats = await Location.find({}).lean();
+    const locationStats = await Location.find({}).lean() as unknown as ILocation[];
 
-    const totalHours = locationStats.reduce((sum: number, loc: any) => sum + (loc.this_period?.total_hours || 0), 0);
-    const totalLabor = locationStats.reduce((sum: number, loc: any) => sum + (loc.this_period?.total_labor_cost || 0), 0);
-    const totalRevenue = locationStats.reduce((sum: number, loc: any) => sum + (loc.this_period?.total_revenue || 0), 0);
+    const totalHours = locationStats.reduce((sum: number, loc: ILocation) => sum + ((loc as unknown as { this_period?: { total_hours?: number } }).this_period?.total_hours || 0), 0);
+    const totalLabor = locationStats.reduce((sum: number, loc: ILocation) => sum + ((loc as unknown as { this_period?: { total_labor_cost?: number } }).this_period?.total_labor_cost || 0), 0);
+    const totalRevenue = locationStats.reduce((sum: number, loc: ILocation) => sum + ((loc as unknown as { this_period?: { total_revenue?: number } }).this_period?.total_revenue || 0), 0);
     const totalProfit = totalRevenue - totalLabor;
 
     // Calculate average task completion rate
     const taskRates = locationStats
-      .map((loc: any) => loc.this_period?.task_completion_rate || 0)
+      .map((loc: ILocation) => (loc as unknown as { this_period?: { task_completion_rate?: number } }).this_period?.task_completion_rate || 0)
       .filter((rate: number) => rate > 0);
     const avgTaskCompletion = taskRates.length > 0 ? Math.round(taskRates.reduce((a: number, b: number) => a + b, 0) / taskRates.length) : 0;
 

@@ -2,10 +2,11 @@
 
 import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
+import type { IDecision } from '@/models/Decision';
 
 function DecisionsContent() {
-  const [decisions, setDecisions] = useState<any[]>([]);
-  const [selectedDecision, setSelectedDecision] = useState<any>(null);
+  const [decisions, setDecisions] = useState<IDecision[]>([]);
+  const [selectedDecision, setSelectedDecision] = useState<IDecision | null>(null);
   const [loading, setLoading] = useState(true);
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -18,7 +19,7 @@ function DecisionsContent() {
           setDecisions(data.data);
           const decisionId = searchParams.get('decision');
           if (decisionId) {
-            const decision = data.data.find((d: any) => d._id === decisionId);
+            const decision = data.data.find((d: IDecision) => d._id.toString() === decisionId);
             if (decision) setSelectedDecision(decision);
           }
         }

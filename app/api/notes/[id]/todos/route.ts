@@ -10,6 +10,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import dbConnect from '@/lib/mongodb';
 import Note from '@/models/Note';
 import Todo from '@/models/Todo';
+import { getErrorMessage } from '@/lib/types/errors';
+import mongoose from 'mongoose';
 
 export async function POST(
   request: NextRequest,
@@ -44,22 +46,23 @@ export async function POST(
       );
     }
     
-    if (!note.linked_todos.includes(todo_id as any)) {
-      note.linked_todos.push(todo_id as any);
+    const todoObjectId = new mongoose.Types.ObjectId(todo_id);
+    if (!note.linked_todos.some(t => t.toString() === todo_id)) {
+      note.linked_todos.push(todoObjectId);
       await note.save();
     }
     
-    todo.linked_note = id as any;
+    todo.linked_note = new mongoose.Types.ObjectId(id);
     await todo.save();
     
     await note.populate('linked_todos');
     await note.populate('author_id', 'name email');
     
     return NextResponse.json({ success: true, data: note });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error adding todo to note:', error);
     return NextResponse.json(
-      { success: false, error: error.message || 'Failed to add todo to note' },
+      { success: false, error: getErrorMessage(error) },
       { status: 400 }
     );
   }
@@ -91,8 +94,8 @@ export async function DELETE(
     }
     
     note.linked_todos = note.linked_todos.filter(
-      (id) => id.toString() !== todo_id
-    ) as any;
+      (linkedId) => linkedId.toString() !== todo_id
+    );
     await note.save();
     
     await Todo.findByIdAndUpdate(todo_id, { $unset: { linked_note: 1 } });
@@ -101,10 +104,10 @@ export async function DELETE(
     await note.populate('author_id', 'name email');
     
     return NextResponse.json({ success: true, data: note });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error removing todo from note:', error);
     return NextResponse.json(
-      { success: false, error: error.message || 'Failed to remove todo from note' },
+      { success: false, error: getErrorMessage(error) },
       { status: 400 }
     );
   }

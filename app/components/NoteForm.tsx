@@ -137,8 +137,8 @@ export default function NoteForm({ note, onSave, onCancel }: NoteFormProps) {
       } else {
         setError(data.error || 'Failed to save note');
       }
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to save note');
     } finally {
       setLoading(false);
     }

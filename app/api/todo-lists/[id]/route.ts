@@ -10,6 +10,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import dbConnect from '@/lib/mongodb';
 import TodoList from '@/models/TodoList';
 import Todo from '@/models/Todo';
+import { getErrorMessage } from '@/lib/types/errors';
+import type { ITodoList } from '@/models/TodoList';
+import mongoose from 'mongoose';
 
 export async function GET(
   request: NextRequest,
@@ -57,7 +60,7 @@ export async function PATCH(
     const body = await request.json();
     const { id } = await params;
     
-    const updateData: any = {};
+    const updateData: Partial<ITodoList> & { connected_to?: { location_id?: string; team_id?: string } } = {};
     if (body.name !== undefined) updateData.name = body.name;
     if (body.description !== undefined) updateData.description = body.description;
     if (body.is_public !== undefined) updateData.is_public = body.is_public;
@@ -89,10 +92,10 @@ export async function PATCH(
     }
     
     return NextResponse.json({ success: true, data: list });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error updating todo list:', error);
     return NextResponse.json(
-      { success: false, error: error.message || 'Failed to update todo list' },
+      { success: false, error: getErrorMessage(error) },
       { status: 400 }
     );
   }

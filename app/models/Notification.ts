@@ -34,7 +34,7 @@ export interface INotification extends Document {
     channel_id?: mongoose.Types.ObjectId;
     todo_id?: mongoose.Types.ObjectId;
     event_id?: mongoose.Types.ObjectId;
-    [key: string]: any;
+    [key: string]: unknown;
   };
   
   created_at: Date;

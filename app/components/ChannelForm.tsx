@@ -18,7 +18,7 @@ interface Member {
 }
 
 interface ChannelFormProps {
-  channel?: any;
+  channel?: { _id: string; name: string; description?: string; type: string; members?: Array<{ _id: string }> };
   onSave: () => void;
   onCancel: () => void;
 }
@@ -31,7 +31,7 @@ export default function ChannelForm({ channel, onSave, onCancel }: ChannelFormPr
     location_id: channel?.connected_to?.location_id?._id || '',
     team_id: channel?.connected_to?.team_id?._id || '',
     member_id: channel?.connected_to?.member_id?._id || '',
-    members: channel?.members?.map((m: any) => m._id) || [],
+    members: channel?.members?.map((m: { _id: string }) => m._id) || [],
   });
 
   const [locations, setLocations] = useState<Location[]>([]);
@@ -109,8 +109,8 @@ export default function ChannelForm({ channel, onSave, onCancel }: ChannelFormPr
       } else {
         setError(data.error || 'Failed to save channel');
       }
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to save channel');
     } finally {
       setLoading(false);
     }
@@ -120,7 +120,7 @@ export default function ChannelForm({ channel, onSave, onCancel }: ChannelFormPr
     if (formData.members.includes(memberId)) {
       setFormData({
         ...formData,
-        members: formData.members.filter((id) => id !== memberId),
+        members: formData.members.filter((id: string) => id !== memberId),
       });
     } else {
       setFormData({

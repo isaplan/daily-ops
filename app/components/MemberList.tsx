@@ -116,8 +116,8 @@ export default function MemberList() {
       } else {
         setError(data.error || 'Failed to create member');
       }
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to delete member');
     }
   };
 

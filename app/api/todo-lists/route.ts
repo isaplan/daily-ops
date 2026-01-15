@@ -12,6 +12,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import dbConnect from '@/lib/mongodb';
 import TodoList from '@/models/TodoList';
+import { getErrorMessage } from '@/lib/types/errors';
+import type { ITodoList } from '@/models/TodoList';
 
 export async function GET(request: NextRequest) {
   try {
@@ -21,7 +23,13 @@ export async function GET(request: NextRequest) {
     const team_id = searchParams.get('team_id');
     const is_archived = searchParams.get('is_archived');
     
-    const query: any = {};
+    interface TodoListQuery {
+      'connected_to.location_id'?: string;
+      'connected_to.team_id'?: string;
+      is_archived?: boolean;
+    }
+    
+    const query: TodoListQuery = {};
     if (location_id) {
       query['connected_to.location_id'] = location_id;
     }
@@ -72,10 +80,10 @@ export async function POST(request: NextRequest) {
     await list.populate('connected_to.team_id', 'name');
     
     return NextResponse.json({ success: true, data: list }, { status: 201 });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error creating todo list:', error);
     return NextResponse.json(
-      { success: false, error: error.message || 'Failed to create todo list' },
+      { success: false, error: getErrorMessage(error) },
       { status: 400 }
     );
   }

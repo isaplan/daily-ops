@@ -4,9 +4,10 @@ import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import EventList from '../components/EventList';
 import EventForm from '../components/EventForm';
+import type { IEvent } from '@/models/Event';
 
 function EventsContent() {
-  const [selectedEvent, setSelectedEvent] = useState<any>(null);
+  const [selectedEvent, setSelectedEvent] = useState<IEvent | null>(null);
   const searchParams = useSearchParams();
   const router = useRouter();
 

@@ -7,7 +7,7 @@ interface Note {
   _id: string;
   title: string;
   content: string;
-  slug: string;
+  slug?: string | null;
   author_id?: { _id: string; name: string; email: string };
   connected_to?: {
     location_id?: { _id: string; name: string };
@@ -39,12 +39,24 @@ export default function NoteDetailPage({ slug }: NoteDetailPageProps) {
   const [actionLoading, setActionLoading] = useState(false);
 
   useEffect(() => {
-    fetchNote();
+    if (slug && slug !== 'undefined') {
+      fetchNote();
+    } else {
+      setError('Invalid note identifier');
+      setLoading(false);
+    }
   }, [slug]);
 
   const fetchNote = async () => {
+    if (!slug || slug === 'undefined') {
+      setError('Invalid note identifier');
+      setLoading(false);
+      return;
+    }
+    
     try {
       setLoading(true);
+      setError(null);
       const res = await fetch(`/api/notes/${slug}`);
       const data = await res.json();
       if (data.success) {
@@ -53,8 +65,8 @@ export default function NoteDetailPage({ slug }: NoteDetailPageProps) {
       } else {
         setError(data.error || 'Failed to load note');
       }
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
       setLoading(false);
     }
@@ -85,8 +97,8 @@ export default function NoteDetailPage({ slug }: NoteDetailPageProps) {
       } else {
         setError(data.error || 'Failed to save');
       }
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
       setActionLoading(false);
     }
@@ -117,8 +129,8 @@ export default function NoteDetailPage({ slug }: NoteDetailPageProps) {
       } else {
         setError(data.error || 'Failed to update status');
       }
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
       setActionLoading(false);
     }
@@ -148,8 +160,8 @@ export default function NoteDetailPage({ slug }: NoteDetailPageProps) {
       } else {
         setError(data.error || 'Failed to update pin status');
       }
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
       setActionLoading(false);
     }
@@ -179,8 +191,8 @@ export default function NoteDetailPage({ slug }: NoteDetailPageProps) {
       } else {
         setError(data.error || 'Failed to update archive status');
       }
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
       setActionLoading(false);
     }
@@ -198,8 +210,8 @@ export default function NoteDetailPage({ slug }: NoteDetailPageProps) {
       } else {
         setError(data.error || 'Failed to delete');
       }
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
       setActionLoading(false);
     }

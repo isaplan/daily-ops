@@ -13,6 +13,8 @@ import Channel from '@/models/Channel';
 import Member from '@/models/Member';
 import Location from '@/models/Location';
 import Team from '@/models/Team';
+import { getErrorMessage } from '@/lib/types/errors';
+import type { IChannel } from '@/models/Channel';
 
 export async function GET(
   request: NextRequest,
@@ -66,7 +68,7 @@ export async function PUT(
     const body = await request.json();
     const { id } = await params;
     
-    const updateData: any = {};
+    const updateData: Partial<IChannel> = {};
     if (body.name !== undefined) updateData.name = body.name;
     if (body.description !== undefined) updateData.description = body.description;
     if (body.type !== undefined) updateData.type = body.type;
@@ -89,10 +91,10 @@ export async function PUT(
     }
     
     return NextResponse.json({ success: true, data: channel });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error updating channel:', error);
     return NextResponse.json(
-      { success: false, error: error.message || 'Failed to update channel' },
+      { success: false, error: getErrorMessage(error) },
       { status: 400 }
     );
   }
