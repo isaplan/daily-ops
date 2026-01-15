@@ -11,6 +11,8 @@ import dbConnect from '@/lib/mongodb';
 import Member from '@/models/Member';
 import Location from '@/models/Location';
 import Team from '@/models/Team';
+import { getErrorMessage } from '@/lib/types/errors';
+import type { IMember } from '@/models/Member';
 
 export async function GET() {
   try {
@@ -31,10 +33,21 @@ export async function GET() {
   }
 }
 
+interface CreateMemberBody {
+  name: string;
+  email: string;
+  slack_id?: string;
+  slack_username?: string;
+  location_id?: string;
+  team_id?: string;
+  roles?: IMember['roles'];
+  is_active?: boolean;
+}
+
 export async function POST(request: NextRequest) {
   try {
     await dbConnect();
-    const body = await request.json();
+    const body = (await request.json()) as CreateMemberBody;
     
     const member = await Member.create({
       name: body.name,
@@ -48,10 +61,10 @@ export async function POST(request: NextRequest) {
     });
     
     return NextResponse.json({ success: true, data: member }, { status: 201 });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error creating member:', error);
     return NextResponse.json(
-      { success: false, error: error.message || 'Failed to create member' },
+      { success: false, error: getErrorMessage(error) },
       { status: 400 }
     );
   }

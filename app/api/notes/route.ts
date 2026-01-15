@@ -14,6 +14,7 @@ import Member from '@/models/Member';
 import Location from '@/models/Location';
 import Team from '@/models/Team';
 import { generateSlug } from '@/lib/utils/slug';
+import { getErrorMessage } from '@/lib/types/errors';
 
 export async function GET(request: NextRequest) {
   try {
@@ -36,7 +37,14 @@ export async function GET(request: NextRequest) {
     const member_id = searchParams.get('member_id');
     const archived = searchParams.get('archived');
     
-    const query: any = { is_archived: archived === 'true' };
+    interface NoteQuery {
+      is_archived: boolean;
+      'connected_to.location_id'?: string;
+      'connected_to.team_id'?: string;
+      'connected_to.member_id'?: string;
+    }
+    
+    const query: NoteQuery = { is_archived: archived === 'true' };
     
     if (location_id) {
       query['connected_to.location_id'] = location_id;
@@ -93,10 +101,10 @@ export async function POST(request: NextRequest) {
     await note.populate('connected_to.member_id', 'name email');
     
     return NextResponse.json({ success: true, data: note }, { status: 201 });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error creating note:', error);
     return NextResponse.json(
-      { success: false, error: error.message || 'Failed to create note' },
+      { success: false, error: getErrorMessage(error) },
       { status: 400 }
     );
   }

@@ -13,6 +13,7 @@
  */
 
 import mongoose, { Schema, Document, Model } from 'mongoose';
+import { generateSlug } from '@/lib/utils/slug';
 
 export interface INote extends Document {
   title: string;
@@ -81,17 +82,9 @@ NoteSchema.index({ is_archived: 1 });
 NoteSchema.index({ status: 1 });
 
 // Pre-save hook to generate slug if not present
-NoteSchema.pre('save', async function (next) {
+NoteSchema.pre('save', function (next) {
   if (!this.slug) {
-    const { generateSlug } = await import('@/lib/utils/slug');
     let slug = generateSlug(this.title);
-    
-    // Check for duplicate slugs and append timestamp if needed
-    let existingSlug = await mongoose.model('Note').findOne({ slug });
-    if (existingSlug) {
-      slug = `${slug}-${Date.now()}`;
-    }
-    
     this.slug = slug;
   }
   next();
