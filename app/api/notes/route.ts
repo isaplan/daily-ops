@@ -117,6 +117,7 @@ export async function GET(request: NextRequest) {
       .populate('connected_to.location_id', 'name')
       .populate('connected_to.team_id', 'name')
       .populate('connected_to.member_id', 'name email')
+      .populate('connected_members.member_id', 'name email')
       .sort({ is_pinned: -1, created_at: -1 })
       .limit(100);
     

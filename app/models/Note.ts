@@ -27,6 +27,13 @@ export interface INote extends Document {
     member_id?: mongoose.Types.ObjectId;
   };
   
+  // Individual members responsible for this note (attending, responsible, etc.)
+  connected_members: Array<{
+    member_id: mongoose.Types.ObjectId;
+    role?: 'responsible' | 'attending' | 'reviewer' | 'contributor';
+    added_at: Date;
+  }>;
+  
   linked_todos: mongoose.Types.ObjectId[];
   
   tags?: string[];
@@ -54,6 +61,16 @@ const NoteSchema = new Schema<INote>(
       member_id: { type: Schema.Types.ObjectId, ref: 'Member' },
     },
     
+    connected_members: [{
+      member_id: { type: Schema.Types.ObjectId, ref: 'Member', required: true },
+      role: {
+        type: String,
+        enum: ['responsible', 'attending', 'reviewer', 'contributor'],
+        default: 'contributor',
+      },
+      added_at: { type: Date, default: Date.now },
+    }],
+    
     linked_todos: [{ type: Schema.Types.ObjectId, ref: 'Todo' }],
     
     tags: [{ type: String }],
@@ -76,6 +93,7 @@ NoteSchema.index({ slug: 1 }, { sparse: true });
 NoteSchema.index({ 'connected_to.location_id': 1 });
 NoteSchema.index({ 'connected_to.team_id': 1 });
 NoteSchema.index({ 'connected_to.member_id': 1 });
+NoteSchema.index({ 'connected_members.member_id': 1 });
 NoteSchema.index({ linked_todos: 1 });
 NoteSchema.index({ is_archived: 1 });
 NoteSchema.index({ status: 1 });

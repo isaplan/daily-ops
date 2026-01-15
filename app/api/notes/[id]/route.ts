@@ -39,7 +39,8 @@ export async function GET(
       .populate('author_id', 'name email')
       .populate('connected_to.location_id', 'name')
       .populate('connected_to.team_id', 'name')
-      .populate('connected_to.member_id', 'name email');
+      .populate('connected_to.member_id', 'name email')
+      .populate('connected_members.member_id', 'name email');
     
     // If not found and we searched by slug, try by ID as fallback
     if (!note && !filter._id) {
@@ -47,7 +48,8 @@ export async function GET(
         .populate('author_id', 'name email')
         .populate('connected_to.location_id', 'name')
         .populate('connected_to.team_id', 'name')
-        .populate('connected_to.member_id', 'name email');
+        .populate('connected_to.member_id', 'name email')
+        .populate('connected_members.member_id', 'name email');
     }
     
     if (!note) {
@@ -117,7 +119,8 @@ export async function PUT(
       .populate('author_id', 'name email')
       .populate('connected_to.location_id', 'name')
       .populate('connected_to.team_id', 'name')
-      .populate('connected_to.member_id', 'name email');
+      .populate('connected_to.member_id', 'name email')
+      .populate('connected_members.member_id', 'name email');
     
     if (!note) {
       return NextResponse.json(
