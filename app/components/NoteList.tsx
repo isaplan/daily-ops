@@ -1,266 +1,376 @@
-'use client';
+/**
+ * @registry-id: NoteListComponent
+ * @created: 2026-01-16T00:00:00.000Z
+ * @last-modified: 2026-01-16T00:00:00.000Z
+ * @description: Note list component using MVVM pattern and microcomponents
+ * @last-fix: [2026-01-16] Refactored to use useNoteViewModel + microcomponents
+ * 
+ * @imports-from:
+ *   - app/lib/viewmodels/useNoteViewModel.ts => Note ViewModel
+ *   - app/lib/viewmodels/useLocationViewModel.ts => Location ViewModel
+ *   - app/lib/viewmodels/useTeamViewModel.ts => Team ViewModel
+ *   - app/lib/viewmodels/useMemberViewModel.ts => Member ViewModel
+ *   - app/lib/hooks/useAuth.ts => Auth hook
+ *   - app/components/ui/** => Microcomponents
+ * 
+ * @exports-to:
+ *   ✓ app/notes/page.tsx => Uses NoteList
+ */
 
-import { useEffect, useState } from 'react';
-import NoteForm from './NoteForm';
-import { useAuth } from '@/lib/hooks/useAuth';
+'use client'
 
-interface Note {
-  _id: string;
-  title: string;
-  content: string;
-  slug?: string | null;
-  author_id?: { name: string; email: string };
-  connected_to?: {
-    location_id?: { _id: string; name: string };
-    team_id?: { _id: string; name: string };
-    member_id?: { _id: string; name: string };
-  };
-  tags?: string[];
-  is_pinned: boolean;
-  is_archived: boolean;
-  status?: 'draft' | 'published';
-  created_at: string;
-  updated_at: string;
-}
+import { useEffect, useState } from 'react'
+import Link from 'next/link'
+import { useNoteViewModel } from '@/lib/viewmodels/useNoteViewModel'
+import { useLocationViewModel } from '@/lib/viewmodels/useLocationViewModel'
+import { useTeamViewModel } from '@/lib/viewmodels/useTeamViewModel'
+import { useMemberViewModel } from '@/lib/viewmodels/useMemberViewModel'
+import { useAuth } from '@/lib/hooks/useAuth'
+import NoteForm from './NoteForm'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Skeleton } from '@/components/ui/skeleton'
+import { EmptyState } from '@/components/ui/empty-state'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { Label } from '@/components/ui/label'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Switch } from '@/components/ui/switch'
 
 export default function NoteList() {
-  const { user } = useAuth();
-  const [notes, setNotes] = useState<Note[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [showForm, setShowForm] = useState(false);
-  const [editingNote, setEditingNote] = useState<Note | null>(null);
-  const [filter, setFilter] = useState({ location_id: '', team_id: '', member_id: '', archived: 'false' });
-
-  const loadNotes = () => {
-    setLoading(true);
-    const params = new URLSearchParams();
-    
-    // If no specific filters are set and user is logged in, show notes for their team/location
-    const hasFilters = filter.location_id || filter.team_id || filter.member_id;
-    
-    if (!hasFilters && user?.id) {
-      params.append('viewing_member_id', user.id);
-    } else {
-      // Use explicit filters if set
-      if (filter.location_id) params.append('location_id', filter.location_id);
-      if (filter.team_id) params.append('team_id', filter.team_id);
-      if (filter.member_id) params.append('member_id', filter.member_id);
-    }
-    
-    if (filter.archived) params.append('archived', filter.archived);
-
-    fetch(`/api/notes?${params.toString()}`)
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.success) {
-          setNotes(data.data);
-        } else {
-          setError(data.error || 'Failed to load notes');
-        }
-        setLoading(false);
-      })
-      .catch((err) => {
-        setError(err.message);
-        setLoading(false);
-      });
-  };
+  const { user } = useAuth()
+  const viewModel = useNoteViewModel()
+  const locationViewModel = useLocationViewModel()
+  const teamViewModel = useTeamViewModel()
+  const memberViewModel = useMemberViewModel()
+  const [showForm, setShowForm] = useState(false)
+  const [editingNote, setEditingNote] = useState<any>(null)
+  const [filter, setFilter] = useState({
+    location_id: '',
+    team_id: '',
+    member_id: '',
+    archived: false,
+  })
+  const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; title: string } | null>(null)
 
   useEffect(() => {
-    loadNotes();
-  }, [filter, user?.id]);
+    const filters: any = { ...filter }
+    if (!filters.location_id && !filters.team_id && !filters.member_id && user?.id) {
+      filters.viewing_member_id = user.id
+    }
+    viewModel.loadNotes(filters)
+    locationViewModel.loadLocations()
+    teamViewModel.loadTeams()
+    memberViewModel.loadMembers()
+  }, [filter, user?.id])
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this note?')) return;
-
-    try {
-      const res = await fetch(`/api/notes/${id}`, { method: 'DELETE' });
-      const data = await res.json();
-      if (data.success) {
-        loadNotes();
-      } else {
-        setError(data.error || 'Failed to delete note');
-      }
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to delete note');
+    await viewModel.deleteNote(id)
+    if (!viewModel.error) {
+      setDeleteConfirm(null)
     }
-  };
+  }
 
-  const handleArchive = async (note: Note) => {
-    try {
-      const res = await fetch(`/api/notes/${note._id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...note, is_archived: !note.is_archived }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        loadNotes();
-      }
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to archive note');
-    }
-  };
+  const handleArchive = async (note: any) => {
+    await viewModel.updateNote(note._id, {
+      is_archived: !note.is_archived,
+    })
+  }
 
-  if (loading) {
-    return <div className="p-4 text-gray-700">Loading notes...</div>;
+  if (viewModel.loading && viewModel.notes.length === 0) {
+    return (
+      <div className="space-y-4">
+        <Skeleton className="h-10 w-48" />
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {[1, 2, 3].map((i) => (
+            <Card key={i}>
+              <CardHeader>
+                <Skeleton className="h-6 w-32" />
+              </CardHeader>
+              <CardContent>
+                <Skeleton className="h-4 w-full" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+    )
   }
 
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold text-gray-900">Notes ({notes.length})</h2>
-        <button
+        <h2 className="text-2xl font-bold">Notes ({viewModel.notes.length})</h2>
+        <Button
           onClick={() => {
-            setEditingNote(null);
-            setShowForm(true);
+            setEditingNote(null)
+            setShowForm(true)
           }}
-          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
         >
           + Create Note
-        </button>
+        </Button>
       </div>
 
-      {error && <div className="p-4 bg-red-50 text-red-700 rounded">{error}</div>}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="space-y-2">
+          <Label>Location</Label>
+          <Select
+            value={filter.location_id}
+            onValueChange={(value) => setFilter({ ...filter, location_id: value, team_id: '' })}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="All Locations" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">All Locations</SelectItem>
+              {locationViewModel.locations.map((loc) => (
+                <SelectItem key={loc._id} value={loc._id}>
+                  {loc.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-2">
+          <Label>Team</Label>
+          <Select
+            value={filter.team_id}
+            onValueChange={(value) => setFilter({ ...filter, team_id: value })}
+            disabled={!filter.location_id}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="All Teams" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">All Teams</SelectItem>
+              {teamViewModel.teams
+                .filter((t) => {
+                  const teamLocId = typeof t.location_id === 'object' ? t.location_id._id : t.location_id
+                  return !filter.location_id || teamLocId === filter.location_id
+                })
+                .map((team) => (
+                  <SelectItem key={team._id} value={team._id}>
+                    {team.name}
+                  </SelectItem>
+                ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-2">
+          <Label>Member</Label>
+          <Select
+            value={filter.member_id}
+            onValueChange={(value) => setFilter({ ...filter, member_id: value })}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="All Members" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">All Members</SelectItem>
+              {memberViewModel.members.map((member) => (
+                <SelectItem key={member._id} value={member._id}>
+                  {member.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-2">
+          <Label>Show Archived</Label>
+          <div className="flex items-center space-x-2 pt-2">
+            <Switch
+              checked={filter.archived}
+              onCheckedChange={(checked) => setFilter({ ...filter, archived: checked })}
+            />
+            <Label>{filter.archived ? 'Showing archived' : 'Hide archived'}</Label>
+          </div>
+        </div>
+      </div>
+
+      {viewModel.error && (
+        <Alert variant="destructive">
+          <AlertDescription>{viewModel.error}</AlertDescription>
+        </Alert>
+      )}
 
       {showForm && (
         <NoteForm
-          note={editingNote || undefined}
+          note={editingNote}
           onSave={() => {
-            setShowForm(false);
-            setEditingNote(null);
-            loadNotes();
+            setShowForm(false)
+            setEditingNote(null)
+            const filters: any = { ...filter }
+            if (!filters.location_id && !filters.team_id && !filters.member_id && user?.id) {
+              filters.viewing_member_id = user.id
+            }
+            viewModel.loadNotes(filters)
           }}
           onCancel={() => {
-            setShowForm(false);
-            setEditingNote(null);
+            setShowForm(false)
+            setEditingNote(null)
           }}
         />
       )}
 
-      {notes.length === 0 ? (
-        <p className="text-gray-600">No notes found. Create one above.</p>
+      {viewModel.notes.length === 0 ? (
+        <EmptyState
+          title="No notes found"
+          description="Create one above to get started"
+        />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {notes.map((note) => (
-            <div
+          {viewModel.notes.map((note) => (
+            <Card
               key={note._id}
-              className={`p-4 bg-white border rounded-lg shadow-sm ${
-                note.is_pinned ? 'border-yellow-400 border-2' : ''
-              }`}
+              className={note.is_pinned ? 'border-yellow-400 border-2' : ''}
             >
-              {note.is_pinned && (
-                <span className="text-xs text-yellow-600 font-semibold">📌 PINNED</span>
-              )}
-              <h3 className="font-semibold text-lg text-gray-900 mb-2 mt-1">{note.title}</h3>
-              <p className="text-sm text-gray-700 mb-3 line-clamp-3">{note.content}</p>
-              
-              {note.connected_to && (
-                <div className="text-xs text-gray-600 mb-2 space-y-1">
-                  {note.connected_to.location_id && typeof note.connected_to.location_id === 'object' && note.connected_to.location_id.name && (
-                    <div>
-                      📍{' '}
-                      <a
-                        href={`/locations/${note.connected_to.location_id._id}`}
-                        onClick={(e) => {
-                          e.preventDefault();
-                          window.location.href = `/locations/${note.connected_to.location_id._id}`;
-                        }}
-                        className="text-blue-600 hover:text-blue-800"
-                      >
-                        {note.connected_to.location_id.name}
-                      </a>
-                    </div>
-                  )}
-                  {note.connected_to.team_id && typeof note.connected_to.team_id === 'object' && note.connected_to.team_id.name && (
-                    <div>
-                      👥{' '}
-                      <a
-                        href={`/teams/${note.connected_to.team_id._id}`}
-                        onClick={(e) => {
-                          e.preventDefault();
-                          window.location.href = `/teams/${note.connected_to.team_id._id}`;
-                        }}
-                        className="text-blue-600 hover:text-blue-800"
-                      >
-                        {note.connected_to.team_id.name}
-                      </a>
-                    </div>
-                  )}
-                  {note.connected_to.member_id && typeof note.connected_to.member_id === 'object' && note.connected_to.member_id.name && (
-                    <div>
-                      👤{' '}
-                      <a
-                        href={`/members/${note.connected_to.member_id._id}`}
-                        onClick={(e) => {
-                          e.preventDefault();
-                          window.location.href = `/members/${note.connected_to.member_id._id}`;
-                        }}
-                        className="text-blue-600 hover:text-blue-800"
-                      >
-                        {note.connected_to.member_id.name}
-                      </a>
-                    </div>
+              <CardHeader>
+                <div className="flex items-start justify-between">
+                  {note.is_pinned && (
+                    <Badge variant="outline" className="text-yellow-600 border-yellow-400">
+                      📌 PINNED
+                    </Badge>
                   )}
                 </div>
-              )}
+                <CardTitle className="text-lg">{note.title}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground mb-3 line-clamp-3">
+                  {note.content}
+                </p>
 
-              {note.tags && note.tags.length > 0 && (
-                <div className="flex flex-wrap gap-1 mb-2">
-                  {note.tags.map((tag, idx) => (
-                    <span
-                      key={idx}
-                      className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded"
+                {note.connected_to && (
+                  <div className="text-xs text-muted-foreground mb-2 space-y-1">
+                    {note.connected_to.location_id &&
+                      typeof note.connected_to.location_id === 'object' &&
+                      note.connected_to.location_id.name && (
+                        <div>
+                          📍{' '}
+                          <Link
+                            href={`/locations/${note.connected_to.location_id._id}`}
+                            className="text-blue-600 hover:text-blue-800"
+                          >
+                            {note.connected_to.location_id.name}
+                          </Link>
+                        </div>
+                      )}
+                    {note.connected_to.team_id &&
+                      typeof note.connected_to.team_id === 'object' &&
+                      note.connected_to.team_id.name && (
+                        <div>
+                          👥{' '}
+                          <Link
+                            href={`/teams/${note.connected_to.team_id._id}`}
+                            className="text-blue-600 hover:text-blue-800"
+                          >
+                            {note.connected_to.team_id.name}
+                          </Link>
+                        </div>
+                      )}
+                    {note.connected_to.member_id &&
+                      typeof note.connected_to.member_id === 'object' &&
+                      note.connected_to.member_id.name && (
+                        <div>
+                          👤{' '}
+                          <Link
+                            href={`/members/${note.connected_to.member_id._id}`}
+                            className="text-blue-600 hover:text-blue-800"
+                          >
+                            {note.connected_to.member_id.name}
+                          </Link>
+                        </div>
+                      )}
+                  </div>
+                )}
+
+                {note.tags && note.tags.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mb-2">
+                    {note.tags.map((tag, idx) => (
+                      <Badge key={idx} variant="secondary" className="text-xs">
+                        {tag}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+
+                <div className="text-xs text-muted-foreground mb-3">
+                  by{' '}
+                  {note.author_id && typeof note.author_id === 'object' ? (
+                    <Link
+                      href={`/members/${note.author_id._id || note.author_id}`}
+                      className="text-blue-600 hover:text-blue-800"
                     >
-                      {tag}
-                    </span>
-                  ))}
+                      {note.author_id.name || 'Unknown'}
+                    </Link>
+                  ) : (
+                    'Unknown'
+                  )}{' '}
+                  • {new Date(note.created_at).toLocaleDateString()}
                 </div>
-              )}
 
-              <div className="text-xs text-gray-500 mb-3">
-                by{' '}
-                {note.author_id ? (
-                  <a
-                    href={`/members/${note.author_id._id || note.author_id}`}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      window.location.href = `/members/${note.author_id._id || note.author_id}`;
-                    }}
-                    className="text-blue-600 hover:text-blue-800"
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" asChild>
+                    <Link href={`/notes/${note.slug || note._id}`}>View</Link>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleArchive(note)}
                   >
-                    {note.author_id.name || 'Unknown'}
-                  </a>
-                ) : (
-                  'Unknown'
-                )}{' '}
-                • {new Date(note.created_at).toLocaleDateString()}
-              </div>
-
-              <div className="flex gap-2">
-                <a
-                  href={`/notes/${note.slug || note._id}`}
-                  className="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200 inline-block"
-                >
-                  View
-                </a>
-                <button
-                  onClick={() => handleArchive(note)}
-                  className="px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
-                >
-                  {note.is_archived ? 'Unarchive' : 'Archive'}
-                </button>
-                <button
-                  onClick={() => handleDelete(note._id)}
-                  className="px-2 py-1 text-xs bg-red-100 text-red-700 rounded hover:bg-red-200"
-                >
-                  Delete
-                </button>
-              </div>
-            </div>
+                    {note.is_archived ? 'Unarchive' : 'Archive'}
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => setDeleteConfirm({ id: note._id, title: note.title })}
+                  >
+                    Delete
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
           ))}
         </div>
       )}
+
+      <Dialog open={!!deleteConfirm} onOpenChange={() => setDeleteConfirm(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Note</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete "{deleteConfirm?.title}"? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteConfirm(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => deleteConfirm && handleDelete(deleteConfirm.id)}
+            >
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
-  );
+  )
 }

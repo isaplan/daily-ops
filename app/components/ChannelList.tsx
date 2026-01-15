@@ -1,121 +1,131 @@
-'use client';
+/**
+ * @registry-id: ChannelListComponent
+ * @created: 2026-01-16T00:00:00.000Z
+ * @last-modified: 2026-01-16T00:00:00.000Z
+ * @description: Channel list component using MVVM pattern and microcomponents
+ * @last-fix: [2026-01-16] Refactored to use useChannelViewModel + microcomponents
+ * 
+ * @imports-from:
+ *   - app/lib/viewmodels/useChannelViewModel.ts => Channel ViewModel
+ *   - app/components/ui/** => Microcomponents
+ * 
+ * @exports-to:
+ *   ✓ app/channels/page.tsx => Uses ChannelList
+ */
 
-import { useEffect, useState } from 'react';
-import ChannelForm from './ChannelForm';
-import { useRouter } from 'next/navigation';
+'use client'
 
-interface Channel {
-  _id: string;
-  name: string;
-  description?: string;
-  type: string;
-  members?: Array<{ _id: string; name: string }>;
-  created_by?: { name: string };
-  created_at: string;
-}
+import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { useChannelViewModel } from '@/lib/viewmodels/useChannelViewModel'
+import ChannelForm from './ChannelForm'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Skeleton } from '@/components/ui/skeleton'
+import { EmptyState } from '@/components/ui/empty-state'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 
 export default function ChannelList() {
-  const [channels, setChannels] = useState<Channel[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [showForm, setShowForm] = useState(false);
-  const router = useRouter();
-
-  const loadChannels = () => {
-    setLoading(true);
-    fetch('/api/channels')
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.success) {
-          setChannels(data.data);
-        } else {
-          setError(data.error || 'Failed to load channels');
-        }
-        setLoading(false);
-      })
-      .catch((err) => {
-        setError(err.message);
-        setLoading(false);
-      });
-  };
+  const router = useRouter()
+  const viewModel = useChannelViewModel()
+  const [showForm, setShowForm] = useState(false)
 
   useEffect(() => {
-    loadChannels();
-  }, []);
+    viewModel.loadChannels()
+  }, [])
 
-  if (loading && channels.length === 0) {
-    return <div className="text-center py-8 text-gray-500">Loading channels...</div>;
+  if (viewModel.loading && viewModel.channels.length === 0) {
+    return (
+      <div className="space-y-4">
+        <Skeleton className="h-10 w-48" />
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {[1, 2, 3].map((i) => (
+            <Card key={i}>
+              <CardHeader>
+                <Skeleton className="h-6 w-32" />
+              </CardHeader>
+              <CardContent>
+                <Skeleton className="h-4 w-full" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+    )
   }
 
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold text-gray-900">Channels</h2>
-        <button
-          onClick={() => setShowForm(true)}
-          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-        >
-          + Create Channel
-        </button>
+        <h2 className="text-2xl font-bold">Channels</h2>
+        <Button onClick={() => setShowForm(true)}>+ Create Channel</Button>
       </div>
 
-      {error && (
-        <div className="p-4 bg-red-50 text-red-700 rounded">
-          {error}
-        </div>
+      {viewModel.error && (
+        <Alert variant="destructive">
+          <AlertDescription>{viewModel.error}</AlertDescription>
+        </Alert>
       )}
 
       {showForm && (
         <ChannelForm
           onSave={() => {
-            setShowForm(false);
-            loadChannels();
+            setShowForm(false)
+            viewModel.loadChannels()
           }}
           onCancel={() => setShowForm(false)}
         />
       )}
 
-      {channels.length === 0 ? (
-        <div className="text-center py-12 text-gray-500">
-          No channels found. Create your first channel!
-        </div>
+      {viewModel.channels.length === 0 ? (
+        <EmptyState
+          title="No channels found"
+          description="Create your first channel to get started"
+          action={{
+            label: 'Create Channel',
+            onClick: () => setShowForm(true),
+          }}
+        />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {channels.map((channel) => (
-            <div
+          {viewModel.channels.map((channel) => (
+            <Card
               key={channel._id}
-              className="p-4 bg-white border rounded-lg shadow-sm hover:shadow-md cursor-pointer transition-shadow"
+              className="cursor-pointer hover:shadow-md transition-shadow"
               onClick={() => router.push(`/channels/${channel._id}`)}
             >
-              <div className="flex items-start justify-between mb-2">
-                <h3 className="font-semibold text-lg text-gray-900">#{channel.name}</h3>
-                <span className="px-2 py-1 text-xs bg-gray-100 rounded">{channel.type}</span>
-              </div>
-              {channel.description && (
-                <p className="text-sm text-gray-600 mb-2">{channel.description}</p>
-              )}
-              <div className="flex items-center gap-2 text-xs text-gray-500">
-                <span>{channel.members?.length || 0} members</span>
-                {channel.created_by && (
-                  <span>
-                    • Created by{' '}
-                    <a
-                      href={`/members/${channel.created_by._id || channel.created_by}`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        window.location.href = `/members/${channel.created_by._id || channel.created_by}`;
-                      }}
-                      className="text-blue-600 hover:text-blue-800"
-                    >
-                      {channel.created_by.name}
-                    </a>
-                  </span>
+              <CardHeader>
+                <div className="flex items-start justify-between">
+                  <CardTitle>#{channel.name}</CardTitle>
+                  <Badge variant="secondary">{channel.type}</Badge>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {channel.description && (
+                  <p className="text-sm text-muted-foreground mb-2">
+                    {channel.description}
+                  </p>
                 )}
-              </div>
-            </div>
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <span>{channel.members?.length || 0} members</span>
+                  {channel.created_by && (
+                    <>
+                      <span>•</span>
+                      <span>
+                        Created by{' '}
+                        {typeof channel.created_by === 'object'
+                          ? channel.created_by.name
+                          : 'Unknown'}
+                      </span>
+                    </>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
           ))}
         </div>
       )}
     </div>
-  );
+  )
 }

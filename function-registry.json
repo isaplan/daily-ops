@@ -2,17 +2,20 @@
   "metadata": {
     "totalByType": {
       "hook": 2,
-      "api-route": 28,
-      "component": 14
+      "type": 2,
+      "api-route": 31,
+      "component": 15
     },
-    "totalFiles": 44,
+    "totalFiles": 50,
     "version": "2.0.0",
-    "generated_at": "2026-01-15T20:49:20.391Z"
+    "generated_at": "2026-01-15T22:25:26.350Z"
   },
   "index": {
     "byName": {
       "useTestHook": "useTestHook-hook",
       "useAuth": "useAuth-hook",
+      "errors": "errors-type",
+      "connections": "connections-type",
       "route": "route-api-route",
       "TeamList": "TeamList-component",
       "Sidebar": "Sidebar-component",
@@ -20,6 +23,7 @@
       "NoteForm": "NoteForm-component",
       "NoteDetailPage": "NoteDetailPage-component",
       "MessageInput": "MessageInput-component",
+      "MemberSelect": "MemberSelect-component",
       "MemberList": "MemberList-component",
       "LocationList": "LocationList-component",
       "EventList": "EventList-component",
@@ -32,6 +36,8 @@
     "byFile": {
       "app/lib/hooks/useTestHook.ts": "useTestHook-hook",
       "app/lib/hooks/useAuth.ts": "useAuth-hook",
+      "app/lib/types/errors.ts": "errors-type",
+      "app/lib/types/connections.ts": "connections-type",
       "app/api/todos/route.ts": "route-api-route",
       "app/api/todo-lists/route.ts": "route-api-route",
       "app/api/todo-lists/[id]/route.ts": "route-api-route",
@@ -42,6 +48,8 @@
       "app/api/notes/route.ts": "route-api-route",
       "app/api/notes/[id]/route.ts": "route-api-route",
       "app/api/notes/[id]/todos/route.ts": "route-api-route",
+      "app/api/notes/[id]/parse-todos/route.ts": "route-api-route",
+      "app/api/notes/[id]/members/route.ts": "route-api-route",
       "app/api/messages/route.ts": "route-api-route",
       "app/api/messages/[id]/convert-to-todo/route.ts": "route-api-route",
       "app/api/members/route.ts": "route-api-route",
@@ -56,6 +64,7 @@
       "app/api/events/[id]/staffing/route.ts": "route-api-route",
       "app/api/events/[id]/inventory/route.ts": "route-api-route",
       "app/api/decisions/route.ts": "route-api-route",
+      "app/api/dashboard/stats/route.ts": "route-api-route",
       "app/api/channels/route.ts": "route-api-route",
       "app/api/channels/[id]/route.ts": "route-api-route",
       "app/api/auth/me/route.ts": "route-api-route",
@@ -66,6 +75,7 @@
       "app/components/NoteForm.tsx": "NoteForm-component",
       "app/components/NoteDetailPage.tsx": "NoteDetailPage-component",
       "app/components/MessageInput.tsx": "MessageInput-component",
+      "app/components/MemberSelect.tsx": "MemberSelect-component",
       "app/components/MemberList.tsx": "MemberList-component",
       "app/components/LocationList.tsx": "LocationList-component",
       "app/components/EventList.tsx": "EventList-component",
@@ -80,7 +90,14 @@
         "useTestHook-hook",
         "useAuth-hook"
       ],
+      "type": [
+        "errors-type",
+        "connections-type"
+      ],
       "api-route": [
+        "route-api-route",
+        "route-api-route",
+        "route-api-route",
         "route-api-route",
         "route-api-route",
         "route-api-route",
@@ -117,6 +134,7 @@
         "NoteForm-component",
         "NoteDetailPage-component",
         "MessageInput-component",
+        "MemberSelect-component",
         "MemberList-component",
         "LocationList-component",
         "EventList-component",
@@ -130,6 +148,11 @@
     "byLastSeen": [
       "useTestHook-hook",
       "useAuth-hook",
+      "errors-type",
+      "connections-type",
+      "route-api-route",
+      "route-api-route",
+      "route-api-route",
       "route-api-route",
       "route-api-route",
       "route-api-route",
@@ -164,6 +187,7 @@
       "NoteForm-component",
       "NoteDetailPage-component",
       "MessageInput-component",
+      "MemberSelect-component",
       "MemberList-component",
       "LocationList-component",
       "EventList-component",
@@ -184,9 +208,9 @@
       "touch_again": true,
       "description": "Test hook to verify metadata validation system",
       "auto_detected": true,
-      "detected_at": "2026-01-15T20:49:20.391Z",
-      "last_seen": "2026-01-15T20:49:20.391Z",
-      "last_seen_ms": 1768510160393,
+      "detected_at": "2026-01-15T22:25:26.350Z",
+      "last_seen": "2026-01-15T22:25:26.350Z",
+      "last_seen_ms": 1768515926351,
       "size": 461,
       "lines": 21,
       "checksum": "20ff5e5e35f52a09",
@@ -205,12 +229,44 @@
       "touch_again": true,
       "description": "Auth hook with role/scope checking and permission evaluation",
       "auto_detected": true,
-      "detected_at": "2026-01-15T20:49:20.391Z",
-      "last_seen": "2026-01-15T20:49:20.391Z",
-      "last_seen_ms": 1768510160393,
-      "size": 4275,
-      "lines": 185,
-      "checksum": "9a2ade9a3087e40e"
+      "detected_at": "2026-01-15T22:25:26.350Z",
+      "last_seen": "2026-01-15T22:25:26.350Z",
+      "last_seen_ms": 1768515926351,
+      "size": 5455,
+      "lines": 221,
+      "checksum": "2a76aed82affc524"
+    },
+    {
+      "id": "errors-type",
+      "name": "errors",
+      "type": "type",
+      "file": "app/lib/types/errors.ts",
+      "status": "active",
+      "touch_again": true,
+      "description": "Type-safe error handling utilities",
+      "auto_detected": true,
+      "detected_at": "2026-01-15T22:25:26.350Z",
+      "last_seen": "2026-01-15T22:25:26.350Z",
+      "last_seen_ms": 1768515926351,
+      "size": 875,
+      "lines": 37,
+      "checksum": "85c750db8b515b35"
+    },
+    {
+      "id": "connections-type",
+      "name": "connections",
+      "type": "type",
+      "file": "app/lib/types/connections.ts",
+      "status": "active",
+      "touch_again": true,
+      "description": "Type definitions for connections API responses",
+      "auto_detected": true,
+      "detected_at": "2026-01-15T22:25:26.350Z",
+      "last_seen": "2026-01-15T22:25:26.350Z",
+      "last_seen_ms": 1768515926351,
+      "size": 707,
+      "lines": 28,
+      "checksum": "6ac6ccb2a7cae7c0"
     },
     {
       "id": "route-api-route",
@@ -221,12 +277,12 @@
       "touch_again": true,
       "description": "Todos API route - GET and POST with manager role filtering and public visibility",
       "auto_detected": true,
-      "detected_at": "2026-01-15T20:49:20.391Z",
-      "last_seen": "2026-01-15T20:49:20.391Z",
-      "last_seen_ms": 1768510160393,
-      "size": 5252,
-      "lines": 171,
-      "checksum": "93bf5fdf5397f34f"
+      "detected_at": "2026-01-15T22:25:26.350Z",
+      "last_seen": "2026-01-15T22:25:26.350Z",
+      "last_seen_ms": 1768515926351,
+      "size": 5591,
+      "lines": 183,
+      "checksum": "afe488a4757329a0"
     },
     {
       "id": "route-api-route",
@@ -237,12 +293,12 @@
       "touch_again": true,
       "description": "TodoLists API route - GET and POST",
       "auto_detected": true,
-      "detected_at": "2026-01-15T20:49:20.391Z",
-      "last_seen": "2026-01-15T20:49:20.391Z",
-      "last_seen_ms": 1768510160393,
-      "size": 2512,
-      "lines": 83,
-      "checksum": "7bbcc85eabe277f8"
+      "detected_at": "2026-01-15T22:25:26.350Z",
+      "last_seen": "2026-01-15T22:25:26.350Z",
+      "last_seen_ms": 1768515926351,
+      "size": 3013,
+      "lines": 95,
+      "checksum": "5fded95772a90a3e"
     },
     {
       "id": "route-api-route",
@@ -253,12 +309,12 @@
       "touch_again": true,
       "description": "Individual TodoList API route - GET, PATCH, DELETE",
       "auto_detected": true,
-      "detected_at": "2026-01-15T20:49:20.391Z",
-      "last_seen": "2026-01-15T20:49:20.391Z",
-      "last_seen_ms": 1768510160393,
-      "size": 3806,
-      "lines": 133,
-      "checksum": "ea2626e3b5973be4"
+      "detected_at": "2026-01-15T22:25:26.350Z",
+      "last_seen": "2026-01-15T22:25:26.350Z",
+      "last_seen_ms": 1768515926351,
+      "size": 4100,
+      "lines": 137,
+      "checksum": "892ee54ee7cd0095"
     },
     {
       "id": "route-api-route",
@@ -269,12 +325,12 @@
       "touch_again": true,
       "description": "Add/remove todos from a todo list",
       "auto_detected": true,
-      "detected_at": "2026-01-15T20:49:20.391Z",
-      "last_seen": "2026-01-15T20:49:20.391Z",
-      "last_seen_ms": 1768510160393,
-      "size": 2852,
-      "lines": 110,
-      "checksum": "ba1d8534d0b97ea8"
+      "detected_at": "2026-01-15T22:25:26.350Z",
+      "last_seen": "2026-01-15T22:25:26.350Z",
+      "last_seen_ms": 1768515926351,
+      "size": 3188,
+      "lines": 119,
+      "checksum": "140ab17b4e8c9ce2"
     },
     {
       "id": "route-api-route",
@@ -285,12 +341,12 @@
       "touch_again": true,
       "description": "Teams API route - GET and POST",
       "auto_detected": true,
-      "detected_at": "2026-01-15T20:49:20.391Z",
-      "last_seen": "2026-01-15T20:49:20.391Z",
-      "last_seen_ms": 1768510160393,
-      "size": 1463,
-      "lines": 52,
-      "checksum": "58a7f381724ef7f0"
+      "detected_at": "2026-01-15T22:25:26.350Z",
+      "last_seen": "2026-01-15T22:25:26.350Z",
+      "last_seen_ms": 1768515926351,
+      "size": 1503,
+      "lines": 53,
+      "checksum": "373bf6c376cc6e2a"
     },
     {
       "id": "route-api-route",
@@ -301,12 +357,12 @@
       "touch_again": true,
       "description": "Single team API route - GET, PUT, DELETE",
       "auto_detected": true,
-      "detected_at": "2026-01-15T20:49:20.391Z",
-      "last_seen": "2026-01-15T20:49:20.391Z",
-      "last_seen_ms": 1768510160393,
-      "size": 3200,
-      "lines": 117,
-      "checksum": "1f6757a206e0b7a1"
+      "detected_at": "2026-01-15T22:25:26.350Z",
+      "last_seen": "2026-01-15T22:25:26.350Z",
+      "last_seen_ms": 1768515926351,
+      "size": 3295,
+      "lines": 119,
+      "checksum": "cbca89df4fdcf377"
     },
     {
       "id": "route-api-route",
@@ -317,12 +373,12 @@
       "touch_again": true,
       "description": "Get all connections for a team (aggregated from members)",
       "auto_detected": true,
-      "detected_at": "2026-01-15T20:49:20.391Z",
-      "last_seen": "2026-01-15T20:49:20.391Z",
-      "last_seen_ms": 1768510160393,
-      "size": 2791,
-      "lines": 102,
-      "checksum": "cde139887a9624a3"
+      "detected_at": "2026-01-15T22:25:26.350Z",
+      "last_seen": "2026-01-15T22:25:26.350Z",
+      "last_seen_ms": 1768515926351,
+      "size": 3098,
+      "lines": 113,
+      "checksum": "a6b561e2a00141d5"
     },
     {
       "id": "route-api-route",
@@ -333,12 +389,12 @@
       "touch_again": true,
       "description": "Notes API route - GET and POST with slug generation",
       "auto_detected": true,
-      "detected_at": "2026-01-15T20:49:20.391Z",
-      "last_seen": "2026-01-15T20:49:20.391Z",
-      "last_seen_ms": 1768510160393,
-      "size": 3191,
-      "lines": 104,
-      "checksum": "80d777e55fd504e4"
+      "detected_at": "2026-01-15T22:25:26.350Z",
+      "last_seen": "2026-01-15T22:25:26.350Z",
+      "last_seen_ms": 1768515926351,
+      "size": 7603,
+      "lines": 217,
+      "checksum": "3ffcd33c5b9ead07"
     },
     {
       "id": "route-api-route",
@@ -349,12 +405,12 @@
       "touch_again": true,
       "description": "Single note API route - GET, PUT, DELETE with slug lookup",
       "auto_detected": true,
-      "detected_at": "2026-01-15T20:49:20.391Z",
-      "last_seen": "2026-01-15T20:49:20.391Z",
-      "last_seen_ms": 1768510160393,
-      "size": 4265,
-      "lines": 146,
-      "checksum": "99a5ad666b3cd3d9"
+      "detected_at": "2026-01-15T22:25:26.350Z",
+      "last_seen": "2026-01-15T22:25:26.350Z",
+      "last_seen_ms": 1768515926351,
+      "size": 8239,
+      "lines": 253,
+      "checksum": "e6a9b1bca49f2a14"
     },
     {
       "id": "route-api-route",
@@ -365,12 +421,44 @@
       "touch_again": true,
       "description": "Add/remove todos from a note",
       "auto_detected": true,
-      "detected_at": "2026-01-15T20:49:20.391Z",
-      "last_seen": "2026-01-15T20:49:20.391Z",
-      "last_seen_ms": 1768510160393,
-      "size": 2971,
-      "lines": 112,
-      "checksum": "e01f632442783b6e"
+      "detected_at": "2026-01-15T22:25:26.350Z",
+      "last_seen": "2026-01-15T22:25:26.350Z",
+      "last_seen_ms": 1768515926351,
+      "size": 3114,
+      "lines": 115,
+      "checksum": "d04c084486140829"
+    },
+    {
+      "id": "route-api-route",
+      "name": "route",
+      "type": "api-route",
+      "file": "app/api/notes/[id]/parse-todos/route.ts",
+      "status": "active",
+      "touch_again": true,
+      "description": "Parse todos from note content and create them",
+      "auto_detected": true,
+      "detected_at": "2026-01-15T22:25:26.350Z",
+      "last_seen": "2026-01-15T22:25:26.350Z",
+      "last_seen_ms": 1768515926351,
+      "size": 4220,
+      "lines": 134,
+      "checksum": "3cd9fdf346632204"
+    },
+    {
+      "id": "route-api-route",
+      "name": "route",
+      "type": "api-route",
+      "file": "app/api/notes/[id]/members/route.ts",
+      "status": "active",
+      "touch_again": true,
+      "description": "Manage connected members for a note",
+      "auto_detected": true,
+      "detected_at": "2026-01-15T22:25:26.350Z",
+      "last_seen": "2026-01-15T22:25:26.350Z",
+      "last_seen_ms": 1768515926351,
+      "size": 4175,
+      "lines": 145,
+      "checksum": "55b892fc6c5dee1f"
     },
     {
       "id": "route-api-route",
@@ -381,12 +469,12 @@
       "touch_again": true,
       "description": "Messages API route - GET and POST",
       "auto_detected": true,
-      "detected_at": "2026-01-15T20:49:20.391Z",
-      "last_seen": "2026-01-15T20:49:20.391Z",
-      "last_seen_ms": 1768510160393,
-      "size": 6886,
-      "lines": 210,
-      "checksum": "5fa82973b9eacdc0"
+      "detected_at": "2026-01-15T22:25:26.350Z",
+      "last_seen": "2026-01-15T22:25:26.350Z",
+      "last_seen_ms": 1768515926351,
+      "size": 7109,
+      "lines": 220,
+      "checksum": "c6b05566323b23e0"
     },
     {
       "id": "route-api-route",
@@ -397,12 +485,12 @@
       "touch_again": true,
       "description": "Convert a chat message to a todo",
       "auto_detected": true,
-      "detected_at": "2026-01-15T20:49:20.391Z",
-      "last_seen": "2026-01-15T20:49:20.391Z",
-      "last_seen_ms": 1768510160393,
-      "size": 2610,
-      "lines": 85,
-      "checksum": "4aad50f9d5ec00df"
+      "detected_at": "2026-01-15T22:25:26.350Z",
+      "last_seen": "2026-01-15T22:25:26.350Z",
+      "last_seen_ms": 1768515926351,
+      "size": 2693,
+      "lines": 87,
+      "checksum": "bf5533b49244107f"
     },
     {
       "id": "route-api-route",
@@ -413,12 +501,12 @@
       "touch_again": true,
       "description": "Members API route - GET and POST",
       "auto_detected": true,
-      "detected_at": "2026-01-15T20:49:20.391Z",
-      "last_seen": "2026-01-15T20:49:20.391Z",
-      "last_seen_ms": 1768510160393,
-      "size": 1707,
-      "lines": 59,
-      "checksum": "ac9cdf1480f8d713"
+      "detected_at": "2026-01-15T22:25:26.350Z",
+      "last_seen": "2026-01-15T22:25:26.350Z",
+      "last_seen_ms": 1768515926351,
+      "size": 5853,
+      "lines": 181,
+      "checksum": "bb86e07ad9e8eb7a"
     },
     {
       "id": "route-api-route",
@@ -429,12 +517,12 @@
       "touch_again": true,
       "description": "Single member API route - GET, PUT, DELETE",
       "auto_detected": true,
-      "detected_at": "2026-01-15T20:49:20.391Z",
-      "last_seen": "2026-01-15T20:49:20.391Z",
-      "last_seen_ms": 1768510160393,
-      "size": 3555,
-      "lines": 122,
-      "checksum": "83dcefdf6af677ec"
+      "detected_at": "2026-01-15T22:25:26.350Z",
+      "last_seen": "2026-01-15T22:25:26.350Z",
+      "last_seen_ms": 1768515926351,
+      "size": 6753,
+      "lines": 217,
+      "checksum": "c5feca6881cf341d"
     },
     {
       "id": "route-api-route",
@@ -445,9 +533,9 @@
       "touch_again": true,
       "description": "Get all connections for a member",
       "auto_detected": true,
-      "detected_at": "2026-01-15T20:49:20.391Z",
-      "last_seen": "2026-01-15T20:49:20.391Z",
-      "last_seen_ms": 1768510160393,
+      "detected_at": "2026-01-15T22:25:26.350Z",
+      "last_seen": "2026-01-15T22:25:26.350Z",
+      "last_seen_ms": 1768515926351,
       "size": 3089,
       "lines": 107,
       "checksum": "38aa28af8a8e8822"
@@ -461,12 +549,12 @@
       "touch_again": true,
       "description": "Locations API route - GET and POST",
       "auto_detected": true,
-      "detected_at": "2026-01-15T20:49:20.391Z",
-      "last_seen": "2026-01-15T20:49:20.391Z",
-      "last_seen_ms": 1768510160393,
-      "size": 1445,
-      "lines": 51,
-      "checksum": "e22bc3637c2bf71f"
+      "detected_at": "2026-01-15T22:25:26.350Z",
+      "last_seen": "2026-01-15T22:25:26.350Z",
+      "last_seen_ms": 1768515926351,
+      "size": 1481,
+      "lines": 52,
+      "checksum": "0c022a5d8b935127"
     },
     {
       "id": "route-api-route",
@@ -477,12 +565,12 @@
       "touch_again": true,
       "description": "Single location API route - GET, PUT, DELETE",
       "auto_detected": true,
-      "detected_at": "2026-01-15T20:49:20.391Z",
-      "last_seen": "2026-01-15T20:49:20.391Z",
-      "last_seen_ms": 1768510160393,
-      "size": 2892,
-      "lines": 103,
-      "checksum": "0e90237b01b0aef7"
+      "detected_at": "2026-01-15T22:25:26.350Z",
+      "last_seen": "2026-01-15T22:25:26.350Z",
+      "last_seen_ms": 1768515926351,
+      "size": 2995,
+      "lines": 105,
+      "checksum": "e435b878b6aae260"
     },
     {
       "id": "route-api-route",
@@ -493,12 +581,12 @@
       "touch_again": true,
       "description": "Get all connections for a location (aggregated from teams and members)",
       "auto_detected": true,
-      "detected_at": "2026-01-15T20:49:20.391Z",
-      "last_seen": "2026-01-15T20:49:20.391Z",
-      "last_seen_ms": 1768510160393,
-      "size": 3259,
-      "lines": 113,
-      "checksum": "6c4095819cb52da8"
+      "detected_at": "2026-01-15T22:25:26.350Z",
+      "last_seen": "2026-01-15T22:25:26.350Z",
+      "last_seen_ms": 1768515926351,
+      "size": 4120,
+      "lines": 133,
+      "checksum": "88318637300f48f2"
     },
     {
       "id": "route-api-route",
@@ -509,12 +597,12 @@
       "touch_again": true,
       "description": "Events API route - GET and POST",
       "auto_detected": true,
-      "detected_at": "2026-01-15T20:49:20.391Z",
-      "last_seen": "2026-01-15T20:49:20.391Z",
-      "last_seen_ms": 1768510160393,
-      "size": 3520,
-      "lines": 115,
-      "checksum": "299c5c432c3b2976"
+      "detected_at": "2026-01-15T22:25:26.350Z",
+      "last_seen": "2026-01-15T22:25:26.350Z",
+      "last_seen_ms": 1768515926351,
+      "size": 3723,
+      "lines": 123,
+      "checksum": "9dd8b90e37d7fb26"
     },
     {
       "id": "route-api-route",
@@ -525,12 +613,12 @@
       "touch_again": true,
       "description": "Single event API route - GET, PUT, DELETE",
       "auto_detected": true,
-      "detected_at": "2026-01-15T20:49:20.391Z",
-      "last_seen": "2026-01-15T20:49:20.391Z",
-      "last_seen_ms": 1768510160393,
-      "size": 4709,
-      "lines": 142,
-      "checksum": "562f8ddc2b31efa9"
+      "detected_at": "2026-01-15T22:25:26.350Z",
+      "last_seen": "2026-01-15T22:25:26.350Z",
+      "last_seen_ms": 1768515926351,
+      "size": 4806,
+      "lines": 144,
+      "checksum": "aa13323c77785995"
     },
     {
       "id": "route-api-route",
@@ -541,12 +629,12 @@
       "touch_again": true,
       "description": "Event timeline API route - GET and POST",
       "auto_detected": true,
-      "detected_at": "2026-01-15T20:49:20.391Z",
-      "last_seen": "2026-01-15T20:49:20.391Z",
-      "last_seen_ms": 1768510160393,
-      "size": 2449,
-      "lines": 89,
-      "checksum": "6a5a34d34b956493"
+      "detected_at": "2026-01-15T22:25:26.350Z",
+      "last_seen": "2026-01-15T22:25:26.350Z",
+      "last_seen_ms": 1768515926351,
+      "size": 2485,
+      "lines": 90,
+      "checksum": "ae2fb39d1aa51db4"
     },
     {
       "id": "route-api-route",
@@ -557,12 +645,12 @@
       "touch_again": true,
       "description": "Event staffing API route - GET and POST",
       "auto_detected": true,
-      "detected_at": "2026-01-15T20:49:20.391Z",
-      "last_seen": "2026-01-15T20:49:20.391Z",
-      "last_seen_ms": 1768510160393,
-      "size": 2851,
-      "lines": 99,
-      "checksum": "02c8850c64a1a753"
+      "detected_at": "2026-01-15T22:25:26.350Z",
+      "last_seen": "2026-01-15T22:25:26.350Z",
+      "last_seen_ms": 1768515926351,
+      "size": 2887,
+      "lines": 100,
+      "checksum": "279e0f4da126f016"
     },
     {
       "id": "route-api-route",
@@ -573,12 +661,12 @@
       "touch_again": true,
       "description": "Event inventory API route - GET and POST",
       "auto_detected": true,
-      "detected_at": "2026-01-15T20:49:20.391Z",
-      "last_seen": "2026-01-15T20:49:20.391Z",
-      "last_seen_ms": 1768510160393,
-      "size": 2528,
-      "lines": 90,
-      "checksum": "a5c3efce90eee396"
+      "detected_at": "2026-01-15T22:25:26.350Z",
+      "last_seen": "2026-01-15T22:25:26.350Z",
+      "last_seen_ms": 1768515926351,
+      "size": 2563,
+      "lines": 91,
+      "checksum": "bbe6749a69c324d1"
     },
     {
       "id": "route-api-route",
@@ -589,12 +677,28 @@
       "touch_again": true,
       "description": "Decisions API route - GET and POST",
       "auto_detected": true,
-      "detected_at": "2026-01-15T20:49:20.391Z",
-      "last_seen": "2026-01-15T20:49:20.391Z",
-      "last_seen_ms": 1768510160393,
-      "size": 2460,
-      "lines": 82,
-      "checksum": "4e2da41b6236710a"
+      "detected_at": "2026-01-15T22:25:26.350Z",
+      "last_seen": "2026-01-15T22:25:26.350Z",
+      "last_seen_ms": 1768515926351,
+      "size": 2496,
+      "lines": 83,
+      "checksum": "0189e6430259231c"
+    },
+    {
+      "id": "route-api-route",
+      "name": "route",
+      "type": "api-route",
+      "file": "app/api/dashboard/stats/route.ts",
+      "status": "active",
+      "touch_again": true,
+      "description": "GET /api/dashboard/stats - Dashboard statistics endpoint",
+      "auto_detected": true,
+      "detected_at": "2026-01-15T22:25:26.350Z",
+      "last_seen": "2026-01-15T22:25:26.350Z",
+      "last_seen_ms": 1768515926351,
+      "size": 3627,
+      "lines": 111,
+      "checksum": "d8e876ee1f445703"
     },
     {
       "id": "route-api-route",
@@ -605,12 +709,12 @@
       "touch_again": true,
       "description": "Channels API route - GET and POST",
       "auto_detected": true,
-      "detected_at": "2026-01-15T20:49:20.391Z",
-      "last_seen": "2026-01-15T20:49:20.391Z",
-      "last_seen_ms": 1768510160393,
-      "size": 2360,
-      "lines": 80,
-      "checksum": "472b83f7c91f939e"
+      "detected_at": "2026-01-15T22:25:26.350Z",
+      "last_seen": "2026-01-15T22:25:26.350Z",
+      "last_seen_ms": 1768515926351,
+      "size": 2397,
+      "lines": 81,
+      "checksum": "86b7436a9627a294"
     },
     {
       "id": "route-api-route",
@@ -621,12 +725,12 @@
       "touch_again": true,
       "description": "Single channel API route - GET, PUT, DELETE",
       "auto_detected": true,
-      "detected_at": "2026-01-15T20:49:20.391Z",
-      "last_seen": "2026-01-15T20:49:20.391Z",
-      "last_seen_ms": 1768510160393,
-      "size": 3649,
-      "lines": 126,
-      "checksum": "cb501706d1cd6db9"
+      "detected_at": "2026-01-15T22:25:26.350Z",
+      "last_seen": "2026-01-15T22:25:26.350Z",
+      "last_seen_ms": 1768515926351,
+      "size": 3750,
+      "lines": 128,
+      "checksum": "07bfdb8d4e1be716"
     },
     {
       "id": "route-api-route",
@@ -637,12 +741,12 @@
       "touch_again": true,
       "description": "GET /api/auth/me - Return current user with role and permissions",
       "auto_detected": true,
-      "detected_at": "2026-01-15T20:49:20.391Z",
-      "last_seen": "2026-01-15T20:49:20.391Z",
-      "last_seen_ms": 1768510160393,
-      "size": 1662,
-      "lines": 55,
-      "checksum": "c6a34d61ac12d756"
+      "detected_at": "2026-01-15T22:25:26.350Z",
+      "last_seen": "2026-01-15T22:25:26.350Z",
+      "last_seen_ms": 1768515926351,
+      "size": 3007,
+      "lines": 84,
+      "checksum": "a7e4e1ac4a4b7086"
     },
     {
       "id": "route-api-route",
@@ -653,12 +757,12 @@
       "touch_again": true,
       "description": "GET /api/admin/company-stats - Company-wide statistics (admin only)",
       "auto_detected": true,
-      "detected_at": "2026-01-15T20:49:20.391Z",
-      "last_seen": "2026-01-15T20:49:20.391Z",
-      "last_seen_ms": 1768510160393,
-      "size": 2693,
-      "lines": 69,
-      "checksum": "25dc17b7b8e0e531"
+      "detected_at": "2026-01-15T22:25:26.350Z",
+      "last_seen": "2026-01-15T22:25:26.350Z",
+      "last_seen_ms": 1768515926351,
+      "size": 3035,
+      "lines": 70,
+      "checksum": "a0d9c9372ac36e9b"
     },
     {
       "id": "TeamList-component",
@@ -669,12 +773,12 @@
       "touch_again": true,
       "description": "Auto-detected component",
       "auto_detected": true,
-      "detected_at": "2026-01-15T20:49:20.391Z",
-      "last_seen": "2026-01-15T20:49:20.391Z",
-      "last_seen_ms": 1768510160393,
-      "size": 5634,
+      "detected_at": "2026-01-15T22:25:26.350Z",
+      "last_seen": "2026-01-15T22:25:26.350Z",
+      "last_seen_ms": 1768515926351,
+      "size": 5687,
       "lines": 185,
-      "checksum": "1aaebf59262bc43b"
+      "checksum": "ed5dfd96738282a7"
     },
     {
       "id": "Sidebar-component",
@@ -685,9 +789,9 @@
       "touch_again": true,
       "description": "Auto-detected component",
       "auto_detected": true,
-      "detected_at": "2026-01-15T20:49:20.391Z",
-      "last_seen": "2026-01-15T20:49:20.391Z",
-      "last_seen_ms": 1768510160393,
+      "detected_at": "2026-01-15T22:25:26.350Z",
+      "last_seen": "2026-01-15T22:25:26.350Z",
+      "last_seen_ms": 1768515926351,
       "size": 1499,
       "lines": 48,
       "checksum": "8dba57966d025733"
@@ -701,12 +805,12 @@
       "touch_again": true,
       "description": "Auto-detected component",
       "auto_detected": true,
-      "detected_at": "2026-01-15T20:49:20.391Z",
-      "last_seen": "2026-01-15T20:49:20.391Z",
-      "last_seen_ms": 1768510160393,
-      "size": 8859,
-      "lines": 255,
-      "checksum": "767019d3f55a2353"
+      "detected_at": "2026-01-15T22:25:26.350Z",
+      "last_seen": "2026-01-15T22:25:26.350Z",
+      "last_seen_ms": 1768515926351,
+      "size": 9413,
+      "lines": 267,
+      "checksum": "e895f33d42bd4308"
     },
     {
       "id": "NoteForm-component",
@@ -717,12 +821,12 @@
       "touch_again": true,
       "description": "Auto-detected component",
       "auto_detected": true,
-      "detected_at": "2026-01-15T20:49:20.391Z",
-      "last_seen": "2026-01-15T20:49:20.391Z",
-      "last_seen_ms": 1768510160393,
-      "size": 8201,
+      "detected_at": "2026-01-15T22:25:26.350Z",
+      "last_seen": "2026-01-15T22:25:26.350Z",
+      "last_seen_ms": 1768515926351,
+      "size": 8252,
       "lines": 271,
-      "checksum": "f7e131c9eb6a67d7"
+      "checksum": "ff7a7c91f9b26c8b"
     },
     {
       "id": "NoteDetailPage-component",
@@ -733,12 +837,12 @@
       "touch_again": true,
       "description": "Auto-detected component",
       "auto_detected": true,
-      "detected_at": "2026-01-15T20:49:20.391Z",
-      "last_seen": "2026-01-15T20:49:20.391Z",
-      "last_seen_ms": 1768510160393,
-      "size": 14127,
-      "lines": 422,
-      "checksum": "edad93308efb1d49"
+      "detected_at": "2026-01-15T22:25:26.350Z",
+      "last_seen": "2026-01-15T22:25:26.350Z",
+      "last_seen_ms": 1768515926351,
+      "size": 24642,
+      "lines": 681,
+      "checksum": "c5f7b41bf0046d93"
     },
     {
       "id": "MessageInput-component",
@@ -749,12 +853,28 @@
       "touch_again": true,
       "description": "Auto-detected component",
       "auto_detected": true,
-      "detected_at": "2026-01-15T20:49:20.391Z",
-      "last_seen": "2026-01-15T20:49:20.391Z",
-      "last_seen_ms": 1768510160393,
-      "size": 8008,
-      "lines": 236,
-      "checksum": "a354e60b516ed2cb"
+      "detected_at": "2026-01-15T22:25:26.350Z",
+      "last_seen": "2026-01-15T22:25:26.350Z",
+      "last_seen_ms": 1768515926351,
+      "size": 8477,
+      "lines": 249,
+      "checksum": "aa68cd6bc88d90d0"
+    },
+    {
+      "id": "MemberSelect-component",
+      "name": "MemberSelect",
+      "type": "component",
+      "file": "app/components/MemberSelect.tsx",
+      "status": "active",
+      "touch_again": true,
+      "description": "Auto-detected component",
+      "auto_detected": true,
+      "detected_at": "2026-01-15T22:25:26.350Z",
+      "last_seen": "2026-01-15T22:25:26.350Z",
+      "last_seen_ms": 1768515926351,
+      "size": 4233,
+      "lines": 145,
+      "checksum": "173f5ff6a6069052"
     },
     {
       "id": "MemberList-component",
@@ -765,12 +885,12 @@
       "touch_again": true,
       "description": "Auto-detected component",
       "auto_detected": true,
-      "detected_at": "2026-01-15T20:49:20.391Z",
-      "last_seen": "2026-01-15T20:49:20.391Z",
-      "last_seen_ms": 1768510160393,
-      "size": 7029,
+      "detected_at": "2026-01-15T22:25:26.350Z",
+      "last_seen": "2026-01-15T22:25:26.350Z",
+      "last_seen_ms": 1768515926351,
+      "size": 7084,
       "lines": 219,
-      "checksum": "95dfe4128de24928"
+      "checksum": "4a166d70e9cf8802"
     },
     {
       "id": "LocationList-component",
@@ -781,12 +901,12 @@
       "touch_again": true,
       "description": "Auto-detected component",
       "auto_detected": true,
-      "detected_at": "2026-01-15T20:49:20.391Z",
-      "last_seen": "2026-01-15T20:49:20.391Z",
-      "last_seen_ms": 1768510160393,
-      "size": 5147,
+      "detected_at": "2026-01-15T22:25:26.350Z",
+      "last_seen": "2026-01-15T22:25:26.350Z",
+      "last_seen_ms": 1768515926351,
+      "size": 5204,
       "lines": 165,
-      "checksum": "5e4af0d14dccff9c"
+      "checksum": "dd2ebb1552c4aa09"
     },
     {
       "id": "EventList-component",
@@ -797,12 +917,12 @@
       "touch_again": true,
       "description": "Auto-detected component",
       "auto_detected": true,
-      "detected_at": "2026-01-15T20:49:20.391Z",
-      "last_seen": "2026-01-15T20:49:20.391Z",
-      "last_seen_ms": 1768510160393,
-      "size": 8232,
+      "detected_at": "2026-01-15T22:25:26.350Z",
+      "last_seen": "2026-01-15T22:25:26.350Z",
+      "last_seen_ms": 1768515926351,
+      "size": 8286,
       "lines": 236,
-      "checksum": "38f1a0c0826c42ee"
+      "checksum": "ac4b3f605a8d8443"
     },
     {
       "id": "EventForm-component",
@@ -813,12 +933,12 @@
       "touch_again": true,
       "description": "Auto-detected component",
       "auto_detected": true,
-      "detected_at": "2026-01-15T20:49:20.391Z",
-      "last_seen": "2026-01-15T20:49:20.391Z",
-      "last_seen_ms": 1768510160393,
-      "size": 25918,
-      "lines": 704,
-      "checksum": "c5e9977e18a58996"
+      "detected_at": "2026-01-15T22:25:26.350Z",
+      "last_seen": "2026-01-15T22:25:26.350Z",
+      "last_seen_ms": 1768515926351,
+      "size": 26139,
+      "lines": 705,
+      "checksum": "1c03367b0e5ce050"
     },
     {
       "id": "ConnectionsDisplay-component",
@@ -829,12 +949,12 @@
       "touch_again": true,
       "description": "Auto-detected component",
       "auto_detected": true,
-      "detected_at": "2026-01-15T20:49:20.391Z",
-      "last_seen": "2026-01-15T20:49:20.391Z",
-      "last_seen_ms": 1768510160393,
-      "size": 11099,
-      "lines": 257,
-      "checksum": "044a5e248fdf3455"
+      "detected_at": "2026-01-15T22:25:26.350Z",
+      "last_seen": "2026-01-15T22:25:26.350Z",
+      "last_seen_ms": 1768515926351,
+      "size": 11170,
+      "lines": 258,
+      "checksum": "8a6592c0c26cf023"
     },
     {
       "id": "ConnectionSheet-component",
@@ -845,12 +965,12 @@
       "touch_again": true,
       "description": "Auto-detected component",
       "auto_detected": true,
-      "detected_at": "2026-01-15T20:49:20.391Z",
-      "last_seen": "2026-01-15T20:49:20.391Z",
-      "last_seen_ms": 1768510160393,
-      "size": 13521,
-      "lines": 284,
-      "checksum": "474a0781259bfb6d"
+      "detected_at": "2026-01-15T22:25:26.350Z",
+      "last_seen": "2026-01-15T22:25:26.350Z",
+      "last_seen_ms": 1768515926351,
+      "size": 13592,
+      "lines": 285,
+      "checksum": "af5e31ad577c73fd"
     },
     {
       "id": "ChannelList-component",
@@ -861,9 +981,9 @@
       "touch_again": true,
       "description": "Auto-detected component",
       "auto_detected": true,
-      "detected_at": "2026-01-15T20:49:20.391Z",
-      "last_seen": "2026-01-15T20:49:20.391Z",
-      "last_seen_ms": 1768510160393,
+      "detected_at": "2026-01-15T22:25:26.350Z",
+      "last_seen": "2026-01-15T22:25:26.350Z",
+      "last_seen_ms": 1768515926351,
       "size": 3789,
       "lines": 122,
       "checksum": "fb7928329b150cd6"
@@ -877,12 +997,12 @@
       "touch_again": true,
       "description": "Auto-detected component",
       "auto_detected": true,
-      "detected_at": "2026-01-15T20:49:20.391Z",
-      "last_seen": "2026-01-15T20:49:20.391Z",
-      "last_seen_ms": 1768510160393,
-      "size": 8273,
+      "detected_at": "2026-01-15T22:25:26.350Z",
+      "last_seen": "2026-01-15T22:25:26.350Z",
+      "last_seen_ms": 1768515926351,
+      "size": 8443,
       "lines": 265,
-      "checksum": "7aa8b56b6b4c012c"
+      "checksum": "3bbf6ecda0737e04"
     }
   ]
 }

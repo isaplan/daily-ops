@@ -1,164 +1,200 @@
-'use client';
+/**
+ * @registry-id: LocationListComponent
+ * @created: 2026-01-16T00:00:00.000Z
+ * @last-modified: 2026-01-16T00:00:00.000Z
+ * @description: Location list component using MVVM pattern and microcomponents
+ * @last-fix: [2026-01-16] Refactored to use useLocationViewModel + microcomponents
+ * 
+ * @imports-from:
+ *   - app/lib/viewmodels/useLocationViewModel.ts => Location ViewModel
+ *   - app/lib/services/locationService.ts => Location service (for create)
+ *   - app/components/ui/** => Microcomponents
+ * 
+ * @exports-to:
+ *   ✓ app/locations/** => Uses LocationList
+ */
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+'use client'
 
-interface Location {
-  _id: string;
-  name: string;
-  address?: string;
-  city?: string;
-  country?: string;
-  is_active: boolean;
-}
+import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { useLocationViewModel } from '@/lib/viewmodels/useLocationViewModel'
+import { locationService } from '@/lib/services/locationService'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Skeleton } from '@/components/ui/skeleton'
+import { EmptyState } from '@/components/ui/empty-state'
+import { StatusBadge } from '@/components/ui/status-badge'
 
-function LocationCard({ location }: { location: Location }) {
-  const router = useRouter();
-  
+function LocationCard({ location }: { location: any }) {
+  const router = useRouter()
+
   return (
-    <div 
-      className="p-4 bg-white border rounded-lg shadow-sm cursor-pointer hover:shadow-md transition-shadow"
+    <Card
+      className="cursor-pointer hover:shadow-md transition-shadow"
       onClick={() => router.push(`/locations/${location._id}`)}
     >
-      <h3 className="font-semibold text-lg text-gray-900 mb-2">{location.name}</h3>
-      {location.address && (
-        <p className="text-sm text-gray-700 mb-1">{location.address}</p>
-      )}
-      {(location.city || location.country) && (
-        <p className="text-sm text-gray-600 mb-2">
-          {location.city}
-          {location.city && location.country && ', '}
-          {location.country}
-        </p>
-      )}
-      <span
-        className={`inline-block px-2 py-1 text-xs rounded ${
-          location.is_active
-            ? 'bg-green-100 text-green-800'
-            : 'bg-gray-100 text-gray-800'
-        }`}
-      >
-        {location.is_active ? 'Active' : 'Inactive'}
-      </span>
-    </div>
-  );
+      <CardHeader>
+        <CardTitle>{location.name}</CardTitle>
+      </CardHeader>
+      <CardContent>
+        {location.address && (
+          <p className="text-sm text-muted-foreground mb-1">{location.address}</p>
+        )}
+        {(location.city || location.country) && (
+          <p className="text-sm text-muted-foreground mb-2">
+            {location.city}
+            {location.city && location.country && ', '}
+            {location.country}
+          </p>
+        )}
+        <StatusBadge status={location.is_active !== false ? 'success' : 'default'}>
+          {location.is_active !== false ? 'Active' : 'Inactive'}
+        </StatusBadge>
+      </CardContent>
+    </Card>
+  )
 }
 
 export default function LocationList() {
-  const [locations, setLocations] = useState<Location[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [showForm, setShowForm] = useState(false);
-  const [formData, setFormData] = useState({ name: '', address: '', city: '', country: '' });
-
-  const loadLocations = () => {
-    fetch('/api/locations')
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.success) {
-          setLocations(data.data);
-        } else {
-          setError(data.error || 'Failed to load locations');
-        }
-        setLoading(false);
-      })
-      .catch((err) => {
-        setError(err.message);
-        setLoading(false);
-      });
-  };
+  const router = useRouter()
+  const viewModel = useLocationViewModel()
+  const [showForm, setShowForm] = useState(false)
+  const [formData, setFormData] = useState({ name: '', address: '', city: '', country: '' })
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    loadLocations();
-  }, []);
+    viewModel.loadLocations()
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+    e.preventDefault()
+    setLoading(true)
+    setError(null)
     try {
-      const res = await fetch('/api/locations', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
-      });
-      const data = await res.json();
-      if (data.success) {
-        setFormData({ name: '', address: '', city: '', country: '' });
-        setShowForm(false);
-        loadLocations();
+      const response = await locationService.create({
+        name: formData.name,
+        address: formData.address || undefined,
+      })
+      if (response.success) {
+        setFormData({ name: '', address: '', city: '', country: '' })
+        setShowForm(false)
+        viewModel.loadLocations()
       } else {
-        setError(data.error || 'Failed to create location');
+        setError(response.error || 'Failed to create location')
       }
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to delete location');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create location')
+    } finally {
+      setLoading(false)
     }
-  };
+  }
 
-  if (loading) {
-    return <div className="p-4 text-gray-700">Loading locations...</div>;
+  if (viewModel.loading && viewModel.locations.length === 0) {
+    return (
+      <div className="space-y-4">
+        <Skeleton className="h-10 w-48" />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {[1, 2].map((i) => (
+            <Card key={i}>
+              <CardHeader>
+                <Skeleton className="h-6 w-32" />
+              </CardHeader>
+              <CardContent>
+                <Skeleton className="h-4 w-full" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+    )
   }
 
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold text-gray-900">Locations ({locations.length})</h2>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-        >
+        <h2 className="text-2xl font-bold">Locations ({viewModel.locations.length})</h2>
+        <Button onClick={() => setShowForm(!showForm)}>
           {showForm ? 'Cancel' : '+ Create Location'}
-        </button>
+        </Button>
       </div>
 
-      {error && <div className="p-4 bg-red-50 text-red-700 rounded">{error}</div>}
-
-      {showForm && (
-        <form onSubmit={handleSubmit} className="p-4 bg-white border rounded-lg space-y-3">
-          <input
-            type="text"
-            placeholder="Location Name *"
-            value={formData.name}
-            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-            required
-            className="w-full px-3 py-2 border rounded text-gray-900"
-          />
-          <input
-            type="text"
-            placeholder="Address"
-            value={formData.address}
-            onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-            className="w-full px-3 py-2 border rounded text-gray-900"
-          />
-          <div className="grid grid-cols-2 gap-3">
-            <input
-              type="text"
-              placeholder="City"
-              value={formData.city}
-              onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-              className="px-3 py-2 border rounded text-gray-900"
-            />
-            <input
-              type="text"
-              placeholder="Country"
-              value={formData.country}
-              onChange={(e) => setFormData({ ...formData, country: e.target.value })}
-              className="px-3 py-2 border rounded text-gray-900"
-            />
-          </div>
-          <button type="submit" className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">
-            Create Location
-          </button>
-        </form>
+      {(error || viewModel.error) && (
+        <Alert variant="destructive">
+          <AlertDescription>{error || viewModel.error}</AlertDescription>
+        </Alert>
       )}
 
-      {locations.length === 0 ? (
-        <p className="text-gray-600">No locations found. Create one above.</p>
+      {showForm && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Create Location</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="name">Location Name *</Label>
+                <Input
+                  id="name"
+                  placeholder="Location Name"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="address">Address</Label>
+                <Input
+                  id="address"
+                  placeholder="Address"
+                  value={formData.address}
+                  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="city">City</Label>
+                  <Input
+                    id="city"
+                    placeholder="City"
+                    value={formData.city}
+                    onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="country">Country</Label>
+                  <Input
+                    id="country"
+                    placeholder="Country"
+                    value={formData.country}
+                    onChange={(e) => setFormData({ ...formData, country: e.target.value })}
+                  />
+                </div>
+              </div>
+              <Button type="submit" disabled={loading}>
+                Create Location
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      )}
+
+      {viewModel.locations.length === 0 ? (
+        <EmptyState
+          title="No locations found"
+          description="Create one above to get started"
+        />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {locations.map((location) => (
+          {viewModel.locations.map((location) => (
             <LocationCard key={location._id} location={location} />
           ))}
         </div>
       )}
     </div>
-  );
+  )
 }

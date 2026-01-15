@@ -1,20 +1,35 @@
-'use client';
+/**
+ * @registry-id: MemberSelectComponent
+ * @created: 2026-01-16T00:00:00.000Z
+ * @last-modified: 2026-01-16T00:00:00.000Z
+ * @description: Member select component using microcomponents with search
+ * @last-fix: [2026-01-16] Refactored to use Select microcomponent + memberService
+ * 
+ * @imports-from:
+ *   - app/lib/viewmodels/useMemberViewModel.ts => Member ViewModel
+ *   - app/components/ui/** => Microcomponents
+ * 
+ * @exports-to:
+ *   ✓ app/components/** => Components use MemberSelect for member selection
+ */
 
-import { useEffect, useState, useRef } from 'react';
+'use client'
 
-interface Member {
-  _id: string;
-  name: string;
-  email: string;
-}
+import { useEffect, useState } from 'react'
+import { useMemberViewModel } from '@/lib/viewmodels/useMemberViewModel'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils/cn'
 
 interface MemberSelectProps {
-  name: string;
-  label: string;
-  required?: boolean;
-  value?: string;
-  onChange?: (value: string) => void;
-  className?: string;
+  name: string
+  label: string
+  required?: boolean
+  value?: string
+  onChange?: (value: string) => void
+  className?: string
 }
 
 export default function MemberSelect({
@@ -25,120 +40,90 @@ export default function MemberSelect({
   onChange,
   className = '',
 }: MemberSelectProps) {
-  const [members, setMembers] = useState<Member[]>([]);
-  const [filteredMembers, setFilteredMembers] = useState<Member[]>([]);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [isOpen, setIsOpen] = useState(false);
-  const [selectedMember, setSelectedMember] = useState<Member | null>(null);
-  const wrapperRef = useRef<HTMLDivElement>(null);
+  const viewModel = useMemberViewModel()
+  const [searchTerm, setSearchTerm] = useState('')
+  const [isOpen, setIsOpen] = useState(false)
 
   useEffect(() => {
-    fetch('/api/members')
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.success) {
-          setMembers(data.data);
-          setFilteredMembers(data.data);
-        }
-      })
-      .catch((err) => console.error('Failed to load members:', err));
-  }, []);
+    viewModel.loadMembers()
+  }, [])
 
   useEffect(() => {
-    if (value && members.length > 0) {
-      const member = members.find((m) => m._id === value);
+    if (value && viewModel.members.length > 0) {
+      const member = viewModel.members.find((m) => m._id === value)
       if (member) {
-        setSelectedMember(member);
-        setSearchTerm(member.name);
+        setSearchTerm(member.name)
       }
     }
-  }, [value, members]);
+  }, [value, viewModel.members])
 
-  useEffect(() => {
-    if (searchTerm.trim() === '') {
-      setFilteredMembers(members);
-    } else {
-      const filtered = members.filter(
+  const filteredMembers = searchTerm.trim() === ''
+    ? viewModel.members
+    : viewModel.members.filter(
         (member) =>
           member.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
           member.email.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-      setFilteredMembers(filtered);
-    }
-  }, [searchTerm, members]);
+      )
 
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
-    }
+  const selectedMember = viewModel.members.find((m) => m._id === value)
 
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  const handleSelect = (member: Member) => {
-    setSelectedMember(member);
-    setSearchTerm(member.name);
-    setIsOpen(false);
-    if (onChange) {
-      onChange(member._id);
+  const handleSelect = (memberId: string) => {
+    const member = viewModel.members.find((m) => m._id === memberId)
+    if (member) {
+      setSearchTerm(member.name)
+      setIsOpen(false)
+      onChange?.(memberId)
     }
-  };
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSearchTerm(e.target.value);
-    setIsOpen(true);
-    setSelectedMember(null);
-    if (onChange) {
-      onChange('');
-    }
-  };
+  }
 
   return (
-    <div className={`relative ${className}`} ref={wrapperRef}>
-      <label className="block text-sm font-medium mb-1">
+    <div className={cn('relative', className)}>
+      <Label htmlFor={name}>
         {label} {required && '*'}
-      </label>
-      <div className="relative">
-        <input
-          type="text"
-          value={searchTerm}
-          onChange={handleInputChange}
-          onFocus={() => setIsOpen(true)}
-          className="w-full px-3 py-2 border rounded bg-white text-gray-900"
-          placeholder="Search member by name or email..."
-          autoComplete="off"
-        />
-        <input
-          type="hidden"
-          name={name}
-          value={selectedMember?._id || ''}
-          required={required}
-        />
-        {isOpen && filteredMembers.length > 0 && (
-          <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto">
-            {filteredMembers.map((member) => (
-              <div
-                key={member._id}
-                onClick={() => handleSelect(member)}
-                className={`px-4 py-2 cursor-pointer hover:bg-blue-50 ${
-                  selectedMember?._id === member._id ? 'bg-blue-100' : ''
-                }`}
-              >
-                <div className="font-medium text-gray-900">{member.name}</div>
-                <div className="text-sm text-gray-500">{member.email}</div>
-              </div>
-            ))}
+      </Label>
+      <Popover open={isOpen} onOpenChange={setIsOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            variant="outline"
+            className="w-full justify-start text-left font-normal"
+            onClick={() => setIsOpen(true)}
+          >
+            {selectedMember ? selectedMember.name : 'Search member by name or email...'}
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-[400px] p-0" align="start">
+          <div className="p-2">
+            <Input
+              placeholder="Search members..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="mb-2"
+            />
+            <div className="max-h-60 overflow-auto">
+              {filteredMembers.length === 0 ? (
+                <div className="p-4 text-sm text-muted-foreground text-center">
+                  No members found
+                </div>
+              ) : (
+                filteredMembers.map((member) => (
+                  <div
+                    key={member._id}
+                    onClick={() => handleSelect(member._id)}
+                    className={cn(
+                      'px-4 py-2 cursor-pointer hover:bg-accent',
+                      selectedMember?._id === member._id && 'bg-accent'
+                    )}
+                  >
+                    <div className="font-medium">{member.name}</div>
+                    <div className="text-sm text-muted-foreground">{member.email}</div>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
-        )}
-        {isOpen && searchTerm && filteredMembers.length === 0 && (
-          <div className="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg p-4 text-sm text-gray-500">
-            No members found matching "{searchTerm}"
-          </div>
-        )}
-      </div>
+        </PopoverContent>
+      </Popover>
+      <input type="hidden" name={name} value={value} required={required} />
     </div>
-  );
+  )
 }

@@ -1,270 +1,239 @@
-'use client';
+/**
+ * @registry-id: NoteFormComponent
+ * @created: 2026-01-16T00:00:00.000Z
+ * @last-modified: 2026-01-16T00:00:00.000Z
+ * @description: Note form component using MVVM pattern and microcomponents
+ * @last-fix: [2026-01-16] Refactored to use useNoteViewModel + microcomponents
+ * 
+ * @imports-from:
+ *   - app/lib/viewmodels/useNoteViewModel.ts => Note ViewModel
+ *   - app/lib/viewmodels/useLocationViewModel.ts => Location ViewModel
+ *   - app/lib/viewmodels/useTeamViewModel.ts => Team ViewModel
+ *   - app/lib/viewmodels/useMemberViewModel.ts => Member ViewModel
+ *   - app/components/ui/** => Microcomponents
+ * 
+ * @exports-to:
+ *   ✓ app/components/NoteList.tsx => Uses NoteForm
+ */
 
-import { useState, useEffect } from 'react';
+'use client'
 
-interface Location {
-  _id: string;
-  name: string;
-}
-
-interface Team {
-  _id: string;
-  name: string;
-  location_id?: string | { _id: string };
-}
-
-interface Member {
-  _id: string;
-  name: string;
-}
-
-interface Note {
-  _id?: string;
-  title: string;
-  content: string;
-  slug?: string;
-  author_id?: string;
-  connected_to?: {
-    location_id?: string | { _id: string; name: string };
-    team_id?: string | { _id: string; name: string };
-    member_id?: string | { _id: string; name: string };
-  };
-  tags?: string[];
-  is_pinned?: boolean;
-  status?: 'draft' | 'published';
-}
+import { useEffect, useMemo } from 'react'
+import { useNoteViewModel } from '@/lib/viewmodels/useNoteViewModel'
+import { useLocationViewModel } from '@/lib/viewmodels/useLocationViewModel'
+import { useTeamViewModel } from '@/lib/viewmodels/useTeamViewModel'
+import { useMemberViewModel } from '@/lib/viewmodels/useMemberViewModel'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import { Label } from '@/components/ui/label'
+import { Button } from '@/components/ui/button'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Checkbox } from '@/components/ui/checkbox'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import type { Note } from '@/lib/types/note.types'
 
 interface NoteFormProps {
-  note?: Note;
-  onSave: () => void;
-  onCancel: () => void;
+  note?: Note
+  onSave: () => void
+  onCancel: () => void
 }
 
 export default function NoteForm({ note, onSave, onCancel }: NoteFormProps) {
-  const [formData, setFormData] = useState({
-    title: note?.title || '',
-    content: note?.content || '',
-    location_id: note?.connected_to?.location_id 
-      ? (typeof note.connected_to.location_id === 'object' ? note.connected_to.location_id._id : note.connected_to.location_id)
-      : '',
-    team_id: note?.connected_to?.team_id
-      ? (typeof note.connected_to.team_id === 'object' ? note.connected_to.team_id._id : note.connected_to.team_id)
-      : '',
-    member_id: note?.connected_to?.member_id
-      ? (typeof note.connected_to.member_id === 'object' ? note.connected_to.member_id._id : note.connected_to.member_id)
-      : '',
-    tags: (note?.tags || []).join(', '),
-    is_pinned: note?.is_pinned || false,
-  });
-
-  const [locations, setLocations] = useState<Location[]>([]);
-  const [teams, setTeams] = useState<Team[]>([]);
-  const [members, setMembers] = useState<Member[]>([]);
-  const [filteredTeams, setFilteredTeams] = useState<Team[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const viewModel = useNoteViewModel(note)
+  const locationViewModel = useLocationViewModel()
+  const teamViewModel = useTeamViewModel()
+  const memberViewModel = useMemberViewModel()
 
   useEffect(() => {
-    fetch('/api/locations')
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.success) setLocations(data.data);
-      });
-    
-    fetch('/api/teams')
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.success) setTeams(data.data);
-      });
-    
-    fetch('/api/members')
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.success) setMembers(data.data);
-      });
-  }, []);
+    locationViewModel.loadLocations()
+    teamViewModel.loadTeams()
+    memberViewModel.loadMembers()
+  }, [])
 
-  useEffect(() => {
-    if (formData.location_id) {
-      const filtered = teams.filter((t) => {
-        const teamLocId = typeof t.location_id === 'object' ? t.location_id._id : t.location_id;
-        return teamLocId === formData.location_id;
-      });
-      setFilteredTeams(filtered);
-      if (formData.team_id && !filtered.find((t) => t._id === formData.team_id)) {
-        setFormData({ ...formData, team_id: '' });
-      }
-    } else {
-      setFilteredTeams(teams);
-    }
-  }, [formData.location_id, teams]);
+  const filteredTeams = useMemo(() => {
+    if (!viewModel.formData.location_id) return teamViewModel.teams
+    return teamViewModel.teams.filter((t) => {
+      const teamLocId = typeof t.location_id === 'object' ? t.location_id._id : t.location_id
+      return teamLocId === viewModel.formData.location_id
+    })
+  }, [viewModel.formData.location_id, teamViewModel.teams])
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
+    e.preventDefault()
+    
+    const tagsArray = viewModel.formData.tags
+      .split(',')
+      .map((tag) => tag.trim())
+      .filter((tag) => tag.length > 0)
 
-    try {
-      const tagsArray = formData.tags
-        .split(',')
-        .map((tag) => tag.trim())
-        .filter((tag) => tag.length > 0);
-
-      const payload = {
-        title: formData.title,
-        content: formData.content,
-        author_id: note?.author_id || members[0]?._id || '',
-        location_id: formData.location_id || undefined,
-        team_id: formData.team_id || undefined,
-        member_id: formData.member_id || undefined,
+    if (note?._id) {
+      await viewModel.updateNote(note._id, {
+        title: viewModel.formData.title,
+        content: viewModel.formData.content,
+        location_id: viewModel.formData.location_id || undefined,
+        team_id: viewModel.formData.team_id || undefined,
+        member_id: viewModel.formData.member_id || undefined,
         tags: tagsArray,
-        is_pinned: formData.is_pinned,
-      };
-
-      const url = note?._id ? `/api/notes/${note._id}` : '/api/notes';
-      const method = note?._id ? 'PUT' : 'POST';
-
-      const res = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-
-      const data = await res.json();
-
-      if (data.success) {
-        onSave();
-      } else {
-        setError(data.error || 'Failed to save note');
-      }
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to save note');
-    } finally {
-      setLoading(false);
+        is_pinned: viewModel.formData.is_pinned,
+      })
+    } else {
+      await viewModel.createNote({
+        title: viewModel.formData.title,
+        content: viewModel.formData.content,
+        location_id: viewModel.formData.location_id || undefined,
+        team_id: viewModel.formData.team_id || undefined,
+        member_id: viewModel.formData.member_id || undefined,
+        tags: tagsArray,
+        is_pinned: viewModel.formData.is_pinned,
+      })
     }
-  };
+    
+    if (!viewModel.error) {
+      onSave()
+    }
+  }
 
   return (
-    <form onSubmit={handleSubmit} className="p-6 bg-white border rounded-lg space-y-4">
-      <div>
-        <input
-          type="text"
-          placeholder="Note Title *"
-          value={formData.title}
-          onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-          required
-          className="w-full px-3 py-2 border rounded bg-white text-gray-900 text-lg font-semibold"
-        />
-      </div>
+    <Card>
+      <CardHeader>
+        <CardTitle>{note ? 'Update Note' : 'Create Note'}</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="title">Note Title *</Label>
+            <Input
+              id="title"
+              placeholder="Note Title"
+              value={viewModel.formData.title}
+              onChange={(e) => viewModel.setFormData({ title: e.target.value })}
+              required
+            />
+          </div>
 
-      <div>
-        <textarea
-          placeholder="Note Content *"
-          value={formData.content}
-          onChange={(e) => setFormData({ ...formData, content: e.target.value })}
-          required
-          rows={8}
-          className="w-full px-3 py-2 border rounded bg-white text-gray-900"
-        />
-      </div>
+          <div className="space-y-2">
+            <Label htmlFor="content">Note Content *</Label>
+            <Textarea
+              id="content"
+              placeholder="Note Content"
+              value={viewModel.formData.content}
+              onChange={(e) => viewModel.setFormData({ content: e.target.value })}
+              required
+              rows={8}
+            />
+          </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
-          <select
-            value={formData.location_id}
-            onChange={(e) => setFormData({ ...formData, location_id: e.target.value, team_id: '' })}
-            className="w-full px-3 py-2 border rounded bg-white text-gray-900"
-          >
-            <option value="">Select Location</option>
-            {locations.map((loc) => (
-              <option key={loc._id} value={loc._id}>
-                {loc.name}
-              </option>
-            ))}
-          </select>
-        </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="location">Location</Label>
+              <Select
+                value={viewModel.formData.location_id}
+                onValueChange={(value) =>
+                  viewModel.setFormData({ location_id: value, team_id: '' })
+                }
+              >
+                <SelectTrigger id="location">
+                  <SelectValue placeholder="Select Location" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">None</SelectItem>
+                  {locationViewModel.locations.map((loc) => (
+                    <SelectItem key={loc._id} value={loc._id}>
+                      {loc.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Team</label>
-          <select
-            value={formData.team_id}
-            onChange={(e) => setFormData({ ...formData, team_id: e.target.value })}
-            disabled={!formData.location_id}
-            className="w-full px-3 py-2 border rounded bg-white text-gray-900 disabled:bg-gray-100"
-          >
-            <option value="">Select Team</option>
-            {filteredTeams.map((team) => (
-              <option key={team._id} value={team._id}>
-                {team.name}
-              </option>
-            ))}
-          </select>
-        </div>
+            <div className="space-y-2">
+              <Label htmlFor="team">Team</Label>
+              <Select
+                value={viewModel.formData.team_id}
+                onValueChange={(value) => viewModel.setFormData({ team_id: value })}
+                disabled={!viewModel.formData.location_id}
+              >
+                <SelectTrigger id="team">
+                  <SelectValue placeholder="Select Team" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">None</SelectItem>
+                  {filteredTeams.map((team) => (
+                    <SelectItem key={team._id} value={team._id}>
+                      {team.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Member</label>
-          <select
-            value={formData.member_id}
-            onChange={(e) => setFormData({ ...formData, member_id: e.target.value })}
-            className="w-full px-3 py-2 border rounded bg-white text-gray-900"
-          >
-            <option value="">Select Member</option>
-            {members.map((member) => (
-              <option key={member._id} value={member._id}>
-                {member.name}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
+            <div className="space-y-2">
+              <Label htmlFor="member">Member</Label>
+              <Select
+                value={viewModel.formData.member_id}
+                onValueChange={(value) => viewModel.setFormData({ member_id: value })}
+              >
+                <SelectTrigger id="member">
+                  <SelectValue placeholder="Select Member" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">None</SelectItem>
+                  {memberViewModel.members.map((member) => (
+                    <SelectItem key={member._id} value={member._id}>
+                      {member.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
 
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Tags (comma-separated)</label>
-        <input
-          type="text"
-          placeholder="tag1, tag2, tag3"
-          value={formData.tags}
-          onChange={(e) => setFormData({ ...formData, tags: e.target.value })}
-          className="w-full px-3 py-2 border rounded bg-white text-gray-900"
-        />
-      </div>
+          <div className="space-y-2">
+            <Label htmlFor="tags">Tags (comma-separated)</Label>
+            <Input
+              id="tags"
+              placeholder="tag1, tag2, tag3"
+              value={viewModel.formData.tags}
+              onChange={(e) => viewModel.setFormData({ tags: e.target.value })}
+            />
+          </div>
 
-      <div className="flex items-center">
-        <input
-          type="checkbox"
-          id="is_pinned"
-          checked={formData.is_pinned}
-          onChange={(e) => setFormData({ ...formData, is_pinned: e.target.checked })}
-          className="mr-2"
-        />
-        <label htmlFor="is_pinned" className="text-sm text-gray-700">
-          Pin this note
-        </label>
-      </div>
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id="is_pinned"
+              checked={viewModel.formData.is_pinned}
+              onCheckedChange={(checked) =>
+                viewModel.setFormData({ is_pinned: checked === true })
+              }
+            />
+            <Label htmlFor="is_pinned" className="cursor-pointer">
+              Pin this note
+            </Label>
+          </div>
 
-      {error && (
-        <div className="p-3 bg-red-50 text-red-700 rounded text-sm">
-          {error}
-        </div>
-      )}
+          {viewModel.error && (
+            <Alert variant="destructive">
+              <AlertDescription>{viewModel.error}</AlertDescription>
+            </Alert>
+          )}
 
-      <div className="flex gap-3">
-        <button
-          type="submit"
-          disabled={loading}
-          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
-        >
-          {loading ? 'Saving...' : 'Save Note'}
-        </button>
-        <button
-          type="button"
-          onClick={onCancel}
-          className="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
-        >
-          Cancel
-        </button>
-      </div>
-    </form>
-  );
+          <div className="flex gap-3">
+            <Button type="submit" disabled={viewModel.loading}>
+              {viewModel.loading ? 'Saving...' : 'Save Note'}
+            </Button>
+            <Button type="button" variant="outline" onClick={onCancel}>
+              Cancel
+            </Button>
+          </div>
+        </form>
+      </CardContent>
+    </Card>
+  )
 }

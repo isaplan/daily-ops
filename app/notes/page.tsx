@@ -1,72 +1,71 @@
-'use client';
+'use client'
 
-import { Suspense, useEffect, useState } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
-import NoteList from '../components/NoteList';
-import NoteForm from '../components/NoteForm';
-import type { INote } from '@/models/Note';
+import { Suspense, useEffect, useState } from 'react'
+import { useSearchParams, useRouter } from 'next/navigation'
+import NoteList from '../components/NoteList'
+import NoteForm from '../components/NoteForm'
+import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
+import { noteService } from '@/lib/services/noteService'
+import type { Note } from '@/lib/types/note.types'
 
 function NotesContent() {
-  const [selectedNote, setSelectedNote] = useState<INote | null>(null);
-  const searchParams = useSearchParams();
-  const router = useRouter();
+  const [selectedNote, setSelectedNote] = useState<Note | null>(null)
+  const [loading, setLoading] = useState(false)
+  const searchParams = useSearchParams()
+  const router = useRouter()
 
   useEffect(() => {
-    const noteId = searchParams.get('note');
+    const noteId = searchParams.get('note')
     if (noteId) {
-      fetch(`/api/notes/${noteId}`)
-        .then((res) => res.json())
-        .then((data) => {
-          if (data.success) {
-            setSelectedNote(data.data);
+      setLoading(true)
+      noteService
+        .getById(noteId)
+        .then((response) => {
+          if (response.success && response.data) {
+            setSelectedNote(response.data)
           }
-        });
+          setLoading(false)
+        })
+        .catch(() => setLoading(false))
     } else {
-      setSelectedNote(null);
+      setSelectedNote(null)
     }
-  }, [searchParams]);
+  }, [searchParams])
+
+  const handleBack = () => {
+    const returnTo = searchParams.get('returnTo')
+    if (returnTo) {
+      router.push(returnTo)
+    } else {
+      setSelectedNote(null)
+    }
+  }
 
   return (
-    <div className="min-h-screen p-8 bg-gray-50">
+    <div className="min-h-screen p-8">
       <div className="max-w-7xl mx-auto">
         <div className="mb-8">
-          <h1 className="text-4xl font-bold mb-2 text-gray-900">Notes</h1>
-          <p className="text-gray-700">Create and manage notes connected to locations, teams, and members</p>
+          <h1 className="text-4xl font-bold mb-2">Notes</h1>
+          <p className="text-muted-foreground">
+            Create and manage notes connected to locations, teams, and members
+          </p>
         </div>
-        
-        {selectedNote ? (
+
+        {loading ? (
+          <div className="space-y-4">
+            <Skeleton className="h-12 w-full" />
+            <Skeleton className="h-64 w-full" />
+          </div>
+        ) : selectedNote ? (
           <div>
-            <button
-              onClick={() => {
-                const returnTo = searchParams.get('returnTo');
-                if (returnTo) {
-                  router.push(returnTo);
-                } else {
-                  setSelectedNote(null);
-                }
-              }}
-              className="mb-4 px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 flex items-center gap-2"
-            >
-              <span>←</span> Back
-            </button>
+            <Button variant="outline" onClick={handleBack} className="mb-4">
+              ← Back
+            </Button>
             <NoteForm
               note={selectedNote}
-              onSave={() => {
-                const returnTo = searchParams.get('returnTo');
-                if (returnTo) {
-                  router.push(returnTo);
-                } else {
-                  setSelectedNote(null);
-                }
-              }}
-              onCancel={() => {
-                const returnTo = searchParams.get('returnTo');
-                if (returnTo) {
-                  router.push(returnTo);
-                } else {
-                  setSelectedNote(null);
-                }
-              }}
+              onSave={handleBack}
+              onCancel={handleBack}
             />
           </div>
         ) : (
@@ -74,13 +73,20 @@ function NotesContent() {
         )}
       </div>
     </div>
-  );
+  )
 }
 
 export default function NotesPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen p-8 bg-gray-50">Loading...</div>}>
+    <Suspense
+      fallback={
+        <div className="min-h-screen p-8">
+          <Skeleton className="h-12 w-48 mb-4" />
+          <Skeleton className="h-64 w-full" />
+        </div>
+      }
+    >
       <NotesContent />
     </Suspense>
-  );
+  )
 }
