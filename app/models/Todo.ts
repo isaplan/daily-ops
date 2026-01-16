@@ -1,15 +1,16 @@
 /**
  * @registry-id: TodoModel
  * @created: 2026-01-15T10:00:00.000Z
- * @last-modified: 2026-01-15T10:00:00.000Z
+ * @last-modified: 2026-01-16T15:40:00.000Z
  * @description: Todo schema and model
- * @last-fix: [2026-01-15] Added list_id, linked_note, is_public, linked_chat fields for project management
+ * @last-fix: [2026-01-16] Added linked_entities array for bi-directional linking (Design V2)
  * 
  * @exports-to:
  * ✓ app/api/todos/** => Todo CRUD operations
  * ✓ app/api/todo-lists/** => Todo list management
  * ✓ app/api/notes/** => Note-todo linking
  * ✓ app/api/messages/** => Message-to-todo conversion
+ * ✓ app/api/connections/** => Bi-directional entity linking
  */
 
 import mongoose, { Schema, Document, Model } from 'mongoose';
@@ -33,6 +34,11 @@ export interface ITodo extends Document {
   linked_note?: mongoose.Types.ObjectId;
   linked_chat?: mongoose.Types.ObjectId;
   linked_event?: mongoose.Types.ObjectId;
+  
+  linked_entities?: Array<{
+    type: 'note' | 'channel' | 'todo' | 'decision' | 'event';
+    id: mongoose.Types.ObjectId;
+  }>;
   
   is_public: boolean;
   
@@ -72,6 +78,15 @@ const TodoSchema = new Schema<ITodo>(
     linked_chat: { type: Schema.Types.ObjectId, ref: 'Message' },
     linked_event: { type: Schema.Types.ObjectId, ref: 'Event' },
     
+    linked_entities: [{
+      type: {
+        type: String,
+        enum: ['note', 'channel', 'todo', 'decision', 'event'],
+        required: true,
+      },
+      id: { type: Schema.Types.ObjectId, required: true },
+    }],
+    
     is_public: { type: Boolean, default: false },
     
     due_date: { type: Date },
@@ -96,6 +111,8 @@ TodoSchema.index({ list_id: 1 });
 TodoSchema.index({ linked_note: 1 });
 TodoSchema.index({ linked_chat: 1 });
 TodoSchema.index({ linked_event: 1 });
+TodoSchema.index({ 'linked_entities.id': 1 });
+TodoSchema.index({ 'linked_entities.type': 1 });
 TodoSchema.index({ is_public: 1 });
 TodoSchema.index({ status: 1 });
 

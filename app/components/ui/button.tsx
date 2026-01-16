@@ -1,15 +1,16 @@
 /**
  * @registry-id: buttonComponent
  * @created: 2026-01-16T00:00:00.000Z
- * @last-modified: 2026-01-16T00:00:00.000Z
+ * @last-modified: 2026-01-16T15:10:00.000Z
  * @description: Button microcomponent with variants: default, destructive, outline, secondary, ghost, link
- * @last-fix: [2026-01-16] Initial implementation
+ * @last-fix: [2026-01-16] Fixed asChild prop handling with Slot component
  * 
  * @exports-to:
  *   ✓ app/components/** => All components use Button for actions
  */
 
 import * as React from 'react'
+import { Slot } from '@radix-ui/react-slot'
 import { cva, type VariantProps } from 'class-variance-authority'
 import { cn } from '@/lib/utils/cn'
 
@@ -46,9 +47,10 @@ export interface ButtonProps
 }
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant, size, ...props }, ref) => {
+  ({ className, variant, size, asChild = false, ...props }, ref) => {
+    const Comp = asChild ? Slot : 'button'
     return (
-      <button
+      <Comp
         className={cn(buttonVariants({ variant, size, className }))}
         ref={ref}
         {...props}
