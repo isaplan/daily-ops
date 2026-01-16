@@ -1,9 +1,9 @@
 /**
  * @registry-id: designPage
  * @created: 2026-01-16T12:00:00.000Z
- * @last-modified: 2026-01-16T14:35:00.000Z
+ * @last-modified: 2026-01-16T14:55:00.000Z
  * @description: Design lab mock describing environments, components, and theming for Daily Ops
- * @last-fix: [2026-01-16] Updated preview nav text weight
+ * @last-fix: [2026-01-16] Added design mode context indicator
  * 
  * @exports-to:
  *   ✓ app/layout.tsx => Surfaces /design route through sidebar
@@ -32,6 +32,7 @@ import {
   TabsTrigger,
 } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils/cn'
+import { useDesignMode } from '@/lib/designMode'
 
 const environmentThemes = [
   {
@@ -202,6 +203,8 @@ export default function DesignPage() {
   const palette =
     themePalettes.find((entry) => entry.id === paletteChoice) ?? themePalettes[0]
 
+  const { mode } = useDesignMode()
+
   const fontClass = fontChoice === 'notion' ? 'font-notion' : 'font-default'
   const pageClass = cn('min-h-screen px-6 py-10 text-white', fontClass, palette.page)
 
@@ -217,6 +220,11 @@ export default function DesignPage() {
                 Unified navigation, component library, and theming thoughts for Collaboration, Chats, and Daily Ops
                 experiences.
               </p>
+              {mode === 'v2' && (
+                <Badge variant="outline" className="mt-3 text-xs uppercase tracking-[0.4em] text-slate-200">
+                  Design V2 active
+                </Badge>
+              )}
             </div>
             <Button variant="outline" size="sm">
               Explore system

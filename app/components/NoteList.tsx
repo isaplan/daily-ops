@@ -1,9 +1,9 @@
 /**
  * @registry-id: NoteListComponent
  * @created: 2026-01-16T00:00:00.000Z
- * @last-modified: 2026-01-16T00:00:00.000Z
+ * @last-modified: 2026-01-16T15:10:00.000Z
  * @description: Note list component using MVVM pattern and microcomponents
- * @last-fix: [2026-01-16] Refactored to use useNoteViewModel + microcomponents
+ * @last-fix: [2026-01-16] Fixed Select empty string values to use 'all' instead
  * 
  * @imports-from:
  *   - app/lib/viewmodels/useNoteViewModel.ts => Note ViewModel
@@ -129,14 +129,14 @@ export default function NoteList() {
         <div className="space-y-2">
           <Label>Location</Label>
           <Select
-            value={filter.location_id}
-            onValueChange={(value) => setFilter({ ...filter, location_id: value, team_id: '' })}
+            value={filter.location_id || 'all'}
+            onValueChange={(value) => setFilter({ ...filter, location_id: value === 'all' ? '' : value, team_id: '' })}
           >
             <SelectTrigger>
               <SelectValue placeholder="All Locations" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">All Locations</SelectItem>
+              <SelectItem value="all">All Locations</SelectItem>
               {locationViewModel.locations.map((loc) => (
                 <SelectItem key={loc._id} value={loc._id}>
                   {loc.name}
@@ -149,15 +149,15 @@ export default function NoteList() {
         <div className="space-y-2">
           <Label>Team</Label>
           <Select
-            value={filter.team_id}
-            onValueChange={(value) => setFilter({ ...filter, team_id: value })}
+            value={filter.team_id || 'all'}
+            onValueChange={(value) => setFilter({ ...filter, team_id: value === 'all' ? '' : value })}
             disabled={!filter.location_id}
           >
             <SelectTrigger>
               <SelectValue placeholder="All Teams" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">All Teams</SelectItem>
+              <SelectItem value="all">All Teams</SelectItem>
               {teamViewModel.teams
                 .filter((t) => {
                   const teamLocId = typeof t.location_id === 'object' ? t.location_id._id : t.location_id
@@ -175,14 +175,14 @@ export default function NoteList() {
         <div className="space-y-2">
           <Label>Member</Label>
           <Select
-            value={filter.member_id}
-            onValueChange={(value) => setFilter({ ...filter, member_id: value })}
+            value={filter.member_id || 'all'}
+            onValueChange={(value) => setFilter({ ...filter, member_id: value === 'all' ? '' : value })}
           >
             <SelectTrigger>
               <SelectValue placeholder="All Members" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">All Members</SelectItem>
+              <SelectItem value="all">All Members</SelectItem>
               {memberViewModel.members.map((member) => (
                 <SelectItem key={member._id} value={member._id}>
                   {member.name}

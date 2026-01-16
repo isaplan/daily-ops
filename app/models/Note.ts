@@ -1,13 +1,14 @@
 /**
  * @registry-id: NoteModel
  * @created: 2026-01-15T10:00:00.000Z
- * @last-modified: 2026-01-15T14:30:00.000Z
+ * @last-modified: 2026-01-16T15:40:00.000Z
  * @description: Note schema and model with slug-based routing and publish status
- * @last-fix: [2026-01-15] Added slug, status, and published_at for individual note pages
+ * @last-fix: [2026-01-16] Added linked_entities array for bi-directional linking (Design V2)
  * 
  * @exports-to:
  * ✓ app/api/notes/** => Note CRUD operations with slug resolution
  * ✓ app/api/notes/[id]/todos/** => Note-todo linking
+ * ✓ app/api/connections/** => Bi-directional entity linking
  * ✓ app/notes/[slug]/page.tsx => Individual note page lookup
  * ✓ app/components/NoteDetailPage.tsx => Display note details
  */
@@ -35,6 +36,11 @@ export interface INote extends Document {
   }>;
   
   linked_todos: mongoose.Types.ObjectId[];
+  
+  linked_entities?: Array<{
+    type: 'note' | 'channel' | 'todo' | 'decision' | 'event';
+    id: mongoose.Types.ObjectId;
+  }>;
   
   tags?: string[];
   is_pinned: boolean;
@@ -73,6 +79,15 @@ const NoteSchema = new Schema<INote>(
     
     linked_todos: [{ type: Schema.Types.ObjectId, ref: 'Todo' }],
     
+    linked_entities: [{
+      type: {
+        type: String,
+        enum: ['note', 'channel', 'todo', 'decision', 'event'],
+        required: true,
+      },
+      id: { type: Schema.Types.ObjectId, required: true },
+    }],
+    
     tags: [{ type: String }],
     is_pinned: { type: Boolean, default: false },
     is_archived: { type: Boolean, default: false },
@@ -95,6 +110,8 @@ NoteSchema.index({ 'connected_to.team_id': 1 });
 NoteSchema.index({ 'connected_to.member_id': 1 });
 NoteSchema.index({ 'connected_members.member_id': 1 });
 NoteSchema.index({ linked_todos: 1 });
+NoteSchema.index({ 'linked_entities.id': 1 });
+NoteSchema.index({ 'linked_entities.type': 1 });
 NoteSchema.index({ is_archived: 1 });
 NoteSchema.index({ status: 1 });
 
