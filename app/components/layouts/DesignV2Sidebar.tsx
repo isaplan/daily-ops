@@ -1,13 +1,14 @@
 /**
  * @registry-id: DesignV2Sidebar
  * @created: 2026-01-16T15:00:00.000Z
- * @last-modified: 2026-01-16T15:00:00.000Z
+ * @last-modified: 2026-01-16T16:30:00.000Z
  * @description: Modern sidebar for Design V2 with environment sections
- * @last-fix: [2026-01-16] Initial V2 sidebar implementation
+ * @last-fix: [2026-01-16] Show only active environment's navigation items
  * 
  * @imports-from:
  *   - app/components/ui/button.tsx => Button component
  *   - app/lib/designMode.tsx => Design mode context
+ *   - app/lib/workspaceContext.tsx => Workspace context for location display
  * 
  * @exports-to:
  *   ✓ app/components/layouts/DesignV2Layout.tsx => Sidebar navigation
@@ -20,6 +21,17 @@ import { usePathname } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils/cn'
 import { useDesignMode } from '@/lib/designMode'
+import { useWorkspace } from '@/lib/workspaceContext'
+import { useEnvironment } from '@/lib/environmentContext'
+
+const WORKSPACE_NAMES: Record<string, { fullName: string; shortName: string }> = {
+  hnh: { fullName: 'Haagse Nieuwe Horeca Groep', shortName: 'HNH' },
+  vkb: { fullName: 'van Kinsbergen', shortName: 'VKB' },
+  bea: { fullName: 'Bar Bea', shortName: 'BEA' },
+  lat: { fullName: "l'AMour-Toujours", shortName: 'LAT' },
+  'daily-ops': { fullName: 'Daily Ops HQ', shortName: 'Daily Ops' },
+  all: { fullName: 'Daily Ops', shortName: 'Daily Ops' },
+}
 
 const environmentSections = {
   collaboration: {
@@ -48,17 +60,22 @@ const environmentSections = {
 export default function DesignV2Sidebar() {
   const pathname = usePathname()
   const { mode, setMode } = useDesignMode()
+  const { activeWorkspace } = useWorkspace()
 
   const modeOptions = [
     { id: 'v1', label: 'Classic' },
     { id: 'v2', label: 'Design V2' },
   ]
 
+  const workspaceInfo = WORKSPACE_NAMES[activeWorkspace] || WORKSPACE_NAMES.all
+
   return (
     <aside className="w-64 border-r border-white/10 bg-slate-900/80 p-4 backdrop-blur">
       <div className="mb-4">
-        <h1 className="text-xl font-bold text-white">Daily Ops</h1>
-        <p className="text-xs uppercase tracking-tight text-slate-400">POC</p>
+        <h1 className="text-xl font-bold text-white">{workspaceInfo.shortName}</h1>
+        <p className="text-xs uppercase tracking-tight text-slate-400">
+          {activeWorkspace === 'all' ? 'POC' : workspaceInfo.fullName}
+        </p>
       </div>
 
       <div className="mb-6 flex gap-2">

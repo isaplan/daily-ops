@@ -1,9 +1,9 @@
 /**
  * @registry-id: teamService
  * @created: 2026-01-16T00:00:00.000Z
- * @last-modified: 2026-01-16T00:00:00.000Z
+ * @last-modified: 2026-01-16T16:25:00.000Z
  * @description: Team API service - CRUD operations for teams
- * @last-fix: [2026-01-16] Initial implementation
+ * @last-fix: [2026-01-16] Added location_name filtering support for workspace-based filtering
  * 
  * @imports-from:
  *   - app/lib/services/base.ts => ApiService base class
@@ -24,6 +24,7 @@ export interface Team {
 
 export interface TeamFilters {
   location_id?: string
+  location_name?: string
   is_active?: boolean
 }
 
@@ -43,6 +44,7 @@ class TeamService extends ApiService {
   async getAll(filters?: TeamFilters): Promise<ApiResponse<Team[]>> {
     const params = new URLSearchParams()
     if (filters?.location_id) params.append('location_id', filters.location_id)
+    if (filters?.location_name) params.append('location_name', filters.location_name)
     if (filters?.is_active !== undefined) params.append('is_active', String(filters.is_active))
 
     const query = params.toString()

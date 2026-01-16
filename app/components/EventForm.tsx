@@ -3,7 +3,7 @@
  * @created: 2026-01-16T00:00:00.000Z
  * @last-modified: 2026-01-16T00:00:00.000Z
  * @description: Event form component using MVVM pattern and microcomponents with tabs
- * @last-fix: [2026-01-16] Refactored to use useEventViewModel + microcomponents
+ * @last-fix: [2026-01-16] Fixed SelectItem empty string values to use 'none' instead
  * 
  * @imports-from:
  *   - app/lib/viewmodels/useEventViewModel.ts => Event ViewModel
@@ -273,14 +273,14 @@ export default function EventForm({ event, onSave, onCancel }: EventFormProps) {
                 <div className="space-y-2">
                   <Label htmlFor="channel">Channel</Label>
                   <Select
-                    value={viewModel.formData.channel_id}
-                    onValueChange={(value) => viewModel.setFormData({ channel_id: value })}
+                    value={viewModel.formData.channel_id || 'none'}
+                    onValueChange={(value) => viewModel.setFormData({ channel_id: value === 'none' ? '' : value })}
                   >
                     <SelectTrigger id="channel">
                       <SelectValue placeholder="Select Channel (Optional)" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">None</SelectItem>
+                      <SelectItem value="none">None</SelectItem>
                       {channelViewModel.channels.map((channel) => (
                         <SelectItem key={channel._id} value={channel._id}>
                           {channel.name}
@@ -294,14 +294,14 @@ export default function EventForm({ event, onSave, onCancel }: EventFormProps) {
               <div className="space-y-2">
                 <Label htmlFor="assigned_to">Assign To</Label>
                 <Select
-                  value={viewModel.formData.assigned_to}
-                  onValueChange={(value) => viewModel.setFormData({ assigned_to: value })}
+                  value={viewModel.formData.assigned_to || 'none'}
+                  onValueChange={(value) => viewModel.setFormData({ assigned_to: value === 'none' ? '' : value })}
                 >
                   <SelectTrigger id="assigned_to">
                     <SelectValue placeholder="No Assignment" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">No Assignment</SelectItem>
+                    <SelectItem value="none">No Assignment</SelectItem>
                     {memberViewModel.members.map((member) => (
                       <SelectItem key={member._id} value={member._id}>
                         {member.name}
@@ -413,14 +413,14 @@ export default function EventForm({ event, onSave, onCancel }: EventFormProps) {
                       onChange={(e) => updateTimelineItem(idx, 'activity', e.target.value)}
                     />
                     <Select
-                      value={item.assigned_to || ''}
-                      onValueChange={(value) => updateTimelineItem(idx, 'assigned_to', value)}
+                      value={item.assigned_to || 'none'}
+                      onValueChange={(value) => updateTimelineItem(idx, 'assigned_to', value === 'none' ? '' : value)}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Unassigned" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">Unassigned</SelectItem>
+                        <SelectItem value="none">Unassigned</SelectItem>
                         {memberViewModel.members.map((m) => (
                           <SelectItem key={m._id} value={m._id}>
                             {m.name}

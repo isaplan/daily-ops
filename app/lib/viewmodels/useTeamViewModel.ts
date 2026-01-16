@@ -3,11 +3,12 @@
  * @created: 2026-01-16T00:00:00.000Z
  * @last-modified: 2026-01-16T00:00:00.000Z
  * @description: Team ViewModel - state management and business logic for teams
- * @last-fix: [2026-01-16] Initial implementation
+ * @last-fix: [2026-01-16] Added missing useWorkspace import and TeamFilters type
  * 
  * @imports-from:
  *   - app/lib/services/teamService.ts => Team API operations
  *   - app/lib/viewmodels/base.ts => Base ViewModel utilities
+ *   - app/lib/workspaceContext.tsx => Workspace filter
  * 
  * @exports-to:
  *   ✓ app/components/TeamList.tsx => Uses useTeamViewModel for list state
@@ -16,8 +17,9 @@
 'use client'
 
 import { useCallback } from 'react'
-import { teamService, type Team, type CreateTeamDto, type UpdateTeamDto } from '@/lib/services/teamService'
+import { teamService, type Team, type CreateTeamDto, type UpdateTeamDto, type TeamFilters } from '@/lib/services/teamService'
 import { useViewModelState, useFormState } from './base'
+import { useWorkspace } from '@/lib/workspaceContext'
 
 export interface TeamFormData {
   name: string
@@ -34,11 +36,19 @@ const initialFormData: TeamFormData = {
 export function useTeamViewModel() {
   const { state, setLoading, setError, setData } = useViewModelState<Team>()
   const formState = useFormState<TeamFormData>(initialFormData)
+  const { getWorkspaceFilter } = useWorkspace()
 
   const loadTeams = useCallback(async () => {
     setLoading(true)
     try {
-      const response = await teamService.getAll()
+      const workspaceFilter = getWorkspaceFilter()
+      const filters: TeamFilters = {}
+      if (workspaceFilter.location_name) {
+        filters.location_name = workspaceFilter.location_name
+      } else if (workspaceFilter.location_id) {
+        filters.location_id = workspaceFilter.location_id
+      }
+      const response = await teamService.getAll(filters)
       if (response.success && response.data) {
         setData(response.data)
       } else {
@@ -47,7 +57,7 @@ export function useTeamViewModel() {
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Failed to load teams')
     }
-  }, [setLoading, setError, setData])
+  }, [setLoading, setError, setData, getWorkspaceFilter])
 
   const createTeam = useCallback(
     async (data: CreateTeamDto) => {

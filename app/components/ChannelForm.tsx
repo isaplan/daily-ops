@@ -3,7 +3,7 @@
  * @created: 2026-01-16T00:00:00.000Z
  * @last-modified: 2026-01-16T00:00:00.000Z
  * @description: Channel form component using MVVM pattern and microcomponents
- * @last-fix: [2026-01-16] Refactored to use useChannelViewModel + microcomponents
+ * @last-fix: [2026-01-16] Fixed SelectItem empty string values to use 'none' instead
  * 
  * @imports-from:
  *   - app/lib/viewmodels/useChannelViewModel.ts => Channel ViewModel
@@ -160,16 +160,16 @@ export default function ChannelForm({ channel, onSave, onCancel }: ChannelFormPr
             <div className="space-y-2">
               <Label htmlFor="location">Location</Label>
               <Select
-                value={viewModel.formData.location_id}
+                value={viewModel.formData.location_id || 'none'}
                 onValueChange={(value) =>
-                  viewModel.setFormData({ location_id: value, team_id: '' })
+                  viewModel.setFormData({ location_id: value === 'none' ? '' : value, team_id: '' })
                 }
               >
                 <SelectTrigger id="location">
                   <SelectValue placeholder="Select Location (Optional)" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">None</SelectItem>
+                  <SelectItem value="none">None</SelectItem>
                   {locationViewModel.locations.map((loc) => (
                     <SelectItem key={loc._id} value={loc._id}>
                       {loc.name}
@@ -182,15 +182,15 @@ export default function ChannelForm({ channel, onSave, onCancel }: ChannelFormPr
             <div className="space-y-2">
               <Label htmlFor="team">Team</Label>
               <Select
-                value={viewModel.formData.team_id}
-                onValueChange={(value) => viewModel.setFormData({ team_id: value })}
+                value={viewModel.formData.team_id || 'none'}
+                onValueChange={(value) => viewModel.setFormData({ team_id: value === 'none' ? '' : value })}
                 disabled={!viewModel.formData.location_id}
               >
                 <SelectTrigger id="team">
                   <SelectValue placeholder="Select Team (Optional)" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">None</SelectItem>
+                  <SelectItem value="none">None</SelectItem>
                   {filteredTeams.map((team) => (
                     <SelectItem key={team._id} value={team._id}>
                       {team.name}
@@ -203,14 +203,14 @@ export default function ChannelForm({ channel, onSave, onCancel }: ChannelFormPr
             <div className="space-y-2">
               <Label htmlFor="member">Member</Label>
               <Select
-                value={viewModel.formData.member_id}
-                onValueChange={(value) => viewModel.setFormData({ member_id: value })}
+                value={viewModel.formData.member_id || 'none'}
+                onValueChange={(value) => viewModel.setFormData({ member_id: value === 'none' ? '' : value })}
               >
                 <SelectTrigger id="member">
                   <SelectValue placeholder="Select Member (Optional)" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">None</SelectItem>
+                  <SelectItem value="none">None</SelectItem>
                   {memberViewModel.members.map((member) => (
                     <SelectItem key={member._id} value={member._id}>
                       {member.name}

@@ -1,9 +1,9 @@
 /**
  * @registry-id: DesignV2WorkspaceSwitcher
  * @created: 2026-01-16T15:00:00.000Z
- * @last-modified: 2026-01-16T15:00:00.000Z
- * @description: Compact workspace switcher sidebar (Slack-style) for Design V2
- * @last-fix: [2026-01-16] Initial workspace switcher implementation
+ * @last-modified: 2026-01-16T16:20:00.000Z
+ * @description: Compact workspace switcher sidebar (Slack-style) for Design V2 with location-specific workspaces
+ * @last-fix: [2026-01-16] Updated to show real location names (HNH, VKB, BEA, LAT) with location-based filtering
  * 
  * @imports-from:
  *   - app/components/ui/badge.tsx => Badge component
@@ -21,36 +21,44 @@ import type { WorkspaceId } from '@/lib/types/workspace.types'
 
 const workspaces = [
   {
-    id: 'all',
-    label: 'All',
-    fullName: 'All Operations',
-    detail: 'Master workspace',
-    initials: 'AO',
+    id: 'hnh' as WorkspaceId,
+    label: 'HNH',
+    fullName: 'Haagse Nieuwe Horeca Groep',
+    detail: 'Mother company',
+    initials: 'HNH',
     color: 'from-indigo-500 to-blue-500',
   },
   {
-    id: 'locations',
-    label: 'Locations',
-    fullName: 'Location Hubs',
-    detail: 'Plant / market',
-    initials: 'LH',
+    id: 'vkb' as WorkspaceId,
+    label: 'VKB',
+    fullName: 'van Kinsbergen',
+    detail: 'Location',
+    initials: 'VKB',
     color: 'from-amber-500 to-orange-500',
   },
   {
-    id: 'daily-ops',
+    id: 'bea' as WorkspaceId,
+    label: 'BEA',
+    fullName: 'Bar Bea',
+    detail: 'Location',
+    initials: 'BEA',
+    color: 'from-rose-500 to-pink-500',
+  },
+  {
+    id: 'lat' as WorkspaceId,
+    label: 'LAT',
+    fullName: "l'AMour-Toujours",
+    detail: 'Location',
+    initials: 'LAT',
+    color: 'from-purple-500 to-violet-500',
+  },
+  {
+    id: 'daily-ops' as WorkspaceId,
     label: 'Daily Ops',
     fullName: 'Daily Ops HQ',
     detail: 'Management + partners',
     initials: 'DO',
     color: 'from-cyan-500 to-teal-500',
-  },
-  {
-    id: 'global',
-    label: 'Global',
-    fullName: 'Global Enterprise',
-    detail: 'Enterprise view',
-    initials: 'GE',
-    color: 'from-purple-500 to-pink-500',
   },
 ]
 

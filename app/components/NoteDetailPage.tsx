@@ -3,7 +3,7 @@
  * @created: 2026-01-16T00:00:00.000Z
  * @last-modified: 2026-01-16T12:30:00.000Z
  * @description: Note detail page component using MVVM pattern and microcomponents
- * @last-fix: [2026-01-16] Added null-safe status rendering
+ * @last-fix: [2026-01-16] Fixed date formatting to handle invalid dates gracefully
  * 
  * @imports-from:
  *   - app/lib/viewmodels/useNoteViewModel.ts => Note ViewModel
@@ -56,6 +56,18 @@ interface ConnectedMember {
 
 interface NoteDetailPageProps {
   slug: string
+}
+
+// Helper function to safely format dates
+const formatDate = (dateString: string | undefined | null): string => {
+  if (!dateString) return 'N/A'
+  const date = new Date(dateString)
+  if (isNaN(date.getTime())) return 'N/A'
+  return date.toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  })
 }
 
 export default function NoteDetailPage({ slug }: NoteDetailPageProps) {
@@ -375,11 +387,23 @@ export default function NoteDetailPage({ slug }: NoteDetailPageProps) {
                 </div>
               )}
               <div>
-                <strong>Created:</strong> {new Date(note.created_at).toLocaleDateString()}
+                <strong>Created:</strong>{' '}
+                {note.created_at
+                  ? new Date(note.created_at).toLocaleDateString('en-US', {
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric',
+                    })
+                  : 'N/A'}
               </div>
               {note.published_at && (
                 <div>
-                  <strong>Published:</strong> {new Date(note.published_at).toLocaleDateString()}
+                  <strong>Published:</strong>{' '}
+                  {new Date(note.published_at).toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                  })}
                 </div>
               )}
             </div>

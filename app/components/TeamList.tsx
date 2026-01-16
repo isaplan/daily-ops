@@ -20,6 +20,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useTeamViewModel } from '@/lib/viewmodels/useTeamViewModel'
 import { useLocationViewModel } from '@/lib/viewmodels/useLocationViewModel'
+import { useWorkspace } from '@/lib/workspaceContext'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -77,6 +78,7 @@ function TeamCard({ team }: { team: any }) {
 }
 
 export default function TeamList() {
+  const { activeWorkspace } = useWorkspace()
   const router = useRouter()
   const viewModel = useTeamViewModel()
   const locationViewModel = useLocationViewModel()
@@ -85,7 +87,7 @@ export default function TeamList() {
   useEffect(() => {
     viewModel.loadTeams()
     locationViewModel.loadLocations()
-  }, [])
+  }, [activeWorkspace, viewModel, locationViewModel])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

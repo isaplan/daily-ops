@@ -3,7 +3,7 @@
  * @created: 2026-01-16T15:00:00.000Z
  * @last-modified: 2026-01-16T15:00:00.000Z
  * @description: Top navigation bar for Design V2 with environment switcher
- * @last-fix: [2026-01-16] Initial V2 top nav implementation
+ * @last-fix: [2026-01-16] Integrated with environment context and navigation
  * 
  * @imports-from:
  *   - app/components/ui/button.tsx => Button component
@@ -15,33 +15,46 @@
 
 'use client'
 
-import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils/cn'
+import { useEnvironment } from '@/lib/environmentContext'
 
 const environments = [
   {
-    id: 'collaboration',
+    id: 'collaboration' as const,
     label: 'Collaboration',
     accent: 'from-indigo-500/80 via-blue-600 to-slate-900/70',
+    route: '/collaboration',
   },
   {
-    id: 'chats',
+    id: 'chats' as const,
     label: 'Chats',
     accent: 'from-amber-500/80 via-orange-500 to-rose-900/70',
+    route: '/chats',
   },
   {
-    id: 'daily-ops',
+    id: 'daily-ops' as const,
     label: 'Daily Ops',
     accent: 'from-cyan-500/80 via-teal-600 to-slate-900/80',
+    route: '/daily-ops',
   },
 ]
 
 export default function DesignV2TopNav() {
-  const [activeEnv, setActiveEnv] = useState(environments[0].id)
+  const router = useRouter()
+  const { activeEnvironment, setActiveEnvironment } = useEnvironment()
 
-  const activeEnvironment = environments.find((e) => e.id === activeEnv) ?? environments[0]
+  const activeEnvironmentConfig = environments.find((e) => e.id === activeEnvironment) ?? environments[0]
+
+  const handleEnvironmentClick = (envId: typeof environments[number]['id']) => {
+    setActiveEnvironment(envId)
+    const env = environments.find((e) => e.id === envId)
+    if (env) {
+      router.push(env.route)
+    }
+  }
 
   return (
     <header className="border-b border-white/10 bg-slate-900/90 px-6 py-4 backdrop-blur shadow-lg shadow-black/20">
@@ -49,11 +62,11 @@ export default function DesignV2TopNav() {
         <div className="flex items-center gap-4">
           <div className="flex gap-2">
             {environments.map((env) => {
-              const isActive = env.id === activeEnv
+              const isActive = env.id === activeEnvironment
               return (
                 <button
                   key={env.id}
-                  onClick={() => setActiveEnv(env.id)}
+                  onClick={() => handleEnvironmentClick(env.id)}
                   className={cn(
                     'flex items-center gap-2 rounded-full px-4 py-2 text-xs font-semibold transition-all',
                     isActive
@@ -68,7 +81,7 @@ export default function DesignV2TopNav() {
             })}
           </div>
           <Badge variant="outline" className="text-xs uppercase tracking-tight">
-            {activeEnvironment.label}
+            {activeEnvironmentConfig.label}
           </Badge>
         </div>
 

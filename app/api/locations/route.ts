@@ -19,7 +19,6 @@ export async function GET() {
     
     return NextResponse.json({ success: true, data: locations });
   } catch (error) {
-    console.error('Error fetching locations:', error);
     return NextResponse.json(
       { success: false, error: 'Failed to fetch locations' },
       { status: 500 }
@@ -42,7 +41,6 @@ export async function POST(request: NextRequest) {
     
     return NextResponse.json({ success: true, data: location }, { status: 201 });
   } catch (error: unknown) {
-    console.error('Error creating location:', error);
     return NextResponse.json(
       { success: false, error: getErrorMessage(error) },
       { status: 400 }

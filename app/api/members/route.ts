@@ -23,8 +23,19 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const teamId = searchParams.get('team_id');
     const locationId = searchParams.get('location_id');
+    const locationName = searchParams.get('location_name');
 
     let memberIds: mongoose.Types.ObjectId[] | null = null;
+    let resolvedLocationId: string | null = locationId || null;
+
+    if (locationName && !locationId) {
+      const location = await Location.findOne({ name: locationName, is_active: true });
+      if (location) {
+        resolvedLocationId = location._id.toString();
+      } else {
+        return NextResponse.json({ success: true, data: [] });
+      }
+    }
 
     // If filtering by team_id, get member IDs from associations
     if (teamId) {
@@ -36,9 +47,9 @@ export async function GET(request: NextRequest) {
     }
 
     // If filtering by location_id, get member IDs from associations
-    if (locationId) {
+    if (resolvedLocationId) {
       const associations = await MemberLocationAssociation.find({
-        location_id: locationId,
+        location_id: resolvedLocationId,
         is_active: true
       }).select('member_id');
       const locationMemberIds = associations.map(a => a.member_id);
@@ -92,7 +103,6 @@ export async function GET(request: NextRequest) {
     
     return NextResponse.json({ success: true, data: membersWithAssociations });
   } catch (error) {
-    console.error('Error fetching members:', error);
     return NextResponse.json(
       { success: false, error: 'Failed to fetch members' },
       { status: 500 }
@@ -171,7 +181,6 @@ export async function POST(request: NextRequest) {
     
     return NextResponse.json({ success: true, data: memberWithAssociations }, { status: 201 });
   } catch (error: unknown) {
-    console.error('Error creating member:', error);
     return NextResponse.json(
       { success: false, error: getErrorMessage(error) },
       { status: 400 }

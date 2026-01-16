@@ -3,7 +3,7 @@
  * @created: 2026-01-16T00:00:00.000Z
  * @last-modified: 2026-01-16T00:00:00.000Z
  * @description: Member list component using MVVM pattern and microcomponents
- * @last-fix: [2026-01-16] Refactored to use useMemberViewModel + microcomponents
+ * @last-fix: [2026-01-16] Fixed SelectItem empty string values to use 'none' instead
  * 
  * @imports-from:
  *   - app/lib/viewmodels/useMemberViewModel.ts => Member ViewModel
@@ -21,6 +21,7 @@ import { useEffect, useState, useMemo } from 'react'
 import { useMemberViewModel } from '@/lib/viewmodels/useMemberViewModel'
 import { useLocationViewModel } from '@/lib/viewmodels/useLocationViewModel'
 import { useTeamViewModel } from '@/lib/viewmodels/useTeamViewModel'
+import { useWorkspace } from '@/lib/workspaceContext'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -85,6 +86,7 @@ export default function MemberList() {
   const viewModel = useMemberViewModel()
   const locationViewModel = useLocationViewModel()
   const teamViewModel = useTeamViewModel()
+  const { activeWorkspace } = useWorkspace()
   const [showForm, setShowForm] = useState(false)
   const [selectedMember, setSelectedMember] = useState<{ id: string; title: string } | null>(null)
 
@@ -92,7 +94,7 @@ export default function MemberList() {
     viewModel.loadMembers()
     locationViewModel.loadLocations()
     teamViewModel.loadTeams()
-  }, [])
+  }, [activeWorkspace, viewModel, locationViewModel, teamViewModel])
 
   const filteredTeams = useMemo(() => {
     if (!viewModel.formData.location_id) return teamViewModel.teams
@@ -185,16 +187,16 @@ export default function MemberList() {
               <div className="space-y-2">
                 <Label htmlFor="location">Location</Label>
                 <Select
-                  value={viewModel.formData.location_id}
+                  value={viewModel.formData.location_id || 'none'}
                   onValueChange={(value) =>
-                    viewModel.setFormData({ location_id: value, team_id: '' })
+                    viewModel.setFormData({ location_id: value === 'none' ? '' : value, team_id: '' })
                   }
                 >
                   <SelectTrigger id="location">
                     <SelectValue placeholder="Select Location (optional)" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">None</SelectItem>
+                    <SelectItem value="none">None</SelectItem>
                     {locationViewModel.locations.map((loc) => (
                       <SelectItem key={loc._id} value={loc._id}>
                         {loc.name}
@@ -206,15 +208,15 @@ export default function MemberList() {
               <div className="space-y-2">
                 <Label htmlFor="team">Team</Label>
                 <Select
-                  value={viewModel.formData.team_id}
-                  onValueChange={(value) => viewModel.setFormData({ team_id: value })}
+                  value={viewModel.formData.team_id || 'none'}
+                  onValueChange={(value) => viewModel.setFormData({ team_id: value === 'none' ? '' : value })}
                   disabled={!viewModel.formData.location_id}
                 >
                   <SelectTrigger id="team">
                     <SelectValue placeholder="Select Team (optional)" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">None</SelectItem>
+                    <SelectItem value="none">None</SelectItem>
                     {filteredTeams.map((team) => (
                       <SelectItem key={team._id} value={team._id}>
                         {team.name}

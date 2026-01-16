@@ -3,7 +3,7 @@
  * @created: 2026-01-16T00:00:00.000Z
  * @last-modified: 2026-01-16T00:00:00.000Z
  * @description: Event list component using MVVM pattern and microcomponents
- * @last-fix: [2026-01-16] Refactored to use useEventViewModel + microcomponents
+ * @last-fix: [2026-01-16] Fixed SelectItem empty string values to use 'all' instead
  * 
  * @imports-from:
  *   - app/lib/viewmodels/useEventViewModel.ts => Event ViewModel
@@ -123,14 +123,14 @@ export default function EventList() {
         <div className="space-y-2">
           <Label>Filter by Location</Label>
           <Select
-            value={filter.location_id}
-            onValueChange={(value) => setFilter({ ...filter, location_id: value })}
+            value={filter.location_id || 'all'}
+            onValueChange={(value) => setFilter({ ...filter, location_id: value === 'all' ? '' : value })}
           >
             <SelectTrigger>
               <SelectValue placeholder="All Locations" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">All Locations</SelectItem>
+              <SelectItem value="all">All Locations</SelectItem>
               {locationViewModel.locations.map((loc) => (
                 <SelectItem key={loc._id} value={loc._id}>
                   {loc.name}
@@ -143,14 +143,14 @@ export default function EventList() {
         <div className="space-y-2">
           <Label>Filter by Status</Label>
           <Select
-            value={filter.status}
-            onValueChange={(value) => setFilter({ ...filter, status: value })}
+            value={filter.status || 'all'}
+            onValueChange={(value) => setFilter({ ...filter, status: value === 'all' ? '' : value })}
           >
             <SelectTrigger>
               <SelectValue placeholder="All Statuses" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">All Statuses</SelectItem>
+              <SelectItem value="all">All Statuses</SelectItem>
               <SelectItem value="planning">Planning</SelectItem>
               <SelectItem value="confirmed">Confirmed</SelectItem>
               <SelectItem value="in_progress">In Progress</SelectItem>
