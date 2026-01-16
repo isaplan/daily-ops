@@ -1,0 +1,12 @@
+:root {
+  --font-default: "Space Grotesk", "Inter", system-ui, sans-serif;
+  --font-notion: "Inter", "Satoshi", system-ui, sans-serif;
+}
+
+.font-default {
+  font-family: var(--font-default);
+}
+
+.font-notion {
+  font-family: var(--font-notion);
+}

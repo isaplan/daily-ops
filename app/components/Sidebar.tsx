@@ -1,9 +1,9 @@
 /**
  * @registry-id: SidebarComponent
  * @created: 2026-01-16T00:00:00.000Z
- * @last-modified: 2026-01-16T00:00:00.000Z
+ * @last-modified: 2026-01-16T12:00:00.000Z
  * @description: Sidebar navigation component using microcomponents
- * @last-fix: [2026-01-16] Refactored to use Button microcomponent
+ * @last-fix: [2026-01-16] Added design system entry for nav
  * 
  * @imports-from:
  *   - app/components/ui/button.tsx => Button microcomponent
@@ -23,6 +23,7 @@ export default function Sidebar() {
   const pathname = usePathname()
 
   const navItems = [
+    { href: '/design', label: 'Design System', icon: '🎨' },
     { href: '/', label: 'Dashboard', icon: '📊' },
     { href: '/notes', label: 'Notes', icon: '📝' },
     { href: '/todos', label: 'Todos', icon: '✓' },

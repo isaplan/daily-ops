@@ -1,9 +1,9 @@
 /**
  * @registry-id: NoteDetailPageComponent
  * @created: 2026-01-16T00:00:00.000Z
- * @last-modified: 2026-01-16T00:00:00.000Z
+ * @last-modified: 2026-01-16T12:30:00.000Z
  * @description: Note detail page component using MVVM pattern and microcomponents
- * @last-fix: [2026-01-16] Refactored to use useNoteViewModel + microcomponents
+ * @last-fix: [2026-01-16] Added null-safe status rendering
  * 
  * @imports-from:
  *   - app/lib/viewmodels/useNoteViewModel.ts => Note ViewModel
@@ -320,6 +320,12 @@ export default function NoteDetailPage({ slug }: NoteDetailPageProps) {
     return !note.connected_members.some((cm: ConnectedMember) => getMemberId(cm.member_id) === m._id)
   })
 
+  const safeStatus =
+    typeof note.status === 'string' && note.status.length > 0 ? note.status : 'draft'
+  const statusLabel =
+    safeStatus.charAt(0).toUpperCase() + safeStatus.slice(1)
+  const statusVariant = safeStatus === 'published' ? 'success' : 'warning'
+
   return (
     <div className="min-h-screen p-8">
       <div className="max-w-3xl mx-auto">
@@ -354,11 +360,7 @@ export default function NoteDetailPage({ slug }: NoteDetailPageProps) {
                   </>
                 )}
               </div>
-              <StatusBadge
-                status={note.status === 'published' ? 'success' : 'warning'}
-              >
-                {note.status.charAt(0).toUpperCase() + note.status.slice(1)}
-              </StatusBadge>
+              <StatusBadge status={statusVariant}>{statusLabel}</StatusBadge>
             </div>
           </CardHeader>
           <CardContent className="space-y-6">
