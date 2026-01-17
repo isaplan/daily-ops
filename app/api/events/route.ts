@@ -1,9 +1,9 @@
 /**
  * @registry-id: eventsAPI
  * @created: 2026-01-15T10:00:00.000Z
- * @last-modified: 2026-01-15T10:00:00.000Z
- * @description: Events API route - GET and POST
- * @last-fix: [2026-01-15] Initial POC setup
+ * @last-modified: 2026-01-16T22:30:00.000Z
+ * @description: Events API route - GET and POST with pagination
+ * @last-fix: [2026-01-16] Added pagination (skip/limit) and fixed error handling
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -61,6 +61,9 @@ export async function GET(request: NextRequest) {
       query.assigned_to = assigned_to;
     }
     
+    const skip = parseInt(searchParams.get('skip') || '0', 10);
+    const limit = Math.min(parseInt(searchParams.get('limit') || '50', 10), 100);
+    
     const events = await Event.find(query)
       .populate('location_id', 'name')
       .populate('channel_id', 'name')
@@ -69,13 +72,20 @@ export async function GET(request: NextRequest) {
       .populate('timeline.assigned_to', 'name email')
       .populate('staffing.member_id', 'name email')
       .sort({ date: 1, created_at: -1 })
-      .limit(100);
+      .skip(skip)
+      .limit(limit);
     
-    return NextResponse.json({ success: true, data: events });
-  } catch (error) {
+    const total = await Event.countDocuments(query);
+    
+    return NextResponse.json({
+      success: true,
+      data: events,
+      pagination: { skip, limit, total },
+    });
+  } catch (error: unknown) {
     console.error('Error fetching events:', error);
     return NextResponse.json(
-      { success: false, error: 'Failed to fetch events' },
+      { success: false, error: getErrorMessage(error) },
       { status: 500 }
     );
   }

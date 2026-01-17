@@ -1,9 +1,9 @@
 /**
  * @registry-id: eventAPI
  * @created: 2026-01-15T10:00:00.000Z
- * @last-modified: 2026-01-15T10:00:00.000Z
+ * @last-modified: 2026-01-16T22:30:00.000Z
  * @description: Single event API route - GET, PUT, DELETE
- * @last-fix: [2026-01-15] Initial POC setup
+ * @last-fix: [2026-01-16] Fixed error handling to use unknown and getErrorMessage
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -51,10 +51,10 @@ export async function GET(
     }
     
     return NextResponse.json({ success: true, data: event });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Error fetching event:', error);
     return NextResponse.json(
-      { success: false, error: 'Failed to fetch event' },
+      { success: false, error: getErrorMessage(error) },
       { status: 500 }
     );
   }
@@ -133,10 +133,10 @@ export async function DELETE(
     }
     
     return NextResponse.json({ success: true, message: 'Event deleted' });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Error deleting event:', error);
     return NextResponse.json(
-      { success: false, error: 'Failed to delete event' },
+      { success: false, error: getErrorMessage(error) },
       { status: 500 }
     );
   }

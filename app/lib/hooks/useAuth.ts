@@ -46,11 +46,20 @@ export function useAuth() {
     try {
       const response = await fetch('/api/auth/me');
       if (!response.ok) {
-        setState({
-          user: null,
-          loading: false,
-          error: 'Not authenticated',
-        });
+        // 401 is expected when not authenticated - don't treat as error
+        if (response.status === 401) {
+          setState({
+            user: null,
+            loading: false,
+            error: null, // Don't set error for expected unauthenticated state
+          });
+        } else {
+          setState({
+            user: null,
+            loading: false,
+            error: 'Not authenticated',
+          });
+        }
         return;
       }
 
@@ -61,10 +70,11 @@ export function useAuth() {
         error: null,
       });
     } catch (error) {
+      // Network errors or other issues - don't spam console
       setState({
         user: null,
         loading: false,
-        error: String(error),
+        error: null, // Silently handle errors in development
       });
     }
   }

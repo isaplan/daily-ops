@@ -16,7 +16,14 @@ export interface InputProps
   extends React.InputHTMLAttributes<HTMLInputElement> {}
 
 const Input = React.forwardRef<HTMLInputElement, InputProps>(
-  ({ className, type, ...props }, ref) => {
+  ({ className, type, value, ...props }, ref) => {
+    // If value is explicitly provided (even if undefined), ensure it's always a string
+    // to prevent React warning about switching between controlled/uncontrolled
+    // If value is not provided, don't include it (uncontrolled input)
+    const inputProps = value !== undefined 
+      ? { ...props, value: value ?? '' }
+      : props
+    
     return (
       <input
         type={type}
@@ -25,7 +32,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
           className
         )}
         ref={ref}
-        {...props}
+        {...inputProps}
       />
     )
   }

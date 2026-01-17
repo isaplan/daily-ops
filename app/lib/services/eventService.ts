@@ -1,9 +1,9 @@
 /**
  * @registry-id: eventService
  * @created: 2026-01-16T00:00:00.000Z
- * @last-modified: 2026-01-16T00:00:00.000Z
+ * @last-modified: 2026-01-16T22:30:00.000Z
  * @description: Event API service - CRUD operations for events
- * @last-fix: [2026-01-16] Initial implementation
+ * @last-fix: [2026-01-16] Added pagination support (skip/limit) to getAll method
  * 
  * @imports-from:
  *   - app/lib/services/base.ts => ApiService base class
@@ -94,12 +94,14 @@ class EventService extends ApiService {
     super('/api')
   }
 
-  async getAll(filters?: EventFilters): Promise<ApiResponse<Event[]>> {
+  async getAll(filters?: EventFilters, skip?: number, limit?: number): Promise<ApiResponse<Event[]>> {
     const params = new URLSearchParams()
     if (filters?.location_id) params.append('location_id', filters.location_id)
     if (filters?.status) params.append('status', filters.status)
     if (filters?.date_from) params.append('date_from', filters.date_from)
     if (filters?.date_to) params.append('date_to', filters.date_to)
+    if (skip !== undefined) params.append('skip', skip.toString())
+    if (limit !== undefined) params.append('limit', limit.toString())
 
     const query = params.toString()
     return this.get<Event[]>(`/events${query ? `?${query}` : ''}`)

@@ -1,15 +1,16 @@
 /**
  * @registry-id: NoteFormComponent
  * @created: 2026-01-16T00:00:00.000Z
- * @last-modified: 2026-01-16T00:00:00.000Z
+ * @last-modified: 2026-01-16T22:00:00.000Z
  * @description: Note form component using MVVM pattern and microcomponents
- * @last-fix: [2026-01-16] Fixed SelectItem empty string values to use 'none' instead
+ * @last-fix: [2026-01-16] Added ConnectionPicker for many-to-many entity linking
  * 
  * @imports-from:
  *   - app/lib/viewmodels/useNoteViewModel.ts => Note ViewModel
  *   - app/lib/viewmodels/useLocationViewModel.ts => Location ViewModel
  *   - app/lib/viewmodels/useTeamViewModel.ts => Team ViewModel
  *   - app/lib/viewmodels/useMemberViewModel.ts => Member ViewModel
+ *   - app/components/ConnectionPicker.tsx => Connection picker for entity linking
  *   - app/components/ui/** => Microcomponents
  * 
  * @exports-to:
@@ -37,6 +38,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import ConnectionPicker from './ConnectionPicker'
 import type { Note } from '@/lib/types/note.types'
 
 interface NoteFormProps {
@@ -194,6 +196,17 @@ export default function NoteForm({ note, onSave, onCancel }: NoteFormProps) {
               </Select>
             </div>
           </div>
+
+          {/* Connections section - only show when editing existing note */}
+          {note?._id && (
+            <div className="space-y-2">
+              <ConnectionPicker
+                entityType="note"
+                entityId={note._id}
+                allowedTargetTypes={['todo', 'channel', 'event', 'decision']}
+              />
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label htmlFor="tags">Tags (comma-separated)</Label>

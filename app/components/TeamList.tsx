@@ -19,6 +19,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useTeamViewModel } from '@/lib/viewmodels/useTeamViewModel'
+import type { Team } from '@/lib/services/teamService'
 import { useLocationViewModel } from '@/lib/viewmodels/useLocationViewModel'
 import { useWorkspace } from '@/lib/workspaceContext'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -38,7 +39,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 
-function TeamCard({ team }: { team: any }) {
+function TeamCard({ team }: { team: Team }) {
   const router = useRouter()
 
   const handleLocationClick = (e: React.MouseEvent, locationId: string) => {

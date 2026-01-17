@@ -1,9 +1,9 @@
 /**
  * @registry-id: TodoModel
  * @created: 2026-01-15T10:00:00.000Z
- * @last-modified: 2026-01-16T15:40:00.000Z
+ * @last-modified: 2026-01-16T20:50:00.000Z
  * @description: Todo schema and model
- * @last-fix: [2026-01-16] Added linked_entities array for bi-directional linking (Design V2)
+ * @last-fix: [2026-01-16] Fixed: Added safety check for mongoose.modelSchemas before deletion
  * 
  * @exports-to:
  * ✓ app/api/todos/** => Todo CRUD operations
@@ -119,7 +119,9 @@ TodoSchema.index({ status: 1 });
 // Force recompilation if model exists to ensure schema updates are applied
 if (mongoose.models.Todo) {
   delete mongoose.models.Todo;
-  delete mongoose.modelSchemas.Todo;
+  if (mongoose.modelSchemas && mongoose.modelSchemas.Todo) {
+    delete mongoose.modelSchemas.Todo;
+  }
 }
 
 const Todo: Model<ITodo> = mongoose.model<ITodo>('Todo', TodoSchema);

@@ -1,9 +1,9 @@
 /**
  * @registry-id: todoService
  * @created: 2026-01-16T00:00:00.000Z
- * @last-modified: 2026-01-16T00:00:00.000Z
+ * @last-modified: 2026-01-16T22:30:00.000Z
  * @description: Todo API service - CRUD operations for todos
- * @last-fix: [2026-01-16] Initial implementation
+ * @last-fix: [2026-01-16] Added pagination support (skip/limit) to getAll method
  * 
  * @imports-from:
  *   - app/lib/services/base.ts => ApiService base class
@@ -50,11 +50,13 @@ class TodoService extends ApiService {
     super('/api')
   }
 
-  async getAll(filters?: TodoFilters): Promise<ApiResponse<Todo[]>> {
+  async getAll(filters?: TodoFilters, skip?: number, limit?: number): Promise<ApiResponse<Todo[]>> {
     const params = new URLSearchParams()
     if (filters?.status) params.append('status', filters.status)
     if (filters?.assigned_to) params.append('assigned_to', filters.assigned_to)
     if (filters?.created_by) params.append('created_by', filters.created_by)
+    if (skip !== undefined) params.append('skip', skip.toString())
+    if (limit !== undefined) params.append('limit', limit.toString())
 
     const query = params.toString()
     return this.get<Todo[]>(`/todos${query ? `?${query}` : ''}`)

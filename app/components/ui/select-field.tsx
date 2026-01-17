@@ -29,7 +29,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import type { ControllerRenderProps, FieldPath, FieldValues } from 'react-hook-form'
+import type { Control, ControllerRenderProps, FieldPath, FieldValues } from 'react-hook-form'
 
 export interface SelectFieldProps<
   TFieldValues extends FieldValues = FieldValues,
@@ -40,7 +40,7 @@ export interface SelectFieldProps<
   description?: string
   placeholder?: string
   options: Array<{ value: string; label: string }>
-  control: any
+  control: Control<TFieldValues>
 }
 
 export function SelectField<

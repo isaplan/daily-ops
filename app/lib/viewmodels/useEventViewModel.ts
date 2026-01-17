@@ -1,9 +1,9 @@
 /**
  * @registry-id: useEventViewModel
  * @created: 2026-01-16T00:00:00.000Z
- * @last-modified: 2026-01-16T00:00:00.000Z
+ * @last-modified: 2026-01-16T22:00:00.000Z
  * @description: Event ViewModel - state management and business logic for events
- * @last-fix: [2026-01-16] Initial implementation
+ * @last-fix: [2026-01-16] Used in Phase 2 - EventForm integration with ConnectionPicker
  * 
  * @imports-from:
  *   - app/lib/services/eventService.ts => Event API operations

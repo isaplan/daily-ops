@@ -1,14 +1,16 @@
 /**
  * @registry-id: NoteDetailPageComponent
  * @created: 2026-01-16T00:00:00.000Z
- * @last-modified: 2026-01-16T12:30:00.000Z
+ * @last-modified: 2026-01-16T22:00:00.000Z
  * @description: Note detail page component using MVVM pattern and microcomponents
- * @last-fix: [2026-01-16] Fixed date formatting to handle invalid dates gracefully
+ * @last-fix: [2026-01-16] Added many-to-many connections display and ConnectionPicker integration
  * 
  * @imports-from:
  *   - app/lib/viewmodels/useNoteViewModel.ts => Note ViewModel
  *   - app/lib/viewmodels/useMemberViewModel.ts => Member ViewModel
+ *   - app/lib/viewmodels/useConnectionViewModel.ts => Connection ViewModel for entity linking
  *   - app/lib/services/noteService.ts => Note service for member operations
+ *   - app/components/ConnectionPicker.tsx => Connection picker for entity linking
  *   - app/components/ui/** => Microcomponents
  * 
  * @exports-to:
@@ -22,7 +24,11 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useNoteViewModel } from '@/lib/viewmodels/useNoteViewModel'
 import { useMemberViewModel } from '@/lib/viewmodels/useMemberViewModel'
-import { noteService } from '@/lib/services/noteService'
+import { useConnectionViewModel } from '@/lib/viewmodels/useConnectionViewModel'
+import { noteService, type Note } from '@/lib/services/noteService'
+import type { Note as NoteType } from '@/lib/types/note.types'
+import ConnectionPicker from './ConnectionPicker'
+import { EditMode } from './ui/edit-mode'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -72,7 +78,7 @@ const formatDate = (dateString: string | undefined | null): string => {
 
 export default function NoteDetailPage({ slug }: NoteDetailPageProps) {
   const router = useRouter()
-  const [note, setNote] = useState<any>(null)
+  const [note, setNote] = useState<Note | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [isEditing, setIsEditing] = useState(false)
@@ -86,6 +92,13 @@ export default function NoteDetailPage({ slug }: NoteDetailPageProps) {
   >('contributor')
   const [deleteConfirm, setDeleteConfirm] = useState(false)
   const [parseTodosConfirm, setParseTodosConfirm] = useState(false)
+  const connectionViewModel = useConnectionViewModel()
+
+  // Helper function to safely get note ID
+  const getNoteId = (): string | null => {
+    if (!note) return null
+    return note._id || note.id || null
+  }
 
   useEffect(() => {
     if (slug && slug !== 'undefined') {
@@ -95,6 +108,7 @@ export default function NoteDetailPage({ slug }: NoteDetailPageProps) {
       setError('Invalid note identifier')
       setLoading(false)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slug])
 
   const fetchNote = async () => {
@@ -115,22 +129,49 @@ export default function NoteDetailPage({ slug }: NoteDetailPageProps) {
         setError(response.error || 'Failed to load note')
       }
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'An error occurred')
+      const errorMessage = err instanceof Error ? err.message : 'An error occurred'
+      setError(errorMessage)
     } finally {
       setLoading(false)
     }
   }
 
   const handleSave = async () => {
-    if (!note) return
+    if (!note) {
+      setError('No note loaded')
+      return
+    }
+    
+    // Ensure note has a valid ID
+    const noteId = getNoteId()
+    if (!noteId) {
+      setError('Note ID is missing. Cannot save note.')
+      return
+    }
+    
     try {
       setActionLoading(true)
-      const response = await noteService.update(note._id, {
+      setError(null)
+      
+      // Extract IDs safely - handle both string and object formats
+      const locationId = typeof note.connected_to?.location_id === 'string' 
+        ? note.connected_to.location_id 
+        : note.connected_to?.location_id?._id
+      
+      const teamId = typeof note.connected_to?.team_id === 'string'
+        ? note.connected_to.team_id
+        : note.connected_to?.team_id?._id
+      
+      const memberId = typeof note.connected_to?.member_id === 'string'
+        ? note.connected_to.member_id
+        : note.connected_to?.member_id?._id
+      
+      const response = await noteService.update(noteId, {
         title: editData.title,
         content: editData.content,
-        location_id: note.connected_to?.location_id?._id,
-        team_id: note.connected_to?.team_id?._id,
-        member_id: note.connected_to?.member_id?._id,
+        location_id: locationId,
+        team_id: teamId,
+        member_id: memberId,
         tags: note.tags,
         is_pinned: note.is_pinned,
         is_archived: note.is_archived,
@@ -150,9 +191,17 @@ export default function NoteDetailPage({ slug }: NoteDetailPageProps) {
 
   const handlePublish = async () => {
     if (!note) return
+    
+    const noteId = getNoteId()
+    if (!noteId) {
+      setError('Note ID is missing. Cannot update status.')
+      return
+    }
+    
     try {
       setActionLoading(true)
-      const response = await noteService.update(note._id, {
+      setError(null)
+      const response = await noteService.update(noteId, {
         publish: note.status === 'draft',
       })
       if (response.success && response.data) {
@@ -169,9 +218,17 @@ export default function NoteDetailPage({ slug }: NoteDetailPageProps) {
 
   const handlePin = async () => {
     if (!note) return
+    
+    const noteId = getNoteId()
+    if (!noteId) {
+      setError('Note ID is missing. Cannot update pin status.')
+      return
+    }
+    
     try {
       setActionLoading(true)
-      const response = await noteService.update(note._id, {
+      setError(null)
+      const response = await noteService.update(noteId, {
         is_pinned: !note.is_pinned,
       })
       if (response.success && response.data) {
@@ -188,9 +245,17 @@ export default function NoteDetailPage({ slug }: NoteDetailPageProps) {
 
   const handleArchive = async () => {
     if (!note) return
+    
+    const noteId = getNoteId()
+    if (!noteId) {
+      setError('Note ID is missing. Cannot update archive status.')
+      return
+    }
+    
     try {
       setActionLoading(true)
-      const response = await noteService.update(note._id, {
+      setError(null)
+      const response = await noteService.update(noteId, {
         is_archived: !note.is_archived,
       })
       if (response.success && response.data) {
@@ -207,9 +272,17 @@ export default function NoteDetailPage({ slug }: NoteDetailPageProps) {
 
   const handleDelete = async () => {
     if (!note) return
+    
+    const noteId = getNoteId()
+    if (!noteId) {
+      setError('Note ID is missing. Cannot delete note.')
+      return
+    }
+    
     try {
       setActionLoading(true)
-      const response = await noteService.delete(note._id)
+      setError(null)
+      const response = await noteService.delete(noteId)
       if (response.success) {
         router.push('/notes')
       } else {
@@ -225,9 +298,17 @@ export default function NoteDetailPage({ slug }: NoteDetailPageProps) {
 
   const handleAddMember = async () => {
     if (!note || !selectedMemberId) return
+    
+    const noteId = getNoteId()
+    if (!noteId) {
+      setError('Note ID is missing. Cannot add member.')
+      return
+    }
+    
     try {
       setActionLoading(true)
-      const response = await fetch(`/api/notes/${note._id}/members`, {
+      setError(null)
+      const response = await fetch(`/api/notes/${noteId}/members`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -252,9 +333,17 @@ export default function NoteDetailPage({ slug }: NoteDetailPageProps) {
 
   const handleRemoveMember = async (memberId: string) => {
     if (!note) return
+    
+    const noteId = getNoteId()
+    if (!noteId) {
+      setError('Note ID is missing. Cannot remove member.')
+      return
+    }
+    
     try {
       setActionLoading(true)
-      const response = await fetch(`/api/notes/${note._id}/members?member_id=${memberId}`, {
+      setError(null)
+      const response = await fetch(`/api/notes/${noteId}/members?member_id=${memberId}`, {
         method: 'DELETE',
       })
       const data = await response.json()
@@ -272,9 +361,17 @@ export default function NoteDetailPage({ slug }: NoteDetailPageProps) {
 
   const handleParseTodos = async () => {
     if (!note) return
+    
+    const noteId = getNoteId()
+    if (!noteId) {
+      setError('Note ID is missing. Cannot parse todos.')
+      return
+    }
+    
     try {
       setActionLoading(true)
-      const response = await fetch(`/api/notes/${note._id}/parse-todos`, {
+      setError(null)
+      const response = await fetch(`/api/notes/${noteId}/parse-todos`, {
         method: 'POST',
       })
       const data = await response.json()
@@ -357,7 +454,7 @@ export default function NoteDetailPage({ slug }: NoteDetailPageProps) {
               <div className="flex-1">
                 {isEditing ? (
                   <Input
-                    value={editData.title}
+                    value={editData.title ?? ''}
                     onChange={(e) => setEditData({ ...editData, title: e.target.value })}
                     className="text-3xl font-bold mb-2"
                   />
@@ -497,7 +594,12 @@ export default function NoteDetailPage({ slug }: NoteDetailPageProps) {
                               ))}
                             </SelectContent>
                           </Select>
-                          <Select value={selectedRole} onValueChange={(v: any) => setSelectedRole(v)}>
+                          <Select
+                            value={selectedRole}
+                            onValueChange={(v: string) =>
+                              setSelectedRole(v as 'responsible' | 'attending' | 'reviewer' | 'contributor')
+                            }
+                          >
                             <SelectTrigger>
                               <SelectValue />
                             </SelectTrigger>
@@ -571,6 +673,25 @@ export default function NoteDetailPage({ slug }: NoteDetailPageProps) {
               </CardContent>
             </Card>
 
+            {/* Many-to-Many Connections (Notes, Todos, Channels, Events, Decisions) */}
+            {getNoteId() && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm">LINKED ENTITIES</CardTitle>
+                  <p className="text-xs text-muted-foreground">
+                    Link this note to other entities (todos, channels, events, decisions)
+                  </p>
+                </CardHeader>
+                <CardContent>
+                  <ConnectionPicker
+                    entityType="note"
+                    entityId={getNoteId() || ''}
+                    allowedTargetTypes={['todo', 'channel', 'event', 'decision']}
+                  />
+                </CardContent>
+              </Card>
+            )}
+
             {/* Tags */}
             {note.tags && note.tags.length > 0 && (
               <div className="flex flex-wrap gap-2">
@@ -582,17 +703,47 @@ export default function NoteDetailPage({ slug }: NoteDetailPageProps) {
               </div>
             )}
 
-            {/* Content */}
-            {isEditing ? (
-              <Textarea
-                value={editData.content}
-                onChange={(e) => setEditData({ ...editData, content: e.target.value })}
-                rows={12}
-                className="font-mono text-sm"
-              />
-            ) : (
-              <div className="prose prose-sm max-w-none whitespace-pre-wrap">
-                {note.content}
+            {/* Content with EditMode */}
+            <EditMode
+              isEditing={isEditing}
+              onEdit={() => setIsEditing(true)}
+              onSave={handleSave}
+              onCancel={() => {
+                setIsEditing(false)
+                setEditData({ title: note.title, content: note.content })
+              }}
+              loading={actionLoading}
+            >
+              {isEditing ? (
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-content">Content</Label>
+                    <Textarea
+                      id="edit-content"
+                      value={editData.content ?? ''}
+                      onChange={(e) => setEditData({ ...editData, content: e.target.value })}
+                      rows={12}
+                      className="font-mono text-sm"
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div className="prose prose-sm max-w-none whitespace-pre-wrap">
+                  {note.content}
+                </div>
+              )}
+            </EditMode>
+            
+            {/* Title editing (separate from EditMode) */}
+            {isEditing && (
+              <div className="space-y-2">
+                <Label htmlFor="edit-title">Title</Label>
+                <Input
+                  id="edit-title"
+                  value={editData.title ?? ''}
+                  onChange={(e) => setEditData({ ...editData, title: e.target.value })}
+                  className="text-2xl font-bold"
+                />
               </div>
             )}
 
@@ -608,24 +759,8 @@ export default function NoteDetailPage({ slug }: NoteDetailPageProps) {
 
             {/* Actions */}
             <div className="border-t pt-6 flex flex-wrap gap-2">
-              {isEditing ? (
+              {!isEditing && (
                 <>
-                  <Button onClick={handleSave} disabled={actionLoading}>
-                    {actionLoading ? 'Saving...' : 'Save Changes'}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      setIsEditing(false)
-                      setEditData({ title: note.title, content: note.content })
-                    }}
-                  >
-                    Cancel
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <Button onClick={() => setIsEditing(true)}>✎ Edit</Button>
                   <Button
                     variant="outline"
                     onClick={() => setParseTodosConfirm(true)}

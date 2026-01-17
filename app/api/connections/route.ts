@@ -16,13 +16,13 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { connectToDatabase } from '@/lib/mongodb'
+import dbConnect from '@/lib/mongodb'
 import Note from '@/models/Note'
 import Channel from '@/models/Channel'
 import Todo from '@/models/Todo'
 import type { CreateEntityLinkDto, LinkedEntitiesResponse, EntityType } from '@/lib/types/connections'
 
-async function getModelByType(type: EntityType) {
+function getModelByType(type: EntityType) {
   switch (type) {
     case 'note':
       return Note
@@ -37,7 +37,7 @@ async function getModelByType(type: EntityType) {
 
 export async function GET(request: NextRequest) {
   try {
-    await connectToDatabase()
+    await dbConnect()
     const { searchParams } = new URL(request.url)
     const entityType = searchParams.get('entity_type') as EntityType
     const entityId = searchParams.get('entity_id')
@@ -51,7 +51,7 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const Model = await getModelByType(entityType)
+    const Model = getModelByType(entityType)
     if (!Model) {
       return NextResponse.json(
         { success: false, error: 'Invalid entity type' },
@@ -73,9 +73,10 @@ export async function GET(request: NextRequest) {
 
     const linkedDetails: LinkedEntitiesResponse['linked_entities'] = []
     for (const link of paginated) {
-      const LinkModel = await getModelByType(link.type)
+      const LinkModel = getModelByType(link.type)
       if (LinkModel) {
-        const linkedEntity = await LinkModel.findById(link.id).select('title name slug status _id')
+        try {
+          const linkedEntity = await LinkModel.findById(link.id).select('title name slug status _id').lean()
         if (linkedEntity) {
           linkedDetails.push({
             type: link.type,
@@ -85,6 +86,10 @@ export async function GET(request: NextRequest) {
             slug: (linkedEntity as { slug?: string }).slug,
             status: (linkedEntity as { status?: string }).status,
           })
+          }
+        } catch (linkError) {
+          console.warn(`Failed to fetch linked entity ${link.type}:${link.id}:`, linkError)
+          // Continue with other links
         }
       }
     }
@@ -98,8 +103,10 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ success: true, data: response })
   } catch (error) {
+    console.error('Error fetching linked entities:', error)
+    const errorMessage = error instanceof Error ? error.message : 'Failed to fetch linked entities'
     return NextResponse.json(
-      { success: false, error: 'Failed to fetch linked entities' },
+      { success: false, error: errorMessage },
       { status: 500 }
     )
   }
@@ -107,7 +114,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    await connectToDatabase()
+    await dbConnect()
     const body: CreateEntityLinkDto = await request.json()
 
     const { source_type, source_id, target_type, target_id } = body
@@ -126,8 +133,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const SourceModel = await getModelByType(source_type)
-    const TargetModel = await getModelByType(target_type)
+    const SourceModel = getModelByType(source_type)
+    const TargetModel = getModelByType(target_type)
 
     if (!SourceModel || !TargetModel) {
       return NextResponse.json(
@@ -178,8 +185,10 @@ export async function POST(request: NextRequest) {
       },
     })
   } catch (error) {
+    console.error('Error creating entity link:', error)
+    const errorMessage = error instanceof Error ? error.message : 'Failed to create entity link'
     return NextResponse.json(
-      { success: false, error: 'Failed to create entity link' },
+      { success: false, error: errorMessage },
       { status: 500 }
     )
   }

@@ -24,7 +24,7 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
-import type { ControllerRenderProps, FieldPath, FieldValues } from 'react-hook-form'
+import type { Control, ControllerRenderProps, FieldPath, FieldValues } from 'react-hook-form'
 
 export interface FormFieldProps<
   TFieldValues extends FieldValues = FieldValues,
@@ -35,7 +35,7 @@ export interface FormFieldProps<
   description?: string
   placeholder?: string
   type?: React.InputHTMLAttributes<HTMLInputElement>['type']
-  control: any
+  control: Control<TFieldValues>
   render?: (field: ControllerRenderProps<TFieldValues, TName>) => React.ReactNode
 }
 

@@ -61,7 +61,7 @@ export async function GET(req: NextRequest) {
     ]);
 
     // Filter upcoming events
-    const upcomingEvents = recentEvents.filter((e: any) => {
+    const upcomingEvents = recentEvents.filter((e: { date: string | Date; status: string }) => {
       const eventDate = new Date(e.date);
       return eventDate >= new Date() && (e.status === 'planning' || e.status === 'confirmed');
     });

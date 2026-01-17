@@ -19,6 +19,7 @@
 
 import { useEffect, useState, useMemo } from 'react'
 import { useMemberViewModel } from '@/lib/viewmodels/useMemberViewModel'
+import type { Member } from '@/lib/services/memberService'
 import { useLocationViewModel } from '@/lib/viewmodels/useLocationViewModel'
 import { useTeamViewModel } from '@/lib/viewmodels/useTeamViewModel'
 import { useWorkspace } from '@/lib/workspaceContext'
@@ -44,7 +45,7 @@ function MemberCard({
   member,
   onOpenSheet,
 }: {
-  member: any
+  member: Member
   onOpenSheet: (id: string, title: string) => void
 }) {
   return (

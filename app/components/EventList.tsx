@@ -1,9 +1,9 @@
 /**
  * @registry-id: EventListComponent
  * @created: 2026-01-16T00:00:00.000Z
- * @last-modified: 2026-01-16T00:00:00.000Z
+ * @last-modified: 2026-01-16T22:30:00.000Z
  * @description: Event list component using MVVM pattern and microcomponents
- * @last-fix: [2026-01-16] Fixed SelectItem empty string values to use 'all' instead
+ * @last-fix: [2026-01-16] Fixed TypeScript strict violation - replaced any with Event type
  * 
  * @imports-from:
  *   - app/lib/viewmodels/useEventViewModel.ts => Event ViewModel
@@ -20,6 +20,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useEventViewModel } from '@/lib/viewmodels/useEventViewModel'
 import { useLocationViewModel } from '@/lib/viewmodels/useLocationViewModel'
+import type { Event } from '@/lib/services/eventService'
 import EventForm from './EventForm'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -50,7 +51,7 @@ export default function EventList() {
   const viewModel = useEventViewModel()
   const locationViewModel = useLocationViewModel()
   const [showForm, setShowForm] = useState(false)
-  const [editingEvent, setEditingEvent] = useState<any>(null)
+  const [editingEvent, setEditingEvent] = useState<Event | null>(null)
   const [filter, setFilter] = useState({ location_id: '', status: '' })
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; name: string } | null>(null)
 
@@ -66,7 +67,7 @@ export default function EventList() {
     }
   }
 
-  const handleEdit = (event: any) => {
+  const handleEdit = (event: Event) => {
     setEditingEvent(event)
     setShowForm(true)
   }

@@ -1,9 +1,9 @@
 /**
  * @registry-id: channelsAPI
  * @created: 2026-01-15T10:00:00.000Z
- * @last-modified: 2026-01-15T10:00:00.000Z
- * @description: Channels API route - GET and POST
- * @last-fix: [2026-01-15] Initial POC setup
+ * @last-modified: 2026-01-16T22:30:00.000Z
+ * @description: Channels API route - GET and POST with pagination
+ * @last-fix: [2026-01-16] Added pagination (skip/limit) and fixed error handling
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -15,9 +15,13 @@ import Location from '@/models/Location';
 import Team from '@/models/Team';
 import { getErrorMessage } from '@/lib/types/errors';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     await dbConnect();
+    
+    const { searchParams } = new URL(request.url);
+    const skip = parseInt(searchParams.get('skip') || '0', 10);
+    const limit = Math.min(parseInt(searchParams.get('limit') || '50', 10), 100);
     
     // Ensure all models are registered
     if (!mongoose.models.Member) {
@@ -29,6 +33,7 @@ export async function GET() {
     if (!mongoose.models.Team) {
       await import('@/models/Team');
     }
+    
     const channels = await Channel.find({ is_archived: false })
       .populate('members', 'name email')
       .populate('created_by', 'name email')
@@ -36,13 +41,20 @@ export async function GET() {
       .populate('connected_to.team_id', 'name')
       .populate('connected_to.member_id', 'name email')
       .sort({ created_at: -1 })
-      .limit(100);
+      .skip(skip)
+      .limit(limit);
     
-    return NextResponse.json({ success: true, data: channels });
-  } catch (error) {
+    const total = await Channel.countDocuments({ is_archived: false });
+    
+    return NextResponse.json({
+      success: true,
+      data: channels,
+      pagination: { skip, limit, total },
+    });
+  } catch (error: unknown) {
     console.error('Error fetching channels:', error);
     return NextResponse.json(
-      { success: false, error: 'Failed to fetch channels' },
+      { success: false, error: getErrorMessage(error) },
       { status: 500 }
     );
   }

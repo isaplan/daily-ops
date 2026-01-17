@@ -4,6 +4,7 @@ import { Suspense, useEffect, useState } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import NoteList from '../components/NoteList'
 import NoteForm from '../components/NoteForm'
+import NotesDashboard from '../components/notes/NotesDashboard'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { noteService } from '@/lib/services/noteService'
@@ -14,6 +15,7 @@ function NotesContent() {
   const [loading, setLoading] = useState(false)
   const searchParams = useSearchParams()
   const router = useRouter()
+  const createMode = searchParams.get('create') === 'true'
 
   useEffect(() => {
     const noteId = searchParams.get('note')
@@ -39,23 +41,39 @@ function NotesContent() {
       router.push(returnTo)
     } else {
       setSelectedNote(null)
+      router.push('/notes')
     }
+  }
+
+  // Show dashboard if no note selected and not in create mode
+  if (!selectedNote && !createMode) {
+    return (
+      <div className="min-h-screen p-8">
+        <div className="max-w-7xl mx-auto">
+          <NotesDashboard />
+        </div>
+      </div>
+    )
   }
 
   return (
     <div className="min-h-screen p-8">
       <div className="max-w-7xl mx-auto">
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold mb-2">Notes</h1>
-          <p className="text-muted-foreground">
-            Create and manage notes connected to locations, teams, and members
-          </p>
-        </div>
-
         {loading ? (
           <div className="space-y-4">
             <Skeleton className="h-12 w-full" />
             <Skeleton className="h-64 w-full" />
+          </div>
+        ) : createMode ? (
+          <div>
+            <Button variant="outline" onClick={() => router.push('/notes')} className="mb-4">
+              ← Back to Dashboard
+            </Button>
+            <NoteForm
+              note={null}
+              onSave={() => router.push('/notes')}
+              onCancel={() => router.push('/notes')}
+            />
           </div>
         ) : selectedNote ? (
           <div>

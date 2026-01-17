@@ -1,9 +1,9 @@
 /**
  * @registry-id: chatsTypes
  * @created: 2026-01-16T15:55:00.000Z
- * @last-modified: 2026-01-16T15:55:00.000Z
+ * @last-modified: 2026-01-16T21:00:00.000Z
  * @description: Type definitions for Chats interface
- * @last-fix: [2026-01-16] Initial implementation for Design V2 Chats interface
+ * @last-fix: [2026-01-16] Added messages_count to ChannelWithLinks for popularity sorting
  * 
  * @exports-to:
  *   ✓ app/lib/services/channelService.ts => Uses Chat types
@@ -31,6 +31,7 @@ export interface ChannelWithLinks extends Channel {
     notes: number
     todos: number
   }
+  messages_count?: number
   unread_count?: number
 }
 

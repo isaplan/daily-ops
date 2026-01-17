@@ -6,7 +6,7 @@
  * 2. Creates MemberLocationAssociation records from existing Member.location_id
  * 3. Preserves all existing data
  * 
- * Run: npx tsx scripts/migrate-to-associations.ts
+ * Run: npx tsx dev-docs/scripts/migrate-to-associations.ts
  */
 
 import mongoose from 'mongoose';

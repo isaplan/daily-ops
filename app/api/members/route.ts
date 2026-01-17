@@ -63,7 +63,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Build query
-    const query: any = { is_active: true };
+    const query: Record<string, unknown> = { is_active: true };
     if (memberIds && memberIds.length > 0) {
       query._id = { $in: memberIds };
     } else if (memberIds && memberIds.length === 0) {

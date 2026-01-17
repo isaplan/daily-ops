@@ -44,7 +44,9 @@ export async function GET(
         path: 'connected_members.member_id',
         select: 'name email',
         model: 'Member',
-      });
+        strictPopulate: false, // Don't throw if member doesn't exist
+      })
+      .exec();
     
     // If not found and we searched by slug, try by ID as fallback
     if (!note && !filter._id) {
@@ -57,7 +59,9 @@ export async function GET(
           path: 'connected_members.member_id',
           select: 'name email',
           model: 'Member',
-        });
+          strictPopulate: false, // Don't throw if member doesn't exist
+        })
+        .exec();
     }
     
     if (!note) {
@@ -70,8 +74,9 @@ export async function GET(
     return NextResponse.json({ success: true, data: note });
   } catch (error) {
     console.error('Error fetching note:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Failed to fetch note';
     return NextResponse.json(
-      { success: false, error: 'Failed to fetch note' },
+      { success: false, error: errorMessage },
       { status: 500 }
     );
   }

@@ -1,9 +1,9 @@
 /**
  * @registry-id: channelService
  * @created: 2026-01-16T00:00:00.000Z
- * @last-modified: 2026-01-16T00:00:00.000Z
+ * @last-modified: 2026-01-16T22:30:00.000Z
  * @description: Channel API service - CRUD operations for channels
- * @last-fix: [2026-01-16] Initial implementation
+ * @last-fix: [2026-01-16] Added pagination support (skip/limit) to getAll method
  * 
  * @imports-from:
  *   - app/lib/services/base.ts => ApiService base class
@@ -54,12 +54,14 @@ class ChannelService extends ApiService {
     super('/api')
   }
 
-  async getAll(filters?: ChannelFilters): Promise<ApiResponse<Channel[]>> {
+  async getAll(filters?: ChannelFilters, skip?: number, limit?: number): Promise<ApiResponse<Channel[]>> {
     const params = new URLSearchParams()
     if (filters?.type) params.append('type', filters.type)
     if (filters?.location_id) params.append('location_id', filters.location_id)
     if (filters?.team_id) params.append('team_id', filters.team_id)
     if (filters?.member_id) params.append('member_id', filters.member_id)
+    if (skip !== undefined) params.append('skip', skip.toString())
+    if (limit !== undefined) params.append('limit', limit.toString())
 
     const query = params.toString()
     return this.get<Channel[]>(`/channels${query ? `?${query}` : ''}`)

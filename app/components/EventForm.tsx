@@ -1,15 +1,16 @@
 /**
  * @registry-id: EventFormComponent
  * @created: 2026-01-16T00:00:00.000Z
- * @last-modified: 2026-01-16T00:00:00.000Z
+ * @last-modified: 2026-01-16T22:00:00.000Z
  * @description: Event form component using MVVM pattern and microcomponents with tabs
- * @last-fix: [2026-01-16] Fixed SelectItem empty string values to use 'none' instead
+ * @last-fix: [2026-01-16] Added ConnectionPicker for many-to-many entity linking
  * 
  * @imports-from:
  *   - app/lib/viewmodels/useEventViewModel.ts => Event ViewModel
  *   - app/lib/viewmodels/useLocationViewModel.ts => Location ViewModel
  *   - app/lib/viewmodels/useChannelViewModel.ts => Channel ViewModel
  *   - app/lib/viewmodels/useMemberViewModel.ts => Member ViewModel
+ *   - app/components/ConnectionPicker.tsx => Connection picker for entity linking
  *   - app/components/ui/** => Microcomponents
  * 
  * @exports-to:
@@ -37,6 +38,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
+import ConnectionPicker from './ConnectionPicker'
 import type { Event } from '@/lib/services/eventService'
 
 interface EventFormProps {
@@ -313,6 +315,17 @@ export default function EventForm({ event, onSave, onCancel }: EventFormProps) {
                   Assigned member will see this event in their dashboard
                 </p>
               </div>
+
+              {/* Connections section - only show when editing existing event */}
+              {event?._id && (
+                <div className="space-y-2">
+                  <ConnectionPicker
+                    entityType="event"
+                    entityId={event._id}
+                    allowedTargetTypes={['note', 'todo', 'channel', 'decision']}
+                  />
+                </div>
+              )}
             </TabsContent>
 
             <TabsContent value="sections" className="space-y-4">
