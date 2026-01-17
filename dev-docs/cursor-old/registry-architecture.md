@@ -56,7 +56,7 @@
                                           ▼
 ┌──────────────────────────────────────────────────────────────┐
 │ npm run registry:generate                                   │
-│ (Runs: tsx scripts/generate-registry.ts)                    │
+│ (Runs: tsx dev-docs/scripts/generate-registry.ts)                    │
 └──────────────────────────────────────────┬──────────────────┘
                                           │
                       ┌───────────────────┼───────────────────┐
@@ -393,8 +393,9 @@ index: {
 ```
 project-root/
 ├── function-registry.json ..................... Generated registry
-├── scripts/
-│   └── generate-registry.ts ................... Generator script
+├── dev-docs/
+│   └── scripts/
+│       └── generate-registry.ts ................... Generator script
 ├── lib/
 │   └── registry-query.ts ...................... Query utility
 ├── types/

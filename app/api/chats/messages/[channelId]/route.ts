@@ -1,9 +1,9 @@
 /**
  * @registry-id: chatsMessagesAPI
  * @created: 2026-01-16T15:55:00.000Z
- * @last-modified: 2026-01-16T15:55:00.000Z
+ * @last-modified: 2026-01-16T20:00:00.000Z
  * @description: API route for fetching messages in a channel with pagination
- * @last-fix: [2026-01-16] Initial implementation for Design V2 Chats interface
+ * @last-fix: [2026-01-16] Fixed: Changed connectToDatabase to dbConnect import
  * 
  * @imports-from:
  *   - app/models/Message.ts => Message model
@@ -13,7 +13,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { connectToDatabase } from '@/lib/mongodb'
+import dbConnect from '@/lib/mongodb'
 import Message from '@/models/Message'
 
 export async function GET(
@@ -21,7 +21,7 @@ export async function GET(
   { params }: { params: { channelId: string } }
 ) {
   try {
-    await connectToDatabase()
+    await dbConnect()
     const { searchParams } = new URL(request.url)
     const skip = parseInt(searchParams.get('skip') || '0', 10)
     const limit = Math.min(parseInt(searchParams.get('limit') || '50', 10), 100)

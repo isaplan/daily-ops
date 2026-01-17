@@ -1,9 +1,9 @@
 /**
  * @registry-id: useChatsViewModel
  * @created: 2026-01-16T15:55:00.000Z
- * @last-modified: 2026-01-16T15:55:00.000Z
+ * @last-modified: 2026-01-16T20:45:00.000Z
  * @description: ViewModel for Chats interface (MVVM pattern)
- * @last-fix: [2026-01-16] Initial implementation for Design V2 Chats interface
+ * @last-fix: [2026-01-16] Fixed circular dependency by moving loadMessages before setActiveChannel
  * 
  * @imports-from:
  *   - app/lib/types/chats.types.ts => ChannelWithLinks, Message types
@@ -58,17 +58,6 @@ export function useChatsViewModel(): UseChatsViewModelReturn {
     }
   }, [])
 
-  const setActiveChannel = useCallback(
-    async (channelId: string) => {
-      const channel = channels.find((c) => c._id === channelId)
-      if (channel) {
-        setActiveChannelState(channel)
-        await loadMessages(channelId)
-      }
-    },
-    [channels]
-  )
-
   const loadMessages = useCallback(async (channelId: string, skip = 0, limit = 50) => {
     try {
       setLoading(true)
@@ -89,6 +78,35 @@ export function useChatsViewModel(): UseChatsViewModelReturn {
       setLoading(false)
     }
   }, [])
+
+  const setActiveChannel = useCallback(
+    async (channelId: string) => {
+      // Try to find channel in existing channels
+      let channel = channels.find((c) => c._id === channelId)
+      if (!channel) {
+        // If channel not in list, reload channels first
+        try {
+          setLoading(true)
+          const response = await fetch('/api/chats/channels')
+          const data: ApiResponse<{ channels: ChannelWithLinks[]; total: number; skip: number; limit: number }> =
+            await response.json()
+          if (data.success && data.data) {
+            setChannels(data.data.channels)
+            channel = data.data.channels.find((c) => c._id === channelId)
+          }
+        } catch (err) {
+          console.error('Failed to load channels:', err)
+        } finally {
+          setLoading(false)
+        }
+      }
+      if (channel) {
+        setActiveChannelState(channel)
+        await loadMessages(channelId)
+      }
+    },
+    [channels, loadMessages]
+  )
 
   const refresh = useCallback(async () => {
     await loadChannels()

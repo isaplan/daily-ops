@@ -3,7 +3,7 @@
  * @created: 2026-01-16T16:00:00.000Z
  * @last-modified: 2026-01-16T16:00:00.000Z
  * @description: Channel sidebar component using shadcn microcomponents only
- * @last-fix: [2026-01-16] Initial implementation for Design V2 Chats interface
+ * @last-fix: [2026-01-16] Replaced emoji icon with Lucide React MessageSquare icon
  * 
  * @imports-from:
  *   - app/components/ui/** => Shadcn microcomponents only
@@ -23,6 +23,7 @@ import { Card } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { ChannelWithLinks } from '@/lib/types/chats.types'
 import { cn } from '@/lib/utils/cn'
+import { MessageSquare } from 'lucide-react'
 
 interface ChannelSidebarProps {
   channels: ChannelWithLinks[]
@@ -83,7 +84,7 @@ export default function ChannelSidebar({
               <div className="flex items-start justify-between">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="text-lg">💬</span>
+                    <MessageSquare className="h-5 w-5 flex-shrink-0" />
                     <p className="font-semibold text-white truncate">{channel.name}</p>
                   </div>
                   {channel.description && (

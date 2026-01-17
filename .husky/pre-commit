@@ -9,13 +9,13 @@
 set -e
 
 echo "🔍 Validating metadata headers..."
-npx ts-node scripts/validate-metadata.ts || {
+npx ts-node dev-docs/scripts/validate-metadata.ts || {
   echo "❌ Metadata validation failed. Fix dependencies and try again."
   exit 1
 }
 
 echo "📋 Generating function registry..."
-npx ts-node scripts/generate-registry.ts || {
+npx ts-node dev-docs/scripts/generate-registry.ts || {
   echo "❌ Registry generation failed."
   exit 1
 }

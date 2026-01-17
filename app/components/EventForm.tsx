@@ -1,15 +1,16 @@
 /**
  * @registry-id: EventFormComponent
  * @created: 2026-01-16T00:00:00.000Z
- * @last-modified: 2026-01-16T00:00:00.000Z
+ * @last-modified: 2026-01-16T22:00:00.000Z
  * @description: Event form component using MVVM pattern and microcomponents with tabs
- * @last-fix: [2026-01-16] Refactored to use useEventViewModel + microcomponents
+ * @last-fix: [2026-01-16] Added ConnectionPicker for many-to-many entity linking
  * 
  * @imports-from:
  *   - app/lib/viewmodels/useEventViewModel.ts => Event ViewModel
  *   - app/lib/viewmodels/useLocationViewModel.ts => Location ViewModel
  *   - app/lib/viewmodels/useChannelViewModel.ts => Channel ViewModel
  *   - app/lib/viewmodels/useMemberViewModel.ts => Member ViewModel
+ *   - app/components/ConnectionPicker.tsx => Connection picker for entity linking
  *   - app/components/ui/** => Microcomponents
  * 
  * @exports-to:
@@ -37,6 +38,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
+import ConnectionPicker from './ConnectionPicker'
 import type { Event } from '@/lib/services/eventService'
 
 interface EventFormProps {
@@ -273,14 +275,14 @@ export default function EventForm({ event, onSave, onCancel }: EventFormProps) {
                 <div className="space-y-2">
                   <Label htmlFor="channel">Channel</Label>
                   <Select
-                    value={viewModel.formData.channel_id}
-                    onValueChange={(value) => viewModel.setFormData({ channel_id: value })}
+                    value={viewModel.formData.channel_id || 'none'}
+                    onValueChange={(value) => viewModel.setFormData({ channel_id: value === 'none' ? '' : value })}
                   >
                     <SelectTrigger id="channel">
                       <SelectValue placeholder="Select Channel (Optional)" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">None</SelectItem>
+                      <SelectItem value="none">None</SelectItem>
                       {channelViewModel.channels.map((channel) => (
                         <SelectItem key={channel._id} value={channel._id}>
                           {channel.name}
@@ -294,14 +296,14 @@ export default function EventForm({ event, onSave, onCancel }: EventFormProps) {
               <div className="space-y-2">
                 <Label htmlFor="assigned_to">Assign To</Label>
                 <Select
-                  value={viewModel.formData.assigned_to}
-                  onValueChange={(value) => viewModel.setFormData({ assigned_to: value })}
+                  value={viewModel.formData.assigned_to || 'none'}
+                  onValueChange={(value) => viewModel.setFormData({ assigned_to: value === 'none' ? '' : value })}
                 >
                   <SelectTrigger id="assigned_to">
                     <SelectValue placeholder="No Assignment" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">No Assignment</SelectItem>
+                    <SelectItem value="none">No Assignment</SelectItem>
                     {memberViewModel.members.map((member) => (
                       <SelectItem key={member._id} value={member._id}>
                         {member.name}
@@ -313,6 +315,17 @@ export default function EventForm({ event, onSave, onCancel }: EventFormProps) {
                   Assigned member will see this event in their dashboard
                 </p>
               </div>
+
+              {/* Connections section - only show when editing existing event */}
+              {event?._id && (
+                <div className="space-y-2">
+                  <ConnectionPicker
+                    entityType="event"
+                    entityId={event._id}
+                    allowedTargetTypes={['note', 'todo', 'channel', 'decision']}
+                  />
+                </div>
+              )}
             </TabsContent>
 
             <TabsContent value="sections" className="space-y-4">
@@ -413,14 +426,14 @@ export default function EventForm({ event, onSave, onCancel }: EventFormProps) {
                       onChange={(e) => updateTimelineItem(idx, 'activity', e.target.value)}
                     />
                     <Select
-                      value={item.assigned_to || ''}
-                      onValueChange={(value) => updateTimelineItem(idx, 'assigned_to', value)}
+                      value={item.assigned_to || 'none'}
+                      onValueChange={(value) => updateTimelineItem(idx, 'assigned_to', value === 'none' ? '' : value)}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Unassigned" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">Unassigned</SelectItem>
+                        <SelectItem value="none">Unassigned</SelectItem>
                         {memberViewModel.members.map((m) => (
                           <SelectItem key={m._id} value={m._id}>
                             {m.name}

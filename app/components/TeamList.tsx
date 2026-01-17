@@ -19,7 +19,9 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useTeamViewModel } from '@/lib/viewmodels/useTeamViewModel'
+import type { Team } from '@/lib/services/teamService'
 import { useLocationViewModel } from '@/lib/viewmodels/useLocationViewModel'
+import { useWorkspace } from '@/lib/workspaceContext'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -37,7 +39,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 
-function TeamCard({ team }: { team: any }) {
+function TeamCard({ team }: { team: Team }) {
   const router = useRouter()
 
   const handleLocationClick = (e: React.MouseEvent, locationId: string) => {
@@ -77,6 +79,7 @@ function TeamCard({ team }: { team: any }) {
 }
 
 export default function TeamList() {
+  const { activeWorkspace } = useWorkspace()
   const router = useRouter()
   const viewModel = useTeamViewModel()
   const locationViewModel = useLocationViewModel()
@@ -85,7 +88,7 @@ export default function TeamList() {
   useEffect(() => {
     viewModel.loadTeams()
     locationViewModel.loadLocations()
-  }, [])
+  }, [activeWorkspace, viewModel, locationViewModel])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

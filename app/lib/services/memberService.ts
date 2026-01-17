@@ -49,6 +49,7 @@ class MemberService extends ApiService {
   async getAll(filters?: MemberFilters): Promise<ApiResponse<Member[]>> {
     const params = new URLSearchParams()
     if (filters?.location_id) params.append('location_id', filters.location_id)
+    if (filters?.location_name) params.append('location_name', filters.location_name)
     if (filters?.team_id) params.append('team_id', filters.team_id)
     if (filters?.is_active !== undefined) params.append('is_active', String(filters.is_active))
 

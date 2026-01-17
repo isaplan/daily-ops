@@ -97,7 +97,7 @@ export async function GET(request: NextRequest) {
           );
         }
 
-        const orConditions: any[] = [
+        const orConditions: Array<Record<string, unknown>> = [
           { 'connected_to.member_id': new mongoose.Types.ObjectId(viewing_member_id) },
         ];
         

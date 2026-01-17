@@ -1,9 +1,9 @@
 /**
  * @registry-id: EventListComponent
  * @created: 2026-01-16T00:00:00.000Z
- * @last-modified: 2026-01-16T00:00:00.000Z
+ * @last-modified: 2026-01-16T22:30:00.000Z
  * @description: Event list component using MVVM pattern and microcomponents
- * @last-fix: [2026-01-16] Refactored to use useEventViewModel + microcomponents
+ * @last-fix: [2026-01-16] Fixed TypeScript strict violation - replaced any with Event type
  * 
  * @imports-from:
  *   - app/lib/viewmodels/useEventViewModel.ts => Event ViewModel
@@ -20,6 +20,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useEventViewModel } from '@/lib/viewmodels/useEventViewModel'
 import { useLocationViewModel } from '@/lib/viewmodels/useLocationViewModel'
+import type { Event } from '@/lib/services/eventService'
 import EventForm from './EventForm'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -50,7 +51,7 @@ export default function EventList() {
   const viewModel = useEventViewModel()
   const locationViewModel = useLocationViewModel()
   const [showForm, setShowForm] = useState(false)
-  const [editingEvent, setEditingEvent] = useState<any>(null)
+  const [editingEvent, setEditingEvent] = useState<Event | null>(null)
   const [filter, setFilter] = useState({ location_id: '', status: '' })
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; name: string } | null>(null)
 
@@ -66,7 +67,7 @@ export default function EventList() {
     }
   }
 
-  const handleEdit = (event: any) => {
+  const handleEdit = (event: Event) => {
     setEditingEvent(event)
     setShowForm(true)
   }
@@ -123,14 +124,14 @@ export default function EventList() {
         <div className="space-y-2">
           <Label>Filter by Location</Label>
           <Select
-            value={filter.location_id}
-            onValueChange={(value) => setFilter({ ...filter, location_id: value })}
+            value={filter.location_id || 'all'}
+            onValueChange={(value) => setFilter({ ...filter, location_id: value === 'all' ? '' : value })}
           >
             <SelectTrigger>
               <SelectValue placeholder="All Locations" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">All Locations</SelectItem>
+              <SelectItem value="all">All Locations</SelectItem>
               {locationViewModel.locations.map((loc) => (
                 <SelectItem key={loc._id} value={loc._id}>
                   {loc.name}
@@ -143,14 +144,14 @@ export default function EventList() {
         <div className="space-y-2">
           <Label>Filter by Status</Label>
           <Select
-            value={filter.status}
-            onValueChange={(value) => setFilter({ ...filter, status: value })}
+            value={filter.status || 'all'}
+            onValueChange={(value) => setFilter({ ...filter, status: value === 'all' ? '' : value })}
           >
             <SelectTrigger>
               <SelectValue placeholder="All Statuses" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">All Statuses</SelectItem>
+              <SelectItem value="all">All Statuses</SelectItem>
               <SelectItem value="planning">Planning</SelectItem>
               <SelectItem value="confirmed">Confirmed</SelectItem>
               <SelectItem value="in_progress">In Progress</SelectItem>

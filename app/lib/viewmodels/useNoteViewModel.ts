@@ -1,9 +1,9 @@
 /**
  * @registry-id: useNoteViewModel
  * @created: 2026-01-16T00:00:00.000Z
- * @last-modified: 2026-01-16T00:00:00.000Z
+ * @last-modified: 2026-01-16T22:00:00.000Z
  * @description: Note ViewModel - state management and business logic for notes
- * @last-fix: [2026-01-16] Initial implementation
+ * @last-fix: [2026-01-16] Used in Phase 2 - NoteForm integration with ConnectionPicker
  * 
  * @imports-from:
  *   - app/lib/services/noteService.ts => Note API operations

@@ -29,7 +29,9 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { EmptyState } from '@/components/ui/empty-state'
 import { StatusBadge } from '@/components/ui/status-badge'
 
-function LocationCard({ location }: { location: any }) {
+import type { Location } from '@/lib/types/location.types'
+
+function LocationCard({ location }: { location: Location }) {
   const router = useRouter()
 
   return (

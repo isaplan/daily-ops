@@ -105,6 +105,9 @@ export async function GET(request: NextRequest) {
       await import('@/models/TodoList');
     }
     
+    const skip = parseInt(searchParams.get('skip') || '0', 10);
+    const limit = Math.min(parseInt(searchParams.get('limit') || '50', 10), 100);
+    
     const todos = await Todo.find(query)
       .populate('assigned_to', 'name email')
       .populate('created_by', 'name email')
@@ -115,13 +118,20 @@ export async function GET(request: NextRequest) {
       .populate('linked_note', 'title')
       .populate('linked_chat', 'text')
       .sort({ created_at: -1 })
-      .limit(100);
+      .skip(skip)
+      .limit(limit);
     
-    return NextResponse.json({ success: true, data: todos });
-  } catch (error) {
+    const total = await Todo.countDocuments(query);
+    
+    return NextResponse.json({
+      success: true,
+      data: todos,
+      pagination: { skip, limit, total },
+    });
+  } catch (error: unknown) {
     console.error('Error fetching todos:', error);
     return NextResponse.json(
-      { success: false, error: 'Failed to fetch todos' },
+      { success: false, error: getErrorMessage(error) },
       { status: 500 }
     );
   }

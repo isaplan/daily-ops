@@ -1,9 +1,9 @@
 /**
  * @registry-id: environmentContext
  * @created: 2026-01-16T16:15:00.000Z
- * @last-modified: 2026-01-16T16:15:00.000Z
+ * @last-modified: 2026-01-16T21:00:00.000Z
  * @description: Environment context provider for active environment tracking
- * @last-fix: [2026-01-16] Initial implementation for Design V2 environment switching
+ * @last-fix: [2026-01-16] Added /channels route to chats environment detection
  */
 
 'use client'
@@ -21,20 +21,27 @@ const EnvironmentContext = createContext<EnvironmentContextValue | undefined>(un
 
 export function EnvironmentProvider({ children }: { children: ReactNode }) {
   const pathname = usePathname()
-  const [activeEnvironment, setActiveEnvironmentState] = useState<EnvironmentId>('collaboration')
+  const [manualEnvironment, setManualEnvironment] = useState<EnvironmentId | null>(null)
 
   const derivedEnvironment = useMemo((): EnvironmentId => {
-    if (pathname.startsWith('/chats')) return 'chats'
+    if (pathname.startsWith('/chats') || pathname.startsWith('/channels')) return 'chats'
     if (pathname.startsWith('/daily-ops')) return 'daily-ops'
     return 'collaboration'
   }, [pathname])
 
+  // Use manual override if set, otherwise derive from pathname
+  const activeEnvironment = manualEnvironment ?? derivedEnvironment
+
+  const setActiveEnvironment = (env: EnvironmentId) => {
+    setManualEnvironment(env)
+  }
+
   const value = useMemo(
     () => ({
-      activeEnvironment: derivedEnvironment,
-      setActiveEnvironment: setActiveEnvironmentState,
+      activeEnvironment,
+      setActiveEnvironment,
     }),
-    [derivedEnvironment]
+    [activeEnvironment]
   )
 
   return <EnvironmentContext.Provider value={value}>{children}</EnvironmentContext.Provider>

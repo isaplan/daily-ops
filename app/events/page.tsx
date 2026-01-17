@@ -4,8 +4,10 @@ import { Suspense, useEffect, useState } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import EventList from '../components/EventList'
 import EventForm from '../components/EventForm'
+import ConnectionPicker from '@/components/ConnectionPicker'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { eventService } from '@/lib/services/eventService'
 import type { Event } from '@/lib/services/eventService'
 
@@ -66,6 +68,24 @@ function EventsContent() {
               onSave={handleBack}
               onCancel={handleBack}
             />
+            {/* Many-to-Many Connections */}
+            {selectedEvent._id && (
+              <Card className="mt-4">
+                <CardHeader>
+                  <CardTitle className="text-sm">LINKED ENTITIES</CardTitle>
+                  <p className="text-xs text-muted-foreground">
+                    Link this event to other entities (notes, todos, channels, decisions)
+                  </p>
+                </CardHeader>
+                <CardContent>
+                  <ConnectionPicker
+                    entityType="event"
+                    entityId={selectedEvent._id}
+                    allowedTargetTypes={['note', 'todo', 'channel', 'decision']}
+                  />
+                </CardContent>
+              </Card>
+            )}
           </div>
         ) : (
           <EventList />

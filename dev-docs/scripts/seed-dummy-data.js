@@ -197,7 +197,7 @@ async function seedData() {
       }
     }
 
-    // Create 12 dummy notes
+    // Create 12 dummy notes - mix of private and public notes
     const existingNotes = await Note.countDocuments();
     const notesToCreate = 12 - existingNotes;
 
@@ -207,46 +207,66 @@ async function seedData() {
       const allMembers = await Member.find({ is_active: true });
 
       const noteTemplates = [
-        { title: 'Weekly Team Meeting Notes', content: 'Discussed upcoming events and staffing needs. Need to schedule training session for new hires.', tags: ['meeting', 'staffing'] },
-        { title: 'Inventory Check Required', content: 'Kitchen inventory is running low on several items. Need to place order by Friday.', tags: ['inventory', 'urgent'] },
-        { title: 'Customer Feedback Summary', content: 'Received positive feedback about new menu items. Some customers requested vegetarian options.', tags: ['feedback', 'menu'] },
-        { title: 'Equipment Maintenance', content: 'Oven needs servicing. Scheduled for next Tuesday. Backup equipment available.', tags: ['maintenance', 'equipment'] },
-        { title: 'Staff Schedule Updates', content: 'Updated schedule for next week. Two team members requested time off.', tags: ['schedule', 'staffing'] },
-        { title: 'New Supplier Contact', content: 'Found new supplier for organic produce. Better prices and quality. Contact info saved.', tags: ['supplier', 'procurement'] },
-        { title: 'Training Session Planned', content: 'Organizing training session for new POS system. All staff should attend.', tags: ['training', 'system'] },
-        { title: 'Event Planning Notes', content: 'Large event booked for next month. Need to coordinate with kitchen and service teams.', tags: ['event', 'planning'] },
-        { title: 'Quality Control Check', content: 'Conducted quality check on all stations. Everything looks good. Minor adjustments needed.', tags: ['quality', 'inspection'] },
-        { title: 'Budget Review', content: 'Monthly budget review completed. On track for targets. Some areas need attention.', tags: ['budget', 'finance'] },
-        { title: 'Health & Safety Inspection', content: 'Health inspector visit scheduled. All areas cleaned and prepared. Documentation ready.', tags: ['safety', 'compliance'] },
-        { title: 'Marketing Campaign Ideas', content: 'Brainstorming session for next marketing campaign. Social media and local partnerships discussed.', tags: ['marketing', 'strategy'] },
+        // Public notes (with team/location connections)
+        { title: 'Weekly Team Meeting Notes', content: 'Discussed upcoming events and staffing needs. Need to schedule training session for new hires.', tags: ['meeting', 'staffing'], isPrivate: false },
+        { title: 'Inventory Check Required', content: 'Kitchen inventory is running low on several items. Need to place order by Friday.', tags: ['inventory', 'urgent'], isPrivate: false },
+        { title: 'Customer Feedback Summary', content: 'Received positive feedback about new menu items. Some customers requested vegetarian options.', tags: ['feedback', 'menu'], isPrivate: false },
+        { title: 'Equipment Maintenance', content: 'Oven needs servicing. Scheduled for next Tuesday. Backup equipment available.', tags: ['maintenance', 'equipment'], isPrivate: false },
+        { title: 'Staff Schedule Updates', content: 'Updated schedule for next week. Two team members requested time off.', tags: ['schedule', 'staffing'], isPrivate: false },
+        { title: 'New Supplier Contact', content: 'Found new supplier for organic produce. Better prices and quality. Contact info saved.', tags: ['supplier', 'procurement'], isPrivate: false },
+        { title: 'Training Session Planned', content: 'Organizing training session for new POS system. All staff should attend.', tags: ['training', 'system'], isPrivate: false },
+        { title: 'Event Planning Notes', content: 'Large event booked for next month. Need to coordinate with kitchen and service teams.', tags: ['event', 'planning'], isPrivate: false },
+        // Private notes (no team/location connections)
+        { title: 'Personal Reflection', content: 'Today was a good day. Learned a lot about customer service and team dynamics.', tags: ['personal', 'reflection'], isPrivate: true },
+        { title: 'Quick Reminder', content: 'Remember to follow up on the supplier quote tomorrow morning.', tags: ['reminder'], isPrivate: true },
+        { title: 'Ideas for Improvement', content: 'Some thoughts on how we could improve the workflow. Need to discuss with team later.', tags: ['ideas'], isPrivate: true },
+        { title: 'Meeting Prep Notes', content: 'Preparing for tomorrow\'s meeting. Key points to discuss: budget, staffing, and upcoming events.', tags: ['preparation'], isPrivate: true },
       ];
 
       for (let i = 0; i < notesToCreate && i < noteTemplates.length; i++) {
         const template = noteTemplates[i];
-        const randomLocation = allLocations[Math.floor(Math.random() * allLocations.length)];
-        const locationTeams = allTeams.filter(t => {
-          const teamLocId = typeof t.location_id === 'object' ? t.location_id._id.toString() : t.location_id?.toString();
-          return teamLocId === randomLocation._id.toString();
-        });
-        const randomTeam = locationTeams.length > 0 ? locationTeams[Math.floor(Math.random() * locationTeams.length)] : null;
-        const teamMembers = randomTeam ? allMembers.filter(m => m.team_id?.toString() === randomTeam._id.toString()) : [];
-        const randomMember = teamMembers.length > 0 ? teamMembers[Math.floor(Math.random() * teamMembers.length)] : allMembers[0];
         const author = allMembers[Math.floor(Math.random() * allMembers.length)];
 
-        await Note.create({
-          title: template.title,
-          content: template.content,
-          author_id: author._id,
-          connected_to: {
-            location_id: randomLocation._id,
-            team_id: randomTeam ? randomTeam._id : undefined,
-            member_id: randomMember ? randomMember._id : undefined,
-          },
-          tags: template.tags,
-          is_pinned: i < 2, // Pin first 2 notes
-          is_archived: false,
-        });
-        console.log(`  ✅ Created note: ${template.title}`);
+        if (template.isPrivate) {
+          // Create private note (no team/location connections, only member connection)
+          await Note.create({
+            title: template.title,
+            content: template.content,
+            author_id: author._id,
+            connected_to: {
+              member_id: author._id, // Only connected to the author
+            },
+            tags: template.tags,
+            is_pinned: i < 2, // Pin first 2 notes
+            is_archived: false,
+          });
+          console.log(`  ✅ Created private note: ${template.title}`);
+        } else {
+          // Create public note (with team/location connections)
+          const randomLocation = allLocations[Math.floor(Math.random() * allLocations.length)];
+          const locationTeams = allTeams.filter(t => {
+            const teamLocId = typeof t.location_id === 'object' ? t.location_id._id.toString() : t.location_id?.toString();
+            return teamLocId === randomLocation._id.toString();
+          });
+          const randomTeam = locationTeams.length > 0 ? locationTeams[Math.floor(Math.random() * locationTeams.length)] : null;
+          const teamMembers = randomTeam ? allMembers.filter(m => m.team_id?.toString() === randomTeam._id.toString()) : [];
+          const randomMember = teamMembers.length > 0 ? teamMembers[Math.floor(Math.random() * teamMembers.length)] : allMembers[0];
+
+          await Note.create({
+            title: template.title,
+            content: template.content,
+            author_id: author._id,
+            connected_to: {
+              location_id: randomLocation._id,
+              team_id: randomTeam ? randomTeam._id : undefined,
+              member_id: randomMember ? randomMember._id : undefined,
+            },
+            tags: template.tags,
+            is_pinned: i < 2, // Pin first 2 notes
+            is_archived: false,
+          });
+          console.log(`  ✅ Created public note: ${template.title}`);
+        }
       }
     } else {
       console.log(`  ℹ️  Already have ${existingNotes} notes`);

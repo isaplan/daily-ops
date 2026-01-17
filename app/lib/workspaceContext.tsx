@@ -1,9 +1,9 @@
 /**
  * @registry-id: workspaceContext
  * @created: 2026-01-16T16:15:00.000Z
- * @last-modified: 2026-01-16T16:15:00.000Z
+ * @last-modified: 2026-01-16T16:20:00.000Z
  * @description: Workspace context provider for active workspace filtering
- * @last-fix: [2026-01-16] Initial implementation for Design V2 workspace switching
+ * @last-fix: [2026-01-16] Added location-specific filtering for teams and members
  */
 
 'use client'
@@ -17,9 +17,17 @@ interface WorkspaceContextValue {
   activeWorkspace: WorkspaceId
   setActiveWorkspace: (workspace: WorkspaceId) => void
   getWorkspaceFilter: () => WorkspaceFilter
+  activeLocationId: string | null
 }
 
 const WorkspaceContext = createContext<WorkspaceContextValue | undefined>(undefined)
+
+const WORKSPACE_TO_LOCATION_NAME: Record<string, string> = {
+  hnh: 'Haagse Nieuwe Horeca Groep',
+  vkb: 'van Kinsbergen',
+  bea: 'Bar Bea',
+  lat: "l'AMour-Toujours",
+}
 
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const [activeWorkspace, setActiveWorkspaceState] = useState<WorkspaceId>('all')
@@ -27,7 +35,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (typeof window === 'undefined') return
     const stored = window.localStorage.getItem(WORKSPACE_STORAGE_KEY) as WorkspaceId | null
-    if (stored && ['all', 'locations', 'daily-ops', 'global'].includes(stored)) {
+    if (stored && ['all', 'hnh', 'vkb', 'bea', 'lat', 'daily-ops'].includes(stored)) {
       setActiveWorkspaceState(stored)
     }
   }, [])
@@ -41,11 +49,24 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     setActiveWorkspaceState(workspace)
   }
 
+  const activeLocationId = useMemo(() => {
+    if (activeWorkspace === 'all' || activeWorkspace === 'daily-ops') {
+      return null
+    }
+    return WORKSPACE_TO_LOCATION_NAME[activeWorkspace] || null
+  }, [activeWorkspace])
+
   const getWorkspaceFilter = useMemo(
-    () => (): WorkspaceFilter => ({
-      workspace_id: activeWorkspace,
-    }),
-    [activeWorkspace]
+    () => (): WorkspaceFilter => {
+      const filter: WorkspaceFilter = {
+        workspace_id: activeWorkspace,
+      }
+      if (activeLocationId) {
+        filter.location_name = activeLocationId
+      }
+      return filter
+    },
+    [activeWorkspace, activeLocationId]
   )
 
   const value = useMemo(
@@ -53,8 +74,9 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       activeWorkspace,
       setActiveWorkspace,
       getWorkspaceFilter,
+      activeLocationId,
     }),
-    [activeWorkspace, getWorkspaceFilter]
+    [activeWorkspace, getWorkspaceFilter, activeLocationId]
   )
 
   return <WorkspaceContext.Provider value={value}>{children}</WorkspaceContext.Provider>

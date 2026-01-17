@@ -1,9 +1,9 @@
 /**
  * @registry-id: NoteListComponent
  * @created: 2026-01-16T00:00:00.000Z
- * @last-modified: 2026-01-16T15:10:00.000Z
+ * @last-modified: 2026-01-16T22:30:00.000Z
  * @description: Note list component using MVVM pattern and microcomponents
- * @last-fix: [2026-01-16] Fixed Select empty string values to use 'all' instead
+ * @last-fix: [2026-01-16] Fixed TypeScript strict violations - replaced any types with NoteFilters and Note types
  * 
  * @imports-from:
  *   - app/lib/viewmodels/useNoteViewModel.ts => Note ViewModel
@@ -26,6 +26,8 @@ import { useLocationViewModel } from '@/lib/viewmodels/useLocationViewModel'
 import { useTeamViewModel } from '@/lib/viewmodels/useTeamViewModel'
 import { useMemberViewModel } from '@/lib/viewmodels/useMemberViewModel'
 import { useAuth } from '@/lib/hooks/useAuth'
+import type { NoteFilters } from '@/lib/types/note.types'
+import type { Note as NoteServiceType } from '@/lib/services/noteService'
 import NoteForm from './NoteForm'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -58,7 +60,7 @@ export default function NoteList() {
   const teamViewModel = useTeamViewModel()
   const memberViewModel = useMemberViewModel()
   const [showForm, setShowForm] = useState(false)
-  const [editingNote, setEditingNote] = useState<any>(null)
+  const [editingNote, setEditingNote] = useState<NoteServiceType | null>(null)
   const [filter, setFilter] = useState({
     location_id: '',
     team_id: '',
@@ -68,7 +70,7 @@ export default function NoteList() {
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; title: string } | null>(null)
 
   useEffect(() => {
-    const filters: any = { ...filter }
+    const filters: NoteFilters = { ...filter }
     if (!filters.location_id && !filters.team_id && !filters.member_id && user?.id) {
       filters.viewing_member_id = user.id
     }
@@ -85,7 +87,7 @@ export default function NoteList() {
     }
   }
 
-  const handleArchive = async (note: any) => {
+  const handleArchive = async (note: NoteServiceType) => {
     await viewModel.updateNote(note._id, {
       is_archived: !note.is_archived,
     })
@@ -216,7 +218,7 @@ export default function NoteList() {
           onSave={() => {
             setShowForm(false)
             setEditingNote(null)
-            const filters: any = { ...filter }
+            const filters: NoteFilters = { ...filter }
             if (!filters.location_id && !filters.team_id && !filters.member_id && user?.id) {
               filters.viewing_member_id = user.id
             }

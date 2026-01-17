@@ -1,9 +1,9 @@
 /**
  * @registry-id: useTodoViewModel
  * @created: 2026-01-16T00:00:00.000Z
- * @last-modified: 2026-01-16T00:00:00.000Z
+ * @last-modified: 2026-01-17T00:00:00.000Z
  * @description: Todo ViewModel - state management and business logic for todos
- * @last-fix: [2026-01-16] Initial implementation
+ * @last-fix: [2026-01-17] Added getTodoById method and proper error handling with finally blocks
  * 
  * @imports-from:
  *   - app/lib/services/todoService.ts => Todo API operations
@@ -22,10 +22,10 @@ import { useViewModelState } from './base'
 export function useTodoViewModel() {
   const { state, setLoading, setError, setData } = useViewModelState<Todo>()
 
-  const loadTodos = useCallback(async (filters?: { status?: string; assigned_to?: string; created_by?: string }) => {
+  const loadTodos = useCallback(async (filters?: { status?: string; assigned_to?: string; created_by?: string }, skip?: number, limit?: number) => {
     setLoading(true)
     try {
-      const response = await todoService.getAll(filters)
+      const response = await todoService.getAll(filters, skip, limit)
       if (response.success && response.data) {
         setData(response.data)
       } else {
@@ -33,6 +33,24 @@ export function useTodoViewModel() {
       }
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Failed to load todos')
+    } finally {
+      setLoading(false)
+    }
+  }, [setLoading, setError, setData])
+
+  const getTodoById = useCallback(async (id: string) => {
+    setLoading(true)
+    try {
+      const response = await todoService.getById(id)
+      if (response.success && response.data) {
+        setData([response.data])
+      } else {
+        setError(response.error || 'Failed to load todo')
+      }
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Failed to load todo')
+    } finally {
+      setLoading(false)
     }
   }, [setLoading, setError, setData])
 
@@ -48,6 +66,8 @@ export function useTodoViewModel() {
         }
       } catch (error) {
         setError(error instanceof Error ? error.message : 'Failed to create todo')
+      } finally {
+        setLoading(false)
       }
     },
     [setLoading, setError, loadTodos]
@@ -65,6 +85,8 @@ export function useTodoViewModel() {
         }
       } catch (error) {
         setError(error instanceof Error ? error.message : 'Failed to update todo')
+      } finally {
+        setLoading(false)
       }
     },
     [setLoading, setError, loadTodos]
@@ -82,6 +104,8 @@ export function useTodoViewModel() {
         }
       } catch (error) {
         setError(error instanceof Error ? error.message : 'Failed to delete todo')
+      } finally {
+        setLoading(false)
       }
     },
     [setLoading, setError, loadTodos]
@@ -92,6 +116,7 @@ export function useTodoViewModel() {
     loading: state.loading,
     error: state.error,
     loadTodos,
+    getTodoById,
     createTodo,
     updateTodo,
     deleteTodo,

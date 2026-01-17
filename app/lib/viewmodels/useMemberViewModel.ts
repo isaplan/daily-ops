@@ -1,13 +1,14 @@
 /**
  * @registry-id: useMemberViewModel
  * @created: 2026-01-16T00:00:00.000Z
- * @last-modified: 2026-01-16T00:00:00.000Z
+ * @last-modified: 2026-01-16T16:25:00.000Z
  * @description: Member ViewModel - state management and business logic for members
- * @last-fix: [2026-01-16] Initial implementation
+ * @last-fix: [2026-01-16] Added workspace filter support for location-based filtering
  * 
  * @imports-from:
  *   - app/lib/services/memberService.ts => Member API operations
  *   - app/lib/viewmodels/base.ts => Base ViewModel utilities
+ *   - app/lib/workspaceContext.tsx => Workspace filter
  * 
  * @exports-to:
  *   ✓ app/components/MemberList.tsx => Uses useMemberViewModel for list/form state
@@ -16,8 +17,9 @@
 'use client'
 
 import { useCallback } from 'react'
-import { memberService, type Member, type CreateMemberDto, type UpdateMemberDto } from '@/lib/services/memberService'
+import { memberService, type Member, type CreateMemberDto, type UpdateMemberDto, type MemberFilters } from '@/lib/services/memberService'
 import { useViewModelState, useFormState } from './base'
+import { useWorkspace } from '@/lib/workspaceContext'
 
 export interface MemberFormData {
   name: string
