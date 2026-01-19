@@ -17,8 +17,17 @@ export interface Message {
   _id: string
   channel_id: string
   content: string
+  editor_content?: string | Array<Record<string, unknown>> // HTML string (TipTap) or BlockNote format
+  attachments?: Array<{
+    id: string
+    url: string
+    filename: string
+    mimeType: string
+    size: number
+  }>
   author_id: string | { _id: string; name: string; email?: string }
   timestamp: string
+  mentioned_members?: string[]
   mentions?: Array<{
     type: 'note' | 'todo' | 'channel'
     id: string

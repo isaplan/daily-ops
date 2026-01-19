@@ -1,9 +1,9 @@
 /**
  * @registry-id: chatsMessagesAPI
  * @created: 2026-01-16T15:55:00.000Z
- * @last-modified: 2026-01-16T20:00:00.000Z
+ * @last-modified: 2026-01-18T00:00:00.000Z
  * @description: API route for fetching messages in a channel with pagination
- * @last-fix: [2026-01-16] Fixed: Changed connectToDatabase to dbConnect import
+ * @last-fix: [2026-01-18] Added editor_content and attachments to response
  * 
  * @imports-from:
  *   - app/models/Message.ts => Message model
@@ -18,27 +18,36 @@ import Message from '@/models/Message'
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { channelId: string } }
+  { params }: { params: Promise<{ channelId: string }> }
 ) {
   try {
     await dbConnect()
+    const { channelId } = await params
     const { searchParams } = new URL(request.url)
     const skip = parseInt(searchParams.get('skip') || '0', 10)
     const limit = Math.min(parseInt(searchParams.get('limit') || '50', 10), 100)
 
-    const messages = await Message.find({ channel_id: params.channelId, is_deleted: false })
+    const messages = await Message.find({ channel_id: channelId, is_deleted: false })
       .skip(skip)
       .limit(limit)
       .sort({ timestamp: -1 })
       .populate('member_id', 'name email')
       .lean()
 
-    const total = await Message.countDocuments({ channel_id: params.channelId, is_deleted: false })
+    const total = await Message.countDocuments({ channel_id: channelId, is_deleted: false })
 
     const formattedMessages = messages.map((msg) => ({
       _id: msg._id.toString(),
       channel_id: msg.channel_id.toString(),
       content: msg.text,
+      editor_content: msg.editor_content 
+        ? (typeof msg.editor_content === 'string' 
+            ? msg.editor_content 
+            : Array.isArray(msg.editor_content) 
+              ? JSON.stringify(msg.editor_content) 
+              : String(msg.editor_content))
+        : undefined,
+      attachments: msg.attachments || undefined,
       author_id: msg.member_id
         ? typeof msg.member_id === 'object'
           ? {
