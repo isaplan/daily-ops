@@ -1,13 +1,15 @@
 /**
  * @registry-id: MessageThread
  * @created: 2026-01-16T16:00:00.000Z
- * @last-modified: 2026-01-16T16:00:00.000Z
- * @description: Message thread component using shadcn microcomponents only
- * @last-fix: [2026-01-16] Initial implementation for Design V2 Chats interface
+ * @last-modified: 2026-01-20T00:00:00.000Z
+ * @description: Message thread component with TipTap markdown editor integration
+ * @last-fix: [2026-01-20] Added MessageContent component to properly render HTML with line breaks
  * 
  * @imports-from:
  *   - app/components/ui/** => Shadcn microcomponents only
+ *   - app/components/editors/EditorWrapper.tsx => EditorWrapper for message input
  *   - app/lib/types/chats.types.ts => ChannelWithLinks, Message types
+ *   - app/lib/types/editor.types.ts => EditorContent types
  *   - app/lib/utils/messageParser.ts => parseMentions, renderMentions
  * 
  * @exports-to:
@@ -20,25 +22,119 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
+import dynamic from 'next/dynamic'
+
+const TipTapChatEditor = dynamic(() => import('@/components/editors/TipTapChatEditor'), {
+  ssr: false,
+  loading: () => (
+    <div className="w-full min-h-24 p-3 bg-slate-800 border border-slate-700 rounded-md">
+      <div className="text-slate-400">Loading editor...</div>
+    </div>
+  ),
+})
 import type { ChannelWithLinks, Message } from '@/lib/types/chats.types'
-import { parseMentions, renderMentions } from '@/lib/utils/messageParser'
+import { useAuth } from '@/lib/hooks/useAuth'
+import MessageContent from './MessageContent'
 
 interface MessageThreadProps {
   channel: ChannelWithLinks
   messages: Message[]
   loading: boolean
+  onMessageSent?: () => void
 }
 
-export default function MessageThread({ channel, messages, loading }: MessageThreadProps) {
-  const [messageText, setMessageText] = useState('')
+export default function MessageThread({ channel, messages, loading, onMessageSent }: MessageThreadProps) {
+  const [editorContent, setEditorContent] = useState<string>('')
+  const [optimisticMessages, setOptimisticMessages] = useState<Message[]>([])
+  const { user } = useAuth()
+
+  // Merge optimistic messages with real messages
+  const displayMessages = [...messages, ...optimisticMessages]
 
   const handleSend = async () => {
-    if (!messageText.trim()) return
-    const mentions = parseMentions(messageText)
-    setMessageText('')
+    if (!editorContent) return
+    
+    // Extract plain text from HTML if it's HTML content
+    let plainText = ''
+    if (typeof editorContent === 'string') {
+      if (editorContent.startsWith('<')) {
+        // It's HTML, extract text
+        const tempDiv = document.createElement('div')
+        tempDiv.innerHTML = editorContent
+        plainText = tempDiv.textContent || tempDiv.innerText || ''
+      } else {
+        plainText = editorContent
+      }
+    }
+    
+    if (plainText.trim().length === 0) return
+
+    // Validate required fields before sending
+    if (!channel?._id) {
+      alert('Channel ID is missing')
+      return
+    }
+
+    // Use the extracted plain text for display
+    const messageText = plainText.trim()
+
+    // Create optimistic message - show immediately!
+    const tempId = `temp-${Date.now()}`
+    const optimisticMessage: Message = {
+      _id: tempId,
+      channel_id: channel._id.toString(),
+      content: messageText,
+      author_id: user || { _id: 'temp', name: 'You' },
+      timestamp: new Date().toISOString(),
+    }
+
+    // Add optimistic message immediately
+    setOptimisticMessages([optimisticMessage])
+    setEditorContent('') // Clear editor - must be empty string, not array
+
+    try {
+      // Ensure channelId is a string (handle ObjectId case)
+      const channelId = typeof channel._id === 'string' ? channel._id : channel._id?.toString()
+      
+      if (!channelId) {
+        alert('Invalid channel ID')
+        setOptimisticMessages([]) // Remove on error
+        return
+      }
+
+      // Ensure we're sending the HTML content
+      const htmlContent = typeof editorContent === 'string' ? editorContent : ''
+      
+      const response = await fetch('/api/messages/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          channelId,
+          content: messageText, // Plain text for display
+          editorContent: htmlContent, // HTML content for rich formatting - always send if string
+          // userId is optional - API will auto-get first active member
+        }),
+      })
+
+      if (response.ok) {
+        // Remove optimistic message and refresh to get real one
+        setOptimisticMessages([])
+        onMessageSent?.()
+      } else {
+        // Remove optimistic message on error
+        setOptimisticMessages([])
+        const errorData = await response.json()
+        console.error('Failed to send message:', errorData)
+        alert(`Failed to send message: ${errorData.error || 'Unknown error'}`)
+      }
+    } catch (error) {
+      // Remove optimistic message on error
+      setOptimisticMessages([])
+      console.error('Failed to send message:', error)
+      alert('Failed to send message. Please try again.')
+    }
   }
 
   return (
@@ -77,12 +173,12 @@ export default function MessageThread({ channel, messages, loading }: MessageThr
             <p>No messages yet. Start the conversation!</p>
           </div>
         ) : (
-          messages.map((message) => {
-            const mentions = parseMentions(message.content)
-            const renderedParts = renderMentions(message.content, mentions)
-
+          displayMessages.map((message) => {
             return (
-              <Card key={message._id} className="bg-slate-800/50 border-white/10">
+              <Card 
+                key={message._id} 
+                className={`bg-slate-800/50 border-white/10 ${message._id.startsWith('temp-') ? 'opacity-70' : ''}`}
+              >
                 <CardContent className="p-4">
                   <div className="flex items-start gap-3">
                     <div className="h-8 w-8 rounded-full bg-gradient-to-br from-indigo-500 to-blue-500 flex items-center justify-center text-white text-xs font-bold">
@@ -101,33 +197,11 @@ export default function MessageThread({ channel, messages, loading }: MessageThr
                           {new Date(message.timestamp).toLocaleTimeString()}
                         </span>
                       </div>
-                      <div className="text-slate-200">
-                        {renderedParts.map((part, idx) => {
-                          if (typeof part === 'string') {
-                            return <span key={idx}>{part}</span>
-                          }
-                          return (
-                            <Button
-                              key={idx}
-                              variant="link"
-                              className="h-auto p-0 text-blue-400 hover:text-blue-300"
-                              asChild
-                            >
-                              <Link
-                                href={
-                                  part.type === 'note'
-                                    ? `/notes/${part.slug || part.id}`
-                                    : part.type === 'todo'
-                                    ? `/todos`
-                                    : `/channels/${part.id}`
-                                }
-                              >
-                                {part.original}
-                              </Link>
-                            </Button>
-                          )
-                        })}
-                      </div>
+                      <MessageContent 
+                        content={message.content} 
+                        editorContent={message.editor_content}
+                        mentions={message.mentioned_members}
+                      />
                     </div>
                   </div>
                 </CardContent>
@@ -138,21 +212,22 @@ export default function MessageThread({ channel, messages, loading }: MessageThr
       </div>
 
       <div className="border-t border-white/10 bg-slate-900/80 p-4">
-        <div className="flex gap-2">
-          <Textarea
-            value={messageText}
-            onChange={(e) => setMessageText(e.target.value)}
-            placeholder="Type a message... Use @note:slug, @todo:id, @channel:name to link"
-            className="flex-1 bg-slate-800/50 border-white/10 text-white resize-none"
-            rows={2}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault()
-                handleSend()
-              }
-            }}
-          />
-          <Button onClick={handleSend} disabled={!messageText.trim()}>
+        <div className="flex items-end gap-3 w-full">
+          <div className="flex-1 relative w-full min-w-0">
+            <TipTapChatEditor
+              content={editorContent}
+              onChange={(html) => {
+                setEditorContent(html)
+              }}
+              placeholder="Type a message... Use @ for mentions, # for channels"
+              onSend={handleSend}
+            />
+          </div>
+          <Button 
+            onClick={handleSend} 
+            disabled={!editorContent || (typeof editorContent === 'string' && editorContent.trim().length === 0)}
+            className="h-10 px-6 shrink-0"
+          >
             Send
           </Button>
         </div>

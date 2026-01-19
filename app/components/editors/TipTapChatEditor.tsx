@@ -1,9 +1,9 @@
 /**
  * @registry-id: TipTapChatEditor
  * @created: 2026-01-20T00:00:00.000Z
- * @last-modified: 2026-01-20T00:00:00.000Z
+ * @last-modified: 2026-01-20T12:00:00.000Z
  * @description: TipTap markdown editor for chat with @mentions and #hashtags - Slack-like UI
- * @last-fix: [2026-01-20] Added formatting toolbar, full markdown support, Slack-like UI
+ * @last-fix: [2026-01-20] Fixed duplicate extension warning by disabling link/underline in StarterKit
  * 
  * @imports-from:
  *   - @tiptap/react => TipTap React hooks
@@ -61,6 +61,9 @@ export default function TipTapChatEditor({
         codeBlock: true,
         blockquote: false,
         horizontalRule: false,
+        // Disable link and underline from StarterKit since we add them separately with custom config
+        link: false,
+        underline: false,
       }),
       Placeholder.configure({
         placeholder,
@@ -170,10 +173,8 @@ export default function TipTapChatEditor({
     onUpdate: ({ editor }) => {
       // Get HTML content from TipTap
       const html = editor.getHTML()
-      // Only update if content actually changed (avoid infinite loops)
-      if (html !== content) {
-        onChange?.(html)
-      }
+      // Always update - TipTap handles the diff internally
+      onChange?.(html)
     },
     editorProps: {
       attributes: {

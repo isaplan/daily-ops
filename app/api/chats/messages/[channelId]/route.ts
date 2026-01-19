@@ -36,35 +36,40 @@ export async function GET(
 
     const total = await Message.countDocuments({ channel_id: channelId, is_deleted: false })
 
-    const formattedMessages = messages.map((msg) => ({
-      _id: msg._id.toString(),
-      channel_id: msg.channel_id.toString(),
-      content: msg.text,
-      editor_content: msg.editor_content 
+    const formattedMessages = messages.map((msg) => {
+      const editorContent = msg.editor_content 
         ? (typeof msg.editor_content === 'string' 
-            ? msg.editor_content 
+            ? msg.editor_content  // Return HTML string as-is
             : Array.isArray(msg.editor_content) 
-              ? JSON.stringify(msg.editor_content) 
-              : String(msg.editor_content))
-        : undefined,
-      attachments: msg.attachments || undefined,
-      author_id: msg.member_id
-        ? typeof msg.member_id === 'object'
-          ? {
-              _id: msg.member_id._id.toString(),
-              name: msg.member_id.name,
-              email: msg.member_id.email,
-            }
-          : msg.member_id.toString()
-        : undefined,
-      timestamp: msg.timestamp?.toISOString() || new Date().toISOString(),
-      mentions: msg.linked_note || msg.linked_todo
-        ? [
-            ...(msg.linked_note ? [{ type: 'note' as const, id: msg.linked_note.toString() }] : []),
-            ...(msg.linked_todo ? [{ type: 'todo' as const, id: msg.linked_todo.toString() }] : []),
-          ]
-        : undefined,
-    }))
+              ? JSON.stringify(msg.editor_content)  // BlockNote format as JSON string
+              : msg.editor_content ? String(msg.editor_content) : undefined)
+        : undefined
+      
+      return {
+        _id: msg._id.toString(),
+        channel_id: msg.channel_id.toString(),
+        content: msg.text,
+        editor_content: editorContent,
+        attachments: msg.attachments || undefined,
+        author_id: msg.member_id
+          ? typeof msg.member_id === 'object'
+            ? {
+                _id: msg.member_id._id.toString(),
+                name: msg.member_id.name,
+                email: msg.member_id.email,
+              }
+            : msg.member_id.toString()
+          : undefined,
+        timestamp: msg.timestamp?.toISOString() || new Date().toISOString(),
+        mentioned_members: msg.mentioned_members?.map((id: any) => id.toString()) || undefined,
+        mentions: msg.linked_note || msg.linked_todo
+          ? [
+              ...(msg.linked_note ? [{ type: 'note' as const, id: msg.linked_note.toString() }] : []),
+              ...(msg.linked_todo ? [{ type: 'todo' as const, id: msg.linked_todo.toString() }] : []),
+            ]
+          : undefined,
+      }
+    })
 
     return NextResponse.json({
       success: true,

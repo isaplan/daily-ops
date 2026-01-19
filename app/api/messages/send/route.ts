@@ -46,16 +46,21 @@ export async function POST(request: NextRequest) {
     }
 
     // Handle HTML editor content (from TipTap) or BlockNote content
-    let editorContentData: EditorContent | string | undefined = editorContent
+    let editorContentData: EditorContent | string | undefined = undefined
     
     // If editorContent is a string (HTML from TipTap), use it directly
     // Otherwise, treat it as BlockNote format
-    if (typeof editorContent === 'string' && editorContent.trim().startsWith('<')) {
-      // It's HTML from TipTap - store as string
-      editorContentData = editorContent
-    } else if (editorContent && Array.isArray(editorContent)) {
-      // It's BlockNote format
-      editorContentData = editorContent as EditorContent
+    if (editorContent) {
+      if (typeof editorContent === 'string') {
+        // It's HTML from TipTap - store as string (even if it doesn't start with <)
+        const trimmed = editorContent.trim()
+        if (trimmed.length > 0) {
+          editorContentData = trimmed
+        }
+      } else if (Array.isArray(editorContent)) {
+        // It's BlockNote format
+        editorContentData = editorContent as EditorContent
+      }
     }
     
     // Extract text from content for display
@@ -101,7 +106,7 @@ export async function POST(request: NextRequest) {
       channel_id: channelId,
       member_id: memberId,
       text: messageText,
-      editor_content: editorContentData || undefined, // Store HTML string or BlockNote format
+      editor_content: editorContentData, // Store HTML string or BlockNote format
       mentioned_members: mentions?.map((m: { id: string }) => m.id) || [],
       attachments: attachmentsData.map((att) => ({
         id: att.id,
@@ -124,7 +129,7 @@ export async function POST(request: NextRequest) {
           _id: message._id.toString(),
           channel_id: message.channel_id.toString(),
           content: messageText,
-          editor_content: message.editor_content,
+          editor_content: editorContentData, // Return the stored HTML/BlockNote content
           author_id: memberId,
           timestamp: message.timestamp.toISOString(),
           attachments: message.attachments,

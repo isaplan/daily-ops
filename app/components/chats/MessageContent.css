@@ -9,6 +9,7 @@
 
 .message-html-content p {
   margin: 0.5em 0;
+  color: #e2e8f0;
 }
 
 .message-html-content p:first-child {
@@ -19,20 +20,33 @@
   margin-bottom: 0;
 }
 
-.message-html-content strong {
-  font-weight: 600;
+.message-html-content br {
+  display: block;
+  content: "";
+  margin-top: 0.5em;
 }
 
-.message-html-content em {
-  font-style: italic;
+.message-html-content strong,
+.message-html-content b {
+  font-weight: 600 !important;
+  color: #e2e8f0 !important;
+}
+
+.message-html-content em,
+.message-html-content i {
+  font-style: italic !important;
+  color: #e2e8f0 !important;
 }
 
 .message-html-content u {
-  text-decoration: underline;
+  text-decoration: underline !important;
+  color: #e2e8f0 !important;
 }
 
-.message-html-content s {
-  text-decoration: line-through;
+.message-html-content s,
+.message-html-content strike {
+  text-decoration: line-through !important;
+  color: #e2e8f0 !important;
 }
 
 .message-html-content code {
