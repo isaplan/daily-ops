@@ -46,8 +46,8 @@ export default function ChatsDashboard() {
   }
 
   return (
-    <div className="flex h-full">
-      <div className="flex-1 flex flex-col">
+    <div className="flex h-full min-h-0 w-full">
+      <div className="flex-1 flex flex-col min-h-0 w-full">
         {activeChannel ? (
           <MessageThread channel={activeChannel} messages={messages} loading={loading} />
         ) : (

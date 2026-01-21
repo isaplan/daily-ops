@@ -2,7 +2,9 @@ import type { Metadata } from 'next'
 import './globals.css'
 import { WorkspaceProvider } from '@/lib/workspaceContext'
 import { EnvironmentProvider } from '@/lib/environmentContext'
-import Sidebar from './components/Sidebar'
+import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar'
+import AppSidebar from './components/Sidebar'
+import { ChannelHeader } from './components/ChannelHeader'
 
 export const metadata: Metadata = {
   title: 'Daily Ops - POC',
@@ -16,13 +18,21 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body>
+      <body className="h-screen overflow-hidden">
         <WorkspaceProvider>
           <EnvironmentProvider>
-            <div className="flex">
-              <Sidebar />
-              <main className="flex-1">{children}</main>
-            </div>
+            <SidebarProvider>
+              <AppSidebar />
+              <SidebarInset className="flex flex-col h-screen">
+                <header className="sticky top-0 z-10 flex h-16 shrink-0 items-center gap-2 border-b bg-background px-4">
+                  <SidebarTrigger />
+                  <ChannelHeader />
+                </header>
+                <main className="flex-1 flex flex-col min-h-0 overflow-hidden">
+                  {children}
+                </main>
+              </SidebarInset>
+            </SidebarProvider>
           </EnvironmentProvider>
         </WorkspaceProvider>
       </body>
