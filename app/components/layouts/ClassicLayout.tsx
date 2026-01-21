@@ -1,21 +1,20 @@
 /**
  * @registry-id: ClassicLayout
  * @created: 2026-01-16T15:00:00.000Z
- * @last-modified: 2026-01-16T15:00:00.000Z
- * @description: Classic V1 layout with traditional sidebar
- * @last-fix: [2026-01-16] Initial classic layout wrapper
+ * @last-modified: 2026-01-21T00:30:00.000Z
+ * @description: Classic layout with traditional sidebar (V2 removed, classic-only mode)
+ * @last-fix: [2026-01-21] Removed design mode dependency, simplified to classic-only
  * 
  * @imports-from:
  *   - app/components/Sidebar.tsx => Classic sidebar
  * 
  * @exports-to:
- *   ✓ app/layout.tsx => Conditionally renders classic layout
+ *   ✓ app/layout.tsx => Uses classic layout directly (no longer needed, kept for reference)
  */
 
 'use client'
 
 import { ReactNode } from 'react'
-import { useDesignMode } from '@/lib/designMode'
 import Sidebar from '@/components/Sidebar'
 
 interface ClassicLayoutProps {
@@ -23,12 +22,6 @@ interface ClassicLayoutProps {
 }
 
 export default function ClassicLayout({ children }: ClassicLayoutProps) {
-  const { mode } = useDesignMode()
-
-  if (mode !== 'v1') {
-    return null
-  }
-
   return (
     <div className="flex">
       <Sidebar />
