@@ -1,18 +1,17 @@
 /**
- * @registry-id: SidebarComponent
- * @created: 2026-01-16T00:00:00.000Z
- * @last-modified: 2026-01-22T00:00:00.000Z
- * @description: Sidebar navigation component using shadcn/ui sidebar components
- * @last-fix: [2026-01-22] Added environment dropdown switcher (Daily Work/Daily Ops)
+ * @registry-id: DailyOpsSidebarComponent
+ * @created: 2026-01-22T00:00:00.000Z
+ * @last-modified: 2026-01-22T12:00:00.000Z
+ * @description: Sidebar navigation component for Daily Ops environment
+ * @last-fix: [2026-01-22] Added Hours navigation link
  * 
  * @imports-from:
  *   - app/components/ui/sidebar.tsx => shadcn sidebar components
- *   - app/components/ui/button.tsx => Button microcomponent
  *   - app/components/ui/select.tsx => Select dropdown component
  *   - app/lib/environmentContext.tsx => useEnvironment hook
  * 
  * @exports-to:
- *   ✓ app/layout.tsx => Uses Sidebar for navigation
+ *   ✓ app/layout.tsx => Uses DailyOpsSidebar for Daily Ops environment navigation
  */
 
 'use client'
@@ -38,25 +37,22 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useEnvironment } from '@/lib/environmentContext'
-import { LayoutDashboard, FileText, CheckSquare, Target, MessageSquare, Calendar, Building2, Palette } from 'lucide-react'
-
-const navItems = [
-  { href: '/design', label: 'Design System', icon: Palette },
-  { href: '/', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/notes', label: 'Notes', icon: FileText },
-  { href: '/todos', label: 'Todos', icon: CheckSquare },
-  { href: '/decisions', label: 'Decisions', icon: Target },
-  { href: '/channels', label: 'Channels', icon: MessageSquare },
-  { href: '/events', label: 'Events', icon: Calendar },
-  { href: '/organization', label: 'Organization', icon: Building2 },
-]
+import { LayoutDashboard, Settings, Clock } from 'lucide-react'
 
 const environments = [
   { id: 'collaboration' as const, label: 'Daily Work' },
   { id: 'daily-ops' as const, label: 'Daily Ops' },
 ]
 
-export default function AppSidebar() {
+// Navigation items for Daily Ops environment - to be expanded
+const navItems = [
+  { href: '/daily-ops', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/hours', label: 'Hours', icon: Clock },
+  { href: '/settings/eitje-api', label: 'Eitje API', icon: Settings },
+  // Add more navigation items here as Daily Ops pages are built
+]
+
+export default function DailyOpsSidebar() {
   const pathname = usePathname()
   const { activeEnvironment, setActiveEnvironment } = useEnvironment()
   const currentEnv = environments.find(e => e.id === activeEnvironment) || environments[0]
