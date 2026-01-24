@@ -1,9 +1,9 @@
 /**
  * @registry-id: LocationListComponent
  * @created: 2026-01-16T00:00:00.000Z
- * @last-modified: 2026-01-16T00:00:00.000Z
+ * @last-modified: 2026-01-24T00:00:00.000Z
  * @description: Location list component using MVVM pattern and microcomponents
- * @last-fix: [2026-01-16] Refactored to use useLocationViewModel + microcomponents
+ * @last-fix: [2026-01-24] Updated navigation to /daily-work/locations
  * 
  * @imports-from:
  *   - app/lib/viewmodels/useLocationViewModel.ts => Location ViewModel
@@ -11,7 +11,7 @@
  *   - app/components/ui/** => Microcomponents
  * 
  * @exports-to:
- *   ✓ app/locations/** => Uses LocationList
+ *   ✓ app/daily-work/** => Uses LocationList
  */
 
 'use client'
@@ -37,7 +37,7 @@ function LocationCard({ location }: { location: Location }) {
   return (
     <Card
       className="cursor-pointer hover:shadow-md transition-shadow"
-      onClick={() => router.push(`/locations/${location._id}`)}
+      onClick={() => router.push(`/daily-work/locations/${location._id}`)}
     >
       <CardHeader>
         <CardTitle>{location.name}</CardTitle>

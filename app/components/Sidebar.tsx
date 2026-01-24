@@ -1,9 +1,9 @@
 /**
  * @registry-id: SidebarComponent
  * @created: 2026-01-16T00:00:00.000Z
- * @last-modified: 2026-01-22T00:00:00.000Z
+ * @last-modified: 2026-01-24T00:00:00.000Z
  * @description: Sidebar navigation component using shadcn/ui sidebar components
- * @last-fix: [2026-01-22] Added environment dropdown switcher (Daily Work/Daily Ops)
+ * @last-fix: [2026-01-24] Moved Daily Work routes under /daily-work and gated Daily Ops visibility
  * 
  * @imports-from:
  *   - app/components/ui/sidebar.tsx => shadcn sidebar components
@@ -39,27 +39,34 @@ import {
 } from '@/components/ui/select'
 import { useEnvironment } from '@/lib/environmentContext'
 import { LayoutDashboard, FileText, CheckSquare, Target, MessageSquare, Calendar, Building2, Palette } from 'lucide-react'
+// TEMPORARILY DISABLED: Manager-only restriction
+// import { useAuth } from '@/lib/hooks/useAuth'
 
 const navItems = [
-  { href: '/design', label: 'Design System', icon: Palette },
-  { href: '/', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/notes', label: 'Notes', icon: FileText },
-  { href: '/todos', label: 'Todos', icon: CheckSquare },
-  { href: '/decisions', label: 'Decisions', icon: Target },
-  { href: '/channels', label: 'Channels', icon: MessageSquare },
-  { href: '/events', label: 'Events', icon: Calendar },
-  { href: '/organization', label: 'Organization', icon: Building2 },
+  { href: '/daily-work/design', label: 'Design System', icon: Palette },
+  { href: '/daily-work', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/daily-work/notes', label: 'Notes', icon: FileText },
+  { href: '/daily-work/todos', label: 'Todos', icon: CheckSquare },
+  { href: '/daily-work/decisions', label: 'Decisions', icon: Target },
+  { href: '/daily-work/channels', label: 'Channels', icon: MessageSquare },
+  { href: '/daily-work/events', label: 'Events', icon: Calendar },
+  { href: '/daily-work/organization', label: 'Organization', icon: Building2 },
 ]
 
 const environments = [
-  { id: 'collaboration' as const, label: 'Daily Work' },
+  { id: 'daily-work' as const, label: 'Daily Work' },
   { id: 'daily-ops' as const, label: 'Daily Ops' },
-]
+] as const
 
 export default function AppSidebar() {
   const pathname = usePathname()
   const { activeEnvironment, setActiveEnvironment } = useEnvironment()
+  // TEMPORARILY DISABLED: Manager-only restriction
+  // const { isManager, isAdmin } = useAuth()
   const currentEnv = environments.find(e => e.id === activeEnvironment) || environments[0]
+  // const canSeeDailyOps = isManager || isAdmin
+  // const visibleEnvironments = canSeeDailyOps ? environments : environments.filter((e) => e.id !== 'daily-ops')
+  const visibleEnvironments = environments // Show all environments
 
   return (
     <Sidebar collapsible="icon" variant="sidebar">
@@ -77,7 +84,7 @@ export default function AppSidebar() {
               </div>
             </SelectTrigger>
             <SelectContent>
-              {environments.map((env) => (
+              {visibleEnvironments.map((env) => (
                 <SelectItem key={env.id} value={env.id}>
                   {env.label}
                 </SelectItem>

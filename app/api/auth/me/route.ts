@@ -12,7 +12,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import dbConnect from '@/lib/mongodb';
-import { Member } from '@/models/Member';
+import Member from '@/models/Member';
 import MemberTeamAssociation from '@/models/MemberTeamAssociation';
 import MemberLocationAssociation from '@/models/MemberLocationAssociation';
 import { determineRole } from '@/lib/api-middleware';

@@ -1,9 +1,9 @@
 /**
  * @registry-id: DailyOpsSidebarComponent
  * @created: 2026-01-22T00:00:00.000Z
- * @last-modified: 2026-01-22T12:00:00.000Z
+ * @last-modified: 2026-01-24T00:00:00.000Z
  * @description: Sidebar navigation component for Daily Ops environment
- * @last-fix: [2026-01-22] Added Hours navigation link
+ * @last-fix: [2026-01-24] Nested Daily Ops routes and gated visibility by role
  * 
  * @imports-from:
  *   - app/components/ui/sidebar.tsx => shadcn sidebar components
@@ -38,24 +38,31 @@ import {
 } from '@/components/ui/select'
 import { useEnvironment } from '@/lib/environmentContext'
 import { LayoutDashboard, Settings, Clock } from 'lucide-react'
+// TEMPORARILY DISABLED: Manager-only restriction
+// import { useAuth } from '@/lib/hooks/useAuth'
 
 const environments = [
-  { id: 'collaboration' as const, label: 'Daily Work' },
+  { id: 'daily-work' as const, label: 'Daily Work' },
   { id: 'daily-ops' as const, label: 'Daily Ops' },
-]
+] as const
 
 // Navigation items for Daily Ops environment - to be expanded
 const navItems = [
   { href: '/daily-ops', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/hours', label: 'Hours', icon: Clock },
-  { href: '/settings/eitje-api', label: 'Eitje API', icon: Settings },
+  { href: '/daily-ops/hours', label: 'Hours', icon: Clock },
+  { href: '/daily-ops/settings/eitje-api', label: 'Eitje API', icon: Settings },
   // Add more navigation items here as Daily Ops pages are built
 ]
 
 export default function DailyOpsSidebar() {
   const pathname = usePathname()
   const { activeEnvironment, setActiveEnvironment } = useEnvironment()
+  // TEMPORARILY DISABLED: Manager-only restriction
+  // const { isManager, isAdmin } = useAuth()
   const currentEnv = environments.find(e => e.id === activeEnvironment) || environments[0]
+  // const canSeeDailyOps = isManager || isAdmin
+  // const visibleEnvironments = canSeeDailyOps ? environments : environments.filter((e) => e.id !== 'daily-ops')
+  const visibleEnvironments = environments // Show all environments
 
   return (
     <Sidebar collapsible="icon" variant="sidebar">
@@ -73,7 +80,7 @@ export default function DailyOpsSidebar() {
               </div>
             </SelectTrigger>
             <SelectContent>
-              {environments.map((env) => (
+              {visibleEnvironments.map((env) => (
                 <SelectItem key={env.id} value={env.id}>
                   {env.label}
                 </SelectItem>

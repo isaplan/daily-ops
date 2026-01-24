@@ -131,7 +131,9 @@ class CronJobManager {
       if (vercelUrl) {
         baseUrl = `https://${vercelUrl}`;
       } else {
-        baseUrl = 'http://localhost:3000';
+        // Use PORT from env or default to 8080 (matching env.example)
+        const port = process.env.PORT || '8080';
+        baseUrl = `http://localhost:${port}`;
       }
     }
     

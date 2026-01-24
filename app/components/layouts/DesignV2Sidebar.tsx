@@ -1,9 +1,9 @@
 /**
  * @registry-id: DesignV2Sidebar
  * @created: 2026-01-16T15:00:00.000Z
- * @last-modified: 2026-01-16T21:15:00.000Z
+ * @last-modified: 2026-01-24T00:00:00.000Z
  * @description: Modern sidebar for Design V2 with environment sections and Slack-like channel grouping
- * @last-fix: [2026-01-16] Made sidebar dynamic - only shows active environment section matching top nav
+ * @last-fix: [2026-01-24] Updated routes to /daily-work and aligned environment IDs
  * 
  * @imports-from:
  *   - app/components/ui/button.tsx => Button component
@@ -57,35 +57,30 @@ const environmentSections: Record<
     items: Array<{ href: string; label: string; icon: LucideIcon }>
   }
 > = {
-  collaboration: {
-    label: 'Collaboration',
+  'daily-work': {
+    label: 'Daily Work',
     items: [
-      { href: '/collaboration', label: 'Dashboard', icon: LayoutDashboard },
-      { href: '/notes', label: 'Notes', icon: FileText },
-      { href: '/todos', label: 'Todos', icon: CheckSquare },
-      { href: '/decisions', label: 'Decisions', icon: Target },
-      { href: '/events', label: 'Events', icon: Calendar },
-    ],
-  },
-  chats: {
-    label: 'Chats',
-    items: [
-      { href: '/chats', label: 'Chats', icon: MessageSquare },
-      { href: '/channels', label: 'Channels', icon: Hash },
+      { href: '/daily-work', label: 'Dashboard', icon: LayoutDashboard },
+      { href: '/daily-work/notes', label: 'Notes', icon: FileText },
+      { href: '/daily-work/todos', label: 'Todos', icon: CheckSquare },
+      { href: '/daily-work/decisions', label: 'Decisions', icon: Target },
+      { href: '/daily-work/events', label: 'Events', icon: Calendar },
+      { href: '/daily-work/chats', label: 'Chats', icon: MessageSquare },
+      { href: '/daily-work/channels', label: 'Channels', icon: Hash },
     ],
   },
   'daily-ops': {
     label: 'Daily Ops',
-    items: [{ href: '/organization', label: 'Organization', icon: Building2 }],
+    items: [{ href: '/daily-ops', label: 'Dashboard', icon: Building2 }],
   },
 }
 
 // Note-specific sidebar items
 const noteSidebarItems: Array<{ href: string; label: string; icon: LucideIcon }> = [
-  { href: '/notes', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/notes?create=true', label: 'Create Note', icon: Plus },
-  { href: '/notes/my-notes', label: 'My Notes', icon: FileText },
-  { href: '/notes/public-notes', label: 'Public Notes', icon: FileText },
+  { href: '/daily-work/notes', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/daily-work/notes?create=true', label: 'Create Note', icon: Plus },
+  { href: '/daily-work/notes/my-notes', label: 'My Notes', icon: FileText },
+  { href: '/daily-work/notes/public-notes', label: 'Public Notes', icon: FileText },
 ]
 
 export default function DesignV2Sidebar() {
@@ -108,7 +103,7 @@ export default function DesignV2Sidebar() {
 
   // Load channels when in chats environment or on channels/chats routes
   useEffect(() => {
-    if (activeEnvironment === 'chats' || pathname.startsWith('/channels') || pathname.startsWith('/chats')) {
+    if (pathname.startsWith('/daily-work/channels') || pathname.startsWith('/daily-work/chats')) {
       loadChannels()
     }
   }, [activeEnvironment, pathname])
@@ -132,7 +127,7 @@ export default function DesignV2Sidebar() {
   const handleChannelClick = (channelId: string) => {
     const params = new URLSearchParams(searchParams.toString())
     params.set('channelId', channelId)
-    router.push(`/chats?${params.toString()}`)
+    router.push(`/daily-work/chats?${params.toString()}`)
   }
 
   // Group channels: Most Recent, Most Popular, Also you (DMs)
@@ -191,7 +186,7 @@ export default function DesignV2Sidebar() {
 
       <div className="space-y-6">
         {/* Show note-specific sidebar when on notes pages */}
-        {pathname.startsWith('/notes') ? (
+        {pathname.startsWith('/daily-work/notes') ? (
           <div>
             <p className="mb-2 text-xs font-semibold uppercase tracking-tight text-slate-500">
               Notes
@@ -199,11 +194,11 @@ export default function DesignV2Sidebar() {
             <nav className="space-y-1">
               {noteSidebarItems.map((item) => {
                 let isActive = false
-                if (item.href === '/notes?create=true') {
-                  isActive = pathname === '/notes' && searchParams.get('create') === 'true'
-                } else if (item.href === '/notes') {
-                  // Dashboard is active when on /notes without query params
-                  isActive = pathname === '/notes' && !searchParams.get('create') && !searchParams.get('note')
+                if (item.href === '/daily-work/notes?create=true') {
+                  isActive = pathname === '/daily-work/notes' && searchParams.get('create') === 'true'
+                } else if (item.href === '/daily-work/notes') {
+                  // Dashboard is active when on /daily-work/notes without query params
+                  isActive = pathname === '/daily-work/notes' && !searchParams.get('create') && !searchParams.get('note')
                 } else {
                   isActive = pathname === item.href || pathname.startsWith(item.href + '/')
                 }
@@ -233,7 +228,7 @@ export default function DesignV2Sidebar() {
             const activeSection = environmentSections[activeEnvironment]
             if (!activeSection) return null
 
-            const isChatsSection = activeEnvironment === 'chats'
+            const isChatsSection = pathname.startsWith('/daily-work/chats')
             return (
               <div>
                 <p className="mb-2 text-xs font-semibold uppercase tracking-tight text-slate-500">
@@ -373,12 +368,12 @@ export default function DesignV2Sidebar() {
         )}
 
         <div className="pt-4">
-          <Link href="/design">
+          <Link href="/daily-work/design">
             <Button
               variant="ghost"
               className={cn(
                 'w-full justify-start gap-3 text-sm',
-                pathname === '/design'
+                pathname === '/daily-work/design'
                   ? 'bg-gradient-to-r from-amber-500/20 to-orange-500/20 text-white'
                   : 'text-slate-300 hover:bg-white/5 hover:text-white'
               )}

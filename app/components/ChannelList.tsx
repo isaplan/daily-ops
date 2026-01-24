@@ -1,16 +1,16 @@
 /**
  * @registry-id: ChannelListComponent
  * @created: 2026-01-16T00:00:00.000Z
- * @last-modified: 2026-01-16T00:00:00.000Z
+ * @last-modified: 2026-01-24T00:00:00.000Z
  * @description: Channel list component using MVVM pattern and microcomponents
- * @last-fix: [2026-01-16] Refactored to use useChannelViewModel + microcomponents
+ * @last-fix: [2026-01-24] Updated navigation to /daily-work/channels
  * 
  * @imports-from:
  *   - app/lib/viewmodels/useChannelViewModel.ts => Channel ViewModel
  *   - app/components/ui/** => Microcomponents
  * 
  * @exports-to:
- *   ✓ app/channels/page.tsx => Uses ChannelList
+ *   ✓ app/daily-work/channels/page.tsx => Uses ChannelList
  */
 
 'use client'
@@ -93,7 +93,7 @@ export default function ChannelList() {
             <Card
               key={channel._id}
               className="cursor-pointer hover:shadow-md transition-shadow"
-              onClick={() => router.push(`/channels/${channel._id}`)}
+              onClick={() => router.push(`/daily-work/channels/${channel._id}`)}
             >
               <CardHeader>
                 <div className="flex items-start justify-between">

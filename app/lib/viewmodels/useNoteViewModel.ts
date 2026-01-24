@@ -1,9 +1,9 @@
 /**
  * @registry-id: useNoteViewModel
  * @created: 2026-01-16T00:00:00.000Z
- * @last-modified: 2026-01-16T22:00:00.000Z
+ * @last-modified: 2026-01-24T00:00:00.000Z
  * @description: Note ViewModel - state management and business logic for notes
- * @last-fix: [2026-01-16] Used in Phase 2 - NoteForm integration with ConnectionPicker
+ * @last-fix: [2026-01-24] Updated to use noteService.remove after ApiService delete conflict fix
  * 
  * @imports-from:
  *   - app/lib/services/noteService.ts => Note API operations
@@ -118,7 +118,7 @@ export function useNoteViewModel(initialNote?: Note) {
     async (id: string) => {
       setLoading(true)
       try {
-        const response = await noteService.delete(id)
+        const response = await noteService.remove(id)
         if (response.success) {
           await loadNotes()
         } else {

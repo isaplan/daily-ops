@@ -36,11 +36,11 @@ export function ChannelHeader() {
   const router = useRouter()
   const [channel, setChannel] = useState<Channel | null>(null)
   const [members, setMembers] = useState<Member[]>([])
-  const [loading, setLoading] = useState(false)
+  const [, setLoading] = useState(false)
   const [sheetOpen, setSheetOpen] = useState(false)
 
   const channelId = params?.id as string | undefined
-  const isChannelPage = pathname?.startsWith('/channels/') && channelId
+  const isChannelPage = pathname?.startsWith('/daily-work/channels/') && channelId
 
   useEffect(() => {
     if (!isChannelPage || !channelId) {
@@ -118,7 +118,7 @@ export function ChannelHeader() {
             )}
             {locationId && (
               <button
-                onClick={() => locationId && router.push(`/locations/${locationId}`)}
+                onClick={() => locationId && router.push(`/daily-work/locations/${locationId}`)}
                 className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
               >
                 <span>📍</span>

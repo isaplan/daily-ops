@@ -1,9 +1,9 @@
 /**
  * @registry-id: TeamListComponent
  * @created: 2026-01-16T00:00:00.000Z
- * @last-modified: 2026-01-16T00:00:00.000Z
+ * @last-modified: 2026-01-24T00:00:00.000Z
  * @description: Team list component using MVVM pattern and microcomponents
- * @last-fix: [2026-01-16] Refactored to use useTeamViewModel + microcomponents
+ * @last-fix: [2026-01-24] Updated navigation to /daily-work/teams and /daily-work/locations
  * 
  * @imports-from:
  *   - app/lib/viewmodels/useTeamViewModel.ts => Team ViewModel
@@ -11,7 +11,7 @@
  *   - app/components/ui/** => Microcomponents
  * 
  * @exports-to:
- *   ✓ app/teams/** => Uses TeamList
+ *   ✓ app/daily-work/** => Uses TeamList
  */
 
 'use client'
@@ -44,13 +44,13 @@ function TeamCard({ team }: { team: Team }) {
 
   const handleLocationClick = (e: React.MouseEvent, locationId: string) => {
     e.stopPropagation()
-    router.push(`/locations/${locationId}`)
+    router.push(`/daily-work/locations/${locationId}`)
   }
 
   return (
     <Card
       className="cursor-pointer hover:shadow-md transition-shadow"
-      onClick={() => router.push(`/teams/${team._id}`)}
+      onClick={() => router.push(`/daily-work/teams/${team._id}`)}
     >
       <CardHeader>
         <CardTitle>{team.name}</CardTitle>

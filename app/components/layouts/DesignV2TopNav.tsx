@@ -1,9 +1,9 @@
 /**
  * @registry-id: DesignV2TopNav
  * @created: 2026-01-16T15:00:00.000Z
- * @last-modified: 2026-01-16T22:00:00.000Z
+ * @last-modified: 2026-01-24T00:00:00.000Z
  * @description: Top navigation bar for Design V2 with Notes, Actions, Projects, Events and action buttons
- * @last-fix: [2026-01-16] Wired up create buttons to proper routes with loading states and feedback
+ * @last-fix: [2026-01-24] Updated routes to /daily-work
  * 
  * @imports-from:
  *   - app/components/ui/button.tsx => Button component
@@ -41,19 +41,19 @@ import {
 } from 'lucide-react'
 
 const navItems = [
-  { href: '/notes', label: 'Notes', icon: FileText },
-  { href: '/todos', label: 'Actions', icon: CheckSquare },
-  { href: '/decisions', label: 'Projects', icon: Target },
-  { href: '/events', label: 'Events', icon: Calendar },
-  { href: '/chats', label: 'Chats', icon: MessageSquare },
+  { href: '/daily-work/notes', label: 'Notes', icon: FileText },
+  { href: '/daily-work/todos', label: 'Actions', icon: CheckSquare },
+  { href: '/daily-work/decisions', label: 'Projects', icon: Target },
+  { href: '/daily-work/events', label: 'Events', icon: Calendar },
+  { href: '/daily-work/chats', label: 'Chats', icon: MessageSquare },
 ]
 
 const createOptions = [
-  { label: 'Note', icon: FileText, href: '/notes?create=true' },
-  { label: 'Task', icon: CheckSquare, href: '/todos?create=true' },
-  { label: 'Decision', icon: Target, href: '/decisions?create=true' },
-  { label: 'Project', icon: Target, href: '/decisions?create=true&type=project' },
-  { label: 'Event', icon: Calendar, href: '/events?create=true' },
+  { label: 'Note', icon: FileText, href: '/daily-work/notes?create=true' },
+  { label: 'Task', icon: CheckSquare, href: '/daily-work/todos?create=true' },
+  { label: 'Decision', icon: Target, href: '/daily-work/decisions?create=true' },
+  { label: 'Project', icon: Target, href: '/daily-work/decisions?create=true&type=project' },
+  { label: 'Event', icon: Calendar, href: '/daily-work/events?create=true' },
 ]
 
 export default function DesignV2TopNav() {
@@ -139,16 +139,16 @@ export default function DesignV2TopNav() {
     let href = ''
     switch (result.type) {
       case 'note':
-        href = result.slug ? `/notes/${result.slug}` : `/notes/${result.id}`
+        href = result.slug ? `/daily-work/notes/${result.slug}` : `/daily-work/notes/${result.id}`
         break
       case 'todo':
-        href = `/todos?todo=${result.id}`
+        href = `/daily-work/todos?todo=${result.id}`
         break
       case 'decision':
-        href = `/decisions?id=${result.id}`
+        href = `/daily-work/decisions?id=${result.id}`
         break
       case 'event':
-        href = `/events/${result.id}`
+        href = `/daily-work/events/${result.id}`
         break
     }
     if (href) {

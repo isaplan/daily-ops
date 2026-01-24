@@ -1,9 +1,9 @@
 /**
  * @registry-id: NoteDetailPageComponent
  * @created: 2026-01-16T00:00:00.000Z
- * @last-modified: 2026-01-16T22:00:00.000Z
+ * @last-modified: 2026-01-24T00:00:00.000Z
  * @description: Note detail page component using MVVM pattern and microcomponents
- * @last-fix: [2026-01-16] Added many-to-many connections display and ConnectionPicker integration
+ * @last-fix: [2026-01-24] Updated navigation to /daily-work routes
  * 
  * @imports-from:
  *   - app/lib/viewmodels/useNoteViewModel.ts => Note ViewModel
@@ -14,7 +14,7 @@
  *   - app/components/ui/** => Microcomponents
  * 
  * @exports-to:
- *   ✓ app/notes/[slug]/page.tsx => Uses NoteDetailPage
+ *   ✓ app/daily-work/notes/[slug]/page.tsx => Uses NoteDetailPage
  */
 
 'use client'
@@ -22,11 +22,8 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useNoteViewModel } from '@/lib/viewmodels/useNoteViewModel'
 import { useMemberViewModel } from '@/lib/viewmodels/useMemberViewModel'
-import { useConnectionViewModel } from '@/lib/viewmodels/useConnectionViewModel'
 import { noteService, type Note } from '@/lib/services/noteService'
-import type { Note as NoteType } from '@/lib/types/note.types'
 import ConnectionPicker from './ConnectionPicker'
 import { EditMode } from './ui/edit-mode'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -64,18 +61,6 @@ interface NoteDetailPageProps {
   slug: string
 }
 
-// Helper function to safely format dates
-const formatDate = (dateString: string | undefined | null): string => {
-  if (!dateString) return 'N/A'
-  const date = new Date(dateString)
-  if (isNaN(date.getTime())) return 'N/A'
-  return date.toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  })
-}
-
 export default function NoteDetailPage({ slug }: NoteDetailPageProps) {
   const router = useRouter()
   const [note, setNote] = useState<Note | null>(null)
@@ -92,12 +77,11 @@ export default function NoteDetailPage({ slug }: NoteDetailPageProps) {
   >('contributor')
   const [deleteConfirm, setDeleteConfirm] = useState(false)
   const [parseTodosConfirm, setParseTodosConfirm] = useState(false)
-  const connectionViewModel = useConnectionViewModel()
 
   // Helper function to safely get note ID
   const getNoteId = (): string | null => {
     if (!note) return null
-    return note._id || note.id || null
+    return note._id
   }
 
   useEffect(() => {
@@ -282,9 +266,9 @@ export default function NoteDetailPage({ slug }: NoteDetailPageProps) {
     try {
       setActionLoading(true)
       setError(null)
-      const response = await noteService.delete(noteId)
+      const response = await noteService.remove(noteId)
       if (response.success) {
-        router.push('/notes')
+        router.push('/daily-work/notes')
       } else {
         setError(response.error || 'Failed to delete')
       }
@@ -414,7 +398,7 @@ export default function NoteDetailPage({ slug }: NoteDetailPageProps) {
       <div className="min-h-screen p-8">
         <div className="max-w-3xl mx-auto">
           <Button variant="link" asChild className="mb-8">
-            <Link href="/notes">← Back to Notes</Link>
+            <Link href="/daily-work/notes">← Back to Notes</Link>
           </Button>
           <Alert variant="destructive">
             <AlertDescription>{error || 'Note not found'}</AlertDescription>
@@ -439,7 +423,7 @@ export default function NoteDetailPage({ slug }: NoteDetailPageProps) {
     <div className="min-h-screen p-8">
       <div className="max-w-3xl mx-auto">
         <Button variant="link" asChild className="mb-6">
-          <Link href="/notes">← Back to Notes</Link>
+          <Link href="/daily-work/notes">← Back to Notes</Link>
         </Button>
 
         {error && (
@@ -479,7 +463,7 @@ export default function NoteDetailPage({ slug }: NoteDetailPageProps) {
                 <div>
                   <strong>Author:</strong>{' '}
                   <Button variant="link" className="p-0 h-auto" asChild>
-                    <Link href={`/members/${note.author_id._id}`}>{note.author_id.name}</Link>
+                    <Link href={`/daily-work/members/${note.author_id._id}`}>{note.author_id.name}</Link>
                   </Button>
                 </div>
               )}
@@ -517,7 +501,7 @@ export default function NoteDetailPage({ slug }: NoteDetailPageProps) {
                       <div className="text-sm">
                         📍{' '}
                         <Button variant="link" className="p-0 h-auto" asChild>
-                          <Link href={`/locations/${note.connected_to.location_id._id}`}>
+                          <Link href={`/daily-work/locations/${note.connected_to.location_id._id}`}>
                             {note.connected_to.location_id.name}
                           </Link>
                         </Button>
@@ -527,7 +511,7 @@ export default function NoteDetailPage({ slug }: NoteDetailPageProps) {
                     <div className="text-sm">
                       👥{' '}
                       <Button variant="link" className="p-0 h-auto" asChild>
-                        <Link href={`/teams/${note.connected_to.team_id._id}`}>
+                        <Link href={`/daily-work/teams/${note.connected_to.team_id._id}`}>
                           {note.connected_to.team_id.name}
                         </Link>
                       </Button>
@@ -538,7 +522,7 @@ export default function NoteDetailPage({ slug }: NoteDetailPageProps) {
                       <div className="text-sm">
                         👤{' '}
                         <Button variant="link" className="p-0 h-auto" asChild>
-                          <Link href={`/members/${note.connected_to.member_id._id}`}>
+                          <Link href={`/daily-work/members/${note.connected_to.member_id._id}`}>
                             {note.connected_to.member_id.name}
                           </Link>
                         </Button>
@@ -647,7 +631,7 @@ export default function NoteDetailPage({ slug }: NoteDetailPageProps) {
                         >
                           <div className="flex items-center gap-2">
                             <Button variant="link" className="p-0 h-auto" asChild>
-                              <Link href={`/members/${memberId}`}>{memberName}</Link>
+                              <Link href={`/daily-work/members/${memberId}`}>{memberName}</Link>
                             </Button>
                             <Badge variant="secondary">{cm.role || 'contributor'}</Badge>
                           </div>

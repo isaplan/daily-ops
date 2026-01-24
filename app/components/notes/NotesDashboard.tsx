@@ -1,7 +1,7 @@
 /**
  * @registry-id: NotesDashboard
  * @created: 2026-01-16T22:00:00.000Z
- * @last-modified: 2026-01-16T22:00:00.000Z
+ * @last-modified: 2026-01-24T00:00:00.000Z
  * @description: Notes dashboard component showing overview and quick access
  * 
  * @imports-from:
@@ -10,7 +10,7 @@
  *   - app/components/ui/** => Shadcn microcomponents
  * 
  * @exports-to:
- *   ✓ app/notes/page.tsx => Uses NotesDashboard
+ *   ✓ app/daily-work/notes/page.tsx => Uses NotesDashboard
  */
 
 'use client'
@@ -106,7 +106,7 @@ export default function NotesDashboard() {
           <p className="text-slate-400">Overview of your notes and quick access</p>
         </div>
         <Button
-          onClick={() => router.push('/notes?create=true')}
+          onClick={() => router.push('/daily-work/notes?create=true')}
           className="bg-gradient-to-r from-indigo-500 to-blue-600 hover:from-indigo-600 hover:to-blue-700"
         >
           <Plus className="h-4 w-4 mr-2" />
@@ -124,7 +124,7 @@ export default function NotesDashboard() {
           <CardContent>
             <div className="text-2xl font-bold text-white">{myPrivateNotes.length}</div>
             <p className="text-xs text-slate-400 mt-1">Notes only you can see</p>
-            <Link href="/notes/my-notes">
+            <Link href="/daily-work/notes/my-notes">
               <Button variant="ghost" size="sm" className="mt-2 text-xs">
                 View All →
               </Button>
@@ -140,7 +140,7 @@ export default function NotesDashboard() {
           <CardContent>
             <div className="text-2xl font-bold text-white">{publicNotes.length}</div>
             <p className="text-xs text-slate-400 mt-1">Shared with teams/locations</p>
-            <Link href="/notes/public-notes">
+            <Link href="/daily-work/notes/public-notes">
               <Button variant="ghost" size="sm" className="mt-2 text-xs">
                 View All →
               </Button>
@@ -156,7 +156,7 @@ export default function NotesDashboard() {
           <CardContent>
             <div className="text-2xl font-bold text-white">{allNotes.length}</div>
             <p className="text-xs text-slate-400 mt-1">All your notes</p>
-            <Link href="/notes">
+            <Link href="/daily-work/notes">
               <Button variant="ghost" size="sm" className="mt-2 text-xs">
                 View All →
               </Button>
@@ -167,7 +167,7 @@ export default function NotesDashboard() {
 
       {/* Quick Actions */}
       <div className="grid gap-4 md:grid-cols-3">
-        <Link href="/notes?create=true">
+        <Link href="/daily-work/notes?create=true">
           <Card className="border-white/10 bg-slate-900/70 hover:bg-slate-900/90 cursor-pointer transition-colors">
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
@@ -181,7 +181,7 @@ export default function NotesDashboard() {
           </Card>
         </Link>
 
-        <Link href="/notes/my-notes">
+        <Link href="/daily-work/notes/my-notes">
           <Card className="border-white/10 bg-slate-900/70 hover:bg-slate-900/90 cursor-pointer transition-colors">
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
@@ -195,7 +195,7 @@ export default function NotesDashboard() {
           </Card>
         </Link>
 
-        <Link href="/notes/public-notes">
+        <Link href="/daily-work/notes/public-notes">
           <Card className="border-white/10 bg-slate-900/70 hover:bg-slate-900/90 cursor-pointer transition-colors">
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
@@ -216,7 +216,7 @@ export default function NotesDashboard() {
           <h2 className="text-xl font-semibold text-white mb-4">Recent Notes</h2>
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {recentNotes.map((note) => (
-              <Link key={note._id} href={`/notes/${note.slug || note._id}`}>
+              <Link key={note._id} href={`/daily-work/notes/${note.slug || note._id}`}>
                 <Card className="border-white/10 bg-slate-900/70 hover:bg-slate-900/90 cursor-pointer transition-colors">
                   <CardHeader>
                     <div className="flex items-start justify-between">

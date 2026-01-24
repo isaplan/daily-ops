@@ -1,12 +1,10 @@
 /**
  * @registry-id: messageParser
  * @created: 2026-01-15T10:00:00.000Z
- * @last-modified: 2026-01-15T10:00:00.000Z
+ * @last-modified: 2026-01-24T00:00:00.000Z
  * @description: Parse @mentions and #links from message text
- * @last-fix: [2026-01-15] Initial implementation
+ * @last-fix: [2026-01-24] Updated URLs to /daily-work routes
  */
-
-import React from 'react';
 
 export interface ParsedMention {
   type: 'member';
@@ -50,10 +48,8 @@ export function parseMessage(
 ): ParsedMessage {
   const mentions: ParsedMention[] = [];
   const links: ParsedLink[] = [];
-  const parts: ParsedMessagePart[] = [];
   
   let lastIndex = 0;
-  let currentIndex = 0;
   
   // Parse @mentions
   const mentionRegex = /@(\w+)/g;
@@ -67,19 +63,6 @@ export function parseMessage(
     );
     
     if (member) {
-      if (mentionMatch.index > lastIndex) {
-        parts.push({
-          type: 'text',
-          content: text.substring(lastIndex, mentionMatch.index),
-        });
-      }
-      
-      parts.push({
-        type: 'mention',
-        content: `@${member.name}`,
-        data: member,
-      });
-      
       mentions.push({
         type: 'member',
         id: member._id,
@@ -87,8 +70,6 @@ export function parseMessage(
         startIndex: mentionMatch.index,
         endIndex: mentionMatch.index + mentionMatch[0].length,
       });
-      
-      lastIndex = mentionMatch.index + mentionMatch[0].length;
     }
   }
   
@@ -246,20 +227,20 @@ export function getLinkUrl(link: ParsedLink): string {
   if (!link.id) return '#';
   switch (link.type) {
     case 'note':
-      return `/notes?note=${link.id}`;
+      return `/daily-work/notes?note=${link.id}`;
     case 'todo':
-      return `/todos?todo=${link.id}`;
+      return `/daily-work/todos?todo=${link.id}`;
     case 'event':
-      return `/events?event=${link.id}`;
+      return `/daily-work/events?event=${link.id}`;
     case 'channel':
-      return `/channels/${link.id}`;
+      return `/daily-work/channels/${link.id}`;
     case 'decision':
-      return `/decisions?decision=${link.id}`;
+      return `/daily-work/decisions?decision=${link.id}`;
     default:
       return '#';
   }
 }
 
 export function getMentionUrl(mention: ParsedMention): string {
-  return `/members/${mention.id}`;
+  return `/daily-work/members/${mention.id}`;
 }

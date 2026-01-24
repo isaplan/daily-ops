@@ -11,7 +11,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import { Member } from '@/models/Member';
+import Member from '@/models/Member';
 import dbConnect from '@/lib/mongodb';
 import { PERMISSIONS_MATRIX, type Role, type Scope } from '@/lib/auth/permissions';
 

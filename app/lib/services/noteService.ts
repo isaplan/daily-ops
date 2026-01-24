@@ -1,9 +1,9 @@
 /**
  * @registry-id: noteService
  * @created: 2026-01-16T00:00:00.000Z
- * @last-modified: 2026-01-16T22:30:00.000Z
+ * @last-modified: 2026-01-24T00:00:00.000Z
  * @description: Note API service - CRUD operations for notes
- * @last-fix: [2026-01-16] Added pagination support (skip/limit) to getAll method
+ * @last-fix: [2026-01-24] Extended Note/Update DTO to match API response shape
  * 
  * @imports-from:
  *   - app/lib/services/base.ts => ApiService base class
@@ -21,6 +21,8 @@ export interface Note {
   content: string
   slug?: string
   author_id?: string | { _id: string; name: string; email: string }
+  connected_members?: NoteMember[]
+  linked_todos?: string[]
   connected_to?: {
     location_id?: string | { _id: string; name: string }
     team_id?: string | { _id: string; name: string }
@@ -30,6 +32,7 @@ export interface Note {
   is_pinned: boolean
   is_archived: boolean
   status?: 'draft' | 'published'
+  published_at?: string
   created_at: string
   updated_at: string
 }
@@ -53,7 +56,10 @@ export interface CreateNoteDto {
   is_pinned?: boolean
 }
 
-export interface UpdateNoteDto extends Partial<CreateNoteDto> {}
+export type UpdateNoteDto = Partial<CreateNoteDto> & {
+  is_archived?: boolean
+  publish?: boolean
+}
 
 export interface NoteMember {
   _id: string
@@ -98,8 +104,8 @@ class NoteService extends ApiService {
     return this.put<Note>(`/notes/${id}`, data)
   }
 
-  async delete(id: string): Promise<ApiResponse<void>> {
-    return this.delete<void>(`/notes/${id}`)
+  async remove(id: string): Promise<ApiResponse<void>> {
+    return super.delete<void>(`/notes/${id}`)
   }
 
   async parseTodos(id: string): Promise<ApiResponse<{ todos: Todo[]; count: number }>> {
