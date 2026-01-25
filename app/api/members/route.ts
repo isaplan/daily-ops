@@ -16,6 +16,7 @@ import MemberTeamAssociation from '@/models/MemberTeamAssociation';
 import MemberLocationAssociation from '@/models/MemberLocationAssociation';
 import { getErrorMessage } from '@/lib/types/errors';
 import type { IMember } from '@/models/Member';
+import { prepareTeamAssociationData, prepareLocationAssociationData } from '@/lib/utils/association-helpers';
 
 export async function GET(request: NextRequest) {
   try {
@@ -77,25 +78,26 @@ export async function GET(request: NextRequest) {
       .sort({ created_at: -1 })
       .limit(100);
 
-    // Populate associations for each member
+    // Get associations for each member (using denormalized fields - no lookups needed)
     const membersWithAssociations = await Promise.all(
       members.map(async (member) => {
         const [teams, locations] = await Promise.all([
-          MemberTeamAssociation.find({ member_id: member._id, is_active: true })
-            .populate('team_id', 'name'),
-          MemberLocationAssociation.find({ member_id: member._id, is_active: true })
-            .populate('location_id', 'name')
+          MemberTeamAssociation.find({ member_id: member._id, is_active: true }).lean(),
+          MemberLocationAssociation.find({ member_id: member._id, is_active: true }).lean()
         ]);
 
         return {
           ...member.toObject(),
           teams: teams.map(a => ({
             _id: a.team_id,
-            name: typeof a.team_id === 'object' ? a.team_id.name : null
+            name: a.team_name,
+            location_id: a.location_id,
+            location_name: a.location_name,
+            role: a.role
           })),
           locations: locations.map(a => ({
             _id: a.location_id,
-            name: typeof a.location_id === 'object' ? a.location_id.name : null
+            name: a.location_name
           }))
         };
       })
@@ -139,43 +141,36 @@ export async function POST(request: NextRequest) {
       is_active: body.is_active !== undefined ? body.is_active : true,
     });
 
-    // Create team association if team_id provided
+    // Create team association if team_id provided (with denormalized fields)
     if (body.team_id) {
-      await MemberTeamAssociation.create({
-        member_id: member._id,
-        team_id: body.team_id,
-        is_active: true,
-        assigned_at: new Date()
-      });
+      const teamData = await prepareTeamAssociationData(member._id, body.team_id);
+      await MemberTeamAssociation.create(teamData);
     }
 
-    // Create location association if location_id provided
+    // Create location association if location_id provided (with denormalized fields)
     if (body.location_id) {
-      await MemberLocationAssociation.create({
-        member_id: member._id,
-        location_id: body.location_id,
-        is_active: true,
-        assigned_at: new Date()
-      });
+      const locationData = await prepareLocationAssociationData(member._id, body.location_id);
+      await MemberLocationAssociation.create(locationData);
     }
 
-    // Populate associations for response
+    // Get associations (using denormalized fields - no lookups needed)
     const [teams, locations] = await Promise.all([
-      MemberTeamAssociation.find({ member_id: member._id, is_active: true })
-        .populate('team_id', 'name'),
-      MemberLocationAssociation.find({ member_id: member._id, is_active: true })
-        .populate('location_id', 'name')
+      MemberTeamAssociation.find({ member_id: member._id, is_active: true }).lean(),
+      MemberLocationAssociation.find({ member_id: member._id, is_active: true }).lean()
     ]);
 
     const memberWithAssociations = {
       ...member.toObject(),
       teams: teams.map(a => ({
         _id: a.team_id,
-        name: typeof a.team_id === 'object' ? a.team_id.name : null
+        name: a.team_name,
+        location_id: a.location_id,
+        location_name: a.location_name,
+        role: a.role
       })),
       locations: locations.map(a => ({
         _id: a.location_id,
-        name: typeof a.location_id === 'object' ? a.location_id.name : null
+        name: a.location_name
       }))
     };
     

@@ -1,9 +1,9 @@
 /**
  * @registry-id: MemberTeamAssociationModel
  * @created: 2026-01-15T10:00:00.000Z
- * @last-modified: 2026-01-15T10:00:00.000Z
- * @description: M:M junction table for Member ↔ Team relationships
- * @last-fix: [2026-01-15] Initial M:M relationship implementation
+ * @last-modified: 2026-01-25T00:00:00.000Z
+ * @description: M:M junction table for Member ↔ Team relationships with denormalized names for performance
+ * @last-fix: [2026-01-25] Added denormalized fields (team_name, location_id, location_name) to reduce lookups
  * 
  * @exports-to:
  * ✓ app/api/members/** => Query members by team
@@ -16,6 +16,10 @@ import mongoose, { Schema, Document, Model } from 'mongoose';
 export interface IMemberTeamAssociation extends Document {
   member_id: mongoose.Types.ObjectId;
   team_id: mongoose.Types.ObjectId;
+  // Denormalized fields for performance (no lookups needed)
+  team_name: string;
+  location_id: mongoose.Types.ObjectId;
+  location_name: string;
   role?: string; // Optional role within this team
   is_active: boolean;
   assigned_at: Date;
@@ -34,6 +38,20 @@ const MemberTeamAssociationSchema = new Schema<IMemberTeamAssociation>(
     team_id: { 
       type: Schema.Types.ObjectId, 
       ref: 'Team', 
+      required: true 
+    },
+    // Denormalized fields for performance (no lookups needed)
+    team_name: { 
+      type: String, 
+      required: true 
+    },
+    location_id: { 
+      type: Schema.Types.ObjectId, 
+      ref: 'Location', 
+      required: true 
+    },
+    location_name: { 
+      type: String, 
       required: true 
     },
     role: { 

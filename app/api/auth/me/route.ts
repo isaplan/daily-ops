@@ -35,14 +35,10 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    // Get associations
+    // Get associations (using denormalized fields - no lookups needed)
     const [teams, locations] = await Promise.all([
-      MemberTeamAssociation.find({ member_id: member._id, is_active: true })
-        .populate('team_id', 'name')
-        .lean(),
-      MemberLocationAssociation.find({ member_id: member._id, is_active: true })
-        .populate('location_id', 'name')
-        .lean()
+      MemberTeamAssociation.find({ member_id: member._id, is_active: true }).lean(),
+      MemberLocationAssociation.find({ member_id: member._id, is_active: true }).lean()
     ]);
 
     // Determine role from member's roles array
@@ -66,12 +62,14 @@ export async function GET(req: NextRequest) {
       location_id: primaryLocation,
       team_id: primaryTeam,
       teams: teams.map(t => ({
-        _id: typeof t.team_id === 'object' ? t.team_id._id : t.team_id,
-        name: typeof t.team_id === 'object' ? t.team_id.name : null
+        _id: t.team_id,
+        name: t.team_name,
+        location_id: t.location_id,
+        location_name: t.location_name
       })),
       locations: locations.map(l => ({
-        _id: typeof l.location_id === 'object' ? l.location_id._id : l.location_id,
-        name: typeof l.location_id === 'object' ? l.location_id.name : null
+        _id: l.location_id,
+        name: l.location_name
       })),
       slack_avatar: member.slack_avatar,
       is_active: member.is_active,

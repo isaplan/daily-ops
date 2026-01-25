@@ -1,12 +1,14 @@
 /**
  * @registry-id: eitjeV2SyncRoute
  * @created: 2026-01-22T00:00:00.000Z
- * @last-modified: 2026-01-24T00:00:00.000Z
+ * @last-modified: 2026-01-25T00:00:00.000Z
  * @description: Sync Eitje V2 API data into MongoDB (`eitje_raw_data`) with master + date-based endpoints
- * @last-fix: [2026-01-24] Added metadata header for validation
+ * @last-fix: [2026-01-25] Added Member.hourly_rate population from users master data
  *
  * @imports-from:
  *   - app/lib/mongodb/v2-connection.ts => getDatabase
+ *   - app/lib/mongodb.ts => dbConnect
+ *   - app/models/Member.ts => Member model
  *   - app/lib/eitje/v2-credentials.ts => getEitjeCredentials
  *   - app/lib/eitje/v2-api-client.ts => fetchEitje* endpoint helpers
  *   - app/lib/utils/jsonb-extractor.ts => extractEitjeFields
@@ -20,6 +22,8 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase } from '@/lib/mongodb/v2-connection';
+import dbConnect from '@/lib/mongodb';
+import Member from '@/models/Member';
 import { getEitjeCredentials } from '@/lib/eitje/v2-credentials';
 import {
   fetchEitjeEnvironments,
@@ -270,6 +274,48 @@ export async function POST(request: NextRequest) {
 
         const result = await db.collection('eitje_raw_data').bulkWrite(operations);
         recordsSaved = result.upsertedCount + result.modifiedCount;
+      }
+
+      // After syncing users master data, update Member.hourly_rate
+      if (endpoint === 'users' && recordsToInsert.length > 0) {
+        try {
+          await dbConnect(); // Ensure mongoose connection for Member model
+          let membersUpdated = 0;
+
+          for (const record of recordsToInsert) {
+            const hourlyRate = record.extracted.hourlyRate;
+            if (hourlyRate === undefined || hourlyRate === null) continue;
+
+            const rawUser = record.rawApiResponse;
+            const userEmail = rawUser.email || rawUser.email_address || rawUser.user_email;
+            const userId = record.extracted.id || rawUser.id;
+
+            if (!userEmail && !userId) continue;
+
+            // Try to find member by email first (most reliable)
+            let member = null;
+            if (userEmail) {
+              member = await Member.findOne({ email: userEmail.toLowerCase() });
+            }
+
+            // Fallback: try to match by Eitje user ID if stored somewhere
+            // (This would require storing Eitje user ID in Member model, which we don't currently do)
+            // For now, email matching is the primary method
+
+            if (member && typeof hourlyRate === 'number') {
+              member.hourly_rate = hourlyRate;
+              await member.save();
+              membersUpdated++;
+            }
+          }
+
+          if (membersUpdated > 0) {
+            console.log(`[API /eitje/v2/sync] Updated hourly_rate for ${membersUpdated} members from users master data`);
+          }
+        } catch (memberUpdateError: any) {
+          // Log error but don't fail the sync
+          console.error('[API /eitje/v2/sync] Error updating Member.hourly_rate:', memberUpdateError);
+        }
       }
 
       return NextResponse.json({

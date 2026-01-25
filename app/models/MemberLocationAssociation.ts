@@ -1,9 +1,9 @@
 /**
  * @registry-id: MemberLocationAssociationModel
  * @created: 2026-01-15T10:00:00.000Z
- * @last-modified: 2026-01-15T10:00:00.000Z
- * @description: M:M junction table for Member ↔ Location relationships
- * @last-fix: [2026-01-15] Initial M:M relationship implementation
+ * @last-modified: 2026-01-25T00:00:00.000Z
+ * @description: M:M junction table for Member ↔ Location relationships with denormalized names for performance
+ * @last-fix: [2026-01-25] Added denormalized field (location_name) to reduce lookups
  * 
  * @exports-to:
  * ✓ app/api/members/** => Query members by location
@@ -16,6 +16,8 @@ import mongoose, { Schema, Document, Model } from 'mongoose';
 export interface IMemberLocationAssociation extends Document {
   member_id: mongoose.Types.ObjectId;
   location_id: mongoose.Types.ObjectId;
+  // Denormalized field for performance (no lookups needed)
+  location_name: string;
   is_active: boolean;
   assigned_at: Date;
   removed_at?: Date;
@@ -33,6 +35,11 @@ const MemberLocationAssociationSchema = new Schema<IMemberLocationAssociation>(
     location_id: { 
       type: Schema.Types.ObjectId, 
       ref: 'Location', 
+      required: true 
+    },
+    // Denormalized field for performance (no lookups needed)
+    location_name: { 
+      type: String, 
       required: true 
     },
     is_active: { 

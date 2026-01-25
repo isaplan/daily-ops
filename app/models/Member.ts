@@ -1,13 +1,14 @@
 /**
  * @registry-id: MemberModel
  * @created: 2026-01-15T10:00:00.000Z
- * @last-modified: 2026-01-15T10:00:00.000Z
+ * @last-modified: 2026-01-25T00:00:00.000Z
  * @description: Member schema and model
- * @last-fix: [2026-01-15] Added M:M relationships via association tables
+ * @last-fix: [2026-01-25] Added hourly_rate field from master data (Eitje users sync)
  * 
  * @exports-to:
  * ✓ app/api/members/** => Member CRUD operations
  * ✓ app/components/** => Member display components
+ * ✓ app/api/eitje/v2/sync/route.ts => Updates hourly_rate from users master data
  */
 
 import mongoose, { Schema, Document, Model } from 'mongoose';
@@ -29,6 +30,9 @@ export interface IMember extends Document {
     scope: 'self' | 'team' | 'location' | 'company';
     grantedAt: Date;
   }>;
+  
+  // Master data: hourly wage from Eitje users endpoint
+  hourly_rate?: number;
   
   is_active: boolean;
   last_seen?: Date;
@@ -61,6 +65,9 @@ const MemberSchema = new Schema<IMember>(
       },
       grantedAt: { type: Date, default: Date.now },
     }],
+    
+    // Master data: hourly wage from Eitje users endpoint
+    hourly_rate: { type: Number },
     
     is_active: { type: Boolean, default: true },
     last_seen: { type: Date },

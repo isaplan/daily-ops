@@ -16,6 +16,7 @@ import MemberTeamAssociation from '@/models/MemberTeamAssociation';
 import MemberLocationAssociation from '@/models/MemberLocationAssociation';
 import { getErrorMessage } from '@/lib/types/errors';
 import type { IMember } from '@/models/Member';
+import { prepareTeamAssociationData, prepareLocationAssociationData } from '@/lib/utils/association-helpers';
 
 export async function GET(
   request: NextRequest,
@@ -44,24 +45,24 @@ export async function GET(
       );
     }
 
-    // Get associations
+    // Get associations (using denormalized fields - no lookups needed)
     const [teams, locations] = await Promise.all([
-      MemberTeamAssociation.find({ member_id: member._id, is_active: true })
-        .populate('team_id', 'name'),
-      MemberLocationAssociation.find({ member_id: member._id, is_active: true })
-        .populate('location_id', 'name')
+      MemberTeamAssociation.find({ member_id: member._id, is_active: true }).lean(),
+      MemberLocationAssociation.find({ member_id: member._id, is_active: true }).lean()
     ]);
 
     const memberWithAssociations = {
       ...member.toObject(),
       teams: teams.map(a => ({
         _id: a.team_id,
-        name: typeof a.team_id === 'object' ? a.team_id.name : null,
+        name: a.team_name,
+        location_id: a.location_id,
+        location_name: a.location_name,
         role: a.role
       })),
       locations: locations.map(a => ({
         _id: a.location_id,
-        name: typeof a.location_id === 'object' ? a.location_id.name : null
+        name: a.location_name
       }))
     };
     
@@ -118,15 +119,13 @@ export async function PUT(
         { is_active: false, removed_at: new Date() }
       );
 
-      // Create new association if team_id provided
+      // Create new association if team_id provided (with denormalized fields)
       if (body.team_id) {
+        const teamData = await prepareTeamAssociationData(id, body.team_id);
         await MemberTeamAssociation.findOneAndUpdate(
           { member_id: id, team_id: body.team_id },
           {
-            member_id: id,
-            team_id: body.team_id,
-            is_active: true,
-            assigned_at: new Date(),
+            ...teamData,
             removed_at: undefined
           },
           { upsert: true, new: true }
@@ -142,15 +141,13 @@ export async function PUT(
         { is_active: false, removed_at: new Date() }
       );
 
-      // Create new association if location_id provided
+      // Create new association if location_id provided (with denormalized fields)
       if (body.location_id) {
+        const locationData = await prepareLocationAssociationData(id, body.location_id);
         await MemberLocationAssociation.findOneAndUpdate(
           { member_id: id, location_id: body.location_id },
           {
-            member_id: id,
-            location_id: body.location_id,
-            is_active: true,
-            assigned_at: new Date(),
+            ...locationData,
             removed_at: undefined
           },
           { upsert: true, new: true }
@@ -158,24 +155,24 @@ export async function PUT(
       }
     }
 
-    // Get updated associations
+    // Get updated associations (using denormalized fields - no lookups needed)
     const [teams, locations] = await Promise.all([
-      MemberTeamAssociation.find({ member_id: id, is_active: true })
-        .populate('team_id', 'name'),
-      MemberLocationAssociation.find({ member_id: id, is_active: true })
-        .populate('location_id', 'name')
+      MemberTeamAssociation.find({ member_id: id, is_active: true }).lean(),
+      MemberLocationAssociation.find({ member_id: id, is_active: true }).lean()
     ]);
 
     const memberWithAssociations = {
       ...member.toObject(),
       teams: teams.map(a => ({
         _id: a.team_id,
-        name: typeof a.team_id === 'object' ? a.team_id.name : null,
+        name: a.team_name,
+        location_id: a.location_id,
+        location_name: a.location_name,
         role: a.role
       })),
       locations: locations.map(a => ({
         _id: a.location_id,
-        name: typeof a.location_id === 'object' ? a.location_id.name : null
+        name: a.location_name
       }))
     };
     

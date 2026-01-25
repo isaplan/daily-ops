@@ -1,9 +1,9 @@
 /**
  * @registry-id: jsonbExtractor
  * @created: 2026-01-22T00:00:00.000Z
- * @last-modified: 2026-01-24T00:00:00.000Z
+ * @last-modified: 2026-01-25T00:00:00.000Z
  * @description: Utilities to flatten nested JSON (JSONB-style) and extract commonly queried Eitje fields
- * @last-fix: [2026-01-24] Added metadata header for validation
+ * @last-fix: [2026-01-25] Added hourly_rate extraction for users master data
  *
  * @exports-to:
  *   ✓ app/api/eitje/v2/sync/route.ts => stores `extracted` for querying
@@ -109,6 +109,12 @@ export function extractEitjeFields(rawResponse: any): Record<string, any> {
   if (rawResponse.revenue !== undefined) extracted.revenue = rawResponse.revenue;
   if (rawResponse.amt_in_cents !== undefined) extracted.amountInCents = rawResponse.amt_in_cents;
   if (rawResponse.amount !== undefined) extracted.amount = rawResponse.amount;
+  
+  // Master data fields (users endpoint)
+  if (rawResponse.hourly_rate !== undefined) extracted.hourlyRate = rawResponse.hourly_rate;
+  if (rawResponse.hourly_wage !== undefined) extracted.hourlyRate = rawResponse.hourly_wage;
+  if (rawResponse.wage !== undefined) extracted.hourlyRate = rawResponse.wage;
+  if (rawResponse.rate !== undefined && rawResponse.rate !== null) extracted.hourlyRate = rawResponse.rate;
   
   // Extract all other fields recursively
   const allExtracted = extractJsonbFields(rawResponse);
