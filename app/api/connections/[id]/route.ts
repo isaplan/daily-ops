@@ -37,14 +37,14 @@ async function getModelByType(type: EntityType) {
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     await connectToDatabase()
+    const { id: targetId } = await params
     const { searchParams } = new URL(request.url)
     const sourceType = searchParams.get('source_type') as EntityType
     const targetType = searchParams.get('target_type') as EntityType
-    const targetId = params.id
 
     if (!sourceType || !targetType || !targetId) {
       return NextResponse.json(

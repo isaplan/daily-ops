@@ -1,19 +1,8 @@
 /**
- * @registry-id: HoursPage
- * @created: 2026-01-22T00:00:00.000Z
- * @last-modified: 2026-01-24T00:00:00.000Z
- * @description: Hours overview page - shows hours per day per location with sort and filter
- * @last-fix: [2026-01-24] Moved to /daily-ops/hours
- *
- * @imports-from:
- *   - app/lib/hooks/useAuth.ts => useAuth for loading state
- *   - app/components/ui/data-table.tsx => DataTable component
- *   - app/components/ui/card.tsx => Card components
- *   - app/components/ui/select.tsx => Select for filters
- *   - app/components/ui/input.tsx => Input for date filters
- *
- * @exports-to:
- *   ✓ app/components/DailyOpsSidebar.tsx => Navigation link
+ * @registry-id: HoursByLocationPage
+ * @created: 2026-01-25T00:00:00.000Z
+ * @last-modified: 2026-01-25T00:00:00.000Z
+ * @description: Hours breakdown by location - shows total hours per location
  */
 
 'use client';
@@ -26,32 +15,23 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { usePathname } from 'next/navigation';
 
-interface HoursData {
-  date: string;
+interface HoursByLocationData {
   location_id: string;
   location_name: string;
   location_names?: string[]; // Array of up to 3 location names from unified collection
   total_hours: number;
   total_cost: number;
   record_count: number;
+  worker_count: number;
 }
 
-interface Location {
-  _id: string;
-  name: string;
-}
-
-export default function HoursPage() {
+export default function HoursByLocationPage() {
   const { loading: authLoading } = useAuth();
-  const pathname = usePathname();
-  const [hoursData, setHoursData] = useState<HoursData[]>([]);
-  const [locations, setLocations] = useState<Location[]>([]);
+  const [hoursData, setHoursData] = useState<HoursByLocationData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
-  // Set default date range to last 30 days
   const today = new Date();
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(today.getDate() - 30);
@@ -61,9 +41,8 @@ export default function HoursPage() {
   const [filters, setFilters] = useState({
     startDate: defaultStartDate,
     endDate: defaultEndDate,
-    locationId: 'all',
     endpoint: 'time_registration_shifts',
-    sortBy: 'date',
+    sortBy: 'total_hours',
     sortOrder: 'desc',
   });
 
@@ -72,7 +51,7 @@ export default function HoursPage() {
       fetchHoursData();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authLoading, filters.startDate, filters.endDate, filters.locationId, filters.endpoint, filters.sortBy, filters.sortOrder]);
+  }, [authLoading, filters.startDate, filters.endDate, filters.endpoint, filters.sortBy, filters.sortOrder]);
 
   async function fetchHoursData() {
     try {
@@ -82,8 +61,8 @@ export default function HoursPage() {
       
       if (filters.startDate) params.append('startDate', filters.startDate);
       if (filters.endDate) params.append('endDate', filters.endDate);
-      if (filters.locationId && filters.locationId !== 'all') params.append('locationId', filters.locationId);
       params.append('endpoint', filters.endpoint);
+      params.append('groupBy', 'location');
       params.append('sortBy', filters.sortBy);
       params.append('sortOrder', filters.sortOrder);
 
@@ -92,7 +71,6 @@ export default function HoursPage() {
         const result = await response.json();
         if (result.success) {
           setHoursData(result.data || []);
-          setLocations(result.locations || []);
         } else {
           setError(result.error || 'Failed to fetch hours data');
         }
@@ -116,38 +94,13 @@ export default function HoursPage() {
     setFilters({
       startDate: defaultStartDate,
       endDate: defaultEndDate,
-      locationId: 'all',
       endpoint: 'time_registration_shifts',
-      sortBy: 'date',
+      sortBy: 'total_hours',
       sortOrder: 'desc',
     });
   };
 
-  // Get column headers based on selected endpoint
-  const getHoursHeader = () => {
-    if (filters.endpoint === 'revenue_days') return 'Revenue';
-    if (filters.endpoint === 'planning_shifts') return 'Planned Hours';
-    return 'Total Hours';
-  };
-
-  const getCostHeader = () => {
-    if (filters.endpoint === 'revenue_days') return 'Total Revenue';
-    return 'Total Cost';
-  };
-
-  const columns: DataTableColumn<HoursData>[] = [
-    {
-      key: 'date',
-      header: 'Date',
-      render: (row) => {
-        const date = new Date(row.date);
-        return date.toLocaleDateString('en-US', {
-          year: 'numeric',
-          month: 'short',
-          day: 'numeric',
-        });
-      },
-    },
+  const columns: DataTableColumn<HoursByLocationData>[] = [
     {
       key: 'location_name',
       header: 'Location',
@@ -172,18 +125,18 @@ export default function HoursPage() {
     },
     {
       key: 'total_hours',
-      header: getHoursHeader(),
-      render: (row) => {
-        if (filters.endpoint === 'revenue_days') {
-          return `€${row.total_hours.toFixed(2)}`;
-        }
-        return row.total_hours.toFixed(2);
-      },
+      header: 'Total Hours',
+      render: (row) => row.total_hours.toFixed(2),
     },
     {
       key: 'total_cost',
-      header: getCostHeader(),
+      header: 'Total Cost',
       render: (row) => `€${row.total_cost.toFixed(2)}`,
+    },
+    {
+      key: 'worker_count',
+      header: 'Workers',
+      render: (row) => row.worker_count || 0,
     },
     {
       key: 'record_count',
@@ -203,11 +156,12 @@ export default function HoursPage() {
   return (
     <div className="p-8 space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">Hours Overview</h1>
+        <h1 className="text-3xl font-bold">Hours by Location</h1>
         <p className="text-muted-foreground">
-          View hours worked per day per location
+          View total hours worked per location
         </p>
       </div>
+
 
       {error && (
         <Card className="border-destructive">
@@ -226,7 +180,7 @@ export default function HoursPage() {
           <CardDescription>Filter and sort hours data</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-4 md:grid-cols-5">
+          <div className="grid gap-4 md:grid-cols-4">
             <div className="space-y-2">
               <Label htmlFor="endpoint">Endpoint</Label>
               <Select
@@ -262,25 +216,6 @@ export default function HoursPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="location">Location</Label>
-              <Select
-                value={filters.locationId}
-                onValueChange={(value) => handleFilterChange('locationId', value)}
-              >
-                <SelectTrigger id="location">
-                  <SelectValue placeholder="All locations" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All locations</SelectItem>
-                  {locations.map((loc) => (
-                    <SelectItem key={loc._id} value={loc._id}>
-                      {loc.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
               <Label htmlFor="sortBy">Sort By</Label>
               <Select
                 value={filters.sortBy}
@@ -290,8 +225,7 @@ export default function HoursPage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="date">Date</SelectItem>
-                  <SelectItem value="location">Location</SelectItem>
+                  <SelectItem value="location_name">Location Name</SelectItem>
                   <SelectItem value="total_hours">Total Hours</SelectItem>
                 </SelectContent>
               </Select>
@@ -345,11 +279,11 @@ export default function HoursPage() {
           </Card>
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">Total Records</CardTitle>
+              <CardTitle className="text-sm font-medium">Total Locations</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                {hoursData.reduce((sum, row) => sum + row.record_count, 0)}
+                {hoursData.length}
               </div>
             </CardContent>
           </Card>
@@ -359,9 +293,9 @@ export default function HoursPage() {
       {/* Hours Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Hours by Day and Location</CardTitle>
+          <CardTitle>Hours by Location</CardTitle>
           <CardDescription>
-            {loading ? 'Loading...' : `${hoursData.length} ${hoursData.length === 1 ? 'record' : 'records'} found`}
+            {loading ? 'Loading...' : `${hoursData.length} ${hoursData.length === 1 ? 'location' : 'locations'} found`}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -377,14 +311,6 @@ export default function HoursPage() {
               {hoursData.length === 0 && !loading && (
                 <div className="mt-4 text-center space-y-2">
                   <p className="text-sm text-muted-foreground">Hours data is synced from the Eitje API.</p>
-                  <div className="text-xs text-muted-foreground space-y-1">
-                    <p>To populate data:</p>
-                    <ul className="list-disc list-inside space-y-1">
-                      <li>Go to <strong>Settings → Eitje API</strong> to configure credentials</li>
-                      <li>Use the <strong>/api/eitje/v2/sync</strong> endpoint to sync data</li>
-                      <li>Or check if the automatic cron sync is running</li>
-                    </ul>
-                  </div>
                 </div>
               )}
             </>
@@ -394,4 +320,3 @@ export default function HoursPage() {
     </div>
   );
 }
-

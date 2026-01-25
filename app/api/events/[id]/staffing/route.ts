@@ -13,12 +13,13 @@ import { getErrorMessage } from '@/lib/types/errors';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     await dbConnect();
+    const { id } = await params;
     
-    const event = await Event.findById(params.id)
+    const event = await Event.findById(id)
       .select('staffing')
       .populate('staffing.member_id', 'name email slack_avatar');
     
@@ -41,13 +42,14 @@ export async function GET(
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     await dbConnect();
+    const { id } = await params;
     const body = await request.json();
     
-    const event = await Event.findById(params.id);
+    const event = await Event.findById(id);
     
     if (!event) {
       return NextResponse.json(
@@ -85,7 +87,7 @@ export async function POST(
     
     await event.save();
     
-    const updatedEvent = await Event.findById(params.id)
+    const updatedEvent = await Event.findById(id)
       .populate('staffing.member_id', 'name email slack_avatar');
     
     return NextResponse.json({ success: true, data: updatedEvent?.staffing || [] });

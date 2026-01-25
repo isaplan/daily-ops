@@ -21,11 +21,11 @@ import Event from '@/models/Event';
 
 export async function GET(req: NextRequest) {
   try {
-    const auth = await requireAuth(req);
-    if (!auth.authorized) {
-      // Allow unauthenticated access for public stats
-      // return auth.response;
-    }
+    // Allow unauthenticated access for public stats
+    // const auth = await requireAuth(req);
+    // if (!auth.authorized) {
+    //   return auth.response;
+    // }
 
     await dbConnect();
 

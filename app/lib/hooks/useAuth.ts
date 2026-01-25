@@ -44,22 +44,28 @@ export function useAuth() {
 
   async function fetchCurrentUser() {
     try {
-      const response = await fetch('/api/auth/me');
+      // Note: 401 responses are expected when user is not authenticated.
+      // The browser will log these as failed requests, but this is normal behavior.
+      const response = await fetch('/api/auth/me', {
+        credentials: 'include',
+      });
+      
+      // 401 is expected when not authenticated - handle silently
+      if (response.status === 401) {
+        setState({
+          user: null,
+          loading: false,
+          error: null,
+        });
+        return;
+      }
+      
       if (!response.ok) {
-        // 401 is expected when not authenticated - don't treat as error
-        if (response.status === 401) {
-          setState({
-            user: null,
-            loading: false,
-            error: null, // Don't set error for expected unauthenticated state
-          });
-        } else {
-          setState({
-            user: null,
-            loading: false,
-            error: 'Not authenticated',
-          });
-        }
+        setState({
+          user: null,
+          loading: false,
+          error: 'Not authenticated',
+        });
         return;
       }
 
@@ -70,11 +76,11 @@ export function useAuth() {
         error: null,
       });
     } catch (error) {
-      // Network errors or other issues - don't spam console
+      // Network errors - handle silently (401s are expected and normal)
       setState({
         user: null,
         loading: false,
-        error: null, // Silently handle errors in development
+        error: null,
       });
     }
   }

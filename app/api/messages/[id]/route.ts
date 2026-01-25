@@ -13,11 +13,11 @@ import { getErrorMessage } from '@/lib/types/errors'
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     await dbConnect()
-    const messageId = params.id
+    const { id: messageId } = await params
     const body = await request.json()
     const { text, editor_content, plainText } = body
 
@@ -62,11 +62,11 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     await dbConnect()
-    const messageId = params.id
+    const { id: messageId } = await params
 
     // Find the message
     const message = await Message.findById(messageId)

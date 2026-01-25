@@ -1,13 +1,14 @@
 /**
  * @registry-id: eitjeV2CronManager
  * @created: 2026-01-22T00:00:00.000Z
- * @last-modified: 2026-01-24T00:00:00.000Z
- * @description: Cron orchestration for Eitje V2 sync (daily, master, historical) with MongoDB persistence
- * @last-fix: [2026-01-24] Added metadata header for validation
+ * @last-modified: 2026-01-25T00:00:00.000Z
+ * @description: Cron orchestration for Eitje V2 sync (daily, master, historical) with MongoDB persistence + aggregation triggers
+ * @last-fix: [2026-01-25] Added aggregation trigger after successful syncs with change detection
  *
  * @imports-from:
  *   - app/lib/mongodb/v2-connection.ts => getDatabase
  *   - app/lib/eitje/v2-types.ts => EITJE_DATE_LIMITS
+ *   - app/lib/services/aggregationTrigger.ts => triggerAggregationIfChanged
  *   - node-cron => scheduling
  *
  * @exports-to:
@@ -20,6 +21,7 @@ import cron, { ScheduledTask } from 'node-cron';
 import { getDatabase } from '@/lib/mongodb/v2-connection';
 import { ObjectId } from 'mongodb';
 import { EITJE_DATE_LIMITS } from '@/lib/eitje/v2-types';
+import { triggerAggregationIfChanged } from '@/lib/services/aggregationTrigger';
 
 export interface CronJobConfig {
   _id?: ObjectId;
@@ -179,6 +181,10 @@ class CronJobManager {
         }
       }
 
+      // Track if any syncs were successful
+      let hasSuccessfulSync = false;
+      let totalRecordsSaved = 0;
+
       // Sync ALL daily endpoints (ignore enabledEndpoints config - sync everything)
       for (const endpoint of allDailyEndpoints) {
         try {
@@ -206,10 +212,29 @@ class CronJobManager {
             throw new Error(result.error || 'Sync failed without error message');
           }
           
-          console.log(`[Cron Job] Synced ${endpoint}: ${result.recordsSaved || 0} records`);
+          const recordsSaved = result.recordsSaved || 0;
+          totalRecordsSaved += recordsSaved;
+          hasSuccessfulSync = true;
+          console.log(`[Cron Job] Synced ${endpoint}: ${recordsSaved} records`);
         } catch (error: any) {
           console.error(`[Cron Job] Error syncing ${endpoint}:`, error.message);
           await this.recordError(config.jobType, error, { endpoint, baseUrl, phase: 'daily-data-sync' });
+        }
+      }
+
+      // Trigger aggregation after successful syncs (only once per cron execution)
+      if (hasSuccessfulSync) {
+        console.log(`[Cron Job] Triggering aggregation after successful sync (${totalRecordsSaved} total records saved)...`);
+        try {
+          const aggregationResult = await triggerAggregationIfChanged(false);
+          if (aggregationResult.triggered) {
+            console.log(`[Cron Job] Aggregation triggered: ${aggregationResult.reason}`);
+          } else {
+            console.log(`[Cron Job] Aggregation skipped: ${aggregationResult.reason}`);
+          }
+        } catch (error: any) {
+          console.error(`[Cron Job] Error triggering aggregation:`, error.message);
+          await this.recordError(config.jobType, error, { phase: 'aggregation-trigger' });
         }
       }
     } else if (config.jobType === 'master-data') {
@@ -221,6 +246,10 @@ class CronJobManager {
         'users',
         'shift_types',
       ];
+
+      // Track if any syncs were successful
+      let hasSuccessfulSync = false;
+      let totalRecordsSaved = 0;
 
       // Sync ALL master endpoints (ignore enabledMasterEndpoints config - sync everything)
       for (const endpoint of allMasterEndpoints) {
@@ -248,10 +277,29 @@ class CronJobManager {
             throw new Error(result.error || 'Sync failed without error message');
           }
           
-          console.log(`[Cron Job] Synced ${endpoint}: ${result.recordsSaved || 0} records`);
+          const recordsSaved = result.recordsSaved || 0;
+          totalRecordsSaved += recordsSaved;
+          hasSuccessfulSync = true;
+          console.log(`[Cron Job] Synced ${endpoint}: ${recordsSaved} records`);
         } catch (error: any) {
           console.error(`[Cron Job] Error syncing ${endpoint}:`, error.message);
           await this.recordError(config.jobType, error, { endpoint, baseUrl, phase: 'master-data-sync' });
+        }
+      }
+
+      // Trigger aggregation after successful syncs (only once per cron execution)
+      if (hasSuccessfulSync) {
+        console.log(`[Cron Job] Triggering aggregation after successful master data sync (${totalRecordsSaved} total records saved)...`);
+        try {
+          const aggregationResult = await triggerAggregationIfChanged(false);
+          if (aggregationResult.triggered) {
+            console.log(`[Cron Job] Aggregation triggered: ${aggregationResult.reason}`);
+          } else {
+            console.log(`[Cron Job] Aggregation skipped: ${aggregationResult.reason}`);
+          }
+        } catch (error: any) {
+          console.error(`[Cron Job] Error triggering aggregation:`, error.message);
+          await this.recordError(config.jobType, error, { phase: 'aggregation-trigger' });
         }
       }
     } else if (config.jobType === 'historical-data') {
@@ -309,6 +357,10 @@ class CronJobManager {
         return chunks;
       };
 
+      // Track if any syncs were successful
+      let hasSuccessfulSync = false;
+      let totalRecordsSaved = 0;
+
       // Sync ALL historical endpoints (ignore enabledEndpoints config - sync everything)
       for (const endpoint of allHistoricalEndpoints) {
         const maxDays = (EITJE_DATE_LIMITS as any)[endpoint] || 7;
@@ -348,6 +400,8 @@ class CronJobManager {
             
             const recordsSaved = result.recordsSaved || 0;
             totalRecords += recordsSaved;
+            totalRecordsSaved += recordsSaved;
+            hasSuccessfulSync = true;
             console.log(`[Cron Job] Historical sync ${endpoint} (${chunk.startDate} to ${chunk.endDate}): ${recordsSaved} records`);
           } catch (error: any) {
             console.error(`[Cron Job] Error in historical sync ${endpoint} (${chunk.startDate} to ${chunk.endDate}):`, error.message);
@@ -356,6 +410,22 @@ class CronJobManager {
         }
         
         console.log(`[Cron Job] Historical sync ${endpoint} completed: ${totalRecords} total records`);
+      }
+
+      // Trigger aggregation after successful syncs (only once per cron execution)
+      if (hasSuccessfulSync) {
+        console.log(`[Cron Job] Triggering aggregation after successful historical sync (${totalRecordsSaved} total records saved)...`);
+        try {
+          const aggregationResult = await triggerAggregationIfChanged(false);
+          if (aggregationResult.triggered) {
+            console.log(`[Cron Job] Aggregation triggered: ${aggregationResult.reason}`);
+          } else {
+            console.log(`[Cron Job] Aggregation skipped: ${aggregationResult.reason}`);
+          }
+        } catch (error: any) {
+          console.error(`[Cron Job] Error triggering aggregation:`, error.message);
+          await this.recordError(config.jobType, error, { phase: 'aggregation-trigger' });
+        }
       }
     }
   }

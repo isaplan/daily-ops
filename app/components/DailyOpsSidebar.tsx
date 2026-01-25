@@ -1,13 +1,14 @@
 /**
  * @registry-id: DailyOpsSidebarComponent
  * @created: 2026-01-22T00:00:00.000Z
- * @last-modified: 2026-01-24T00:00:00.000Z
- * @description: Sidebar navigation component for Daily Ops environment
- * @last-fix: [2026-01-24] Nested Daily Ops routes and gated visibility by role
+ * @last-modified: 2026-01-25T00:00:00.000Z
+ * @description: Sidebar navigation component for Daily Ops environment with collapsible Hours menu
+ * @last-fix: [2026-01-25] Added collapsible Hours dropdown with child pages (by-day, by-worker, by-team, by-location)
  * 
  * @imports-from:
  *   - app/components/ui/sidebar.tsx => shadcn sidebar components
  *   - app/components/ui/select.tsx => Select dropdown component
+ *   - app/components/ui/collapsible.tsx => Collapsible component for dropdown menu
  *   - app/lib/environmentContext.tsx => useEnvironment hook
  * 
  * @exports-to:
@@ -18,6 +19,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import * as React from 'react'
 import {
   Sidebar,
   SidebarContent,
@@ -28,6 +30,9 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubItem,
+  SidebarMenuSubButton,
 } from '@/components/ui/sidebar'
 import {
   Select,
@@ -37,7 +42,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useEnvironment } from '@/lib/environmentContext'
-import { LayoutDashboard, Settings, Clock } from 'lucide-react'
+import { LayoutDashboard, Settings, Clock, ChevronRight } from 'lucide-react'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 // TEMPORARILY DISABLED: Manager-only restriction
 // import { useAuth } from '@/lib/hooks/useAuth'
 
@@ -49,9 +55,17 @@ const environments = [
 // Navigation items for Daily Ops environment - to be expanded
 const navItems = [
   { href: '/daily-ops', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/daily-ops/hours', label: 'Hours', icon: Clock },
   { href: '/daily-ops/settings/eitje-api', label: 'Eitje API', icon: Settings },
   // Add more navigation items here as Daily Ops pages are built
+]
+
+// Hours submenu items
+const hoursSubItems = [
+  { href: '/daily-ops/hours', label: 'Day & Location' },
+  { href: '/daily-ops/hours/by-day', label: 'By Day' },
+  { href: '/daily-ops/hours/by-worker', label: 'By Worker' },
+  { href: '/daily-ops/hours/by-team', label: 'By Team' },
+  { href: '/daily-ops/hours/by-location', label: 'By Location' },
 ]
 
 export default function DailyOpsSidebar() {
@@ -63,6 +77,15 @@ export default function DailyOpsSidebar() {
   // const canSeeDailyOps = isManager || isAdmin
   // const visibleEnvironments = canSeeDailyOps ? environments : environments.filter((e) => e.id !== 'daily-ops')
   const visibleEnvironments = environments // Show all environments
+  
+  // Check if we're on any hours page to determine if hours menu should be open
+  const isHoursPage = pathname?.startsWith('/daily-ops/hours')
+  const [isHoursOpen, setIsHoursOpen] = React.useState(isHoursPage)
+  
+  // Update isHoursOpen when pathname changes
+  React.useEffect(() => {
+    setIsHoursOpen(isHoursPage)
+  }, [isHoursPage])
 
   return (
     <Sidebar collapsible="icon" variant="sidebar">
@@ -109,6 +132,35 @@ export default function DailyOpsSidebar() {
                   </SidebarMenuItem>
                 )
               })}
+              
+              {/* Hours collapsible menu */}
+              <Collapsible asChild open={isHoursOpen} onOpenChange={setIsHoursOpen}>
+                <SidebarMenuItem>
+                  <CollapsibleTrigger asChild>
+                    <SidebarMenuButton tooltip="Hours" isActive={isHoursPage}>
+                      <Clock />
+                      <span>Hours</span>
+                      <ChevronRight className={`ml-auto transition-transform duration-200 ${isHoursOpen ? 'rotate-90' : ''}`} />
+                    </SidebarMenuButton>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <SidebarMenuSub>
+                      {hoursSubItems.map((subItem) => {
+                        const isSubActive = pathname === subItem.href
+                        return (
+                          <SidebarMenuSubItem key={subItem.href}>
+                            <SidebarMenuSubButton asChild isActive={isSubActive}>
+                              <Link href={subItem.href}>
+                                <span>{subItem.label}</span>
+                              </Link>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                        )
+                      })}
+                    </SidebarMenuSub>
+                  </CollapsibleContent>
+                </SidebarMenuItem>
+              </Collapsible>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
