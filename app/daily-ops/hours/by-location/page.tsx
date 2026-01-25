@@ -20,6 +20,7 @@ interface HoursByLocationData {
   location_id: string;
   location_name: string;
   location_names?: string[]; // Array of up to 3 location names from unified collection
+  location_abbreviation?: string; // Abbreviation (VKB, BEA, LAT)
   total_hours: number;
   total_cost: number;
   record_count: number;
@@ -105,20 +106,20 @@ export default function HoursByLocationPage() {
       key: 'location_name',
       header: 'Location',
       render: (row) => {
-        // Show up to 3 location names from unified collection
-        const names = row.location_names && row.location_names.length > 0
-          ? row.location_names
-          : row.location_name
-            ? [row.location_name]
-            : ['Unknown'];
+        // Show only the canonical location name (single name)
+        const locationName = row.location_name || 
+          (row.location_names && row.location_names.length > 0 
+            ? row.location_names[0] 
+            : 'Unknown');
+        
+        const abbreviation = row.location_abbreviation;
         
         return (
-          <div className="space-y-1">
-            {names.slice(0, 3).map((name, idx) => (
-              <div key={idx} className="text-sm">
-                {name}
-              </div>
-            ))}
+          <div className="text-sm">
+            {locationName}
+            {abbreviation && (
+              <span className="ml-2 text-xs text-muted-foreground">({abbreviation})</span>
+            )}
           </div>
         );
       },

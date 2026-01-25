@@ -1,9 +1,9 @@
 /**
  * @registry-id: unifiedCollectionsService
  * @created: 2026-01-25T00:00:00.000Z
- * @last-modified: 2026-01-25T00:00:00.000Z
+ * @last-modified: 2026-01-25T12:30:00.000Z
  * @description: Service to create unified collections that merge IDs and names from all sources (Eitje, internal models, etc.)
- * @last-fix: [2026-01-25] Initial implementation
+ * @last-fix: [2026-01-25] Fixed duplicate location creation - now matches existing by canonical name/eitjeId and merges duplicates
  * 
  * @imports-from:
  *   - app/lib/mongodb/v2-connection.ts => getDatabase
@@ -24,6 +24,64 @@ import Team from '@/models/Team';
 import Member from '@/models/Member';
 import { ObjectId } from 'mongodb';
 
+/**
+ * Get location abbreviation from name
+ */
+function getLocationAbbreviation(name: string): string | undefined {
+  if (!name) return undefined;
+  
+  const nameLower = name.toLowerCase().trim();
+  
+  // Known abbreviations - check exact matches first, then normalized
+  const knownAbbrevs: Record<string, string> = {
+    'van kinsbergen': 'VKB',
+    'kinsbergen': 'VKB',
+    "l'amour toujours": 'LAT',
+    "lamour toujours": 'LAT',
+    'lamour': 'LAT',
+    'bar bea': 'BEA',
+    'barbea': 'BEA',
+  };
+  
+  // Try exact match first
+  if (knownAbbrevs[nameLower]) {
+    return knownAbbrevs[nameLower];
+  }
+  
+  // Try normalized match
+  const normalized = normalizeLocationName(name);
+  return knownAbbrevs[normalized] || undefined;
+}
+
+/**
+ * Normalize location name for matching (remove special chars, lowercase, trim)
+ */
+function normalizeLocationName(name: string): string {
+  if (!name) return '';
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '') // Remove all non-alphanumeric
+    .trim();
+}
+
+/**
+ * Check if two location names match (handles variations)
+ */
+function locationNamesMatch(name1: string, name2: string): boolean {
+  const norm1 = normalizeLocationName(name1);
+  const norm2 = normalizeLocationName(name2);
+  
+  // Exact match after normalization
+  if (norm1 === norm2) return true;
+  
+  // Check if one contains the other (for partial matches)
+  if (norm1.length > 3 && norm2.length > 3) {
+    if (norm1.includes(norm2) || norm2.includes(norm1)) return true;
+  }
+  
+  return false;
+}
+
 interface UnifiedLocation {
   _id?: ObjectId;
   // Primary ID (from internal Location model)
@@ -43,6 +101,9 @@ interface UnifiedLocation {
   
   // Unified canonical name (prefer internal, fallback to Eitje)
   canonicalName: string;
+  
+  // Abbreviation (e.g., VKB, BEA, LAT)
+  abbreviation?: string;
   
   // Metadata
   isActive: boolean;
@@ -120,6 +181,27 @@ export async function syncUnifiedLocations(): Promise<{ created: number; updated
   await dbConnect();
   const db = await getDatabase();
   
+  // Get all existing unified locations first to prevent duplicates
+  const existingUnified = await db.collection('unified_location').find({}).toArray();
+  const existingByCanonicalName = new Map<string, UnifiedLocation>();
+  const existingByEitjeId = new Map<number, UnifiedLocation>();
+  const existingByPrimaryId = new Map<string, UnifiedLocation>();
+  
+  for (const existing of existingUnified) {
+    const canonicalName = (existing.canonicalName || '').toLowerCase().trim();
+    if (canonicalName) {
+      existingByCanonicalName.set(canonicalName, existing as UnifiedLocation);
+    }
+    if (existing.eitjeIds && Array.isArray(existing.eitjeIds)) {
+      for (const eitjeId of existing.eitjeIds) {
+        existingByEitjeId.set(Number(eitjeId), existing as UnifiedLocation);
+      }
+    }
+    if (existing.primaryId) {
+      existingByPrimaryId.set(existing.primaryId.toString(), existing as UnifiedLocation);
+    }
+  }
+  
   // Get all internal locations (use collection directly to access systemMappings)
   const internalLocations = await db.collection('locations').find({}).toArray();
   
@@ -135,10 +217,14 @@ export async function syncUnifiedLocations(): Promise<{ created: number; updated
   for (const loc of internalLocations) {
     const locId = loc._id.toString();
     
-    if (!unifiedMap.has(locId)) {
-      unifiedMap.set(locId, {
+    // Check if we already have this in existing unified locations
+    let unified: UnifiedLocation | undefined = existingByPrimaryId.get(locId);
+    
+    if (!unified) {
+      const locName = loc.name || 'Unknown';
+      unified = {
         primaryId: loc._id,
-        primaryName: loc.name || 'Unknown',
+        primaryName: locName,
         eitjeIds: [],
         eitjeNames: [],
         allIds: [{
@@ -146,14 +232,21 @@ export async function syncUnifiedLocations(): Promise<{ created: number; updated
           id: loc._id,
           name: loc.name,
         }],
-        canonicalName: loc.name || 'Unknown',
+        canonicalName: locName,
+        abbreviation: getLocationAbbreviation(locName),
         isActive: loc.is_active !== false, // Default to true if not explicitly false
         lastSeen: new Date(),
         updatedAt: new Date(),
-      });
+      };
+    } else {
+      // Update existing
+      unified.primaryName = loc.name || unified.primaryName;
+      unified.isActive = loc.is_active !== false;
+      unified.lastSeen = new Date();
+      unified.updatedAt = new Date();
     }
     
-    const unified = unifiedMap.get(locId)!;
+    unifiedMap.set(locId, unified);
     
     // Check for Eitje mappings in systemMappings
     if (loc.systemMappings && Array.isArray(loc.systemMappings)) {
@@ -182,7 +275,9 @@ export async function syncUnifiedLocations(): Promise<{ created: number; updated
         const unified = unifiedMap.get(locId)!;
         if (!unified.eitjeIds.includes(eitjeId)) {
           unified.eitjeIds.push(eitjeId);
-          unified.eitjeNames.push(eitjeName);
+          if (!unified.eitjeNames.includes(eitjeName)) {
+            unified.eitjeNames.push(eitjeName);
+          }
           unified.allIds.push({
             source: 'eitje',
             id: eitjeId,
@@ -191,11 +286,17 @@ export async function syncUnifiedLocations(): Promise<{ created: number; updated
         }
       }
     } else {
-      // Unmapped Eitje environment - create new unified entry
-      const key = `eitje_${eitjeId}`;
-      if (!unifiedMap.has(key)) {
-        unifiedMap.set(key, {
-          primaryId: new ObjectId(), // Generate new ObjectId for unmapped
+      // Unmapped Eitje environment - find existing by name or eitjeId, or create new
+      const canonicalNameLower = eitjeName.toLowerCase().trim();
+      let unified = existingByEitjeId.get(Number(eitjeId)) || 
+                    existingByCanonicalName.get(canonicalNameLower);
+      
+      if (!unified) {
+        // Create new unified entry with stable primaryId
+        // Use the existing primaryId if found by name, otherwise generate new one
+        const key = `eitje_${eitjeId}`;
+        unified = {
+          primaryId: new ObjectId(), // Will be stable once saved
           primaryName: eitjeName,
           eitjeIds: [eitjeId],
           eitjeNames: [eitjeName],
@@ -205,24 +306,155 @@ export async function syncUnifiedLocations(): Promise<{ created: number; updated
             name: eitjeName,
           }],
           canonicalName: eitjeName,
+          abbreviation: getLocationAbbreviation(eitjeName),
           isActive: true,
           lastSeen: new Date(),
           updatedAt: new Date(),
-        });
+        };
+        unifiedMap.set(key, unified);
+      } else {
+        // Update existing
+        if (!unified.eitjeIds.includes(eitjeId)) {
+          unified.eitjeIds.push(eitjeId);
+        }
+        if (!unified.eitjeNames.includes(eitjeName)) {
+          unified.eitjeNames.push(eitjeName);
+        }
+        unified.lastSeen = new Date();
+        unified.updatedAt = new Date();
+        // Use existing primaryId as key
+        unifiedMap.set(unified.primaryId.toString(), unified);
       }
     }
   }
   
-  // Upsert all unified locations
-  const operations = Array.from(unifiedMap.values()).map((unified) => ({
-    updateOne: {
-      filter: { primaryId: unified.primaryId },
-      update: { $set: unified },
-      upsert: true,
-    }
-  }));
+  // Upsert all unified locations - use canonicalName as fallback key to prevent duplicates
+  const operations = Array.from(unifiedMap.values()).map((unified) => {
+    // Use primaryId if available, otherwise use canonicalName for matching
+    const filter = unified.primaryId 
+      ? { primaryId: unified.primaryId }
+      : { canonicalName: unified.canonicalName };
+    
+    return {
+      updateOne: {
+        filter: filter,
+        update: { $set: unified },
+        upsert: true,
+      }
+    };
+  });
   
-  const result = await db.collection('location_unified').bulkWrite(operations);
+  const result = await db.collection('unified_location').bulkWrite(operations);
+  
+  // Clean up duplicates: merge locations with matching canonical names (handles variations)
+  const allUnified = await db.collection('unified_location').find({}).toArray();
+  const processed = new Set<string>();
+  let mergedCount = 0;
+  
+  for (let i = 0; i < allUnified.length; i++) {
+    const loc = allUnified[i];
+    const locId = loc._id.toString();
+    
+    if (processed.has(locId)) continue;
+    
+    // Find all locations that match this one (by normalized name)
+    const matches: any[] = [loc];
+    const locName = loc.canonicalName || loc.primaryName || '';
+    
+    for (let j = i + 1; j < allUnified.length; j++) {
+      const otherLoc = allUnified[j];
+      const otherId = otherLoc._id.toString();
+      
+      if (processed.has(otherId)) continue;
+      
+      const otherName = otherLoc.canonicalName || otherLoc.primaryName || '';
+      
+      // Check if names match (handles variations)
+      if (locationNamesMatch(locName, otherName)) {
+        matches.push(otherLoc);
+        processed.add(otherId);
+      }
+    }
+    
+    if (matches.length > 1) {
+      // Merge duplicates - keep the best one
+      matches.sort((a, b) => {
+        // Prefer ones with primaryId from internal locations
+        if (a.primaryId && !b.primaryId) return -1;
+        if (!a.primaryId && b.primaryId) return 1;
+        // Prefer ones with more eitjeIds (more complete)
+        const aEitjeCount = (a.eitjeIds || []).length;
+        const bEitjeCount = (b.eitjeIds || []).length;
+        if (aEitjeCount !== bEitjeCount) return bEitjeCount - aEitjeCount;
+        // Prefer older ones
+        return new Date(a.updatedAt || 0).getTime() - new Date(b.updatedAt || 0).getTime();
+      });
+      
+      const keep = matches[0];
+      const merge = matches.slice(1);
+      
+      // Use the most complete canonical name (longest, most descriptive)
+      const bestName = matches.reduce((best, curr) => {
+        const currName = curr.canonicalName || curr.primaryName || '';
+        const bestName = best.canonicalName || best.primaryName || '';
+        return currName.length > bestName.length ? curr : best;
+      }, keep);
+      
+      // Merge eitjeIds, eitjeNames, allIds
+      const mergedEitjeIds = new Set(keep.eitjeIds || []);
+      const mergedEitjeNames = new Set(keep.eitjeNames || []);
+      const mergedAllIds = [...(keep.allIds || [])];
+      
+      for (const dup of merge) {
+        if (dup.eitjeIds) {
+          for (const id of dup.eitjeIds) mergedEitjeIds.add(id);
+        }
+        if (dup.eitjeNames) {
+          for (const name of dup.eitjeNames) mergedEitjeNames.add(name);
+        }
+        if (dup.allIds) {
+          for (const idObj of dup.allIds) {
+            if (!mergedAllIds.find((e: any) => 
+              e.source === idObj.source && 
+              String(e.id) === String(idObj.id)
+            )) {
+              mergedAllIds.push(idObj);
+            }
+          }
+        }
+      }
+      
+      // Update the kept one with merged data and best canonical name
+      await db.collection('unified_location').updateOne(
+        { _id: keep._id },
+        {
+          $set: {
+            canonicalName: bestName.canonicalName || bestName.primaryName,
+            eitjeIds: Array.from(mergedEitjeIds),
+            eitjeNames: Array.from(mergedEitjeNames),
+            allIds: mergedAllIds,
+            abbreviation: getLocationAbbreviation(bestName.canonicalName || bestName.primaryName),
+            updatedAt: new Date(),
+          }
+        }
+      );
+      
+      // Delete the duplicates
+      const duplicateIds = merge.map((d: any) => d._id);
+      await db.collection('unified_location').deleteMany({
+        _id: { $in: duplicateIds }
+      });
+      
+      mergedCount += merge.length;
+      processed.add(locId);
+    } else {
+      processed.add(locId);
+    }
+  }
+  
+  if (mergedCount > 0) {
+    console.log(`[syncUnifiedLocations] Merged ${mergedCount} duplicate locations`);
+  }
   
   return {
     created: result.upsertedCount,
@@ -339,7 +571,7 @@ export async function syncUnifiedTeams(): Promise<{ created: number; updated: nu
     };
   });
   
-  const result = await db.collection('team_unified').bulkWrite(operations);
+  const result = await db.collection('unified_team').bulkWrite(operations);
   
   return {
     created: result.upsertedCount,
@@ -487,7 +719,7 @@ export async function syncUnifiedUsers(): Promise<{ created: number; updated: nu
     };
   });
   
-  const result = await db.collection('user_unified').bulkWrite(operations);
+  const result = await db.collection('unified_user').bulkWrite(operations);
   
   return {
     created: result.upsertedCount,

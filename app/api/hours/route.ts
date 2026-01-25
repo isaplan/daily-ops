@@ -76,6 +76,70 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Aggregate hours from eitje_raw_data
+    const aggregation: any[] = [
+      { 
+        $match: eitjeQuery
+      },
+    ];
+
+    // For location grouping, we need to lookup unified_location FIRST, then group by primaryId
+    if (groupBy === 'location') {
+      // Step 1: Lookup unified_location to get primaryId
+      aggregation.push({
+        $lookup: {
+          from: 'unified_location',
+          let: { 
+            locId: '$locationId',
+            envId: '$environmentId'
+          },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $or: [
+                    // Match by primaryId (ObjectId)
+                    { $eq: ['$primaryId', '$$locId'] },
+                    // Match by eitjeIds when locationId is null (unmapped environments)
+                    { 
+                      $and: [
+                        { $ne: ['$$envId', null] },
+                        { $in: ['$$envId', '$eitjeIds'] }
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          ],
+          as: 'location_unified',
+        },
+      });
+      aggregation.push({
+        $unwind: {
+          path: '$location_unified',
+          preserveNullAndEmptyArrays: true,
+        },
+      });
+      // Step 2: Add unified_primary_id field for grouping
+      aggregation.push({
+        $addFields: {
+          unified_primary_id: {
+            $ifNull: [
+              '$location_unified.primaryId',
+              // Fallback: use locationId if available, otherwise create a key from environmentId
+              {
+                $ifNull: [
+                  '$locationId',
+                  { $concat: ['env_', { $toString: { $ifNull: ['$environmentId', 'unknown'] } }] }
+                ]
+              }
+            ]
+          }
+        }
+      });
+    }
+
     // Build grouping _id based on groupBy parameter
     let groupId: any = {};
     if (groupBy === 'day') {
@@ -111,11 +175,8 @@ export async function GET(request: NextRequest) {
         },
       };
     } else if (groupBy === 'location') {
-      groupId = {
-        location_id: {
-          $ifNull: ['$locationId', null]
-        },
-      };
+      // Group by unified primaryId (already resolved in previous stage)
+      groupId = '$unified_primary_id';
     } else {
       // Default: date + location
       groupId = {
@@ -124,128 +185,77 @@ export async function GET(request: NextRequest) {
       };
     }
 
-    // Aggregate hours from eitje_raw_data
-    const aggregation: any[] = [
-      { 
-        $match: eitjeQuery
-      },
-      {
-        $group: {
-          _id: groupId,
-          // Store environment info for location lookup
-          environment_id: { $first: '$environmentId' },
-          environment_name: {
-            $first: {
+    // Build $group stage object
+    const groupStageObj: any = {
+      _id: groupId,
+      // Store environment info for location lookup
+      environment_id: { $first: '$environmentId' },
+      environment_name: {
+        $first: {
+          $ifNull: [
+            '$extracted.environmentName',
+            {
               $ifNull: [
-                '$extracted.environmentName',
+                '$rawApiResponse.environment_name',
                 {
                   $ifNull: [
-                    '$rawApiResponse.environment_name',
-                    {
-                      $ifNull: [
-                        '$rawApiResponse.environment.name',
-                        null
-                      ]
-                    }
+                    '$rawApiResponse.environment.name',
+                    null
                   ]
                 }
               ]
             }
-          },
-          // Extract hours/revenue based on endpoint type
-          total_hours: { 
-            $sum: {
-              $cond: [
-                { $eq: ['$endpoint', 'time_registration_shifts'] },
-                // For time_registration_shifts: calculate hours from start/end times
+          ]
+        }
+      },
+      // Extract hours/revenue based on endpoint type
+      total_hours: { 
+        $sum: {
+          $cond: [
+            { $eq: ['$endpoint', 'time_registration_shifts'] },
+            // For time_registration_shifts: calculate hours from start/end times
+            {
+              $ifNull: [
+                { $toDouble: '$extracted.hours' },
                 {
                   $ifNull: [
-                    { $toDouble: '$extracted.hours' },
+                    { $toDouble: '$extracted.hoursWorked' },
                     {
                       $ifNull: [
-                        { $toDouble: '$extracted.hoursWorked' },
+                        { $toDouble: '$rawApiResponse.hours' },
                         {
                           $ifNull: [
-                            { $toDouble: '$rawApiResponse.hours' },
+                            { $toDouble: '$rawApiResponse.hours_worked' },
+                            // Calculate hours from start and end times, minus break time
                             {
-                              $ifNull: [
-                                { $toDouble: '$rawApiResponse.hours_worked' },
-                                // Calculate hours from start and end times, minus break time
+                              $cond: [
                                 {
-                                  $cond: [
+                                  $and: [
+                                    { $ne: ['$rawApiResponse.start', null] },
+                                    { $ne: ['$rawApiResponse.end', null] }
+                                  ]
+                                },
+                                {
+                                  $subtract: [
                                     {
-                                      $and: [
-                                        { $ne: ['$rawApiResponse.start', null] },
-                                        { $ne: ['$rawApiResponse.end', null] }
-                                      ]
-                                    },
-                                    {
-                                      $subtract: [
+                                      $divide: [
                                         {
-                                          $divide: [
-                                            {
-                                              $subtract: [
-                                                { $toDate: '$rawApiResponse.end' },
-                                                { $toDate: '$rawApiResponse.start' }
-                                              ]
-                                            },
-                                            3600000 // milliseconds to hours
+                                          $subtract: [
+                                            { $toDate: '$rawApiResponse.end' },
+                                            { $toDate: '$rawApiResponse.start' }
                                           ]
                                         },
-                                        {
-                                          $divide: [
-                                            { $ifNull: [{ $toDouble: '$rawApiResponse.break_minutes' }, 0] },
-                                            60 // break_minutes to hours
-                                          ]
-                                        }
+                                        3600000 // milliseconds to hours
                                       ]
                                     },
-                                    0
+                                    {
+                                      $divide: [
+                                        { $ifNull: [{ $toDouble: '$rawApiResponse.break_minutes' }, 0] },
+                                        60 // break_minutes to hours
+                                      ]
+                                    }
                                   ]
-                                }
-                              ]
-                            }
-                          ]
-                        }
-                      ]
-                    }
-                  ]
-                },
-                // For revenue_days: extract revenue as "hours" (for display consistency)
-                {
-                  $cond: [
-                    { $ne: ['$extracted.revenue', null] },
-                    { $toDouble: '$extracted.revenue' },
-                    {
-                      $cond: [
-                        { $ne: ['$rawApiResponse.revenue', null] },
-                        { $toDouble: '$rawApiResponse.revenue' },
-                        0
-                      ]
-                    }
-                  ]
-                }
-              ]
-            }
-          },
-          // Extract cost/revenue based on endpoint type
-          total_cost: { 
-            $sum: {
-              $cond: [
-                { $eq: ['$endpoint', 'time_registration_shifts'] },
-                // For time_registration_shifts: extract cost (try multiple field paths)
-                {
-                  $ifNull: [
-                    { $divide: [{ $toDouble: '$extracted.amountInCents' }, 100] },
-                    {
-                      $ifNull: [
-                        { $divide: [{ $toDouble: '$rawApiResponse.amt_in_cents' }, 100] },
-                        {
-                          $ifNull: [
-                            { $toDouble: '$extracted.amount' },
-                            {
-                              $ifNull: [
-                                { $toDouble: '$rawApiResponse.amount' },
+                                },
                                 0
                               ]
                             }
@@ -254,69 +264,181 @@ export async function GET(request: NextRequest) {
                       ]
                     }
                   ]
-                },
-                // For revenue_days: extract revenue as cost
+                }
+              ]
+            },
+            // For revenue_days: extract revenue as "hours" (for display consistency)
+            {
+              $cond: [
+                { $ne: ['$extracted.revenue', null] },
+                { $toDouble: '$extracted.revenue' },
                 {
                   $cond: [
-                    { $ne: ['$extracted.revenue', null] },
-                    { $toDouble: '$extracted.revenue' },
+                    { $ne: ['$rawApiResponse.revenue', null] },
+                    { $toDouble: '$rawApiResponse.revenue' },
+                    0
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      },
+      // Extract cost/revenue based on endpoint type
+      total_cost: { 
+        $sum: {
+          $cond: [
+            { $eq: ['$endpoint', 'time_registration_shifts'] },
+            // For time_registration_shifts: extract cost (try multiple field paths)
+            {
+              $ifNull: [
+                { $divide: [{ $toDouble: '$extracted.amountInCents' }, 100] },
+                {
+                  $ifNull: [
+                    { $divide: [{ $toDouble: '$rawApiResponse.amt_in_cents' }, 100] },
                     {
-                      $cond: [
-                        { $ne: ['$rawApiResponse.revenue', null] },
-                        { $toDouble: '$rawApiResponse.revenue' },
-                        0
+                      $ifNull: [
+                        { $toDouble: '$extracted.amount' },
+                        {
+                          $ifNull: [
+                            { $toDouble: '$rawApiResponse.amount' },
+                            0
+                          ]
+                        }
                       ]
                     }
                   ]
                 }
               ]
-            }
-          },
-          record_count: { $sum: 1 },
-          // Count distinct locations, workers, teams for summary stats
-          location_ids: { $addToSet: '$locationId' },
-          worker_ids: {
-            $addToSet: {
-              $ifNull: [
-                '$extracted.userId',
+            },
+            // For revenue_days: extract revenue as cost
+            {
+              $cond: [
+                { $ne: ['$extracted.revenue', null] },
+                { $toDouble: '$extracted.revenue' },
                 {
-                  $ifNull: [
-                    '$rawApiResponse.user_id',
-                    '$rawApiResponse.user.id'
+                  $cond: [
+                    { $ne: ['$rawApiResponse.revenue', null] },
+                    { $toDouble: '$rawApiResponse.revenue' },
+                    0
                   ]
                 }
               ]
             }
-          },
-          team_ids: {
-            $addToSet: {
-              $ifNull: [
-                '$extracted.teamId',
-                {
-                  $ifNull: [
-                    '$rawApiResponse.team_id',
-                    '$rawApiResponse.team.id'
-                  ]
-                }
-              ]
-            }
-          },
-        },
+          ]
+        }
       },
-    ];
+      record_count: { $sum: 1 },
+      // Count distinct locations, workers, teams for summary stats
+      location_ids: { $addToSet: '$locationId' },
+      worker_ids: {
+        $addToSet: {
+          $ifNull: [
+            '$extracted.userId',
+            {
+              $ifNull: [
+                '$rawApiResponse.user_id',
+                '$rawApiResponse.user.id'
+              ]
+            }
+          ]
+        }
+      },
+      team_ids: {
+        $addToSet: {
+          $ifNull: [
+            '$extracted.teamId',
+            {
+              $ifNull: [
+                '$rawApiResponse.team_id',
+                '$rawApiResponse.team.id'
+              ]
+            }
+          ]
+        }
+      },
+    };
+
+    // For location grouping, preserve unified location data
+    if (groupBy === 'location') {
+      groupStageObj.location_unified_data = { $first: '$location_unified' };
+    }
+
+    // Add the $group stage
+    aggregation.push({
+      $group: groupStageObj,
+    });
 
     // Add lookups based on groupBy
-    if (groupBy === 'location' || groupBy === 'date_location') {
-      // First try unified locations collection by primaryId
+    // For location grouping, unified_location lookup is already done before $group
+    // The location_unified data is preserved in the $group stage
+    if (groupBy === 'location') {
+      // Use the preserved location_unified_data from $group stage
+      aggregation.push({
+        $addFields: {
+          location_unified: '$location_unified_data'
+        }
+      });
+      // Lookup unified_location again using the primaryId from _id (fallback if not preserved)
       aggregation.push({
         $lookup: {
-          from: 'location_unified',
-          let: { locId: '$_id.location_id' },
+          from: 'unified_location',
+          localField: '_id',
+          foreignField: 'primaryId',
+          as: 'location_unified_fallback',
+        },
+      });
+      aggregation.push({
+        $addFields: {
+          location_unified: {
+            $ifNull: ['$location_unified', { $arrayElemAt: ['$location_unified_fallback', 0] }]
+          }
+        }
+      });
+      aggregation.push({
+        $project: {
+          location_unified_fallback: 0
+        }
+      });
+      // Fallback to regular locations collection
+      aggregation.push({
+        $lookup: {
+          from: 'locations',
+          localField: '_id',
+          foreignField: '_id',
+          as: 'location',
+        },
+      });
+      aggregation.push({
+        $unwind: {
+          path: '$location',
+          preserveNullAndEmptyArrays: true,
+        },
+      });
+    } else if (groupBy === 'date_location') {
+      // First try unified locations collection by primaryId OR eitjeIds
+      aggregation.push({
+        $lookup: {
+          from: 'unified_location',
+          let: { 
+            locId: '$_id.location_id',
+            envId: '$environment_id'
+          },
           pipeline: [
             {
               $match: {
                 $expr: {
-                  $eq: ['$primaryId', '$$locId']
+                  $or: [
+                    // Match by primaryId (ObjectId)
+                    { $eq: ['$primaryId', '$$locId'] },
+                    // Match by eitjeIds when locationId is null (unmapped environments)
+                    { 
+                      $and: [
+                        { $ne: ['$$envId', null] },
+                        { $in: ['$$envId', '$eitjeIds'] }
+                      ]
+                    }
+                  ]
                 }
               }
             }
@@ -396,7 +518,13 @@ export async function GET(request: NextRequest) {
       projection.date = '$_id.date';
     }
     if (groupBy === 'location' || groupBy === 'date_location') {
-      projection.location_id = '$_id.location_id';
+      // For location grouping, _id is the primaryId (ObjectId)
+      // For date_location grouping, _id is { date, location_id }
+      if (groupBy === 'location') {
+        projection.location_id = '$_id';
+      } else {
+        projection.location_id = '$_id.location_id';
+      }
       projection.environment_name = '$environment_name'; // Include for fallback
       // Use unified location names if available, otherwise fallback to regular location name
       if (groupBy === 'location') {
@@ -406,12 +534,7 @@ export async function GET(request: NextRequest) {
             {
               $ifNull: [
                 '$location.name',
-                {
-                  $ifNull: [
-                    '$environment_name',
-                    'Unknown'
-                  ]
-                }
+                'Unknown'
               ]
             }
           ]
@@ -441,6 +564,8 @@ export async function GET(request: NextRequest) {
             []
           ]
         };
+        // Include abbreviation from unified collection
+        projection.location_abbreviation = '$location_unified.abbreviation';
       } else {
         projection.location_name = {
           $ifNull: [
@@ -550,6 +675,38 @@ export async function GET(request: NextRequest) {
         // Run aggregation on eitje_raw_data collection
         results = await db.collection('eitje_raw_data').aggregate(aggregation).toArray();
         
+        // For location grouping, deduplicate by location_id to ensure unique locations
+        if (groupBy === 'location' && results.length > 0) {
+          const deduplicatedMap = new Map<string, any>();
+          for (const result of results) {
+            const locationId = result.location_id?.toString() || 'unknown';
+            if (deduplicatedMap.has(locationId)) {
+              // Merge duplicate: sum up values
+              const existing = deduplicatedMap.get(locationId);
+              existing.total_hours = (existing.total_hours || 0) + (result.total_hours || 0);
+              existing.total_cost = (existing.total_cost || 0) + (result.total_cost || 0);
+              existing.record_count = (existing.record_count || 0) + (result.record_count || 0);
+              // For worker_count, we can't easily merge without worker_ids, so use the larger value
+              // (The aggregation already counts distinct workers per group, so max is reasonable)
+              existing.worker_count = Math.max(existing.worker_count || 0, result.worker_count || 0);
+              // Keep the first location_name/location_names
+              if (!existing.location_name && result.location_name) {
+                existing.location_name = result.location_name;
+              }
+              if (!existing.location_names && result.location_names) {
+                existing.location_names = result.location_names;
+              }
+              if (!existing.location_abbreviation && result.location_abbreviation) {
+                existing.location_abbreviation = result.location_abbreviation;
+              }
+            } else {
+              deduplicatedMap.set(locationId, { ...result });
+            }
+          }
+          results = Array.from(deduplicatedMap.values());
+          console.log('[Hours API] After deduplication:', results.length, 'unique locations');
+        }
+        
         console.log('[Hours API] Aggregation results count:', results.length);
         if (results.length > 0) {
           console.log('[Hours API] Sample result:', JSON.stringify(results[0], null, 2));
@@ -593,100 +750,24 @@ export async function GET(request: NextRequest) {
       name: loc.name,
     }));
 
-    // Fetch unified locations for location name mapping
-    const locationIds = [...new Set(results.map((r) => r.location_id).filter(Boolean))];
-    const unifiedLocationsMap = new Map<string, string[]>();
-    
-    if (locationIds.length > 0) {
-      try {
-        // Convert location IDs to ObjectIds and numbers for querying
-        const objectIds: mongoose.Types.ObjectId[] = [];
-        const eitjeNumbers: number[] = [];
-        
-        for (const id of locationIds) {
-          try {
-            // Try as ObjectId
-            const objId = new mongoose.Types.ObjectId(id);
-            objectIds.push(objId);
-          } catch {
-            // Try as number (Eitje ID)
-            const num = Number(id);
-            if (!isNaN(num)) {
-              eitjeNumbers.push(num);
-            }
-          }
-        }
-        
-        // Build query conditions
-        const queryConditions: Array<{ primaryId?: { $in: mongoose.Types.ObjectId[] }; eitjeIds?: { $in: number[] } }> = [];
-        if (objectIds.length > 0) {
-          queryConditions.push({ primaryId: { $in: objectIds } });
-        }
-        if (eitjeNumbers.length > 0) {
-          queryConditions.push({ eitjeIds: { $in: eitjeNumbers } });
-        }
-        
-        if (queryConditions.length > 0) {
-          const unifiedLocations = await db.collection('location_unified')
-            .find({ $or: queryConditions })
-            .toArray();
-          
-          // Build map: location_id -> array of location names (up to 3)
-          for (const unified of unifiedLocations) {
-            const names: string[] = [];
-            
-            // Add canonical name first
-            if (unified.canonicalName) {
-              names.push(unified.canonicalName);
-            }
-            
-            // Add eitje names (up to 2 more to make 3 total)
-            if (unified.eitjeNames && Array.isArray(unified.eitjeNames)) {
-              for (const eitjeName of unified.eitjeNames) {
-                if (names.length >= 3) break;
-                if (eitjeName && !names.includes(eitjeName)) {
-                  names.push(eitjeName);
-                }
-              }
-            }
-            
-            // Add from allIds if we still need more
-            if (names.length < 3 && unified.allIds && Array.isArray(unified.allIds)) {
-              for (const idEntry of unified.allIds) {
-                if (names.length >= 3) break;
-                if (idEntry.name && !names.includes(idEntry.name)) {
-                  names.push(idEntry.name);
-                }
-              }
-            }
-            
-            // Map by primaryId (as string)
-            if (unified.primaryId) {
-              const primaryIdStr = unified.primaryId.toString();
-              unifiedLocationsMap.set(primaryIdStr, names);
-            }
-            
-            // Also map by eitjeIds (as strings)
-            if (unified.eitjeIds && Array.isArray(unified.eitjeIds)) {
-              for (const eitjeId of unified.eitjeIds) {
-                unifiedLocationsMap.set(eitjeId.toString(), names);
-              }
-            }
-          }
-        }
-      } catch (unifiedError) {
-        console.error('Error fetching unified locations:', unifiedError);
-      }
-    }
-
     // Convert location_id in results to string and ensure location_name is set
+    // Also handle environment-based grouping (location_id starting with "env_")
     const resultsWithStringIds = results.map((result) => {
       const locationIdStr = result.location_id?.toString() || '';
-      const unifiedNames = unifiedLocationsMap.get(locationIdStr) || [];
       
-      // Get up to 3 location names from unified collection, or fallback to single name
-      const location_names = unifiedNames.length > 0 
-        ? unifiedNames.slice(0, 3)
+      // If location_id starts with "env_", extract the environment ID for lookup
+      let envIdForLookup: number | null = null;
+      if (locationIdStr.startsWith('env_')) {
+        const envIdStr = locationIdStr.replace('env_', '');
+        envIdForLookup = Number(envIdStr);
+        if (isNaN(envIdForLookup)) {
+          envIdForLookup = null;
+        }
+      }
+      
+      // Get location names and abbreviation from result (already populated by aggregation)
+      const location_names = result.location_names && Array.isArray(result.location_names) && result.location_names.length > 0
+        ? result.location_names.slice(0, 3)
         : result.location_name 
           ? [result.location_name]
           : ['Unknown'];
@@ -696,6 +777,7 @@ export async function GET(request: NextRequest) {
         location_id: locationIdStr,
         location_name: result.location_name || location_names[0] || 'Unknown',
         location_names: location_names, // Array of up to 3 names
+        location_abbreviation: result.location_abbreviation || undefined,
         // Ensure numeric values are properly set (not null/undefined)
         total_hours: result.total_hours || 0,
         total_cost: result.total_cost || 0,
