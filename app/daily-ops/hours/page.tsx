@@ -33,6 +33,7 @@ interface HoursData {
   location_id: string;
   location_name: string;
   location_names?: string[]; // Array of up to 3 location names from unified collection
+  location_abbreviation?: string; // Abbreviation (VKB, BEA, LAT)
   total_hours: number;
   total_cost: number;
   record_count: number;
@@ -87,7 +88,7 @@ export default function HoursPage() {
       params.append('sortBy', filters.sortBy);
       params.append('sortOrder', filters.sortOrder);
 
-      const response = await fetch(`/api/hours?${params.toString()}`);
+      const response = await fetch(`/api/hours-aggregated?${params.toString()}`);
       if (response.ok) {
         const result = await response.json();
         if (result.success) {
@@ -159,11 +160,16 @@ export default function HoursPage() {
             ? [row.location_name]
             : ['Unknown'];
         
+        const abbreviation = row.location_abbreviation;
+        
         return (
           <div className="space-y-1">
             {names.slice(0, 3).map((name, idx) => (
               <div key={idx} className="text-sm">
                 {name}
+                {abbreviation && idx === 0 && (
+                  <span className="ml-2 text-xs text-muted-foreground">({abbreviation})</span>
+                )}
               </div>
             ))}
           </div>

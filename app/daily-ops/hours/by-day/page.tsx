@@ -65,7 +65,7 @@ export default function HoursByDayPage() {
       params.append('sortBy', filters.sortBy);
       params.append('sortOrder', filters.sortOrder);
 
-      const response = await fetch(`/api/hours?${params.toString()}`);
+      const response = await fetch(`/api/hours-aggregated?${params.toString()}`);
       if (response.ok) {
         const result = await response.json();
         if (result.success) {

@@ -1,9 +1,9 @@
 /**
  * @registry-id: hoursAPI
  * @created: 2026-01-22T00:00:00.000Z
- * @last-modified: 2026-01-22T00:00:00.000Z
- * @description: API route for hours data - aggregated by day and location
- * @last-fix: [2026-01-22] Initial implementation
+ * @last-modified: 2026-01-25T18:00:00.000Z
+ * @description: API route for hours data - aggregated by day and location. Calculates cost from hours * hourly_rate via Member lookup
+ * @last-fix: [2026-01-25] Updated to use unified_user.hourly_rate directly (no Member lookup). unified_user now contains all master data (hourly_rate, contract_type, etc.) for cost calculations.
  * 
  * @imports-from:
  *   - app/lib/mongodb.ts => dbConnect
@@ -83,6 +83,198 @@ export async function GET(request: NextRequest) {
       },
     ];
 
+    // For time_registration_shifts, lookup member hourly_rate via unified_user to calculate cost
+    // We need to do this BEFORE grouping so we can calculate cost per record
+    if (endpoint === 'time_registration_shifts') {
+      // Extract userId for unified_user lookup
+      aggregation.push({
+        $addFields: {
+          extracted_user_id: {
+            $ifNull: [
+              '$extracted.userId',
+              {
+                $ifNull: [
+                  '$rawApiResponse.user_id',
+                  '$rawApiResponse.user.id'
+                ]
+              }
+            ]
+          },
+          extracted_user_email: {
+            $ifNull: [
+              '$extracted.userEmail',
+              {
+                $ifNull: [
+                  '$rawApiResponse.user_email',
+                  {
+                    $ifNull: [
+                      '$rawApiResponse.user.email',
+                      '$rawApiResponse.email'
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      });
+
+      // Lookup unified_user by eitjeId (userId) or email - this contains all master data (hourly_rate, contract_type, etc.)
+      aggregation.push({
+        $lookup: {
+          from: 'unified_user',
+          let: { 
+            userId: {
+              $cond: [
+                { $eq: [{ $type: '$extracted_user_id' }, 'number'] },
+                '$extracted_user_id',
+                {
+                  $cond: [
+                    { $eq: [{ $type: '$extracted_user_id' }, 'string'] },
+                    { $toInt: { $ifNull: ['$extracted_user_id', '0'] } },
+                    null
+                  ]
+                }
+              ]
+            },
+            userEmail: { $toLower: { $ifNull: ['$extracted_user_email', ''] } }
+          },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $or: [
+                    // Match by eitjeId (userId from time_registration_shifts)
+                    { 
+                      $and: [
+                        { $ne: ['$$userId', null] },
+                        { $in: ['$$userId', '$eitjeIds'] }
+                      ]
+                    },
+                    // Match by email (fallback)
+                    {
+                      $and: [
+                        { $ne: ['$$userEmail', ''] },
+                        { $eq: [{ $toLower: '$canonicalEmail' }, '$$userEmail'] }
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          ],
+          as: 'user_unified',
+        },
+      });
+
+      aggregation.push({
+        $unwind: {
+          path: '$user_unified',
+          preserveNullAndEmptyArrays: true,
+        },
+      });
+
+      // Calculate hours per record (same logic as in $group)
+      aggregation.push({
+        $addFields: {
+          calculated_hours: {
+            $ifNull: [
+              { $toDouble: '$extracted.hours' },
+              {
+                $ifNull: [
+                  { $toDouble: '$extracted.hoursWorked' },
+                  {
+                    $ifNull: [
+                      { $toDouble: '$rawApiResponse.hours' },
+                      {
+                        $ifNull: [
+                          { $toDouble: '$rawApiResponse.hours_worked' },
+                          // Calculate hours from start and end times, minus break time
+                          {
+                            $cond: [
+                              {
+                                $and: [
+                                  { $ne: ['$rawApiResponse.start', null] },
+                                  { $ne: ['$rawApiResponse.end', null] }
+                                ]
+                              },
+                              {
+                                $subtract: [
+                                  {
+                                    $divide: [
+                                      {
+                                        $subtract: [
+                                          { $toDate: '$rawApiResponse.end' },
+                                          { $toDate: '$rawApiResponse.start' }
+                                        ]
+                                      },
+                                      3600000 // milliseconds to hours
+                                    ]
+                                  },
+                                  {
+                                    $divide: [
+                                      { $ifNull: [{ $toDouble: '$rawApiResponse.break_minutes' }, 0] },
+                                      60 // break_minutes to hours
+                                    ]
+                                  }
+                                ]
+                              },
+                              0
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          // Calculate cost: hours * hourly_rate (from unified_user master data)
+          // unified_user contains hourly_rate, contract_type, etc. - no need for Member lookup
+          calculated_cost: {
+            $cond: [
+              {
+                $and: [
+                  { $ne: ['$user_unified.hourly_rate', null] },
+                  { $gt: ['$user_unified.hourly_rate', 0] }
+                ]
+              },
+              // Use hourly_rate from unified_user * calculated_hours
+              {
+                $multiply: [
+                  '$calculated_hours',
+                  '$user_unified.hourly_rate'
+                ]
+              },
+              // Fall back to amount fields if hourly_rate not available in unified_user
+              {
+                $ifNull: [
+                  { $divide: [{ $toDouble: '$extracted.amountInCents' }, 100] },
+                  {
+                    $ifNull: [
+                      { $divide: [{ $toDouble: '$rawApiResponse.amt_in_cents' }, 100] },
+                      {
+                        $ifNull: [
+                          { $toDouble: '$extracted.amount' },
+                          {
+                            $ifNull: [
+                              { $toDouble: '$rawApiResponse.amount' },
+                              0
+                            ]
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      });
+    }
+
     // For location grouping, we need to lookup unified_location FIRST, then group by primaryId
     if (groupBy === 'location') {
       // Step 1: Lookup unified_location to get primaryId
@@ -140,6 +332,100 @@ export async function GET(request: NextRequest) {
       });
     }
 
+    // For team grouping, we need to lookup unified_team FIRST, then group by primaryId
+    if (groupBy === 'team') {
+      // Step 1: Extract team_id from various possible fields
+      aggregation.push({
+        $addFields: {
+          extracted_team_id: {
+            $ifNull: [
+              '$extracted.teamId',
+              {
+                $ifNull: [
+                  '$rawApiResponse.team_id',
+                  '$rawApiResponse.team.id'
+                ]
+              }
+            ]
+          }
+        }
+      });
+      // Step 2: Lookup unified_team to get primaryId
+      aggregation.push({
+        $lookup: {
+          from: 'unified_team',
+          let: { 
+            teamId: '$extracted_team_id'
+          },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $or: [
+                    // Match by primaryId (ObjectId) if teamId is an ObjectId
+                    { 
+                      $and: [
+                        { $ne: ['$$teamId', null] },
+                        { $eq: ['$primaryId', '$$teamId'] }
+                      ]
+                    },
+                    // Match by eitjeIds - try converting teamId to number
+                    { 
+                      $and: [
+                        { $ne: ['$$teamId', null] },
+                        { 
+                          $in: [
+                            {
+                              $cond: [
+                                { $eq: [{ $type: '$$teamId' }, 'number'] },
+                                '$$teamId',
+                                {
+                                  $cond: [
+                                    { $eq: [{ $type: '$$teamId' }, 'string'] },
+                                    { $toInt: { $ifNull: ['$$teamId', '0'] } },
+                                    null
+                                  ]
+                                }
+                              ]
+                            },
+                            '$eitjeIds'
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          ],
+          as: 'team_unified',
+        },
+      });
+      aggregation.push({
+        $unwind: {
+          path: '$team_unified',
+          preserveNullAndEmptyArrays: true,
+        },
+      });
+      // Step 3: Add unified_primary_id field for grouping
+      aggregation.push({
+        $addFields: {
+          unified_team_primary_id: {
+            $ifNull: [
+              '$team_unified.primaryId',
+              // Fallback: use extracted_team_id if available, otherwise create a key
+              {
+                $ifNull: [
+                  '$extracted_team_id',
+                  { $concat: ['team_', { $toString: { $ifNull: ['$environmentId', 'unknown'] } }] }
+                ]
+              }
+            ]
+          }
+        }
+      });
+    }
+
     // Build grouping _id based on groupBy parameter
     let groupId: any = {};
     if (groupBy === 'day') {
@@ -161,19 +447,8 @@ export async function GET(request: NextRequest) {
         },
       };
     } else if (groupBy === 'team') {
-      groupId = {
-        team_id: {
-          $ifNull: [
-            '$extracted.teamId',
-            {
-              $ifNull: [
-                '$rawApiResponse.team_id',
-                '$rawApiResponse.team.id'
-              ]
-            }
-          ]
-        },
-      };
+      // Group by unified_team_primary_id (already resolved in previous stage)
+      groupId = '$unified_team_primary_id';
     } else if (groupBy === 'location') {
       // Group by unified primaryId (already resolved in previous stage)
       groupId = '$unified_primary_id';
@@ -213,50 +488,56 @@ export async function GET(request: NextRequest) {
         $sum: {
           $cond: [
             { $eq: ['$endpoint', 'time_registration_shifts'] },
-            // For time_registration_shifts: calculate hours from start/end times
+            // For time_registration_shifts: use calculated_hours if available (from member lookup stage),
+            // otherwise calculate hours from start/end times
             {
               $ifNull: [
-                { $toDouble: '$extracted.hours' },
+                '$calculated_hours',
                 {
                   $ifNull: [
-                    { $toDouble: '$extracted.hoursWorked' },
+                    { $toDouble: '$extracted.hours' },
                     {
                       $ifNull: [
-                        { $toDouble: '$rawApiResponse.hours' },
+                        { $toDouble: '$extracted.hoursWorked' },
                         {
                           $ifNull: [
-                            { $toDouble: '$rawApiResponse.hours_worked' },
-                            // Calculate hours from start and end times, minus break time
+                            { $toDouble: '$rawApiResponse.hours' },
                             {
-                              $cond: [
+                              $ifNull: [
+                                { $toDouble: '$rawApiResponse.hours_worked' },
+                                // Calculate hours from start and end times, minus break time
                                 {
-                                  $and: [
-                                    { $ne: ['$rawApiResponse.start', null] },
-                                    { $ne: ['$rawApiResponse.end', null] }
-                                  ]
-                                },
-                                {
-                                  $subtract: [
+                                  $cond: [
                                     {
-                                      $divide: [
-                                        {
-                                          $subtract: [
-                                            { $toDate: '$rawApiResponse.end' },
-                                            { $toDate: '$rawApiResponse.start' }
-                                          ]
-                                        },
-                                        3600000 // milliseconds to hours
+                                      $and: [
+                                        { $ne: ['$rawApiResponse.start', null] },
+                                        { $ne: ['$rawApiResponse.end', null] }
                                       ]
                                     },
                                     {
-                                      $divide: [
-                                        { $ifNull: [{ $toDouble: '$rawApiResponse.break_minutes' }, 0] },
-                                        60 // break_minutes to hours
+                                      $subtract: [
+                                        {
+                                          $divide: [
+                                            {
+                                              $subtract: [
+                                                { $toDate: '$rawApiResponse.end' },
+                                                { $toDate: '$rawApiResponse.start' }
+                                              ]
+                                            },
+                                            3600000 // milliseconds to hours
+                                          ]
+                                        },
+                                        {
+                                          $divide: [
+                                            { $ifNull: [{ $toDouble: '$rawApiResponse.break_minutes' }, 0] },
+                                            60 // break_minutes to hours
+                                          ]
+                                        }
                                       ]
-                                    }
+                                    },
+                                    0
                                   ]
-                                },
-                                0
+                                }
                               ]
                             }
                           ]
@@ -289,20 +570,26 @@ export async function GET(request: NextRequest) {
         $sum: {
           $cond: [
             { $eq: ['$endpoint', 'time_registration_shifts'] },
-            // For time_registration_shifts: extract cost (try multiple field paths)
+            // For time_registration_shifts: use calculated_cost (hours * hourly_rate) if available,
+            // otherwise fall back to amount fields
             {
               $ifNull: [
-                { $divide: [{ $toDouble: '$extracted.amountInCents' }, 100] },
+                '$calculated_cost',
                 {
                   $ifNull: [
-                    { $divide: [{ $toDouble: '$rawApiResponse.amt_in_cents' }, 100] },
+                    { $divide: [{ $toDouble: '$extracted.amountInCents' }, 100] },
                     {
                       $ifNull: [
-                        { $toDouble: '$extracted.amount' },
+                        { $divide: [{ $toDouble: '$rawApiResponse.amt_in_cents' }, 100] },
                         {
                           $ifNull: [
-                            { $toDouble: '$rawApiResponse.amount' },
-                            0
+                            { $toDouble: '$extracted.amount' },
+                            {
+                              $ifNull: [
+                                { $toDouble: '$rawApiResponse.amount' },
+                                0
+                              ]
+                            }
                           ]
                         }
                       ]
@@ -362,6 +649,11 @@ export async function GET(request: NextRequest) {
     // For location grouping, preserve unified location data
     if (groupBy === 'location') {
       groupStageObj.location_unified_data = { $first: '$location_unified' };
+    }
+    // For team grouping, preserve unified team data
+    if (groupBy === 'team') {
+      groupStageObj.team_unified_data = { $first: '$team_unified' };
+      groupStageObj.extracted_team_id = { $first: '$extracted_team_id' };
     }
 
     // Add the $group stage
@@ -487,10 +779,100 @@ export async function GET(request: NextRequest) {
     }
 
     if (groupBy === 'team') {
+      // Use the preserved team_unified_data from $group stage
+      aggregation.push({
+        $addFields: {
+          team_unified: '$team_unified_data'
+        }
+      });
+      // Lookup unified_team again using the primaryId from _id OR by eitjeIds (fallback if not preserved)
+      aggregation.push({
+        $lookup: {
+          from: 'unified_team',
+          let: { 
+            teamId: '$_id',
+            extractedTeamId: '$extracted_team_id'
+          },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $or: [
+                    // Match by primaryId (ObjectId) if _id is ObjectId
+                    { $eq: ['$primaryId', '$$teamId'] },
+                    // Match by eitjeIds if _id is a number/string (eitjeId)
+                    {
+                      $and: [
+                        { $ne: ['$$teamId', null] },
+                        {
+                          $in: [
+                            {
+                              $cond: [
+                                { $eq: [{ $type: '$$teamId' }, 'number'] },
+                                '$$teamId',
+                                {
+                                  $cond: [
+                                    { $eq: [{ $type: '$$teamId' }, 'string'] },
+                                    { $toInt: { $ifNull: ['$$teamId', '0'] } },
+                                    null
+                                  ]
+                                }
+                              ]
+                            },
+                            '$eitjeIds'
+                          ]
+                        }
+                      ]
+                    },
+                    // Also try extracted_team_id as fallback
+                    {
+                      $and: [
+                        { $ne: ['$$extractedTeamId', null] },
+                        {
+                          $in: [
+                            {
+                              $cond: [
+                                { $eq: [{ $type: '$$extractedTeamId' }, 'number'] },
+                                '$$extractedTeamId',
+                                {
+                                  $cond: [
+                                    { $eq: [{ $type: '$$extractedTeamId' }, 'string'] },
+                                    { $toInt: { $ifNull: ['$$extractedTeamId', '0'] } },
+                                    null
+                                  ]
+                                }
+                              ]
+                            },
+                            '$eitjeIds'
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          ],
+          as: 'team_unified_fallback',
+        },
+      });
+      aggregation.push({
+        $addFields: {
+          team_unified: {
+            $ifNull: ['$team_unified', { $arrayElemAt: ['$team_unified_fallback', 0] }]
+          }
+        }
+      });
+      aggregation.push({
+        $project: {
+          team_unified_fallback: 0
+        }
+      });
+      // Fallback to regular teams collection
       aggregation.push({
         $lookup: {
           from: 'teams',
-          localField: '_id.team_id',
+          localField: '_id',
           foreignField: '_id',
           as: 'team',
         },
@@ -585,8 +967,25 @@ export async function GET(request: NextRequest) {
       projection.worker_name = { $ifNull: ['$worker.name', 'Unknown'] };
     }
     if (groupBy === 'team') {
-      projection.team_id = '$_id.team_id';
-      projection.team_name = { $ifNull: ['$team.name', 'Unknown'] };
+      // For team grouping, _id is the primaryId (ObjectId) or extracted_team_id
+      projection.team_id = {
+        $ifNull: [
+          { $toString: '$_id' },
+          '$extracted_team_id'
+        ]
+      };
+      // Use unified team canonical name if available, otherwise fallback to regular team name
+      projection.team_name = {
+        $ifNull: [
+          '$team_unified.canonicalName',
+          {
+            $ifNull: [
+              '$team.name',
+              'Unknown'
+            ]
+          }
+        ]
+      };
     }
 
     aggregation.push({
@@ -658,11 +1057,16 @@ export async function GET(request: NextRequest) {
           console.log('[Hours API] - extracted.hoursWorked:', sampleDoc.extracted?.hoursWorked);
           console.log('[Hours API] - extracted.amount:', sampleDoc.extracted?.amount);
           console.log('[Hours API] - extracted.amountInCents:', sampleDoc.extracted?.amountInCents);
+              console.log('[Hours API] - extracted.userId:', sampleDoc.extracted?.userId);
+              console.log('[Hours API] - extracted.userEmail:', sampleDoc.extracted?.userEmail);
+              console.log('[Hours API] - extracted.hourlyRate:', sampleDoc.extracted?.hourlyRate);
           console.log('[Hours API] - rawApiResponse keys:', Object.keys(sampleDoc.rawApiResponse || {}));
           if (sampleDoc.rawApiResponse) {
           console.log('[Hours API] - rawApiResponse.start:', sampleDoc.rawApiResponse.start);
           console.log('[Hours API] - rawApiResponse.end:', sampleDoc.rawApiResponse.end);
           console.log('[Hours API] - rawApiResponse.break_minutes:', sampleDoc.rawApiResponse.break_minutes);
+          console.log('[Hours API] - rawApiResponse.user_id:', sampleDoc.rawApiResponse.user_id);
+          console.log('[Hours API] - rawApiResponse.user?.id:', sampleDoc.rawApiResponse.user?.id);
           if (sampleDoc.rawApiResponse.start && sampleDoc.rawApiResponse.end) {
             const start = new Date(sampleDoc.rawApiResponse.start);
             const end = new Date(sampleDoc.rawApiResponse.end);
@@ -710,6 +1114,31 @@ export async function GET(request: NextRequest) {
         console.log('[Hours API] Aggregation results count:', results.length);
         if (results.length > 0) {
           console.log('[Hours API] Sample result:', JSON.stringify(results[0], null, 2));
+          // Debug cost calculation for time_registration_shifts
+          if (endpoint === 'time_registration_shifts' && results[0].total_cost === 0) {
+            console.log('[Hours API] WARNING: total_cost is 0. Checking if unified_user lookup is working...');
+            // Check a sample document after member lookup stage
+            const debugPipeline = aggregation.slice(0, aggregation.findIndex((stage: any) => stage.$group));
+            const debugSample = await db.collection('eitje_raw_data').aggregate([
+              { $match: eitjeQuery },
+              { $limit: 1 },
+              ...debugPipeline
+            ]).toArray();
+            const sample = debugSample[0];
+            if (sample) {
+              console.log('[Hours API] Debug sample after unified_user lookup:');
+              console.log('[Hours API] - extracted_user_id:', sample.extracted_user_id);
+              console.log('[Hours API] - extracted_user_email:', sample.extracted_user_email);
+              console.log('[Hours API] - user_unified found:', !!sample.user_unified);
+              console.log('[Hours API] - user_unified.primaryId:', sample.user_unified?.primaryId);
+              console.log('[Hours API] - user_unified.eitjeIds:', sample.user_unified?.eitjeIds);
+              console.log('[Hours API] - user_unified.canonicalName:', sample.user_unified?.canonicalName);
+              console.log('[Hours API] - user_unified.hourly_rate:', sample.user_unified?.hourly_rate);
+              console.log('[Hours API] - user_unified.contract_type:', sample.user_unified?.contract_type);
+              console.log('[Hours API] - calculated_hours:', sample.calculated_hours);
+              console.log('[Hours API] - calculated_cost:', sample.calculated_cost);
+            }
+          }
         } else {
           console.log('[Hours API] No results from aggregation - checking if filter is too strict...');
           // Try aggregation without the zero-value filter to see what we get

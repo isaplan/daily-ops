@@ -134,9 +134,9 @@ export async function GET(request: NextRequest) {
       'eitje_location_aggregation',
       'eitje_user_aggregation',
       'eitje_event_aggregation',
-      'location_unified',
-      'team_unified',
-      'user_unified',
+      'unified_location',
+      'unified_team',
+      'unified_user',
     ];
 
     const stats: Record<string, any> = {};

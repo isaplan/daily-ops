@@ -12,9 +12,9 @@
 
 ## Collections to KEEP AS-IS (no prefix)
 
-- `location_unified` ✅ (covers all sources)
-- `team_unified` ✅ (covers all sources)
-- `user_unified` ✅ (covers all sources)
+- `unified_location` ✅ (covers all sources, renamed from location_unified)
+- `unified_team` ✅ (covers all sources, renamed from team_unified)
+- `unified_user` ✅ (covers all sources, renamed from user_unified)
 - `eitje_raw_data` ✅ (already has prefix)
 
 ---
@@ -97,9 +97,9 @@ const collections = [
   'location_aggregation',
   'user_aggregation',
   'event_aggregation',
-  'location_unified',  // KEEP AS-IS ✅
-  'team_unified',      // KEEP AS-IS ✅
-  'user_unified',      // KEEP AS-IS ✅
+  'unified_location',  // KEEP AS-IS ✅ (renamed from location_unified)
+  'unified_team',      // KEEP AS-IS ✅ (renamed from team_unified)
+  'unified_user',      // KEEP AS-IS ✅ (renamed from user_unified)
 ];
 ```
 **Change to:**
@@ -111,9 +111,9 @@ const collections = [
   'eitje_location_aggregation',
   'eitje_user_aggregation',
   'eitje_event_aggregation',
-  'location_unified',  // KEEP AS-IS ✅
-  'team_unified',      // KEEP AS-IS ✅
-  'user_unified',      // KEEP AS-IS ✅
+  'unified_location',  // KEEP AS-IS ✅ (renamed from location_unified)
+  'unified_team',      // KEEP AS-IS ✅ (renamed from team_unified)
+  'unified_user',      // KEEP AS-IS ✅ (renamed from user_unified)
 ];
 ```
 
@@ -179,7 +179,7 @@ await db.collection('eitje_aggregation_lock').updateOne(
   - 1 aggregation_lock collection (4 references in aggregationTrigger.ts)
 
 **Files NOT affected (unified collections stay as-is):**
-- `app/lib/services/unifiedCollectionsService.ts` ✅ (no changes needed - uses location_unified, team_unified, user_unified)
+- `app/lib/services/unifiedCollectionsService.ts` ✅ (updated - uses unified_location, unified_team, unified_user)
 - `app/api/hours/route.ts` ✅ (uses unified collections, not aggregated ones)
 
 ---

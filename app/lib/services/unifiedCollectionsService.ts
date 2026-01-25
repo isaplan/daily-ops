@@ -1,9 +1,9 @@
 /**
  * @registry-id: unifiedCollectionsService
  * @created: 2026-01-25T00:00:00.000Z
- * @last-modified: 2026-01-25T12:30:00.000Z
+ * @last-modified: 2026-01-25T19:00:00.000Z
  * @description: Service to create unified collections that merge IDs and names from all sources (Eitje, internal models, etc.)
- * @last-fix: [2026-01-25] Fixed duplicate location creation - now matches existing by canonical name/eitjeId and merges duplicates
+ * @last-fix: [2026-01-25] Fixed upsert to use replaceOne instead of updateOne with $set to ensure full document replacement. Fixed name extraction to always prefer non-Unknown names from Eitje. Added allIdValues flat array for easier lookup matching.
  * 
  * @imports-from:
  *   - app/lib/mongodb/v2-connection.ts => getDatabase
@@ -156,7 +156,7 @@ interface UnifiedUser {
   slackId?: string;
   slackUsername?: string;
   
-  // All known IDs across sources
+  // All known IDs across sources (detailed)
   allIds: {
     source: 'internal' | 'eitje' | 'slack';
     id: string | number | ObjectId;
@@ -164,9 +164,20 @@ interface UnifiedUser {
     email?: string;
   }[];
   
+  // FLAT array of all IDs for easy lookup in aggregation $in operations
+  allIdValues?: (string | number | ObjectId)[];
+  
   // Unified canonical name
   canonicalName: string;
   canonicalEmail?: string;
+  
+  // Master data from Eitje users endpoint (for cost calculations and contract allocation)
+  hourly_rate?: number;
+  contract_type?: string;
+  contract_info?: any; // Store full contract object if available
+  team_id?: number; // Eitje team ID from users endpoint
+  team_name?: string; // Team name from users endpoint
+  // Add other master data fields as needed (phone, address, etc.)
   
   // Metadata
   isActive: boolean;
@@ -619,6 +630,8 @@ export async function syncUnifiedUsers(): Promise<{ created: number; updated: nu
       }],
       canonicalName: member.name || 'Unknown',
       canonicalEmail: member.email,
+      // Include hourly_rate from Member if available (synced from Eitje)
+      hourly_rate: (member as any).hourly_rate,
       isActive: member.is_active !== false, // Default to true if not explicitly false
       lastSeen: member.last_seen ? new Date(member.last_seen) : new Date(),
       updatedAt: new Date(),
@@ -635,11 +648,18 @@ export async function syncUnifiedUsers(): Promise<{ created: number; updated: nu
     }
   }
   
-  // Process Eitje users
+  // Process Eitje users - extract master data (hourly_rate, contract_type, etc.)
   for (const user of eitjeUsers) {
     const eitjeId = user.extracted?.id || user.rawApiResponse?.id;
     const eitjeName = user.extracted?.name || user.rawApiResponse?.name || 'Unknown';
     const eitjeEmail = user.extracted?.email || user.rawApiResponse?.email;
+    
+    // Extract master data fields
+    const hourlyRate = user.extracted?.hourlyRate || user.rawApiResponse?.hourly_rate || user.rawApiResponse?.hourly_wage || user.rawApiResponse?.wage || user.rawApiResponse?.rate;
+    const contractType = user.extracted?.contractType || user.rawApiResponse?.contract_type || user.rawApiResponse?.contractType;
+    const contractInfo = user.extracted?.contractInfo || user.rawApiResponse?.contract_info || user.rawApiResponse?.contract;
+    const teamId = user.extracted?.teamId || user.rawApiResponse?.team_id || user.rawApiResponse?.team?.id;
+    const teamName = user.extracted?.teamName || user.rawApiResponse?.team_name || user.rawApiResponse?.team?.name;
     
     if (!eitjeId) continue;
     
@@ -647,7 +667,7 @@ export async function syncUnifiedUsers(): Promise<{ created: number; updated: nu
       const email = eitjeEmail.toLowerCase();
       
       if (unifiedMap.has(email)) {
-        // Match by email
+        // Match by email - update master data
         const unified = unifiedMap.get(email)!;
         if (!unified.eitjeIds.includes(eitjeId)) {
           unified.eitjeIds.push(eitjeId);
@@ -659,7 +679,44 @@ export async function syncUnifiedUsers(): Promise<{ created: number; updated: nu
             name: eitjeName,
             email: eitjeEmail,
           });
+        } else {
+          // Update existing eitje entry if name is better (not "Unknown")
+          const eitjeIndex = unified.eitjeIds.indexOf(eitjeId);
+          if (eitjeIndex >= 0 && eitjeName !== 'Unknown' && unified.eitjeNames[eitjeIndex] === 'Unknown') {
+            unified.eitjeNames[eitjeIndex] = eitjeName;
+            // Update allIds entry
+            const allIdsIndex = unified.allIds.findIndex(a => a.source === 'eitje' && a.id === eitjeId);
+            if (allIdsIndex >= 0) {
+              unified.allIds[allIdsIndex].name = eitjeName;
+            }
+          }
         }
+        // Update canonicalName if we have a better name from Eitje (not "Unknown")
+        // Always prefer Eitje name if it's not "Unknown", even if we have a primaryId
+        if (eitjeName !== 'Unknown') {
+          unified.canonicalName = eitjeName;
+        }
+        // Update master data (prefer Eitje data over internal if available)
+        // Only update hourly_rate if Eitje has it, otherwise keep existing from Member
+        if (hourlyRate !== undefined && hourlyRate !== null) {
+          unified.hourly_rate = typeof hourlyRate === 'number' ? hourlyRate : parseFloat(hourlyRate);
+        } else if (unified.hourly_rate === undefined || unified.hourly_rate === null) {
+          // If unified doesn't have hourly_rate yet, try to get from Member
+          // (This happens when Eitje user exists but Member doesn't have hourly_rate synced)
+        }
+        if (contractType !== undefined && contractType !== null) {
+          unified.contract_type = contractType;
+        }
+        if (contractInfo !== undefined && contractInfo !== null) {
+          unified.contract_info = contractInfo;
+        }
+        if (teamId !== undefined && teamId !== null) {
+          unified.team_id = typeof teamId === 'number' ? teamId : parseInt(teamId);
+        }
+        if (teamName !== undefined && teamName !== null) {
+          unified.team_name = teamName;
+        }
+        unified.updatedAt = new Date();
       } else {
         // New Eitje user
         unifiedMap.set(email, {
@@ -674,6 +731,13 @@ export async function syncUnifiedUsers(): Promise<{ created: number; updated: nu
           }],
           canonicalName: eitjeName,
           canonicalEmail: eitjeEmail,
+          hourly_rate: hourlyRate !== undefined && hourlyRate !== null 
+            ? (typeof hourlyRate === 'number' ? hourlyRate : parseFloat(hourlyRate))
+            : undefined,
+          contract_type: contractType,
+          contract_info: contractInfo,
+          team_id: teamId !== undefined && teamId !== null ? (typeof teamId === 'number' ? teamId : parseInt(teamId)) : undefined,
+          team_name: teamName,
           isActive: true,
           lastSeen: new Date(),
           updatedAt: new Date(),
@@ -693,27 +757,90 @@ export async function syncUnifiedUsers(): Promise<{ created: number; updated: nu
             name: eitjeName,
           }],
           canonicalName: eitjeName,
+          hourly_rate: hourlyRate !== undefined && hourlyRate !== null 
+            ? (typeof hourlyRate === 'number' ? hourlyRate : parseFloat(hourlyRate))
+            : undefined,
+          contract_type: contractType,
+          contract_info: contractInfo,
+          team_id: teamId !== undefined && teamId !== null ? (typeof teamId === 'number' ? teamId : parseInt(teamId)) : undefined,
+          team_name: teamName,
           isActive: true,
           lastSeen: new Date(),
           updatedAt: new Date(),
         });
+      } else {
+        // Update existing user without email
+        const unified = unifiedMap.get(key)!;
+        // Update name if we have a better one (not "Unknown")
+        if (eitjeName !== 'Unknown') {
+          unified.canonicalName = eitjeName;
+          const eitjeIndex = unified.eitjeIds.indexOf(eitjeId);
+          if (eitjeIndex >= 0) {
+            unified.eitjeNames[eitjeIndex] = eitjeName;
+          }
+          const allIdsIndex = unified.allIds.findIndex(a => a.source === 'eitje' && a.id === eitjeId);
+          if (allIdsIndex >= 0) {
+            unified.allIds[allIdsIndex].name = eitjeName;
+          }
+        }
+        if (hourlyRate !== undefined && hourlyRate !== null) {
+          unified.hourly_rate = typeof hourlyRate === 'number' ? hourlyRate : parseFloat(hourlyRate);
+        }
+        if (contractType !== undefined && contractType !== null) {
+          unified.contract_type = contractType;
+        }
+        if (contractInfo !== undefined && contractInfo !== null) {
+          unified.contract_info = contractInfo;
+        }
+        unified.updatedAt = new Date();
       }
     }
   }
   
-  // Upsert all unified users
+  // Upsert all unified users - use replaceOne to ensure full document replacement
   const operations = Array.from(unifiedMap.values()).map((unified) => {
-    // Use primaryId if available, otherwise use canonicalEmail or eitjeId
-    const filterKey = unified.primaryId 
-      ? { primaryId: unified.primaryId }
-      : unified.canonicalEmail
-      ? { canonicalEmail: unified.canonicalEmail }
-      : { eitjeIds: unified.eitjeIds[0] };
+    // Build flat array of all ID values for lookup
+    const allIdValues: (string | number | ObjectId)[] = [];
     
+    if (unified.primaryId) {
+      allIdValues.push(unified.primaryId);
+    }
+    if (unified.eitjeIds && Array.isArray(unified.eitjeIds)) {
+      allIdValues.push(...unified.eitjeIds);
+    }
+    if (unified.slackId) {
+      allIdValues.push(unified.slackId);
+    }
+    
+    const documentToUpsert = {
+      ...unified,
+      allIdValues: allIdValues, // Flat array for $in lookups
+      updatedAt: new Date(), // Always update timestamp
+    };
+    
+    // Build filter that tries multiple matching strategies
+    // Priority: primaryId > canonicalEmail > eitjeIds (any match)
+    let filter: any = {};
+    
+    if (unified.primaryId) {
+      // Primary match - most reliable
+      filter = { primaryId: unified.primaryId };
+    } else if (unified.canonicalEmail) {
+      // Email match - second most reliable
+      filter = { canonicalEmail: unified.canonicalEmail };
+    } else if (unified.eitjeIds && unified.eitjeIds.length > 0) {
+      // Match by any eitjeId
+      filter = { eitjeIds: { $in: unified.eitjeIds } };
+    } else {
+      // Fallback - use first eitjeId if available
+      filter = { eitjeIds: unified.eitjeIds?.[0] };
+    }
+    
+    // Use replaceOne to fully replace the document, ensuring all fields are updated
     return {
-      updateOne: {
-        filter: filterKey,
-        update: { $set: unified },
+      replaceOne: {
+        filter: filter,
+        replacement: documentToUpsert,
         upsert: true,
       }
     };

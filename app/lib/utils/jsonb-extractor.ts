@@ -3,7 +3,7 @@
  * @created: 2026-01-22T00:00:00.000Z
  * @last-modified: 2026-01-25T00:00:00.000Z
  * @description: Utilities to flatten nested JSON (JSONB-style) and extract commonly queried Eitje fields
- * @last-fix: [2026-01-25] Added hourly_rate extraction for users master data
+ * @last-fix: [2026-01-25] Added name, email, contract_type, contract_info, team_id, team_name extraction for users master data
  *
  * @exports-to:
  *   ✓ app/api/eitje/v2/sync/route.ts => stores `extracted` for querying
@@ -115,6 +115,20 @@ export function extractEitjeFields(rawResponse: any): Record<string, any> {
   if (rawResponse.hourly_wage !== undefined) extracted.hourlyRate = rawResponse.hourly_wage;
   if (rawResponse.wage !== undefined) extracted.hourlyRate = rawResponse.wage;
   if (rawResponse.rate !== undefined && rawResponse.rate !== null) extracted.hourlyRate = rawResponse.rate;
+  
+  // User master data fields (name, email, contract info, team)
+  if (rawResponse.name !== undefined) extracted.name = rawResponse.name;
+  if (rawResponse.email !== undefined) extracted.email = rawResponse.email;
+  if (rawResponse.email_address !== undefined) extracted.email = rawResponse.email_address;
+  if (rawResponse.user_email !== undefined) extracted.email = rawResponse.user_email;
+  if (rawResponse.contract_type !== undefined) extracted.contractType = rawResponse.contract_type;
+  if (rawResponse.contractType !== undefined) extracted.contractType = rawResponse.contractType;
+  if (rawResponse.contract_info !== undefined) extracted.contractInfo = rawResponse.contract_info;
+  if (rawResponse.contract !== undefined) extracted.contractInfo = rawResponse.contract;
+  if (rawResponse.team_id !== undefined) extracted.teamId = rawResponse.team_id;
+  if (rawResponse.team?.id !== undefined) extracted.teamId = rawResponse.team.id;
+  if (rawResponse.team_name !== undefined) extracted.teamName = rawResponse.team_name;
+  if (rawResponse.team?.name !== undefined) extracted.teamName = rawResponse.team.name;
   
   // Extract all other fields recursively
   const allExtracted = extractJsonbFields(rawResponse);
