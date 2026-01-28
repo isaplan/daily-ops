@@ -150,6 +150,7 @@ const EventSchema = new Schema<IEvent>(
   },
   {
     timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' },
+    strictPopulate: false,
   }
 );
 

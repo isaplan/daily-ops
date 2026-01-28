@@ -3,7 +3,7 @@
  * @created: 2026-01-22T00:00:00.000Z
  * @last-modified: 2026-01-25T00:00:00.000Z
  * @description: Utilities to flatten nested JSON (JSONB-style) and extract commonly queried Eitje fields
- * @last-fix: [2026-01-25] Added name, email, contract_type, contract_info, team_id, team_name extraction for users master data
+ * @last-fix: [2026-01-26] Added location_name, environment_name extraction from raw API response for proper location name mapping in aggregations
  *
  * @exports-to:
  *   ✓ app/api/eitje/v2/sync/route.ts => stores `extracted` for querying
@@ -95,6 +95,9 @@ export function extractEitjeFields(rawResponse: any): Record<string, any> {
   
   // Extract common Eitje fields
   if (rawResponse.id !== undefined) extracted.id = rawResponse.id;
+  // Extract support_id (unique identifier for shifts) - this is the most reliable unique key
+  if (rawResponse.support_id !== undefined) extracted.supportId = rawResponse.support_id;
+  if (rawResponse.supportId !== undefined) extracted.supportId = rawResponse.supportId;
   if (rawResponse.environment_id !== undefined) extracted.environmentId = rawResponse.environment_id;
   if (rawResponse.environment?.id !== undefined) extracted.environmentId = rawResponse.environment.id;
   if (rawResponse.user_id !== undefined) extracted.userId = rawResponse.user_id;
@@ -129,6 +132,14 @@ export function extractEitjeFields(rawResponse: any): Record<string, any> {
   if (rawResponse.team?.id !== undefined) extracted.teamId = rawResponse.team.id;
   if (rawResponse.team_name !== undefined) extracted.teamName = rawResponse.team_name;
   if (rawResponse.team?.name !== undefined) extracted.teamName = rawResponse.team.name;
+  
+  // Location/Environment fields (extract name from various possible fields)
+  if (rawResponse.location_name !== undefined) extracted.locationName = rawResponse.location_name;
+  if (rawResponse.location?.name !== undefined) extracted.locationName = rawResponse.location.name;
+  if (rawResponse.environment_name !== undefined) extracted.locationName = rawResponse.environment_name;
+  if (rawResponse.environment?.name !== undefined) extracted.locationName = rawResponse.environment.name;
+  if (rawResponse.location_id !== undefined) extracted.locationId = rawResponse.location_id;
+  if (rawResponse.location?.id !== undefined) extracted.locationId = rawResponse.location.id;
   
   // Extract all other fields recursively
   const allExtracted = extractJsonbFields(rawResponse);

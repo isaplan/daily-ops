@@ -77,6 +77,7 @@ const MemberSchema = new Schema<IMember>(
   },
   {
     timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' },
+    strictPopulate: false,
   }
 );
 

@@ -1,9 +1,9 @@
 /**
  * @registry-id: hoursAggregatedAPI
  * @created: 2026-01-25T20:00:00.000Z
- * @last-modified: 2026-01-25T20:00:00.000Z
+ * @last-modified: 2026-01-26T00:00:00.000Z
  * @description: API route for hours data - reads from pre-aggregated collections with denormalized names and costs
- * @last-fix: [2026-01-25] Created new endpoint to query eitje_time_registration_aggregation instead of raw data. Eliminates lookups, uses pre-calculated costs and stored names.
+ * @last-fix: [2026-01-26] Fixed location grouping: use environmentId as fallback when locationId is null, improved unified_location lookup to match by primaryId/allIdValues/eitjeIds/allIds with ObjectId and string comparisons, handle both locationId and environmentId matching
  * 
  * @imports-from:
  *   - app/lib/mongodb/v2-connection.ts => getDatabase
@@ -23,20 +23,32 @@ export async function GET(request: NextRequest) {
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
     const locationId = searchParams.get('locationId');
+    const endpoint = searchParams.get('endpoint') || 'time_registration_shifts';
     const groupBy = searchParams.get('groupBy') || 'day'; // day, date_location, worker, team, location
     const sortBy = searchParams.get('sortBy') || 'date';
     const sortOrder = searchParams.get('sortOrder') || 'desc';
 
     // Build query for aggregated collection
-    const query: any = {};
+    // CRITICAL: Only query 'day' period_type to avoid counting same records multiple times
+    // (one raw record creates documents for day/week/month/year, so summing all would 4x the count)
+    const query: any = {
+      period_type: 'day', // Only use day period to get accurate counts
+    };
     
     if (startDate || endDate) {
       query.period = {};
       if (startDate) {
-        // Extract just the date part (YYYY-MM-DD)
+        // Period format is "YYYY-MM-DDT00:00:00.000Z" (e.g., "2025-12-27T00:00:00.000Z")
+        // String comparison: "2025-12-27" < "2025-12-27T00:00:00.000Z" is true
+        // So $gte with "2025-12-27" will match "2025-12-27T00:00:00.000Z" and later
         query.period.$gte = startDate;
       }
       if (endDate) {
+        // For $lte, "2026-01-26" will match "2026-01-26T00:00:00.000Z" and earlier
+        // But we want to include the full day, so we need to match up to "2026-01-26T23:59:59.999Z"
+        // Since period is always "T00:00:00.000Z", "2026-01-26" <= "2026-01-26T00:00:00.000Z" is true
+        // But "2026-01-27" > "2026-01-26T00:00:00.000Z" is true, so we need to use the next day
+        // Actually, since period is always at start of day, $lte with endDate should work
         query.period.$lte = endDate;
       }
     } else {
@@ -49,7 +61,14 @@ export async function GET(request: NextRequest) {
 
     // Filter by location if provided
     if (locationId && locationId !== 'all') {
-      query.locationId = locationId;
+      try {
+        // Try to convert to ObjectId for proper matching
+        const { ObjectId } = await import('mongodb');
+        query.locationId = new ObjectId(locationId);
+      } catch {
+        // If conversion fails, use as string (might match if stored as string)
+        query.locationId = locationId;
+      }
     }
 
     // Query aggregated collection
@@ -143,24 +162,122 @@ export async function GET(request: NextRequest) {
         }
       });
     } else if (groupBy === 'location') {
+      // Group by locationId, but use environmentId as fallback if locationId is null
+      // This ensures locations with missing locationId but different environmentIds are grouped separately
+      aggregation.push({
+        $addFields: {
+          grouping_location_id: {
+            $ifNull: [
+              '$locationId',
+              // Fallback to environmentId if locationId is null (for unmapped locations)
+              '$environmentId'
+            ]
+          }
+        }
+      });
       aggregation.push({
         $group: {
-          _id: {
-            locationId: '$locationId',
-            location_name: '$location_name',
-          },
+          _id: '$grouping_location_id',
           total_hours: { $sum: '$total_hours' },
           total_cost: { $sum: '$total_cost' },
           record_count: { $sum: '$record_count' },
           worker_count: { $addToSet: '$userId' },
           team_count: { $addToSet: '$teamId' },
+          // Preserve original locationId and environmentId for lookup
+          original_location_id: { $first: '$locationId' },
+          original_environment_id: { $first: '$environmentId' },
         }
+      });
+      // Lookup unified_location to get proper location names and abbreviations
+      // Fix: Handle null locationId and match ObjectId properly with multiple strategies
+      aggregation.push({
+        $lookup: {
+          from: 'unified_location',
+          let: { 
+            locId: '$original_location_id',
+            envId: '$original_environment_id',
+            groupingId: '$_id',
+            locIdStr: { 
+              $cond: [
+                { $eq: [{ $type: '$original_location_id' }, 'objectId'] },
+                { $toString: '$original_location_id' },
+                { $toString: { $ifNull: ['$original_location_id', ''] } }
+              ]
+            },
+            envIdStr: { $toString: { $ifNull: ['$original_environment_id', ''] } }
+          },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $or: [
+                    // Match by primaryId (ObjectId) - direct comparison with locationId
+                    { $eq: ['$primaryId', '$$locId'] },
+                    // Match by allIdValues - check both ObjectId and string forms
+                    { $in: ['$$locId', { $ifNull: ['$allIdValues', []] }] },
+                    { $in: ['$$locIdStr', { $ifNull: ['$allIdValues', []] }] },
+                    // Match by eitjeIds (for unmapped environments) - check both locationId and environmentId
+                    { $in: ['$$locId', { $ifNull: ['$eitjeIds', []] }] },
+                    { $in: ['$$locIdStr', { $ifNull: ['$eitjeIds', []] }] },
+                    { $in: ['$$envId', { $ifNull: ['$eitjeIds', []] }] },
+                    { $in: ['$$envIdStr', { $ifNull: ['$eitjeIds', []] }] },
+                    // Match by extracting IDs from allIds array structure (fallback)
+                    {
+                      $anyElementTrue: {
+                        $map: {
+                          input: { $ifNull: ['$allIds', []] },
+                          as: 'idObj',
+                          in: {
+                            $or: [
+                              { $eq: ['$$idObj.id', '$$locId'] },
+                              { $eq: [{ $toString: '$$idObj.id' }, '$$locIdStr'] },
+                              { $eq: ['$$idObj.id', '$$envId'] },
+                              { $eq: [{ $toString: '$$idObj.id' }, '$$envIdStr'] }
+                            ]
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          ],
+          as: 'location_unified',
+        },
+      });
+      aggregation.push({
+        $unwind: {
+          path: '$location_unified',
+          preserveNullAndEmptyArrays: true,
+        },
       });
       aggregation.push({
         $project: {
           _id: 0,
-          location_id: '$_id.locationId',
-          location_name: { $ifNull: ['$_id.location_name', 'Unknown'] },
+          location_id: {
+            $ifNull: ['$original_location_id', '$original_environment_id', '$_id']
+          },
+          location_name: {
+            $ifNull: [
+              '$location_unified.canonicalName',
+              {
+                $ifNull: [
+                  '$location_unified.primaryName',
+                  'Unknown'
+                ]
+              }
+            ]
+          },
+          location_names: {
+            $ifNull: [
+              '$location_unified.eitjeNames',
+              []
+            ]
+          },
+          location_abbreviation: {
+            $ifNull: ['$location_unified.abbreviation', null]
+          },
           total_hours: 1,
           total_cost: 1,
           record_count: 1,
@@ -195,27 +312,72 @@ export async function GET(request: NextRequest) {
     const sortDirection = sortOrder === 'asc' ? 1 : -1;
     aggregation.push({ $sort: { [sortField]: sortDirection } });
 
-    const results = await db.collection('eitje_time_registration_aggregation').aggregate(aggregation).toArray();
+    // Determine collection name based on endpoint
+    let collectionName = 'eitje_time_registration_aggregation';
+    if (endpoint === 'planning_shifts') {
+      collectionName = 'eitje_planning_registration_aggregation';
+    }
 
-    console.log(`[Hours API] Aggregation results from eitje_time_registration_aggregation: ${results.length} records`);
+    const results = await db.collection(collectionName).aggregate(aggregation).toArray();
+
+    // Build summary based on groupBy
+    let summary: any = {
+      total_records: results.length,
+      group_by: groupBy,
+    };
+
+    if (groupBy === 'location' && results.length > 0) {
+      const locationSummary = results.map((r: any) => ({
+        location_id: r.location_id?.toString() || 'null',
+        location_name: r.location_name || 'Unknown',
+        location_abbreviation: r.location_abbreviation || null,
+        total_hours: r.total_hours,
+        total_cost: r.total_cost,
+        worker_count: r.worker_count,
+        record_count: r.record_count,
+        matched_unified: !!r.location_names && r.location_names.length > 0,
+      }));
+
+      summary.locations = locationSummary;
+      summary.total_locations = results.length;
+      summary.total_hours = results.reduce((sum: number, r: any) => sum + (r.total_hours || 0), 0);
+      summary.total_cost = results.reduce((sum: number, r: any) => sum + (r.total_cost || 0), 0);
+      summary.unknown_locations = results.filter((r: any) => r.location_name === 'Unknown').length;
+    }
+
+    console.log(`[Hours API] Aggregation results from ${collectionName}: ${results.length} records`);
+    if (groupBy === 'location') {
+      console.log('[Hours API] Location Summary:', JSON.stringify(summary, null, 2));
+    }
     if (results.length > 0) {
-      console.log('[Hours API] Sample result:', JSON.stringify(results[0], null, 2).slice(0, 300));
+      console.log('[Hours API] Sample result:', JSON.stringify(results[0], null, 2).slice(0, 500));
     }
 
     return NextResponse.json({
       success: true,
       data: results,
-      locations: [], // TODO: fetch from unified_location if needed
+      summary: summary,
+      locations: groupBy === 'location' ? summary.locations : [],
     });
   } catch (error) {
-    console.error('Error fetching hours data:', error);
+    console.error('[Hours Aggregated API] Error fetching hours data:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const errorStack = error instanceof Error ? error.stack : undefined;
+    
+    console.error('[Hours Aggregated API] Error details:', {
+      message: errorMessage,
+      stack: errorStack,
+      query: searchParams.toString()
+    });
     
     return NextResponse.json(
       { 
         success: false, 
         error: 'Failed to fetch hours data',
-        details: process.env.NODE_ENV === 'development' ? errorMessage : undefined
+        details: process.env.NODE_ENV === 'development' ? {
+          message: errorMessage,
+          stack: errorStack
+        } : undefined
       },
       { status: 500 }
     );

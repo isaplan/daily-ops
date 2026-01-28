@@ -27,9 +27,28 @@ interface HoursByLocationData {
   worker_count: number;
 }
 
+interface ApiSummary {
+  total_records?: number;
+  total_locations?: number;
+  total_hours?: number;
+  total_cost?: number;
+  unknown_locations?: number;
+  locations?: Array<{
+    location_id: string;
+    location_name: string;
+    location_abbreviation: string | null;
+    total_hours: number;
+    total_cost: number;
+    worker_count: number;
+    record_count: number;
+    matched_unified: boolean;
+  }>;
+}
+
 export default function HoursByLocationPage() {
   const { loading: authLoading } = useAuth();
   const [hoursData, setHoursData] = useState<HoursByLocationData[]>([]);
+  const [summary, setSummary] = useState<ApiSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
@@ -72,6 +91,7 @@ export default function HoursByLocationPage() {
         const result = await response.json();
         if (result.success) {
           setHoursData(result.data || []);
+          setSummary(result.summary || null);
         } else {
           setError(result.error || 'Failed to fetch hours data');
         }
@@ -169,6 +189,66 @@ export default function HoursByLocationPage() {
           <CardContent className="pt-6">
             <div className="text-destructive">
               <strong>Error:</strong> {error}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* API Response Summary */}
+      {summary && summary.locations && (
+        <Card className="border-blue-200 bg-blue-50/50">
+          <CardHeader>
+            <CardTitle>API Response Summary</CardTitle>
+            <CardDescription>Location breakdown from API</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-4 text-sm">
+                <div>
+                  <span className="font-medium">Total Locations:</span>{' '}
+                  <span className="text-lg font-bold">{summary.total_locations || 0}</span>
+                </div>
+                <div>
+                  <span className="font-medium">Unknown Locations:</span>{' '}
+                  <span className="text-lg font-bold text-orange-600">{summary.unknown_locations || 0}</span>
+                </div>
+                <div>
+                  <span className="font-medium">Total Hours:</span>{' '}
+                  <span className="text-lg font-bold">{(summary.total_hours || 0).toFixed(2)}h</span>
+                </div>
+                <div>
+                  <span className="font-medium">Total Cost:</span>{' '}
+                  <span className="text-lg font-bold">€{(summary.total_cost || 0).toFixed(2)}</span>
+                </div>
+              </div>
+              <div className="mt-4">
+                <div className="font-medium mb-2">Locations Found:</div>
+                <div className="space-y-2">
+                  {summary.locations.map((loc, idx) => (
+                    <div
+                      key={idx}
+                      className={`p-2 rounded text-sm ${
+                        loc.matched_unified ? 'bg-green-50 border border-green-200' : 'bg-yellow-50 border border-yellow-200'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <span className="font-medium">{loc.location_name}</span>
+                          {loc.location_abbreviation && (
+                            <span className="ml-2 text-xs text-muted-foreground">({loc.location_abbreviation})</span>
+                          )}
+                          {!loc.matched_unified && (
+                            <span className="ml-2 text-xs text-orange-600">⚠️ Not matched to unified_location</span>
+                          )}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          ID: {loc.location_id} | {loc.total_hours.toFixed(2)}h | {loc.worker_count} workers
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           </CardContent>
         </Card>

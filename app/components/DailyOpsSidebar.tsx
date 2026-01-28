@@ -1,9 +1,9 @@
 /**
  * @registry-id: DailyOpsSidebarComponent
  * @created: 2026-01-22T00:00:00.000Z
- * @last-modified: 2026-01-25T00:00:00.000Z
- * @description: Sidebar navigation component for Daily Ops environment with collapsible Hours menu
- * @last-fix: [2026-01-25] Added collapsible Hours dropdown with child pages (by-day, by-worker, by-team, by-location)
+ * @last-modified: 2026-01-28T00:00:00.000Z
+ * @description: Sidebar navigation component for Daily Ops environment with collapsible Hours and Inbox menus
+ * @last-fix: [2026-01-28] Added nested collapsible dropdowns per inbox group type (General, Eitje, Bork, Power-BI, Other)
  * 
  * @imports-from:
  *   - app/components/ui/sidebar.tsx => shadcn sidebar components
@@ -42,7 +42,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useEnvironment } from '@/lib/environmentContext'
-import { LayoutDashboard, Settings, Clock, ChevronRight } from 'lucide-react'
+import { LayoutDashboard, Settings, Clock, ChevronRight, Mail } from 'lucide-react'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 // TEMPORARILY DISABLED: Manager-only restriction
 // import { useAuth } from '@/lib/hooks/useAuth'
@@ -68,6 +68,51 @@ const hoursSubItems = [
   { href: '/daily-ops/hours/by-location', label: 'By Location' },
 ]
 
+// Inbox submenu items organized by source
+interface InboxSubItem {
+  href: string
+  label: string
+  group: string
+}
+
+const inboxSubItems: InboxSubItem[] = [
+  // General
+  { href: '/daily-ops/inbox', label: 'Overview', group: 'general' },
+  { href: '/daily-ops/inbox/emails', label: 'Emails', group: 'general' },
+  { href: '/daily-ops/inbox/upload', label: 'Upload', group: 'general' },
+  
+  // Eitje
+  { href: '/daily-ops/inbox/eitje', label: 'Eitje', group: 'eitje' },
+  { href: '/daily-ops/inbox/eitje/hours', label: 'Hours', group: 'eitje' },
+  { href: '/daily-ops/inbox/eitje/contracts', label: 'Contracts', group: 'eitje' },
+  { href: '/daily-ops/inbox/eitje/finance', label: 'Finance', group: 'eitje' },
+  
+  // Bork (Trivec)
+  { href: '/daily-ops/inbox/bork', label: 'Bork', group: 'bork' },
+  { href: '/daily-ops/inbox/bork/sales', label: 'Sales', group: 'bork' },
+  { href: '/daily-ops/inbox/bork/product-mix', label: 'Product Mix', group: 'bork' },
+  { href: '/daily-ops/inbox/bork/food-beverage', label: 'Food & Beverage', group: 'bork' },
+  { href: '/daily-ops/inbox/bork/basis-report', label: 'Basis Report', group: 'bork' },
+  { href: '/daily-ops/inbox/bork/sales-per-hour', label: 'Sales Per Hour', group: 'bork' },
+  
+  // Power-BI
+  { href: '/daily-ops/inbox/power-bi', label: 'Power-BI', group: 'power-bi' },
+  { href: '/daily-ops/inbox/power-bi/reports', label: 'Reports', group: 'power-bi' },
+  
+  // Other
+  { href: '/daily-ops/inbox/other', label: 'Other', group: 'other' },
+  { href: '/daily-ops/inbox/other/all-test-data', label: 'All Test Data', group: 'other' },
+]
+
+// Group inbox items by source (order matters)
+const inboxGroups = [
+  { id: 'general', label: 'General' },
+  { id: 'eitje', label: 'Eitje' },
+  { id: 'bork', label: 'Bork (Trivec)' },
+  { id: 'power-bi', label: 'Power-BI' },
+  { id: 'other', label: 'Other' },
+]
+
 export default function DailyOpsSidebar() {
   const pathname = usePathname()
   const { activeEnvironment, setActiveEnvironment } = useEnvironment()
@@ -82,10 +127,45 @@ export default function DailyOpsSidebar() {
   const isHoursPage = pathname?.startsWith('/daily-ops/hours')
   const [isHoursOpen, setIsHoursOpen] = React.useState(isHoursPage)
   
+  // Check if we're on any inbox page to determine if inbox menu should be open
+  const isInboxPage = pathname?.startsWith('/daily-ops/inbox')
+  const [isInboxOpen, setIsInboxOpen] = React.useState(isInboxPage)
+  
+  // Track which inbox group dropdowns are open
+  const [openGroups, setOpenGroups] = React.useState<Record<string, boolean>>({})
+  
+  // Determine which group should be open based on current pathname
+  React.useEffect(() => {
+    if (isInboxPage) {
+      const currentGroup = inboxGroups.find((group) => {
+        const groupItems = inboxSubItems.filter((item) => item.group === group.id)
+        return groupItems.some((item) => {
+          if (pathname === item.href) return true
+          if (pathname?.startsWith(item.href + '/')) return true
+          return false
+        })
+      })
+      
+      if (currentGroup) {
+        setOpenGroups((prev) => ({ ...prev, [currentGroup.id]: true }))
+      }
+    }
+  }, [isInboxPage, pathname])
+  
   // Update isHoursOpen when pathname changes
   React.useEffect(() => {
     setIsHoursOpen(isHoursPage)
   }, [isHoursPage])
+  
+  // Update isInboxOpen when pathname changes
+  React.useEffect(() => {
+    setIsInboxOpen(isInboxPage)
+  }, [isInboxPage])
+  
+  // Toggle group dropdown
+  const toggleGroup = (groupId: string) => {
+    setOpenGroups((prev) => ({ ...prev, [groupId]: !prev[groupId] }))
+  }
 
   return (
     <Sidebar collapsible="icon" variant="sidebar">
@@ -132,6 +212,90 @@ export default function DailyOpsSidebar() {
                   </SidebarMenuItem>
                 )
               })}
+              
+              {/* Inbox collapsible menu */}
+              <Collapsible asChild open={isInboxOpen} onOpenChange={setIsInboxOpen}>
+                <SidebarMenuItem>
+                  <CollapsibleTrigger asChild>
+                    <SidebarMenuButton tooltip="Inbox" isActive={isInboxPage}>
+                      <Mail />
+                      <span>Inbox</span>
+                      <ChevronRight className={`ml-auto transition-transform duration-200 ${isInboxOpen ? 'rotate-90' : ''}`} />
+                    </SidebarMenuButton>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <SidebarMenuSub>
+                      {inboxGroups.map((group) => {
+                        const groupItems = inboxSubItems.filter((item) => item.group === group.id)
+                        if (groupItems.length === 0) return null
+                        
+                        const isGroupOpen = openGroups[group.id] ?? false
+                        const hasActiveItem = groupItems.some((item) => {
+                          if (pathname === item.href) return true
+                          // Check if pathname starts with the item href (for nested routes)
+                          if (pathname?.startsWith(item.href + '/')) return true
+                          return false
+                        })
+                        
+                        // General group - no dropdown, show items directly
+                        if (group.id === 'general') {
+                          return (
+                            <React.Fragment key={group.id}>
+                              {groupItems.map((subItem) => {
+                                const isSubActive = pathname === subItem.href
+                                return (
+                                  <SidebarMenuSubItem key={subItem.href}>
+                                    <SidebarMenuSubButton asChild isActive={isSubActive}>
+                                      <Link href={subItem.href}>
+                                        <span>{subItem.label}</span>
+                                      </Link>
+                                    </SidebarMenuSubButton>
+                                  </SidebarMenuSubItem>
+                                )
+                              })}
+                            </React.Fragment>
+                          )
+                        }
+                        
+                        // Other groups - collapsible dropdown
+                        return (
+                          <Collapsible
+                            key={group.id}
+                            open={isGroupOpen}
+                            onOpenChange={() => toggleGroup(group.id)}
+                          >
+                            <SidebarMenuSubItem>
+                              <CollapsibleTrigger asChild>
+                                <SidebarMenuSubButton isActive={hasActiveItem}>
+                                  <span className="font-medium">{group.label}</span>
+                                  <ChevronRight className={`ml-auto h-4 w-4 transition-transform duration-200 ${isGroupOpen ? 'rotate-90' : ''}`} />
+                                </SidebarMenuSubButton>
+                              </CollapsibleTrigger>
+                              <CollapsibleContent>
+                                <SidebarMenuSub>
+                                  {groupItems.map((subItem) => {
+                                    // Check if active - exact match or nested route
+                                    const isSubActive = pathname === subItem.href || pathname?.startsWith(subItem.href + '/')
+                                    return (
+                                      <SidebarMenuSubItem key={subItem.href}>
+                                        <SidebarMenuSubButton asChild isActive={isSubActive}>
+                                          <Link href={subItem.href}>
+                                            <span>{subItem.label}</span>
+                                          </Link>
+                                        </SidebarMenuSubButton>
+                                      </SidebarMenuSubItem>
+                                    )
+                                  })}
+                                </SidebarMenuSub>
+                              </CollapsibleContent>
+                            </SidebarMenuSubItem>
+                          </Collapsible>
+                        )
+                      })}
+                    </SidebarMenuSub>
+                  </CollapsibleContent>
+                </SidebarMenuItem>
+              </Collapsible>
               
               {/* Hours collapsible menu */}
               <Collapsible asChild open={isHoursOpen} onOpenChange={setIsHoursOpen}>

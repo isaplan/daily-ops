@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
       Todo.countDocuments({ status: 'in_progress' }),
       Todo.countDocuments({ status: 'completed' }),
       Todo.find({}).sort({ created_at: -1 }).limit(5).populate('assigned_to', 'name').populate('created_by', 'name').lean(),
-      Note.find({}).sort({ created_at: -1 }).limit(5).populate('created_by', 'name').lean(),
+      Note.find({}).sort({ created_at: -1 }).limit(5).populate('author_id', 'name').lean(),
       Event.find({}).sort({ date: 1 }).limit(5).populate('location_id', 'name').lean(),
     ]);
 

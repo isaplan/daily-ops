@@ -91,8 +91,15 @@ async function main() {
       };
       
       try {
+        // Match by support_id OR eitjeIds (since support_id might match eitjeIds)
         const result = await db.collection('unified_user').updateOne(
-          { support_id: supportId },
+          { 
+            $or: [
+              { support_id: supportId },
+              { eitjeIds: supportId },
+              { allIdValues: supportId }
+            ]
+          },
           { $set: updateData },
           { upsert: true }
         );

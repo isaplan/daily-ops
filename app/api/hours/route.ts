@@ -292,11 +292,13 @@ export async function GET(request: NextRequest) {
                   $or: [
                     // Match by primaryId (ObjectId)
                     { $eq: ['$primaryId', '$$locId'] },
+                    // Match by allIdValues - check if locationId is in array
+                    { $in: ['$$locId', { $ifNull: ['$allIdValues', []] }] },
                     // Match by eitjeIds when locationId is null (unmapped environments)
                     { 
                       $and: [
                         { $ne: ['$$envId', null] },
-                        { $in: ['$$envId', '$eitjeIds'] }
+                        { $in: ['$$envId', { $ifNull: ['$eitjeIds', []] }] }
                       ]
                     }
                   ]
@@ -723,11 +725,13 @@ export async function GET(request: NextRequest) {
                   $or: [
                     // Match by primaryId (ObjectId)
                     { $eq: ['$primaryId', '$$locId'] },
+                    // Match by allIdValues - check if locationId is in array
+                    { $in: ['$$locId', { $ifNull: ['$allIdValues', []] }] },
                     // Match by eitjeIds when locationId is null (unmapped environments)
                     { 
                       $and: [
                         { $ne: ['$$envId', null] },
-                        { $in: ['$$envId', '$eitjeIds'] }
+                        { $in: ['$$envId', { $ifNull: ['$eitjeIds', []] }] }
                       ]
                     }
                   ]

@@ -1,9 +1,9 @@
 /**
  * @registry-id: unifiedCollectionsService
  * @created: 2026-01-25T00:00:00.000Z
- * @last-modified: 2026-01-25T19:00:00.000Z
+ * @last-modified: 2026-01-26T00:00:00.000Z
  * @description: Service to create unified collections that merge IDs and names from all sources (Eitje, internal models, etc.)
- * @last-fix: [2026-01-25] Fixed upsert to use replaceOne instead of updateOne with $set to ensure full document replacement. Fixed name extraction to always prefer non-Unknown names from Eitje. Added allIdValues flat array for easier lookup matching.
+ * @last-fix: [2026-01-26] CRITICAL FIX: Now extracts user names from time_registration_shifts and planning_shifts endpoints (extracted.user_name, rawApiResponse.user.name) in addition to users endpoint. This fixes "Unknown" user names in unified_user collection.
  * 
  * @imports-from:
  *   - app/lib/mongodb/v2-connection.ts => getDatabase
@@ -600,9 +600,81 @@ export async function syncUnifiedUsers(): Promise<{ created: number; updated: nu
   // Get all internal members (use collection directly)
   const internalMembers = await db.collection('members').find({}).toArray();
   
-  // Get all Eitje user data from eitje_raw_data
+  // Get all Eitje user data from eitje_raw_data (users endpoint)
   const eitjeUsers = await db.collection('eitje_raw_data')
     .find({ endpoint: 'users' })
+    .toArray();
+  
+  // Also extract user names from time_registration_shifts and planning_shifts
+  // These endpoints have user_name in extracted or rawApiResponse.user.name
+  const shiftUsers = await db.collection('eitje_raw_data')
+    .aggregate([
+      {
+        $match: {
+          $and: [
+            {
+              $or: [
+                { endpoint: 'time_registration_shifts' },
+                { endpoint: 'planning_shifts' }
+              ]
+            },
+            {
+              $or: [
+                { 'extracted.userId': { $ne: null } },
+                { 'rawApiResponse.user_id': { $ne: null } },
+                { 'rawApiResponse.user.id': { $ne: null } }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        $group: {
+          _id: {
+            $ifNull: [
+              '$extracted.userId',
+              {
+                $ifNull: [
+                  '$rawApiResponse.user_id',
+                  '$rawApiResponse.user.id'
+                ]
+              }
+            ]
+          },
+          user_name: {
+            $first: {
+              $ifNull: [
+                '$extracted.user_name',
+                {
+                  $ifNull: [
+                    '$rawApiResponse.user_name',
+                    {
+                      $ifNull: [
+                        '$rawApiResponse.user?.name',
+                        'Unknown'
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          user_email: {
+            $first: {
+              $ifNull: [
+                '$extracted.user_email',
+                {
+                  $ifNull: [
+                    '$rawApiResponse.user_email',
+                    '$rawApiResponse.user?.email'
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      }
+    ])
     .toArray();
   
   // Build mapping: email -> unified data (email is most reliable identifier)
@@ -793,6 +865,128 @@ export async function syncUnifiedUsers(): Promise<{ created: number; updated: nu
           unified.contract_info = contractInfo;
         }
         unified.updatedAt = new Date();
+      }
+    }
+  }
+  
+  // Process user names from time_registration_shifts and planning_shifts
+  // These have user_name in extracted or rawApiResponse.user.name
+  for (const shiftUser of shiftUsers) {
+    const eitjeId = shiftUser._id;
+    const userName = shiftUser.user_name;
+    const userEmail = shiftUser.user_email;
+    
+    if (!eitjeId || !userName || userName === 'Unknown') continue;
+    
+    // Try to find existing unified user by eitjeId
+    let found = false;
+    for (const [key, unified] of unifiedMap.entries()) {
+      if (unified.eitjeIds.includes(eitjeId)) {
+        found = true;
+        // Update name if it's better (not "Unknown")
+        if (userName !== 'Unknown') {
+          const eitjeIndex = unified.eitjeIds.indexOf(eitjeId);
+          if (eitjeIndex >= 0) {
+            // Update eitjeNames if current is "Unknown"
+            if (unified.eitjeNames[eitjeIndex] === 'Unknown') {
+              unified.eitjeNames[eitjeIndex] = userName;
+            }
+            // Update canonicalName if current is "Unknown"
+            if (unified.canonicalName === 'Unknown') {
+              unified.canonicalName = userName;
+            }
+            // Update allIds entry
+            const allIdsIndex = unified.allIds.findIndex(a => a.source === 'eitje' && a.id === eitjeId);
+            if (allIdsIndex >= 0 && unified.allIds[allIdsIndex].name === 'Unknown') {
+              unified.allIds[allIdsIndex].name = userName;
+            }
+          }
+        }
+        // Update email if we found one
+        if (userEmail && !unified.eitjeEmails.includes(userEmail)) {
+          unified.eitjeEmails.push(userEmail);
+          if (!unified.canonicalEmail) {
+            unified.canonicalEmail = userEmail;
+          }
+        }
+        unified.updatedAt = new Date();
+        break;
+      }
+    }
+    
+    // If not found and we have an email, try to match by email
+    if (!found && userEmail) {
+      const email = userEmail.toLowerCase();
+      if (unifiedMap.has(email)) {
+        const unified = unifiedMap.get(email)!;
+        if (!unified.eitjeIds.includes(eitjeId)) {
+          unified.eitjeIds.push(eitjeId);
+          unified.eitjeNames.push(userName);
+          unified.eitjeEmails.push(userEmail);
+          unified.allIds.push({
+            source: 'eitje',
+            id: eitjeId,
+            name: userName,
+            email: userEmail,
+          });
+          // Update canonicalName if it's "Unknown"
+          if (unified.canonicalName === 'Unknown') {
+            unified.canonicalName = userName;
+          }
+          unified.updatedAt = new Date();
+        }
+      } else {
+        // Create new unified user from shift data
+        unifiedMap.set(email, {
+          eitjeIds: [eitjeId],
+          eitjeNames: [userName],
+          eitjeEmails: [userEmail],
+          allIds: [{
+            source: 'eitje',
+            id: eitjeId,
+            name: userName,
+            email: userEmail,
+          }],
+          canonicalName: userName,
+          canonicalEmail: userEmail,
+          isActive: true,
+          lastSeen: new Date(),
+          updatedAt: new Date(),
+        });
+      }
+    } else if (!found) {
+      // Create new unified user without email (match by eitjeId only)
+      const key = `eitje_${eitjeId}`;
+      if (!unifiedMap.has(key)) {
+        unifiedMap.set(key, {
+          eitjeIds: [eitjeId],
+          eitjeNames: [userName],
+          eitjeEmails: [],
+          allIds: [{
+            source: 'eitje',
+            id: eitjeId,
+            name: userName,
+          }],
+          canonicalName: userName,
+          isActive: true,
+          lastSeen: new Date(),
+          updatedAt: new Date(),
+        });
+      } else {
+        // Update existing
+        const unified = unifiedMap.get(key)!;
+        if (unified.canonicalName === 'Unknown' && userName !== 'Unknown') {
+          unified.canonicalName = userName;
+          const eitjeIndex = unified.eitjeIds.indexOf(eitjeId);
+          if (eitjeIndex >= 0) {
+            unified.eitjeNames[eitjeIndex] = userName;
+          }
+          const allIdsIndex = unified.allIds.findIndex(a => a.source === 'eitje' && a.id === eitjeId);
+          if (allIdsIndex >= 0) {
+            unified.allIds[allIdsIndex].name = userName;
+          }
+          unified.updatedAt = new Date();
+        }
       }
     }
   }

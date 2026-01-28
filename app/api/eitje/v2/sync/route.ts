@@ -250,17 +250,45 @@ export async function POST(request: NextRequest) {
           // Different unique keys for master data vs date-based endpoints
           const filter: any = {
             endpoint: record.endpoint,
-            'extracted.id': record.extracted.id, // Use Eitje ID as unique key
           };
 
-          // Add date to filter for date-based endpoints
-          if (record.date) {
-            filter.date = record.date;
-          }
-
-          // For master data endpoints, also match by environmentId if available
-          if (masterDataEndpoints.includes(endpoint) && record.environmentId) {
-            filter.environmentId = record.environmentId;
+          // For date-based endpoints (time_registration_shifts, planning_shifts, etc.)
+          // Use a more robust unique key: endpoint + date + userId + support_id (if available)
+          // This prevents duplicates when the same shift is synced multiple times
+          if (!masterDataEndpoints.includes(endpoint)) {
+            if (record.date) {
+              filter.date = record.date;
+            }
+            
+            // Use support_id as primary unique identifier (most reliable)
+            // Fallback to extracted.id if support_id not available
+            const supportId = record.extracted?.supportId || 
+                             record.rawApiResponse?.support_id || 
+                             record.rawApiResponse?.id ||
+                             record.extracted?.id;
+            
+            if (supportId !== undefined && supportId !== null) {
+              filter['extracted.supportId'] = supportId;
+              // Also try rawApiResponse.support_id as fallback
+              if (!filter['extracted.supportId']) {
+                filter['rawApiResponse.support_id'] = supportId;
+              }
+            } else if (record.extracted.id !== undefined && record.extracted.id !== null) {
+              // Fallback to extracted.id if support_id not available
+              filter['extracted.id'] = record.extracted.id;
+            } else {
+              // Last resort: use userId + date + locationId + teamId combination
+              filter['extracted.userId'] = record.extracted.userId || record.rawApiResponse?.user_id;
+              if (record.environmentId) {
+                filter.environmentId = record.environmentId;
+              }
+            }
+          } else {
+            // Master data endpoints: use extracted.id + environmentId
+            filter['extracted.id'] = record.extracted.id;
+            if (record.environmentId) {
+              filter.environmentId = record.environmentId;
+            }
           }
 
           return {

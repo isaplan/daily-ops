@@ -15,7 +15,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { aggregateAll, AggregationType, AggregationPeriod } from '@/lib/services/aggregationService';
+import { aggregateAll, AggregationType, AggregationPeriod, clearAndReaggregateAll, validateAggregationCounts } from '@/lib/services/aggregationService';
 import { syncAllUnified } from '@/lib/services/unifiedCollectionsService';
 import { triggerAggregationIfChanged, getAggregationStatus } from '@/lib/services/aggregationTrigger';
 
@@ -40,6 +40,8 @@ export async function POST(request: NextRequest) {
       syncUnified = true,
       force = false, // Force aggregation even if no changes detected
       useTrigger = true, // Use smart trigger (change detection) vs direct aggregation
+      clearAndReaggregate = false, // Clear all aggregated collections and reaggregate from scratch
+      validate = true, // Validate counts after aggregation
     } = body;
 
     // Use smart trigger if enabled (checks for changes, runs only once)
@@ -63,10 +65,27 @@ export async function POST(request: NextRequest) {
     const results: any = {
       aggregations: [],
       unified: null,
+      cleared: null,
+      validation: null,
     };
 
-    // Run aggregations
-    if (aggregationTypes.length > 0) {
+    // Clear and reaggregate if requested
+    if (clearAndReaggregate) {
+      const start = startDate ? new Date(startDate) : undefined;
+      const end = endDate ? new Date(endDate) : undefined;
+
+      const clearResults = await clearAndReaggregateAll(
+        start,
+        end,
+        aggregationTypes as AggregationType[],
+        periods as AggregationPeriod[]
+      );
+
+      results.cleared = clearResults.cleared;
+      results.aggregations = clearResults.results;
+      results.validation = clearResults.validation;
+    } else if (aggregationTypes.length > 0) {
+      // Normal aggregation
       const start = startDate ? new Date(startDate) : undefined;
       const end = endDate ? new Date(endDate) : undefined;
 
@@ -78,6 +97,11 @@ export async function POST(request: NextRequest) {
       );
 
       results.aggregations = aggregationResults;
+      
+      // Validate counts if requested
+      if (validate) {
+        results.validation = await validateAggregationCounts();
+      }
     }
 
     // Sync unified collections
@@ -91,9 +115,25 @@ export async function POST(request: NextRequest) {
     const totalCreated = results.aggregations.reduce((sum: number, r: any) => sum + r.recordsCreated, 0);
     const totalUpdated = results.aggregations.reduce((sum: number, r: any) => sum + r.recordsUpdated, 0);
 
+    let message = `Aggregation completed: ${totalProcessed} records processed, ${totalCreated} created, ${totalUpdated} updated`;
+    
+    if (results.validation) {
+      if (!results.validation.valid) {
+        message += ` | ⚠️ Validation issues found: ${results.validation.issues.length} collection issues`;
+        if (results.validation.userValidation) {
+          const userIssues = results.validation.userValidation.filter(u => u.issue);
+          if (userIssues.length > 0) {
+            message += `, ${userIssues.length} user issues`;
+          }
+        }
+      } else {
+        message += ' | ✅ Validation passed';
+      }
+    }
+    
     return NextResponse.json({
       success: true,
-      message: `Aggregation completed: ${totalProcessed} records processed, ${totalCreated} created, ${totalUpdated} updated`,
+      message,
       results: {
         aggregations: {
           totalProcessed,
@@ -102,6 +142,8 @@ export async function POST(request: NextRequest) {
           details: results.aggregations,
         },
         unified: results.unified,
+        cleared: results.cleared,
+        validation: results.validation,
       },
     });
   } catch (error: any) {

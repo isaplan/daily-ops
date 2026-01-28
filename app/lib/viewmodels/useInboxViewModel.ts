@@ -24,8 +24,6 @@ import type {
   InboxEmail,
   InboxEmailFilters,
   EmailAttachment,
-  ParsedData,
-  InboxListResponse,
 } from '@/lib/types/inbox.types'
 
 export function useInboxViewModel() {
@@ -134,6 +132,29 @@ export function useInboxViewModel() {
     }
   }, [])
 
+  const processAll = useCallback(
+    async (options?: { maxEmails?: number }) => {
+      setLoading(true)
+      try {
+        const response = await inboxService.processAll(options)
+        if (response.success && response.data) {
+          // Reload emails to get updated status
+          await loadEmails(1, 20, filters)
+          return response.data
+        } else {
+          setError(response.error || 'Failed to process all emails')
+          return null
+        }
+      } catch (error) {
+        setError(error instanceof Error ? error.message : 'Failed to process all emails')
+        return null
+      } finally {
+        setLoading(false)
+      }
+    },
+    [setLoading, setError, loadEmails, filters]
+  )
+
   const updateFilters = useCallback((newFilters: InboxEmailFilters) => {
     setFilters(newFilters)
     loadEmails(1, 20, newFilters)
@@ -207,6 +228,7 @@ export function useInboxViewModel() {
     getEmail,
     syncEmails,
     processEmail,
+    processAll,
     getUnprocessedCount,
     updateFilters,
     startWatch,
