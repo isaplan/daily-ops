@@ -28,9 +28,9 @@ Gmail API ─→ API Routes ─→ Services ─→ MongoDB ─→ React Componen
 
 ## 📋 Priority Document Types (in order)
 
-1. **Eitje Hours** (CSV) → eitje_hours ✓ (EXISTING)
-2. **Eitje Contracts** (XLSX) → eitje_contracts ✓ (EXISTING)
-3. **Eitje Finance** (PDF) → eitje_finance ✓ (EXISTING)
+1. **Eitje Hours** (CSV) → test-eitje-hours ✓ (EXISTING)
+2. **Eitje Contracts** (XLSX) → test-eitje-contracts ✓ (EXISTING)
+3. **Eitje Finance** (PDF) → test-eitje-finance ✓ (EXISTING)
 4. **Bork Sales** (CSV/XLSX) → bork_sales 🆕
 5. **Bork Registry** (XLSX) → bork_registry 🆕
 6. **Pasy** (Flexible) → payroll ❓

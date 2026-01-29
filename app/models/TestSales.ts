@@ -1,9 +1,9 @@
 /**
  * @registry-id: TestSalesModel
  * @created: 2026-01-27T00:00:00.000Z
- * @last-modified: 2026-01-27T00:00:00.000Z
+ * @last-modified: 2026-01-29T00:00:00.000Z
  * @description: Test Sales data model - stores raw parsed sales data without transformations
- * @last-fix: [2026-01-27] Initial implementation
+ * @last-fix: [2026-01-29] Collection renamed to test-bork-sales (pattern test-source-type)
  * 
  * @exports-to:
  * ✓ app/lib/services/rawDataStorageService.ts => Stores raw sales data
@@ -42,7 +42,7 @@ const TestSalesSchema = new Schema<ITestSales>(
   },
   {
     timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' },
-    collection: 'test-sales',
+    collection: 'test-bork-sales',
     strict: false, // Allow dynamic fields from raw data
   }
 )

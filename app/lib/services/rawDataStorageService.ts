@@ -1,9 +1,9 @@
 /**
  * @registry-id: rawDataStorageService
  * @created: 2026-01-27T00:00:00.000Z
- * @last-modified: 2026-01-28T00:00:00.000Z
+ * @last-modified: 2026-01-29T00:00:00.000Z
  * @description: Raw data storage service - stores parsed data without transformations (exact copy from files)
- * @last-fix: [2026-01-28] Removed debug instrumentation after fixing pdfjs-dist SSR issue
+ * @last-fix: [2026-01-29] Use mongoose.Types.ObjectId instead of mongodb ObjectId to avoid BSON 6.x vs 7.x mismatch
  * 
  * @imports-from:
  *   - app/models/TestSales.ts => TestSales model
@@ -17,13 +17,13 @@
  *   ✓ app/api/inbox/process/[emailId]/route.ts => Stores raw data for test document types
  */
 
+import mongoose from 'mongoose'
 import TestSales from '@/models/TestSales'
 import TestProductMix from '@/models/TestProductMix'
 import TestFoodBeverage from '@/models/TestFoodBeverage'
 import TestBasisReport from '@/models/TestBasisReport'
 import TestProductSalesPerHour from '@/models/TestProductSalesPerHour'
 import type { DocumentType, CreateParsedDataDto } from '@/lib/types/inbox.types'
-import { ObjectId } from 'mongodb'
 
 export interface RawStorageResult {
   success: boolean
@@ -63,15 +63,15 @@ function getModelForType(documentType: DocumentType) {
 function getCollectionName(documentType: DocumentType): string {
   switch (documentType) {
     case 'sales':
-      return 'test-sales'
+      return 'test-bork-sales'
     case 'product_mix':
-      return 'test-product-mix'
+      return 'test-bork-product-mix'
     case 'food_beverage':
-      return 'test-food-beverage'
+      return 'test-bork-food-beverage'
     case 'basis_report':
       return 'test-basis-report'
     case 'product_sales_per_hour':
-      return 'test-product-sales-per-hour'
+      return 'test-bork-basis-rapport'
     default:
       return 'unknown'
   }
@@ -135,9 +135,9 @@ export async function storeRawData(
   let recordsCreated = 0
 
   try {
-    // Convert emailId and attachmentId to ObjectId
-    const emailId = new ObjectId(parsedData.emailId)
-    const attachmentId = new ObjectId(parsedData.attachmentId)
+    // Use Mongoose ObjectId so BSON version matches (mongoose uses bson 6.x; top-level mongodb uses 7.x)
+    const emailId = new mongoose.Types.ObjectId(parsedData.emailId)
+    const attachmentId = new mongoose.Types.ObjectId(parsedData.attachmentId)
 
     // Store each row as a separate document with raw data
     const documentsToInsert = parsedData.data.rows.map((row, index) => {
@@ -210,7 +210,7 @@ export async function updateSourceFileName(
 
   try {
     await Model.updateMany(
-      { sourceAttachmentId: new ObjectId(attachmentId) },
+      { sourceAttachmentId: new mongoose.Types.ObjectId(attachmentId) },
       { $set: { sourceFileName: fileName } }
     )
   } catch (error) {

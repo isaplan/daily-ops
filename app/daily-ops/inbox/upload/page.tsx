@@ -31,16 +31,23 @@ import { useRouter } from 'next/navigation'
 export default function InboxUploadPage() {
   const router = useRouter()
   const [uploading, setUploading] = useState(false)
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [parseResult, setParseResult] = useState<ParseResult | null>(null)
   const [uploadResult, setUploadResult] = useState<{
     emailId: string
     attachmentId: string
+    mappingSuccess?: boolean
+    mappingError?: string
+    parseFailed?: boolean
   } | null>(null)
+  const [uploadError, setUploadError] = useState<string | null>(null)
 
   const handleFileSelect = async (file: File) => {
     setUploading(true)
     setParseResult(null)
     setUploadResult(null)
+    setUploadError(null)
+    setSelectedFile(file)
 
     try {
       // First, parse to preview
@@ -52,7 +59,21 @@ export default function InboxUploadPage() {
         body: formData,
       })
 
-      const parseData = await parseResponse.json()
+      const parseText = await parseResponse.text()
+      let parseData: { success?: boolean; data?: ParseResult; error?: string }
+      try {
+        parseData = parseText.startsWith('<') ? {} : JSON.parse(parseText)
+      } catch {
+        setParseResult({
+          success: false,
+          format: 'unknown',
+          headers: [],
+          rows: [],
+          rowCount: 0,
+          error: parseResponse.ok ? 'Invalid response from server' : `Server error ${parseResponse.status}. Check the console or try again.`,
+        })
+        return
+      }
       if (parseData.success && parseData.data) {
         setParseResult(parseData.data)
       } else {
@@ -81,30 +102,49 @@ export default function InboxUploadPage() {
 
   const handleUpload = async () => {
     if (!parseResult || !parseResult.success) return
+    if (!selectedFile) {
+      setUploadError('No file to upload. Please select a file again.')
+      return
+    }
 
     setUploading(true)
+    setUploadError(null)
     try {
-      // Get the file from the input
-      const fileInput = document.getElementById('file-input') as HTMLInputElement
-      if (!fileInput?.files?.[0]) return
-
       const formData = new FormData()
-      formData.append('file', fileInput.files[0])
+      formData.append('file', selectedFile)
 
       const response = await fetch('/api/inbox/upload', {
         method: 'POST',
         body: formData,
       })
 
-      const data = await response.json()
+      const text = await response.text()
+      let data: { success?: boolean; data?: { email?: { _id: string }; mappingResult?: { success?: boolean; errors?: Array<{ error: string }>; mappedToCollection?: string }; parseFailed?: boolean; error?: string }; error?: string }
+      try {
+        data = text.startsWith('<') ? {} : JSON.parse(text)
+      } catch {
+        setUploadError(response.ok ? 'Invalid response from server' : `Server error ${response.status}. Check the console or try again.`)
+        return
+      }
       if (data.success && data.data) {
+        const mapping = data.data.mappingResult
+        const parseFailed = data.data.parseFailed === true
         setUploadResult({
           emailId: data.data.email._id,
           attachmentId: data.data.attachment._id,
+          mappingSuccess: parseFailed ? false : (mapping == null || mapping.success),
+          mappingError: parseFailed
+            ? (data.data.error ?? 'Parse failed')
+            : mapping && !mapping.success
+              ? (mapping.errors?.[0]?.error ?? `Failed to store in ${mapping.mappedToCollection}`)
+              : undefined,
+          parseFailed,
         })
+      } else {
+        setUploadError(data.error || 'Upload failed')
       }
     } catch (error) {
-      // Handle error
+      setUploadError(error instanceof Error ? error.message : 'Upload failed')
     } finally {
       setUploading(false)
     }
@@ -193,6 +233,11 @@ export default function InboxUploadPage() {
                     />
                   </div>
                 )}
+                {uploadError && (
+                  <div className="bg-red-50 border border-red-200 rounded p-3 text-sm text-red-800">
+                    {uploadError}
+                  </div>
+                )}
                 {!uploadResult && (
                   <Button onClick={handleUpload} disabled={uploading} className="w-full">
                     Upload and Store
@@ -209,14 +254,24 @@ export default function InboxUploadPage() {
       )}
 
       {uploadResult && (
-        <Card className="bg-green-50 border-green-200">
+        <Card className={uploadResult.mappingSuccess !== false ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}>
           <CardContent className="py-6">
             <div className="flex items-center gap-3">
-              <CheckCircle2 className="h-6 w-6 text-green-600" />
+              {uploadResult.mappingSuccess !== false ? (
+                <CheckCircle2 className="h-6 w-6 text-green-600" />
+              ) : (
+                <XCircle className="h-6 w-6 text-red-600" />
+              )}
               <div className="flex-1">
-                <p className="font-medium text-green-800">File uploaded successfully!</p>
-                <p className="text-sm text-green-700">
-                  Data has been parsed and stored in the database.
+                <p className={`font-medium ${uploadResult.mappingSuccess !== false ? 'text-green-800' : 'text-red-800'}`}>
+                  {uploadResult.mappingSuccess !== false ? 'File uploaded and stored successfully.' : 'Upload failed: data was not stored.'}
+                </p>
+                <p className={`text-sm ${uploadResult.mappingSuccess !== false ? 'text-green-700' : 'text-red-700'}`}>
+                  {uploadResult.parseFailed
+                    ? `Parse failed: ${uploadResult.mappingError ?? 'unknown'}. Open the email and click Re-parse to try again.`
+                    : uploadResult.mappingSuccess !== false
+                      ? 'Data has been parsed and stored in the database.'
+                      : uploadResult.mappingError ?? 'Missing required field or mapping error. You can still view the email.'}
                 </p>
               </div>
               <Button

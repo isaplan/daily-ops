@@ -1,9 +1,9 @@
 /**
  * @registry-id: documentParserService
  * @created: 2026-01-26T00:00:00.000Z
- * @last-modified: 2026-01-26T00:00:00.000Z
+ * @last-modified: 2026-01-29T00:00:00.000Z
  * @description: Document parser service - routes to appropriate parser (CSV/Excel/PDF) and classifies document type
- * @last-fix: [2026-01-26] Initial implementation
+ * @last-fix: [2026-01-29] BORK Basis Rapport Excel: skip 9 rows; Food/Bev 8; Product Mix 10
  * 
  * @imports-from:
  *   - app/lib/utils/csv-parser.ts => CSV parsing
@@ -21,7 +21,7 @@
 import { parseCSV } from '@/lib/utils/csv-parser'
 import { parseExcel } from '@/lib/utils/excel-parser'
 import { parsePDF } from '@/lib/utils/pdf-parser'
-import { classifyDocument } from '@/lib/utils/document-classifier'
+import { classifyDocument, classifyByFilename } from '@/lib/utils/document-classifier'
 import type { ParseResult, DocumentType } from '@/lib/types/inbox.types'
 
 export interface ParseDocumentOptions {
@@ -78,7 +78,11 @@ class DocumentParserService {
               error: 'CSV data must be a string',
             }
           }
-          parseResult = await parseCSV(options.data, { autoDetectDelimiter: true })
+          // BORK Product Mix: 10 metadata lines; BORK Food/Bev: 8 metadata lines before header
+          const filenameHint = classifyByFilename(options.fileName)
+          const skipLines =
+            filenameHint.type === 'product_mix' ? 10 : filenameHint.type === 'food_beverage' ? 8 : undefined
+          parseResult = await parseCSV(options.data, { autoDetectDelimiter: true, skipLines })
           break
         }
 
@@ -93,7 +97,13 @@ class DocumentParserService {
               error: 'Excel data must be a Buffer',
             }
           }
-          parseResult = await parseExcel(options.data, { parseAllSheets: true })
+          // BORK Basis Rapport: 9 metadata rows before header (Groep1, Hoeveelheid, Totale prijs, Ex BTW, etc.)
+          const filenameHint = classifyByFilename(options.fileName)
+          const basisReportOptions =
+            filenameHint.type === 'basis_report'
+              ? { parseAllSheets: false, skipRows: 9, emptyHeadersAsColumnN: true }
+              : { parseAllSheets: true }
+          parseResult = await parseExcel(options.data, basisReportOptions)
           break
         }
 

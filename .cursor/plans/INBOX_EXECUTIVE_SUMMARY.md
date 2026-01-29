@@ -75,9 +75,9 @@ An **email-driven document processing system** that automatically:
 ## 📋 DOCUMENT TYPES (Processing Priority)
 
 ### **Tier 1: Eitje Suite** (Already have collections ✓)
-- **Eitje Hours** → CSV → eitje_hours
-- **Eitje Contracts** → XLSX → eitje_contracts  
-- **Eitje Finance** → PDF → eitje_finance
+- **Eitje Hours** → CSV → test-eitje-hours
+- **Eitje Contracts** → XLSX → test-eitje-contracts  
+- **Eitje Finance** → PDF → test-eitje-finance
 
 ### **Tier 2: Bork Suite** (Need to create 🆕)
 - **Bork Sales** → CSV/XLSX → bork_sales

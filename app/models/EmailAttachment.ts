@@ -1,9 +1,9 @@
 /**
  * @registry-id: EmailAttachmentModel
  * @created: 2026-01-26T00:00:00.000Z
- * @last-modified: 2026-01-26T00:00:00.000Z
+ * @last-modified: 2026-01-29T00:00:00.000Z
  * @description: EmailAttachment schema and model - stores attachment metadata and parse status
- * @last-fix: [2026-01-26] Initial implementation with Eitje metadata sheet support
+ * @last-fix: [2026-01-29] Added documentType enum values: product_mix, food_beverage, basis_report, product_sales_per_hour
  * 
  * @exports-to:
  * ✓ app/lib/services/inboxService.ts => Attachment CRUD operations
@@ -22,7 +22,7 @@ export interface IEmailAttachment extends Document {
   googleAttachmentId: string
   downloadedAt: Date
   storedLocally: boolean
-  documentType: 'hours' | 'contracts' | 'finance' | 'sales' | 'payroll' | 'bi' | 'other' | 'formitabele' | 'pasy' | 'coming_soon'
+  documentType: 'hours' | 'contracts' | 'finance' | 'sales' | 'payroll' | 'bi' | 'other' | 'formitabele' | 'pasy' | 'coming_soon' | 'product_mix' | 'food_beverage' | 'basis_report' | 'product_sales_per_hour'
   parseStatus: 'pending' | 'parsing' | 'success' | 'failed'
   parseError?: string
   parsedDataRef?: mongoose.Types.ObjectId
@@ -34,6 +34,8 @@ export interface IEmailAttachment extends Document {
     userInfo?: Record<string, unknown>
     delimiter?: string
   }
+  /** Raw file content for re-parse: CSV as string, xlsx/pdf as base64. Set on upload or after download. */
+  originalData?: string
   created_at: Date
   updated_at: Date
 }
@@ -49,7 +51,7 @@ const EmailAttachmentSchema = new Schema<IEmailAttachment>(
     storedLocally: { type: Boolean, default: false },
     documentType: {
       type: String,
-      enum: ['hours', 'contracts', 'finance', 'sales', 'payroll', 'bi', 'other', 'formitabele', 'pasy', 'coming_soon'],
+      enum: ['hours', 'contracts', 'finance', 'sales', 'payroll', 'bi', 'other', 'formitabele', 'pasy', 'coming_soon', 'product_mix', 'food_beverage', 'basis_report', 'product_sales_per_hour'],
       default: 'other',
       index: true,
     },
@@ -73,6 +75,7 @@ const EmailAttachmentSchema = new Schema<IEmailAttachment>(
       userInfo: { type: Schema.Types.Mixed },
       delimiter: { type: String },
     },
+    originalData: { type: String },
     created_at: { type: Date, default: Date.now },
     updated_at: { type: Date, default: Date.now },
   },
@@ -85,6 +88,14 @@ const EmailAttachmentSchema = new Schema<IEmailAttachment>(
 EmailAttachmentSchema.index({ emailId: 1, parseStatus: 1 })
 EmailAttachmentSchema.index({ documentType: 1, parseStatus: 1 })
 EmailAttachmentSchema.index({ parsedDataRef: 1 })
+
+// Single source of enum so validation always allows current DocumentType values (e.g. basis_report)
+const DOCUMENT_TYPES = [
+  'hours', 'contracts', 'finance', 'sales', 'payroll', 'bi', 'other',
+  'formitabele', 'pasy', 'coming_soon',
+  'product_mix', 'food_beverage', 'basis_report', 'product_sales_per_hour',
+] as const
+EmailAttachmentSchema.path('documentType').enum(...DOCUMENT_TYPES)
 
 const EmailAttachment: Model<IEmailAttachment> =
   mongoose.models.EmailAttachment ||

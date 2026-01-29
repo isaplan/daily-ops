@@ -1,9 +1,9 @@
 /**
  * @registry-id: TestProductSalesPerHourModel
  * @created: 2026-01-27T00:00:00.000Z
- * @last-modified: 2026-01-27T00:00:00.000Z
+ * @last-modified: 2026-01-29T00:00:00.000Z
  * @description: Test Product Sales Per Hour data model - stores raw parsed product sales per hour data without transformations
- * @last-fix: [2026-01-27] Initial implementation
+ * @last-fix: [2026-01-29] Collection renamed to test-bork-basis-rapport (pattern test-source-type)
  * 
  * @exports-to:
  * ✓ app/lib/services/rawDataStorageService.ts => Stores raw product sales per hour data
@@ -42,7 +42,7 @@ const TestProductSalesPerHourSchema = new Schema<ITestProductSalesPerHour>(
   },
   {
     timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' },
-    collection: 'test-product-sales-per-hour',
+    collection: 'test-bork-basis-rapport',
     strict: false, // Allow dynamic fields from raw data
   }
 )

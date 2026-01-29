@@ -1,9 +1,9 @@
 /**
  * @registry-id: testDataAPI
  * @created: 2026-01-27T00:00:00.000Z
- * @last-modified: 2026-01-27T00:00:00.000Z
+ * @last-modified: 2026-01-29T00:00:00.000Z
  * @description: Test data API - retrieve raw test data by type with pagination
- * @last-fix: [2026-01-27] Added support for Eitje and Power-BI types (hours, contracts, finance, bi) by querying collections directly
+ * @last-fix: [2026-01-29] Collection names updated to test-source-type (test-bork-*, test-sales)
  * 
  * @imports-from:
  *   - app/models/TestSales.ts => TestSales model
@@ -58,21 +58,21 @@ function getModelForType(type: TestDataType) {
 function getCollectionName(type: AllDataType): string {
   switch (type) {
     case 'sales':
-      return 'test-sales'
+      return 'test-bork-sales'
     case 'product_mix':
-      return 'test-product-mix'
+      return 'test-bork-product-mix'
     case 'food_beverage':
-      return 'test-food-beverage'
+      return 'test-bork-food-beverage'
     case 'basis_report':
       return 'test-basis-report'
     case 'product_sales_per_hour':
-      return 'test-product-sales-per-hour'
+      return 'test-bork-basis-rapport'
     case 'hours':
-      return 'eitje_hours'
+      return 'test-eitje-hours'
     case 'contracts':
-      return 'eitje_contracts'
+      return 'test-eitje-contracts'
     case 'finance':
-      return 'eitje_finance'
+      return 'test-eitje-finance'
     case 'bi':
       return 'power_bi_exports'
     default:

@@ -19,6 +19,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { ensureInboxCollections } from '@/lib/mongodb/inbox-collections'
 import { documentParserService } from '@/lib/services/documentParserService'
 import { dataMappingService } from '@/lib/services/dataMappingService'
+import { storeRawData, isTestDataType } from '@/lib/services/rawDataStorageService'
 import InboxEmail from '@/models/InboxEmail'
 import EmailAttachment from '@/models/EmailAttachment'
 import ParsedData from '@/models/ParsedData'
@@ -59,11 +60,41 @@ export async function POST(request: NextRequest) {
       autoDetectType: true,
     })
 
+    const isCsv = file.type.includes('csv') || (parseResult.format === 'csv')
+    const originalData = isCsv ? buffer.toString('utf-8') : buffer.toString('base64')
+
     if (!parseResult.success) {
+      // Still create email + attachment with originalData so user can Re-parse later
+      const email = await InboxEmail.create({
+        messageId: `manual_${Date.now()}_${Math.random().toString(36).substring(7)}`,
+        from: 'manual_upload@system',
+        subject: `Manual Upload: ${file.name}`,
+        receivedAt: new Date(),
+        hasAttachments: true,
+        attachmentCount: 1,
+        summary: `Manually uploaded file: ${file.name} (parse failed)`,
+        status: 'failed',
+      })
+      const failedAttachment = await EmailAttachment.create({
+        emailId: email._id,
+        fileName: file.name,
+        mimeType: file.type,
+        fileSize: file.size,
+        googleAttachmentId: `manual_${Date.now()}`,
+        documentType: 'other',
+        parseStatus: 'failed',
+        parseError: parseResult.error || 'Failed to parse file',
+        originalData,
+        metadata: { format: parseResult.format || 'unknown' },
+      })
       return NextResponse.json({
-        success: false,
-        error: parseResult.error || 'Failed to parse file',
-        parseResult,
+        success: true,
+        data: {
+          email: { _id: email._id.toString(), messageId: email.messageId, subject: email.subject },
+          attachment: { _id: failedAttachment._id.toString() },
+          parseFailed: true,
+          error: parseResult.error,
+        },
       })
     }
 
@@ -79,7 +110,7 @@ export async function POST(request: NextRequest) {
       status: 'completed',
     })
 
-    // Create attachment record
+    // Create attachment record (with originalData for re-parse)
     const attachment = await EmailAttachment.create({
       emailId: email._id,
       fileName: file.name,
@@ -88,6 +119,7 @@ export async function POST(request: NextRequest) {
       googleAttachmentId: `manual_${Date.now()}`,
       documentType: parseResult.documentType || 'other',
       parseStatus: 'success',
+      originalData,
       metadata: {
         format: parseResult.format,
         sheets: parseResult.metadata?.sheets,
@@ -118,14 +150,52 @@ export async function POST(request: NextRequest) {
     attachment.parsedDataRef = parsedData._id
     await attachment.save()
 
-    // Map to collection (if not "coming soon")
+    // Bork test types (sales, product_mix, etc.): store raw rows in test-bork-* so view shows data
     let mappingResult = null
-    if (
+    if (parseResult.documentType && isTestDataType(parseResult.documentType)) {
+      const rawStorageResult = await storeRawData(
+        {
+          attachmentId: attachment._id.toString(),
+          emailId: email._id.toString(),
+          documentType: parseResult.documentType,
+          format: parseResult.format,
+          rowsProcessed: parseResult.rowCount,
+          rowsValid: parseResult.rowCount,
+          rowsFailed: 0,
+          data: {
+            headers: parseResult.headers,
+            rows: parseResult.rows,
+            metadata: parseResult.metadata,
+          },
+        },
+        parseResult.documentType,
+        { fileName: attachment.fileName }
+      )
+      mappingResult = {
+        success: rawStorageResult.recordsCreated > 0,
+        mappedToCollection: rawStorageResult.collectionName,
+        matchedRecords: 0,
+        createdRecords: rawStorageResult.recordsCreated,
+        updatedRecords: 0,
+        failedRecords: rawStorageResult.recordsFailed,
+        errors: rawStorageResult.errors,
+      }
+      parsedData.mapping = {
+        mappedToCollection: rawStorageResult.collectionName,
+        matchedRecords: 0,
+        createdRecords: rawStorageResult.recordsCreated,
+        updatedRecords: 0,
+      }
+      parsedData.rowsValid = rawStorageResult.recordsCreated
+      parsedData.rowsFailed = rawStorageResult.recordsFailed
+      await parsedData.save()
+    } else if (
       parseResult.documentType &&
       parseResult.documentType !== 'formitabele' &&
       parseResult.documentType !== 'pasy' &&
       parseResult.documentType !== 'coming_soon'
     ) {
+      // Map to collection for non–test types (Eitje hours, contracts, etc.)
       mappingResult = await dataMappingService.mapToCollection(
         {
           attachmentId: attachment._id.toString(),
@@ -143,7 +213,6 @@ export async function POST(request: NextRequest) {
         parseResult.documentType
       )
 
-      // Update parsed data with mapping results
       parsedData.mapping = {
         mappedToCollection: mappingResult.mappedToCollection,
         matchedRecords: mappingResult.matchedRecords,

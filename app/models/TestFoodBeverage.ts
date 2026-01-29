@@ -1,9 +1,9 @@
 /**
  * @registry-id: TestFoodBeverageModel
  * @created: 2026-01-27T00:00:00.000Z
- * @last-modified: 2026-01-27T00:00:00.000Z
+ * @last-modified: 2026-01-29T00:00:00.000Z
  * @description: Test Food & Beverage data model - stores raw parsed food & beverage data without transformations
- * @last-fix: [2026-01-27] Initial implementation
+ * @last-fix: [2026-01-29] Collection renamed to test-bork-food-beverage (pattern test-source-type)
  * 
  * @exports-to:
  * ✓ app/lib/services/rawDataStorageService.ts => Stores raw food & beverage data
@@ -42,7 +42,7 @@ const TestFoodBeverageSchema = new Schema<ITestFoodBeverage>(
   },
   {
     timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' },
-    collection: 'test-food-beverage',
+    collection: 'test-bork-food-beverage',
     strict: false, // Allow dynamic fields from raw data
   }
 )

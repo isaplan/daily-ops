@@ -67,26 +67,36 @@ export async function POST(
         attachment.parseStatus = 'parsing'
         await attachment.save()
 
-        // Download attachment from Gmail
-        const gmailAttachment = await gmailApiService.downloadAttachment(
-          email.messageId,
-          attachment.googleAttachmentId
-        )
+        let parseData: string | Buffer
+        const isCsv = attachment.mimeType?.toLowerCase().includes('csv') ?? false
 
-        if (!gmailAttachment.data) {
-          throw new Error('Failed to download attachment data')
+        if (attachment.originalData) {
+          // Re-parse using stored content (manual upload or previous download)
+          parseData = isCsv ? attachment.originalData : Buffer.from(attachment.originalData, 'base64')
+        } else {
+          // Download attachment from Gmail
+          const gmailAttachment = await gmailApiService.downloadAttachment(
+            email.messageId,
+            attachment.googleAttachmentId
+          )
+
+          if (!gmailAttachment.data) {
+            throw new Error('Failed to download attachment data')
+          }
+
+          const fileBuffer = Buffer.from(gmailAttachment.data, 'base64')
+          parseData = isCsv ? fileBuffer.toString('utf-8') : fileBuffer
+
+          // Store for re-parse
+          attachment.originalData = isCsv ? (parseData as string) : fileBuffer.toString('base64')
+          await attachment.save()
         }
-
-        // Decode base64
-        const fileBuffer = Buffer.from(gmailAttachment.data, 'base64')
 
         // Parse document
         const parseResult = await documentParserService.parseDocument({
           fileName: attachment.fileName,
           mimeType: attachment.mimeType,
-          data: attachment.mimeType.includes('csv')
-            ? fileBuffer.toString('utf-8')
-            : fileBuffer,
+          data: parseData,
           autoDetectType: true,
         })
 

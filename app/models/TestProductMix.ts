@@ -1,9 +1,9 @@
 /**
  * @registry-id: TestProductMixModel
  * @created: 2026-01-27T00:00:00.000Z
- * @last-modified: 2026-01-27T00:00:00.000Z
+ * @last-modified: 2026-01-29T00:00:00.000Z
  * @description: Test Product Mix data model - stores raw parsed product mix data without transformations
- * @last-fix: [2026-01-27] Initial implementation
+ * @last-fix: [2026-01-29] Collection renamed to test-bork-product-mix (pattern test-source-type)
  * 
  * @exports-to:
  * ✓ app/lib/services/rawDataStorageService.ts => Stores raw product mix data
@@ -42,7 +42,7 @@ const TestProductMixSchema = new Schema<ITestProductMix>(
   },
   {
     timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' },
-    collection: 'test-product-mix',
+    collection: 'test-bork-product-mix',
     strict: false, // Allow dynamic fields from raw data
   }
 )

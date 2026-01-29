@@ -154,7 +154,7 @@ interface ParsedData {
     metadata?: Record<string, unknown>;
   };
   mapping: {
-    mappedToCollection?: string;        // e.g., 'eitje_hours', 'bork_sales'
+    mappedToCollection?: string;        // e.g., 'test-eitje-hours', 'bork_sales'
     matchedRecords?: number;
     createdRecords?: number;
     updatedRecords?: number;
@@ -307,7 +307,7 @@ interface ProcessingLog {
 ### PHASE 8: Database Models & Mapping
 **Files:**
 - Create example mappings for:
-  - Eitje Hours → eitje_hours collection
+  - Eitje Hours → test-eitje-hours collection
   - Bork Sales → bork_sales collection
 
 **What:**
@@ -436,14 +436,14 @@ Status: EXISTING
 ### 2. Eitje Contracts (XLSX)
 ```
 Columns: [EmployeeID, Name, ContractType, StartDate, EndDate]
-Destination: eitje_contracts collection
+Destination: test-eitje-contracts collection
 Status: EXISTING
 ```
 
 ### 3. Eitje Finance (PDF → Extract Tables)
 ```
 Content: Financial reports, invoices
-Destination: eitje_finance collection
+Destination: test-eitje-finance collection
 Status: EXISTING
 ```
 

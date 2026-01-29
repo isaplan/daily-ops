@@ -1,9 +1,9 @@
 /**
  * @registry-id: excelParser
  * @created: 2026-01-26T00:00:00.000Z
- * @last-modified: 2026-01-26T00:00:00.000Z
+ * @last-modified: 2026-01-29T00:00:00.000Z
  * @description: Excel parser with multi-sheet support (handles Eitje Data + Metadata sheets)
- * @last-fix: [2026-01-26] Initial implementation with Eitje metadata sheet support
+ * @last-fix: [2026-01-29] skipRows + emptyHeadersAsColumnN for BORK Basis Rapport (9 metadata rows)
  * 
  * @imports-from:
  *   - xlsx => Excel parsing library
@@ -19,6 +19,10 @@ import type { ParseResult } from '@/lib/types/inbox.types'
 export interface ExcelParseOptions {
   sheetName?: string
   parseAllSheets?: boolean
+  /** Rows to skip before header row (e.g. BORK Basis Rapport has 9 metadata rows) */
+  skipRows?: number
+  /** Use column_0, column_1, ... for empty header cells so all columns are preserved */
+  emptyHeadersAsColumnN?: boolean
 }
 
 /**
@@ -43,6 +47,8 @@ export async function parseExcel(
       }
     }
 
+    const sheetOptions = { skipRows: options.skipRows, emptyHeadersAsColumnN: options.emptyHeadersAsColumnN }
+
     // If specific sheet requested
     if (options.sheetName) {
       const sheet = workbook.Sheets[options.sheetName]
@@ -56,7 +62,7 @@ export async function parseExcel(
           error: `Sheet "${options.sheetName}" not found`,
         }
       }
-      return parseSheet(sheet, 'xlsx', sheetNames)
+      return parseSheet(sheet, 'xlsx', sheetNames, sheetOptions)
     }
 
     // If parse all sheets (for Eitje format: Data + Metadata)
@@ -97,7 +103,7 @@ export async function parseExcel(
 
     // Parse first sheet by default
     const firstSheet = workbook.Sheets[sheetNames[0]]
-    return parseSheet(firstSheet, 'xlsx', sheetNames)
+    return parseSheet(firstSheet, 'xlsx', sheetNames, sheetOptions)
   } catch (error) {
     return {
       success: false,
@@ -110,16 +116,21 @@ export async function parseExcel(
   }
 }
 
+interface ParseSheetOptions {
+  skipRows?: number
+  emptyHeadersAsColumnN?: boolean
+}
+
 /**
  * Parse a single Excel sheet
  */
 function parseSheet(
   sheet: XLSX.WorkSheet,
   format: 'xlsx',
-  sheetNames: string[]
+  sheetNames: string[],
+  opts: ParseSheetOptions = {}
 ): ParseResult {
   try {
-    // Convert sheet to JSON with header row
     const jsonData = XLSX.utils.sheet_to_json(sheet, {
       header: 1,
       defval: null,
@@ -134,15 +145,32 @@ function parseSheet(
         rows: [],
         rowCount: 0,
         error: 'Sheet is empty',
-        metadata: {
-          sheets: sheetNames,
-        },
+        metadata: { sheets: sheetNames },
       }
     }
 
-    // First row is headers
-    const headers = (jsonData[0] as string[]).map((h) => String(h || '').trim()).filter(Boolean)
-    const dataRows = jsonData.slice(1)
+    const skipRows = opts.skipRows ?? 0
+    const afterSkip = jsonData.slice(skipRows)
+    if (afterSkip.length === 0) {
+      return {
+        success: false,
+        format,
+        headers: [],
+        rows: [],
+        rowCount: 0,
+        error: 'No data after skipping rows',
+        metadata: { sheets: sheetNames },
+      }
+    }
+
+    // First row after skip is headers
+    const headerRow = afterSkip[0] as (string | null | number)[]
+    const headers = headerRow.map((h, index) => {
+      const s = String(h ?? '').trim()
+      if (opts.emptyHeadersAsColumnN && !s) return `column_${index}`
+      return s || `column_${index}`
+    })
+    const dataRows = afterSkip.slice(1)
 
     // Convert rows to objects
     const rows: Record<string, unknown>[] = dataRows

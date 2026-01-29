@@ -86,7 +86,7 @@
                       ┌────────────────────────┐
                       │ Store to Destination   │
                       │ Collection             │
-                      │ (eitje_hours, etc)     │
+                      │ (test-eitje-hours, etc)     │
                       └──────────┬─────────────┘
                                  │
                                  ▼
@@ -248,7 +248,7 @@
                                 │ │ • Stored to    │ │
                                 │ │   destination  │ │
                                 │ │   collection   │ │
-                                │ │   (eitje_hours)│ │
+                                │ │   (test-eitje-hours)│ │
                                 │ └────────────────┘ │
                     ┌───────────┼────────┐          │
                     │           │        │          │

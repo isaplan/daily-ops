@@ -38,10 +38,21 @@ interface ParsedDataTableProps {
 export function ParsedDataTable({ parsedData, pageSize = 20 }: ParsedDataTableProps) {
   const [currentPage, setCurrentPage] = useState(1)
 
-  const totalPages = Math.ceil(parsedData.data.rows.length / pageSize)
+  const rows = parsedData?.data?.rows
+  const headers = parsedData?.data?.headers ?? []
+
+  if (!Array.isArray(rows)) {
+    return (
+      <div className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
+        No parsed data to display. Data may not be loaded yet.
+      </div>
+    )
+  }
+
+  const totalPages = Math.max(1, Math.ceil(rows.length / pageSize))
   const startIndex = (currentPage - 1) * pageSize
   const endIndex = startIndex + pageSize
-  const currentRows = parsedData.data.rows.slice(startIndex, endIndex)
+  const currentRows = rows.slice(startIndex, endIndex)
 
   const formatValue = (value: unknown): string => {
     if (value === null || value === undefined) return '-'
@@ -53,9 +64,9 @@ export function ParsedDataTable({ parsedData, pageSize = 20 }: ParsedDataTablePr
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div className="text-sm text-muted-foreground">
-          Showing {startIndex + 1}-{Math.min(endIndex, parsedData.data.rows.length)} of{' '}
-          {parsedData.data.rows.length} rows
-          {parsedData.mapping.mappedToCollection && (
+          Showing {startIndex + 1}-{Math.min(endIndex, rows.length)} of{' '}
+          {rows.length} rows
+          {parsedData?.mapping?.mappedToCollection && (
             <>
               {' • '}
               <span className="font-medium">Mapped to:</span> {parsedData.mapping.mappedToCollection}
@@ -89,7 +100,7 @@ export function ParsedDataTable({ parsedData, pageSize = 20 }: ParsedDataTablePr
         <Table>
           <TableHeader>
             <TableRow>
-              {parsedData.data.headers.map((header) => (
+              {headers.map((header) => (
                 <TableHead key={header}>{header}</TableHead>
               ))}
             </TableRow>
@@ -97,14 +108,14 @@ export function ParsedDataTable({ parsedData, pageSize = 20 }: ParsedDataTablePr
           <TableBody>
             {currentRows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={parsedData.data.headers.length} className="text-center py-8">
+                <TableCell colSpan={headers.length || 1} className="text-center py-8">
                   No data available
                 </TableCell>
               </TableRow>
             ) : (
               currentRows.map((row, index) => (
                 <TableRow key={startIndex + index}>
-                  {parsedData.data.headers.map((header) => (
+                  {headers.map((header) => (
                     <TableCell key={header} className="max-w-xs truncate">
                       {formatValue(row[header])}
                     </TableCell>
@@ -116,7 +127,7 @@ export function ParsedDataTable({ parsedData, pageSize = 20 }: ParsedDataTablePr
         </Table>
       </div>
 
-      {parsedData.validationErrors && parsedData.validationErrors.length > 0 && (
+      {parsedData?.validationErrors && parsedData.validationErrors.length > 0 && (
         <div className="bg-yellow-50 border border-yellow-200 rounded p-3">
           <p className="text-sm font-medium text-yellow-800 mb-2">Validation Errors:</p>
           <div className="space-y-1">
@@ -134,17 +145,17 @@ export function ParsedDataTable({ parsedData, pageSize = 20 }: ParsedDataTablePr
         </div>
       )}
 
-      {parsedData.mapping.createdRecords !== undefined && (
+      {parsedData?.mapping?.createdRecords !== undefined && (
         <div className="flex items-center gap-4 text-sm">
           <Badge variant="outline" className="bg-green-50 text-green-800">
             Created: {parsedData.mapping.createdRecords}
           </Badge>
-          {parsedData.mapping.updatedRecords !== undefined && parsedData.mapping.updatedRecords > 0 && (
+          {parsedData?.mapping?.updatedRecords !== undefined && parsedData.mapping.updatedRecords > 0 && (
             <Badge variant="outline" className="bg-blue-50 text-blue-800">
               Updated: {parsedData.mapping.updatedRecords}
             </Badge>
           )}
-          {parsedData.rowsFailed > 0 && (
+          {parsedData?.rowsFailed != null && parsedData.rowsFailed > 0 && (
             <Badge variant="outline" className="bg-red-50 text-red-800">
               Failed: {parsedData.rowsFailed}
             </Badge>

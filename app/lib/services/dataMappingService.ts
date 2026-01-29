@@ -1,9 +1,9 @@
 /**
  * @registry-id: dataMappingService
  * @created: 2026-01-26T00:00:00.000Z
- * @last-modified: 2026-01-26T00:00:00.000Z
+ * @last-modified: 2026-01-29T00:00:00.000Z
  * @description: Data mapping service - maps parsed document data to MongoDB collections
- * @last-fix: [2026-01-26] Initial implementation
+ * @last-fix: [2026-01-29] BOM stripped in CSV parser (transformHeader); fixed required-field fallbacks (Date/Datum); using getDatabase() for consistent BSON driver
  * 
  * @imports-from:
  *   - app/lib/mongodb/v2-connection.ts => getDatabase
@@ -17,7 +17,7 @@
 
 import { getDatabase } from '@/lib/mongodb/v2-connection'
 import type { DocumentType, ParsedData, CreateParsedDataDto } from '@/lib/types/inbox.types'
-import { ObjectId } from 'mongodb'
+import { ObjectId, type Db } from 'mongodb'
 
 export interface MappingResult {
   success: boolean
@@ -54,9 +54,9 @@ const FIELD_MAPPINGS: Record<DocumentType, FieldMapping[]> = {
     { sourceColumn: 'contracttype', targetField: 'contract_type' },
     { sourceColumn: 'uurloon', targetField: 'hourly_rate', transform: (v) => parseEuro(v as string) },
     { sourceColumn: 'support ID', targetField: 'support_id', transform: (v) => String(v) },
-    // English fallbacks (if provided)
-    { sourceColumn: 'Date', targetField: 'date', required: true, transform: (v) => parseDate(v as string) },
-    { sourceColumn: 'Datum', targetField: 'date', required: true, transform: (v) => parseDate(v as string) },
+    // English fallbacks (only one date column required: datum or Date or Datum)
+    { sourceColumn: 'Date', targetField: 'date', transform: (v) => parseDate(v as string) },
+    { sourceColumn: 'Datum', targetField: 'date', transform: (v) => parseDate(v as string) },
     { sourceColumn: 'Employee', targetField: 'employee_name' },
     { sourceColumn: 'Hours', targetField: 'hours', transform: (v) => parseTimeToHours(v as string) },
     { sourceColumn: 'Location', targetField: 'location_name' },
@@ -80,17 +80,26 @@ const FIELD_MAPPINGS: Record<DocumentType, FieldMapping[]> = {
     { sourceColumn: 'vloer ID', targetField: 'floor_id', transform: (v) => String(v) },
     { sourceColumn: 'Nmbrs ID', targetField: 'nmbrs_id', transform: (v) => String(v) },
     { sourceColumn: 'e-mailadres', targetField: 'email' },
-    { sourceColumn: 'verjaardag', targetField: 'birthday', transform: (v) => parseDate(v as string) },
+    { sourceColumn: 'verjaardag', targetField: 'birthday', transform: (v) => (typeof v === 'string' && v.trim() ? v.trim() : null) },
     { sourceColumn: 'achternaam', targetField: 'last_name' },
     { sourceColumn: 'voornaam', targetField: 'first_name' },
     { sourceColumn: 'support ID', targetField: 'support_id', transform: (v) => String(v) },
     // English fallbacks
-    { sourceColumn: 'Name', targetField: 'employee_name', required: true },
+    { sourceColumn: 'Name', targetField: 'employee_name' },
     { sourceColumn: 'ContractType', targetField: 'contract_type' },
     { sourceColumn: 'StartDate', targetField: 'start_date', transform: (v) => parseDate(v as string) },
   ],
   finance: [
-    { sourceColumn: 'Date', targetField: 'date', required: true },
+    { sourceColumn: 'datum', targetField: 'date', required: true, transform: (v) => parseDate(v as string) },
+    { sourceColumn: 'Date', targetField: 'date', transform: (v) => parseDate(v as string) },
+    { sourceColumn: 'naam van vestiging', targetField: 'location_name' },
+    { sourceColumn: 'omzetgroep naam', targetField: 'revenue_group_name' },
+    { sourceColumn: 'gerealiseerde arbeidsproductiviteit', targetField: 'labor_productivity', transform: (v) => Number(v) || 0 },
+    { sourceColumn: 'gerealiseerde loonkosten', targetField: 'realized_labor_costs', transform: (v) => parseEuro(v as string) },
+    { sourceColumn: 'gerealiseerde loonkosten percentage', targetField: 'labor_costs_percentage', transform: (v) => Number(v) || 0 },
+    { sourceColumn: 'gewerkte uren', targetField: 'hours', transform: (v) => parseTimeToHours(v as string) },
+    { sourceColumn: 'gerealiseerde omzet', targetField: 'realized_revenue', transform: (v) => parseEuro(v as string) },
+    { sourceColumn: 'support ID', targetField: 'support_id', transform: (v) => String(v) },
     { sourceColumn: 'Amount', targetField: 'amount', transform: (v) => Number(v) || 0 },
     { sourceColumn: 'Description', targetField: 'description' },
     { sourceColumn: 'Category', targetField: 'category' },
@@ -122,9 +131,9 @@ const FIELD_MAPPINGS: Record<DocumentType, FieldMapping[]> = {
  * Collection names for each document type
  */
 const COLLECTION_NAMES: Record<DocumentType, string> = {
-  hours: 'eitje_hours',
-  contracts: 'eitje_contracts',
-  finance: 'eitje_finance',
+  hours: 'test-eitje-hours',
+  contracts: 'test-eitje-contracts',
+  finance: 'test-eitje-finance',
   sales: 'bork_sales',
   payroll: 'payroll',
   bi: 'power_bi_exports',
@@ -175,13 +184,18 @@ function parseTimeToHours(timeStr: string): number {
 }
 
 /**
- * Parse Euro currency string (€123,45 or €123.45) to number
+ * Parse Euro currency string (€123,45 or €123.45) to number.
+ * Strips € (U+20AC), replacement char (U+FFFD), and Windows-1252 euro (U+0080).
+ * Accepts string or number (CSV parser may pass numbers).
  */
-function parseEuro(euroStr: string): number {
-  if (!euroStr || euroStr.trim() === '') return 0
+function parseEuro(euroStr: string | number | null | undefined): number {
+  if (euroStr == null) return 0
+  if (typeof euroStr === 'number') return isNaN(euroStr) ? 0 : euroStr
+  const str = String(euroStr)
+  if (!str || str.trim() === '') return 0
 
-  // Remove € symbol and spaces
-  let cleaned = euroStr.replace(/€/g, '').replace(/\s/g, '').trim()
+  // Remove € and common export variants (unknown icon / broken encoding)
+  let cleaned = str.replace(/[\u20AC\uFFFD\u0080]/g, '').replace(/\s/g, '').trim()
 
   // Handle "n.v.t." or empty values
   if (cleaned.toLowerCase().includes('n.v.t') || cleaned === '') return 0
@@ -193,13 +207,22 @@ function parseEuro(euroStr: string): number {
   return isNaN(num) ? 0 : num
 }
 
+/** Get value from row by key, with case-insensitive fallback (BOM stripped by CSV parser, so headers like "datum" match both "Datum" and "datum"). */
+function getRowValue(row: Record<string, unknown>, sourceColumn: string): unknown {
+  if (Object.prototype.hasOwnProperty.call(row, sourceColumn)) return row[sourceColumn]
+  const key = Object.keys(row).find((k) => k.trim().toLowerCase() === sourceColumn.trim().toLowerCase())
+  return key !== undefined ? row[key] : undefined
+}
+
 class DataMappingService {
   /**
-   * Map parsed data to MongoDB collection
+   * Map parsed data to MongoDB collection.
+   * @param db - Optional DB instance (e.g. mongoose.connection.db) so the collection is created in the same DB as the rest of the app.
    */
   async mapToCollection(
     parsedData: CreateParsedDataDto,
-    documentType: DocumentType
+    documentType: DocumentType,
+    db?: Db
   ): Promise<MappingResult> {
     // Handle "coming soon" types
     if (documentType === 'formitabele' || documentType === 'pasy' || documentType === 'coming_soon') {
@@ -235,8 +258,8 @@ class DataMappingService {
     }
 
     try {
-      const db = await getDatabase()
-      const collection = db.collection(collectionName)
+      const database = db ?? (await getDatabase())
+      const collection = database.collection(collectionName)
 
       const mappedRows: Record<string, unknown>[] = []
       const errors: Array<{ row: number; error: string }> = []
@@ -250,10 +273,10 @@ class DataMappingService {
             importedAt: new Date(),
           }
 
-          // Apply field mappings
+          // Apply field mappings (case-insensitive column match for CSV headers)
           let hasRequiredFields = true
           for (const mapping of fieldMappings) {
-            const sourceValue = row[mapping.sourceColumn]
+            const sourceValue = getRowValue(row, mapping.sourceColumn)
 
             // Check required fields
             if (mapping.required && (sourceValue === null || sourceValue === undefined || sourceValue === '')) {
@@ -356,6 +379,13 @@ class DataMappingService {
         return {
           date: row.date,
           product_name: row.product_name,
+        }
+      case 'finance':
+        // Unique by date + location_name + support_id (Eitje finance)
+        return {
+          date: row.date,
+          location_name: row.location_name,
+          support_id: row.support_id,
         }
       default:
         // Default: use _id if available, otherwise all fields

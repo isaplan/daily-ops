@@ -79,9 +79,32 @@ export function classifyByFilename(fileName: string): ClassificationResult {
  * Classify document type by content headers
  */
 export function classifyByContent(headers: string[]): ClassificationResult {
-  const lowerHeaders = headers.map((h) => h.toLowerCase())
+  const lowerHeaders = headers.map((h) => String(h).trim().toLowerCase())
 
-  // Check for Eitje Hours columns
+  // Eitje Finance: omzet/loonkosten/omzetgroep (check before hours – finance CSV shares datum/vestiging/uren)
+  const financeKeywords = ['gerealiseerde omzet', 'omzetgroep', 'loonkosten percentage', 'arbeidsproductiviteit']
+  if (financeKeywords.some((kw) => lowerHeaders.some((h) => h.includes(kw)))) {
+    return { type: 'finance', confidence: 'high', reason: 'Headers match Eitje Finance (omzet/loonkosten/omzetgroep)' }
+  }
+
+  // Eitje Contracts: contracttype + contractvestiging/wekelijkse contracturen (check before hours – contracts CSV has naam but no datum)
+  const hasContracttype = lowerHeaders.some((h) => h.includes('contracttype') || h.includes('contract type'))
+  const hasContractVestigingOrWekelijkse = lowerHeaders.some(
+    (h) => h.includes('contractvestiging') || h.includes('wekelijkse contracturen')
+  )
+  if (hasContracttype && hasContractVestigingOrWekelijkse) {
+    return { type: 'contracts', confidence: 'high', reason: 'Headers match Eitje Contracts (contracttype + contractvestiging/wekelijkse contracturen)' }
+  }
+
+  // Eitje Hours: exact header set (datum + naam + vestiging/uren)
+  const hasDatum = lowerHeaders.some((h) => h.includes('datum') || h === 'date')
+  const hasNaam = lowerHeaders.some((h) => h.includes('naam') || h.includes('name') || h.includes('werknemer') || h.includes('employee'))
+  const hasVestigingOrUren = lowerHeaders.some((h) => h.includes('vestiging') || h.includes('uren') || h.includes('locatie') || h.includes('location'))
+  if (hasDatum && hasNaam && hasVestigingOrUren) {
+    return { type: 'hours', confidence: 'high', reason: 'Headers match Eitje Hours (datum + naam + vestiging/uren)' }
+  }
+
+  // Fallback: any hours-related keyword
   const hoursKeywords = ['date', 'datum', 'employee', 'werknemer', 'hours', 'uren', 'location', 'locatie']
   if (hoursKeywords.some((keyword) => lowerHeaders.some((h) => h.includes(keyword)))) {
     return { type: 'hours', confidence: 'medium', reason: 'Headers match Eitje Hours pattern' }
@@ -131,19 +154,24 @@ export function classifyDocument(
   fileName: string,
   headers?: string[]
 ): ClassificationResult {
-  // Try filename first (higher confidence)
-  const filenameResult = classifyByFilename(fileName)
+  // If headers available, try content first (Eitje hours can be detected with high confidence from content)
+  if (headers && headers.length > 0) {
+    const contentResult = classifyByContent(headers)
+    if (contentResult.confidence === 'high') {
+      return contentResult
+    }
+  }
 
+  // Then filename
+  const filenameResult = classifyByFilename(fileName)
   if (filenameResult.confidence === 'high') {
     return filenameResult
   }
 
-  // If headers available, try content classification
+  // If we had content but only medium confidence, prefer content when filename is low
   if (headers && headers.length > 0) {
     const contentResult = classifyByContent(headers)
-
-    // If content gives higher confidence, use it
-    if (contentResult.confidence === 'high' || filenameResult.confidence === 'low') {
+    if (contentResult.confidence === 'medium' && filenameResult.confidence === 'low') {
       return contentResult
     }
   }

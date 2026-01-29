@@ -1,9 +1,9 @@
 /**
  * @registry-id: inboxCollectionsInit
  * @created: 2026-01-26T00:00:00.000Z
- * @last-modified: 2026-01-26T00:00:00.000Z
+ * @last-modified: 2026-01-29T00:00:00.000Z
  * @description: Initialize inbox MongoDB collections and ensure indexes are created
- * @last-fix: [2026-01-26] Initial implementation
+ * @last-fix: [2026-01-29] Added test-source-type collections (test-sales, test-bork-*)
  * 
  * @imports-from:
  *   - app/models/InboxEmail.ts => InboxEmail model
@@ -47,12 +47,33 @@ export async function initializeInboxCollections(): Promise<void> {
   }
 }
 
+/** Target collections for inbox mapping (pattern: test-source-type; created so they exist before first insert) */
+const INBOX_TARGET_COLLECTIONS = [
+  'test-eitje-hours',
+  'test-eitje-contracts',
+  'test-eitje-finance',
+  'test-bork-sales',
+  'test-bork-food-beverage',
+  'test-bork-product-mix',
+  'test-bork-basis-rapport',
+  'test-basis-report',
+  'bork_sales',
+  'power_bi_exports',
+]
+
 /**
- * Ensure collections exist (lazy initialization)
- * Called automatically when models are first used
+ * Ensure collections exist (inbox models + target mapping collections)
+ * Called before upload/process so target collections exist even when mapping fails on first run
  */
 export async function ensureInboxCollections(): Promise<void> {
   await dbConnect()
-  // Models will auto-create collections on first document insert
-  // Indexes are created via schema definitions
+  const { getDatabase } = await import('@/lib/mongodb/v2-connection')
+  const db = await getDatabase()
+  await Promise.all(
+    INBOX_TARGET_COLLECTIONS.map((name) =>
+      db.createCollection(name).catch(() => {
+        // Collection already exists
+      })
+    )
+  )
 }

@@ -1,9 +1,9 @@
 /**
  * @registry-id: csvParser
  * @created: 2026-01-26T00:00:00.000Z
- * @last-modified: 2026-01-26T00:00:00.000Z
+ * @last-modified: 2026-01-29T00:00:00.000Z
  * @description: CSV parser with auto-delimiter detection using PapaParse
- * @last-fix: [2026-01-26] Initial implementation with auto-delimiter detection
+ * @last-fix: [2026-01-29] Sanitize euro/unknown-icon in values so € 12,84 parses as number
  * 
  * @imports-from:
  *   - papaparse => CSV parsing library
@@ -20,6 +20,8 @@ export interface CsvParseOptions {
   delimiter?: string
   autoDetectDelimiter?: boolean
   skipEmptyLines?: boolean
+  /** Number of lines to skip before parsing (e.g. BORK Product Mix has 10 metadata lines before header) */
+  skipLines?: number
 }
 
 /**
@@ -46,33 +48,70 @@ function detectDelimiter(csvText: string): string {
 /**
  * Parse CSV file with auto-delimiter detection
  */
+const UTF8_BOM = '\uFEFF'
+const EXPORT_LEAD_IN = '\u25B2' // ▲ sometimes used at start of exports instead of BOM
+// Euro and common export variants (broken encoding / replacement char)
+const EURO_LIKE = /[\u20AC\uFFFD\u0080]/g // €, replacement char, Windows-1252 euro
+
+function stripLeadingJunk(s: string): string {
+  let out = s
+  while (out.length > 0 && (out.startsWith(UTF8_BOM) || out.startsWith(EXPORT_LEAD_IN))) {
+    out = out.startsWith(UTF8_BOM) ? out.slice(UTF8_BOM.length) : out.slice(EXPORT_LEAD_IN.length)
+  }
+  return out
+}
+
 export async function parseCSV(
   csvText: string,
   options: CsvParseOptions = {}
 ): Promise<ParseResult> {
   try {
+    let normalized = stripLeadingJunk(csvText)
+    if (options.skipLines != null && options.skipLines > 0) {
+      const lines = normalized.split(/\r?\n/)
+      normalized = lines.slice(options.skipLines).join('\n')
+    }
     const delimiter = options.autoDetectDelimiter !== false
-      ? detectDelimiter(csvText)
+      ? detectDelimiter(normalized)
       : options.delimiter || ','
 
-    const parseResult = Papa.parse(csvText, {
+    const parseResult = Papa.parse(normalized, {
       header: true,
       skipEmptyLines: options.skipEmptyLines !== false,
       delimiter,
-      transformHeader: (header: string) => header.trim(),
+      transformHeader: (header: string, index?: number) => {
+        const trimmed = header
+          .replace(new RegExp(UTF8_BOM, 'g'), '')
+          .replace(new RegExp(EXPORT_LEAD_IN, 'g'), '')
+          .trim()
+        // Empty/duplicate headers overwrite in Papa – use unique name so we keep all columns (e.g. BORK Product Mix)
+        return trimmed || `column_${index ?? 0}`
+      },
       transform: (value: string) => {
-        const trimmed = value.trim()
-        // Try to parse numbers
+        let trimmed = value.trim()
+        // Fix export wording: CSV files say "Excel" in no-data message – correct to "bron" (source)
+        if (trimmed.toLowerCase().includes('excel') && trimmed.toLowerCase().includes('geen data')) {
+          trimmed = trimmed.replace(/\bExcel\b/gi, 'bron')
+        }
+        // Sanitize euro/currency symbols so "€ 12,84" or unknown-icon variants parse as number
+        const forNumber = trimmed.replace(EURO_LIKE, '').replace(/\s/g, '').replace(',', '.').trim()
         if (trimmed === '') return null
         if (!isNaN(Number(trimmed)) && trimmed !== '') {
           return Number(trimmed)
+        }
+        if (forNumber !== '' && !isNaN(Number(forNumber))) {
+          return Number(forNumber)
         }
         return trimmed
       },
     })
 
-    if (parseResult.errors.length > 0) {
-      const errorMessages = parseResult.errors.map((e) => e.message).join('; ')
+    const headers = parseResult.meta.fields || []
+    const fatalErrors = parseResult.errors.filter(
+      (e) => (e as { type?: string; code?: string }).type !== 'FieldMismatch'
+    )
+    if (fatalErrors.length > 0) {
+      const errorMessages = fatalErrors.map((e) => e.message).join('; ')
       return {
         success: false,
         format: 'csv',
@@ -80,13 +119,9 @@ export async function parseCSV(
         rows: [],
         rowCount: 0,
         error: `CSV parsing errors: ${errorMessages}`,
-        metadata: {
-          delimiter,
-        },
+        metadata: { delimiter },
       }
     }
-
-    const headers = parseResult.meta.fields || []
     const rows = (parseResult.data as Record<string, unknown>[]).filter(
       (row) => Object.keys(row).length > 0
     )

@@ -181,9 +181,9 @@ CronJob/Manual → POST /api/inbox/sync → Gmail API → Fetch emails → Parse
 ## 🎯 UPDATED DOCUMENT TYPE PRIORITIES
 
 ### **Tier 1: Build Now** ✅
-1. **Eitje Hours** → CSV → eitje_hours
-2. **Eitje Contracts** → XLSX → eitje_contracts
-3. **Eitje Finance** → PDF → eitje_finance
+1. **Eitje Hours** → CSV → test-eitje-hours
+2. **Eitje Contracts** → XLSX → test-eitje-contracts
+3. **Eitje Finance** → PDF → test-eitje-finance
 4. **Bork Sales** → CSV/XLSX → bork_sales 🆕
 5. **Bork Registry** → XLSX → bork_registry 🆕
 6. **Power-BI** → CSV export → power_bi

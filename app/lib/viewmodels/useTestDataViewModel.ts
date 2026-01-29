@@ -93,7 +93,17 @@ export function useTestDataViewModel() {
         }
 
         const response = await fetch(`/api/inbox/test-data/${type}?${queryParams.toString()}`)
-        const result: TestDataResponse = await response.json()
+        const text = await response.text()
+        let result: TestDataResponse
+        try {
+          if (text.startsWith('<')) {
+            result = { success: false, error: response.ok ? 'Invalid response' : `Server error ${response.status}` }
+          } else {
+            result = JSON.parse(text) as TestDataResponse
+          }
+        } catch {
+          result = { success: false, error: 'Invalid JSON from server' }
+        }
 
         if (result.success && result.data) {
           setData(result.data.rows)
