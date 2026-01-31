@@ -1,20 +1,20 @@
 /**
  * @registry-id: dailyOpsPage
  * @created: 2026-01-16T16:10:00.000Z
- * @last-modified: 2026-01-24T00:00:00.000Z
- * @description: Daily Ops dashboard page (Server Component) - Design V2, permission-gated
- * @last-fix: [2026-01-24] Moved to /daily-ops route segment
+ * @last-modified: 2026-01-30T00:00:00.000Z
+ * @description: Daily Ops dashboard page - aggregated view, date/location picker
+ * @last-fix: [2026-01-30] Wired useDailyOpsDashboard + dashboard components
  *
  * @imports-from:
- *   - app/components/daily-ops/DailyOpsDashboard.tsx => Client dashboard component
+ *   - app/daily-ops/DailyOpsDashboardClient.tsx => Client dashboard (date/location, hooks, components)
  *
  * @exports-to:
  *   ✓ app/layout.tsx => Route accessible via /daily-ops (role-gated in app/daily-ops/layout.tsx)
  */
 
-import { Suspense } from 'react'
-import DailyOpsDashboard from '@/components/daily-ops/DailyOpsDashboard'
-import { Skeleton } from '@/components/ui/skeleton'
+import { Suspense } from 'react';
+import DailyOpsDashboardClient from './DailyOpsDashboardClient';
+import { Skeleton } from '@/components/ui/skeleton';
 
 function DailyOpsContent() {
   return (
@@ -30,12 +30,12 @@ function DailyOpsContent() {
         </div>
       }
     >
-      <DailyOpsDashboard />
+      <DailyOpsDashboardClient />
     </Suspense>
-  )
+  );
 }
 
 export default function DailyOpsPage() {
-  return <DailyOpsContent />
+  return <DailyOpsContent />;
 }
 

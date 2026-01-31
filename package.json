@@ -11,6 +11,7 @@
     "lint": "next lint",
     "registry:generate": "ts-node dev-docs/scripts/generate-registry.ts",
     "seed": "node dev-docs/scripts/seed-dummy-data.js",
+    "seed:bork": "node scripts/seed-bork-credentials.js",
     "prepare": "husky install",
     "test": "vitest run",
     "test:watch": "vitest",

@@ -56,7 +56,7 @@ const environments = [
 const navItems = [
   { href: '/daily-ops', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/daily-ops/settings/eitje-api', label: 'Eitje API', icon: Settings },
-  // Add more navigation items here as Daily Ops pages are built
+  { href: '/daily-ops/settings/bork-api', label: 'Bork API', icon: Settings },
 ]
 
 // Hours submenu items

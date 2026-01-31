@@ -554,7 +554,7 @@ class CronJobManager {
             case 'historical-data':
               return '0 1 * * *';
             default:
-              return '0 * * * *';
+              return '0 1,8,15,18,19,20,21,23 * * *';
           }
         })(),
         syncInterval: config.syncInterval,
