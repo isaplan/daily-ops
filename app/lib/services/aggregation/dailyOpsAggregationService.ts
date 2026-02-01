@@ -257,7 +257,7 @@ export async function buildDailyAggregation(
       date,
       location_id: locId,
       location: location
-        ? { _id: location._id as ObjectId, name: location.name, address: location.address, city: location.city, country: location.country }
+        ? { _id: new ObjectId(location._id.toString()), name: location.name, address: location.address, city: location.city, country: location.country }
         : undefined,
       revenue,
       labor,

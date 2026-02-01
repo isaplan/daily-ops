@@ -17,11 +17,29 @@ import { ObjectId } from 'mongodb';
 import { getDatabase } from '@/lib/mongodb/v2-connection';
 import type { DailyOpsDashboard } from '@/lib/types/dashboard.types';
 
+/** Collection name: v2_daily_ops_dashboard_aggregated. DB: MONGODB_DB_NAME env or "daily-ops". */
 const COLLECTION = 'v2_daily_ops_dashboard_aggregated';
 
 export interface GetDailyDashboardResult {
   data?: DailyOpsDashboard | null;
   error?: string;
+}
+
+function isObjectIdLike(val: unknown): val is ObjectId {
+  return val != null && typeof val === 'object' && 'toString' in val && typeof (val as ObjectId).toString === 'function' && (val as { buffer?: unknown }).buffer !== undefined;
+}
+
+/** Serialize dashboard so Client Components receive plain objects (no ObjectId/toJSON). */
+function serializeDashboard(doc: unknown): unknown {
+  if (doc == null) return doc;
+  if (isObjectIdLike(doc)) return (doc as ObjectId).toString();
+  if (Array.isArray(doc)) return doc.map(serializeDashboard);
+  if (typeof doc === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(doc)) out[k] = serializeDashboard(v);
+    return out;
+  }
+  return doc;
 }
 
 export async function getDailyDashboard(
@@ -35,7 +53,8 @@ export async function getDailyDashboard(
       date,
       location_id: locId,
     });
-    return { data: doc as DailyOpsDashboard | null };
+    const data = doc ? (serializeDashboard(doc) as DailyOpsDashboard) : null;
+    return { data };
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     return { error: message };
@@ -85,4 +104,40 @@ export async function getDailyHealth(
   const result = await getDailyDashboard(date, locationId);
   if (result.error) return { error: result.error };
   return result.data?.sources ?? null;
+}
+
+const LABOR_COLLECTION = 'test-eitje-hours';
+const SALES_COLLECTION = 'test-bork-sales-unified';
+
+export interface AvailableDatesResult {
+  dashboard: string[];
+  source: string[];
+  error?: string;
+}
+
+/** Returns dates that have aggregated dashboard data, and dates that have raw source data, for the given location. */
+export async function getAvailableDates(locationId: string): Promise<AvailableDatesResult> {
+  try {
+    const db = await getDatabase();
+    const locId = new ObjectId(locationId);
+
+    const toDateStr = (d: string | Date): string =>
+      typeof d === 'string' ? d : (d as Date).toISOString().slice(0, 10);
+
+    const [aggDates, laborDates, salesDates] = await Promise.all([
+      db.collection(COLLECTION).distinct('date', { location_id: locId }) as Promise<string[]>,
+      db.collection(LABOR_COLLECTION).distinct('date', { location_id: locId }).then((arr: (string | Date)[]) => (arr || []).map(toDateStr)),
+      db.collection(SALES_COLLECTION).distinct('date', { location_id: locId }).then((arr: (string | Date)[]) => (arr || []).map(toDateStr)),
+    ]);
+
+    const dashboard = Array.isArray(aggDates) ? [...aggDates].sort().reverse() : [];
+    const sourceSet = new Set<string>([...(laborDates || []), ...(salesDates || [])]);
+    dashboard.forEach((d) => sourceSet.delete(d));
+    const source = Array.from(sourceSet).sort().reverse();
+
+    return { dashboard, source };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    return { dashboard: [], source: [], error: message };
+  }
 }

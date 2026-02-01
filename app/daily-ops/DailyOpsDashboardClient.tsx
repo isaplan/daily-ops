@@ -14,6 +14,7 @@
 import { useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { useDailyOpsDashboard } from '@/lib/hooks/useDailyOpsDashboard';
+import { getAvailableDates } from '@/actions/daily-ops';
 import { RevenueCard } from '@/components/dashboard/RevenueCard';
 import { LaborCard } from '@/components/dashboard/LaborCard';
 import { ProductsCard } from '@/components/dashboard/ProductsCard';
@@ -45,6 +46,8 @@ export default function DailyOpsDashboardClient() {
   const date = searchParams.get('date') ?? todayISO();
   const locationIdParam = searchParams.get('location');
   const [selectedLocationId, setSelectedLocationId] = useState<string | null>(locationIdParam);
+  const [availableDates, setAvailableDates] = useState<{ dashboard: string[]; source: string[] }>({ dashboard: [], source: [] });
+  const [availableDatesLoading, setAvailableDatesLoading] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -68,6 +71,22 @@ export default function DailyOpsDashboardClient() {
   useEffect(() => {
     if (locationIdParam) setSelectedLocationId(locationIdParam);
   }, [locationIdParam]);
+
+  useEffect(() => {
+    if (!selectedLocationId) {
+      setAvailableDates({ dashboard: [], source: [] });
+      return;
+    }
+    let cancelled = false;
+    setAvailableDatesLoading(true);
+    getAvailableDates(selectedLocationId).then((result) => {
+      if (!cancelled && !result.error) {
+        setAvailableDates({ dashboard: result.dashboard, source: result.source });
+      }
+      if (!cancelled) setAvailableDatesLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [selectedLocationId]);
 
   const { data, loading, error, refetch } = useDailyOpsDashboard(
     date,
@@ -142,6 +161,36 @@ export default function DailyOpsDashboardClient() {
               ))}
             </SelectContent>
           </Select>
+          <Select
+            value={availableDates.dashboard.includes(date) || availableDates.source.includes(date) ? date : ''}
+            onValueChange={updateDate}
+            disabled={!hasLocation || availableDatesLoading}
+          >
+            <SelectTrigger className="w-[220px] border-white/20 bg-slate-800/50 text-white" aria-label="Jump to date with data">
+              <SelectValue placeholder={availableDatesLoading ? 'Loading dates…' : 'Jump to date (from DB)'} />
+            </SelectTrigger>
+            <SelectContent>
+              {availableDates.dashboard.length > 0 && (
+                <>
+                  <div className="px-2 py-1.5 text-xs font-semibold text-slate-400">With dashboard data</div>
+                  {availableDates.dashboard.map((d) => (
+                    <SelectItem key={`d-${d}`} value={d}>{d}</SelectItem>
+                  ))}
+                </>
+              )}
+              {availableDates.source.length > 0 && (
+                <>
+                  <div className="px-2 py-1.5 text-xs font-semibold text-slate-400 mt-1">With source data only</div>
+                  {availableDates.source.map((d) => (
+                    <SelectItem key={`s-${d}`} value={d}>{d}</SelectItem>
+                  ))}
+                </>
+              )}
+              {!availableDatesLoading && availableDates.dashboard.length === 0 && availableDates.source.length === 0 && hasLocation && (
+                <div className="px-2 py-2 text-xs text-slate-500">No dates in DB for this location</div>
+              )}
+            </SelectContent>
+          </Select>
           <Button variant="outline" size="sm" onClick={() => refetch()}>
             Refresh
           </Button>
@@ -172,6 +221,14 @@ export default function DailyOpsDashboardClient() {
           </div>
           <HealthStatus sources={data?.sources ?? null} isLoading={loading} />
         </>
+      )}
+
+      {hasLocation && !loading && !data && !error && (
+        <Alert className="border-amber-500/50 bg-amber-500/10">
+          <AlertDescription>
+            No dashboard data for this date and location. Data appears after the daily aggregation runs (cron or manual). Import Eitje hours and Bork sales first, then trigger aggregation for the chosen date.
+          </AlertDescription>
+        </Alert>
       )}
     </div>
   );
