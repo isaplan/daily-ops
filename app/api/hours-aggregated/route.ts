@@ -1,9 +1,9 @@
 /**
  * @registry-id: hoursAggregatedAPI
  * @created: 2026-01-25T20:00:00.000Z
- * @last-modified: 2026-01-26T00:00:00.000Z
- * @description: API route for hours data - reads from pre-aggregated collections with denormalized names and costs
- * @last-fix: [2026-01-26] Fixed location grouping: use environmentId as fallback when locationId is null, improved unified_location lookup to match by primaryId/allIdValues/eitjeIds/allIds with ObjectId and string comparisons, handle both locationId and environmentId matching
+ * @last-modified: 2026-02-02T14:00:00.000Z
+ * @description: API route for hours data - reads from pre-aggregated collections with denormalized names and costs; groupBy=worker&source=contracts reads test-eitje-contracts (* totaal gewerkte uren)
+ * @last-fix: [2026-02-02] Added source=contracts for Hours by Worker from contract CSV
  * 
  * @imports-from:
  *   - app/lib/mongodb/v2-connection.ts => getDatabase
@@ -25,8 +25,37 @@ export async function GET(request: NextRequest) {
     const locationId = searchParams.get('locationId');
     const endpoint = searchParams.get('endpoint') || 'time_registration_shifts';
     const groupBy = searchParams.get('groupBy') || 'day'; // day, date_location, worker, team, location
+    const source = searchParams.get('source'); // 'contracts' = Hours by worker from contract CSV (* totaal gewerkte uren)
     const sortBy = searchParams.get('sortBy') || 'date';
     const sortOrder = searchParams.get('sortOrder') || 'desc';
+
+    // When groupBy=worker and source=contracts, return worker totals from contract CSV (test-eitje-contracts)
+    if (groupBy === 'worker' && source === 'contracts') {
+      const contractDocs = await db.collection('test-eitje-contracts').find({}).toArray();
+      const results = contractDocs
+        .filter((d: { total_worked_hours?: number }) => (d.total_worked_hours ?? 0) > 0)
+        .map((d: { employee_name?: string; support_id?: string; total_worked_hours?: number; hourly_rate?: number; total_worked_days?: number; contract_location?: string }) => ({
+          worker_id: d.support_id ?? '',
+          worker_name: d.employee_name ?? 'Unknown',
+          total_hours: d.total_worked_hours ?? 0,
+          total_cost: Math.round((d.total_worked_hours ?? 0) * (d.hourly_rate ?? 0) * 100) / 100,
+          record_count: d.total_worked_days ?? 0,
+          location_count: d.contract_location ? 1 : 0,
+        }));
+      const sortField = sortBy === 'total_cost' ? 'total_cost' : sortBy === 'worker_name' ? 'worker_name' : 'total_hours';
+      const dir = sortOrder === 'asc' ? 1 : -1;
+      results.sort((a: { total_hours: number; total_cost: number; worker_name: string }, b: { total_hours: number; total_cost: number; worker_name: string }) => {
+        const va = sortField === 'worker_name' ? a.worker_name : sortField === 'total_cost' ? a.total_cost : a.total_hours;
+        const vb = sortField === 'worker_name' ? b.worker_name : sortField === 'total_cost' ? b.total_cost : b.total_hours;
+        return dir * (va < vb ? -1 : va > vb ? 1 : 0);
+      });
+      return NextResponse.json({
+        success: true,
+        data: results,
+        summary: { total_records: results.length, group_by: 'worker', source: 'contracts' },
+        locations: [],
+      });
+    }
 
     // Build query for aggregated collection
     // CRITICAL: Only query 'day' period_type to avoid counting same records multiple times

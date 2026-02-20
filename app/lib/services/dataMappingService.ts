@@ -1,9 +1,9 @@
 /**
  * @registry-id: dataMappingService
  * @created: 2026-01-26T00:00:00.000Z
- * @last-modified: 2026-01-29T00:00:00.000Z
+ * @last-modified: 2026-02-02T14:00:00.000Z
  * @description: Data mapping service - maps parsed document data to MongoDB collections
- * @last-fix: [2026-01-29] BOM stripped in CSV parser (transformHeader); fixed required-field fallbacks (Date/Datum); using getDatabase() for consistent BSON driver
+ * @last-fix: [2026-02-02] parseTimeToHours: accept HHH:MM for contract "* totaal gewerkte uren"
  * 
  * @imports-from:
  *   - app/lib/mongodb/v2-connection.ts => getDatabase
@@ -166,13 +166,14 @@ function parseDate(dateStr: string): Date | null {
 }
 
 /**
- * Parse time string (HH:MM) to decimal hours
+ * Parse time string (H:MM or HHH:MM) to decimal hours.
+ * Contract CSV "* totaal gewerkte uren" uses many-hour values e.g. 2558:25, 1018:45.
  */
 function parseTimeToHours(timeStr: string): number {
   if (!timeStr || timeStr.trim() === '') return 0
 
-  // Handle "HH:MM" format
-  const timeMatch = timeStr.match(/^(\d{1,2}):(\d{2})$/)
+  // Handle "H:MM" or "HHH:MM" (any number of hour digits) — e.g. 26:25, 2558:25
+  const timeMatch = timeStr.match(/^(\d+):(\d{2})$/)
   if (timeMatch) {
     const [, hours, minutes] = timeMatch
     return parseInt(hours, 10) + parseInt(minutes, 10) / 60
@@ -245,15 +246,40 @@ class DataMappingService {
     const collectionName = COLLECTION_NAMES[documentType]
     const fieldMappings = FIELD_MAPPINGS[documentType]
 
-    if (fieldMappings.length === 0) {
-      return {
-        success: false,
-        mappedToCollection: collectionName,
-        matchedRecords: 0,
-        createdRecords: 0,
-        updatedRecords: 0,
-        failedRecords: parsedData.rowsProcessed,
-        errors: [{ row: 0, error: `No field mappings defined for document type: ${documentType}` }],
+    // Store 'other' (and any type with no mappings) as raw rows so attachments still succeed
+    if (documentType === 'other' || fieldMappings.length === 0) {
+      try {
+        const database = db ?? (await getDatabase())
+        const collection = database.collection(collectionName)
+        const docs = parsedData.data.rows.map((row) => ({
+          _id: new ObjectId(),
+          source: 'inbox',
+          importedAt: new Date(),
+          raw: row,
+          headers: parsedData.data.headers,
+        }))
+        if (docs.length > 0) {
+          await collection.insertMany(docs)
+        }
+        return {
+          success: true,
+          mappedToCollection: collectionName,
+          matchedRecords: 0,
+          createdRecords: docs.length,
+          updatedRecords: 0,
+          failedRecords: parsedData.rowsProcessed - docs.length,
+          errors: [],
+        }
+      } catch (error) {
+        return {
+          success: false,
+          mappedToCollection: collectionName,
+          matchedRecords: 0,
+          createdRecords: 0,
+          updatedRecords: 0,
+          failedRecords: parsedData.rowsProcessed,
+          errors: [{ row: 0, error: error instanceof Error ? error.message : 'Unknown error' }],
+        }
       }
     }
 

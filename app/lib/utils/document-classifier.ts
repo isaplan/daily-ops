@@ -1,9 +1,9 @@
 /**
  * @registry-id: documentClassifier
  * @created: 2026-01-26T00:00:00.000Z
- * @last-modified: 2026-01-27T00:00:00.000Z
+ * @last-modified: 2026-02-02T12:00:00.000Z
  * @description: Document type classifier - detects document type from filename and content
- * @last-fix: [2026-01-27] Added detection for product_mix, food_beverage, basis_report, product_sales_per_hour
+ * @last-fix: [2026-02-02] Classify filenames containing "report" as basis_report (Trivec reports)
  * 
  * @imports-from:
  *   - app/lib/types/inbox.types.ts => DocumentType enum
@@ -54,6 +54,10 @@ export function classifyByFilename(fileName: string): ClassificationResult {
   }
   if (lowerName.includes('basis rapport') || lowerName.includes('basisrapport') || lowerName.includes('basis report')) {
     return { type: 'basis_report', confidence: 'high', reason: 'Filename contains "basis rapport" or "basis report"' }
+  }
+  // Trivec / generic reports (e.g. "report from 02/02/2026.xlsx")
+  if (lowerName.includes('report')) {
+    return { type: 'basis_report', confidence: 'high', reason: 'Filename contains "report"' }
   }
   if (lowerName.includes('registry') || lowerName.includes('register')) {
     return { type: 'other', confidence: 'medium', reason: 'Filename contains "registry" or "register"' }

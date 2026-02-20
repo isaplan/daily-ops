@@ -71,7 +71,7 @@ const ParsedDataSchema = new Schema<IParsedData>(
     validationErrors: [
       {
         row: { type: Number, required: true },
-        column: { type: String, required: true },
+        column: { type: String, default: '' },
         error: { type: String, required: true },
       },
     ],

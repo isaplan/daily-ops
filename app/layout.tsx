@@ -1,9 +1,7 @@
 import type { Metadata } from 'next'
-import dynamic from 'next/dynamic'
 import './globals.css'
 import { Toaster } from 'sonner'
-
-const LayoutClients = dynamic(() => import('./LayoutClients'), { ssr: true })
+import LayoutClients from './LayoutClients'
 
 export const metadata: Metadata = {
   title: 'Daily Ops - POC',

@@ -75,8 +75,9 @@ export default function NoteForm({ note, onSave, onCancel }: NoteFormProps) {
       .map((tag) => tag.trim())
       .filter((tag) => tag.length > 0)
 
+    let ok = false
     if (note?._id) {
-      await viewModel.updateNote(note._id, {
+      ok = await viewModel.updateNote(note._id, {
         title: viewModel.formData.title,
         content: viewModel.formData.content,
         location_id: viewModel.formData.location_id || undefined,
@@ -86,7 +87,7 @@ export default function NoteForm({ note, onSave, onCancel }: NoteFormProps) {
         is_pinned: viewModel.formData.is_pinned,
       })
     } else {
-      await viewModel.createNote({
+      ok = await viewModel.createNote({
         title: viewModel.formData.title,
         content: viewModel.formData.content,
         location_id: viewModel.formData.location_id || undefined,
@@ -96,10 +97,7 @@ export default function NoteForm({ note, onSave, onCancel }: NoteFormProps) {
         is_pinned: viewModel.formData.is_pinned,
       })
     }
-    
-    if (!viewModel.error) {
-      onSave()
-    }
+    if (ok) onSave()
   }
 
   return (

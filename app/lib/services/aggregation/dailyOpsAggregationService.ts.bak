@@ -2,8 +2,8 @@
  * @registry-id: dailyOpsAggregationService
  * @created: 2026-01-30T00:00:00.000Z
  * @last-modified: 2026-02-02T00:00:00.000Z
- * @description: Build Layer 3 aggregated dashboard from enriched labor and sales. Now with separate, logged steps.
- * @last-fix: [2026-02-02] REFACTORED: Split into: fetch → enrich → validate → transform → write with detailed logging
+ * @description: Build Layer 3 aggregated dashboard from enriched labor and sales (all names embedded)
+ * @last-fix: [2026-02-02] REVERTED: Keep location boundary in enrichment - query by locationId only, no cross-location environment matching
  *
  * @exports-to:
  *   ✓ app/api/cron/daily-aggregation/route.ts
@@ -30,13 +30,6 @@ export interface BuildAggregationResult {
   success: boolean;
   dashboardId?: string;
   error?: string;
-  steps?: {
-    fetch?: { eitje: number; bork: number };
-    enrich?: { labor: number; sales: number };
-    validate?: { eitjeMatch: boolean; borkMatch: boolean };
-    transform?: { revenue: number; labor: { hours: number; cost: number }; products: number };
-    write?: { success: boolean };
-  };
 }
 
 export function buildRevenue(enrichedSales: EnrichedSalesRecord[]): DashboardRevenue {
@@ -213,148 +206,15 @@ export function buildKPIs(revenue: DashboardRevenue, labor: DashboardLabor): Das
 }
 
 /**
- * STEP 1: Fetch raw data from eitje and bork
- */
-async function stepFetchRawData(
-  dateObj: Date,
-  locId: ObjectId
-): Promise<{ eitje: number; bork: number }> {
-  const db = await getDatabase();
-
-  const eitjeCount = await db.collection('test-eitje-hours').countDocuments({
-    date: dateObj,
-    location_id: locId,
-  });
-
-  const borkCount = await db.collection('bork_raw_data').countDocuments({
-    date: dateObj,
-    location_id: locId,
-  });
-
-  console.log(`   📊 FETCH: Eitje ${eitjeCount} records, Bork ${borkCount} records`);
-
-  return { eitje: eitjeCount, bork: borkCount };
-}
-
-/**
- * STEP 2: Enrich raw data (labor and sales)
- */
-async function stepEnrichData(
-  dateObj: Date,
-  locId: ObjectId,
-  defaultLocId?: ObjectId
-): Promise<{ labor: EnrichedLaborRecord[]; sales: EnrichedSalesRecord[] }> {
-  let laborResult = await enrichLaborBatch(dateObj, locId);
-  if (laborResult.total === 0) {
-    laborResult = await enrichLaborBatchFromEitjeRaw(dateObj, locId, { defaultLocationId: defaultLocId });
-  }
-
-  let salesResult = await enrichSalesBatch(dateObj, locId);
-  if (salesResult.total === 0) {
-    salesResult = await enrichSalesBatchFromBorkRaw(dateObj, locId);
-  }
-
-  console.log(`   ✨ ENRICH: ${laborResult.enriched.length} labor records, ${salesResult.enriched.length} sales records`);
-
-  return {
-    labor: laborResult.enriched,
-    sales: salesResult.enriched,
-  };
-}
-
-/**
- * STEP 3: Validate enriched data against CSV sources
- */
-async function stepValidateData(
-  dateStr: string,
-  locationId: string
-): Promise<{ eitjeMatch: boolean; borkMatch: boolean }> {
-  const [eitjeValidation, borkValidation] = await Promise.all([
-    validateEitjeTotals(dateStr, locationId),
-    validateBorkTotals(dateStr, locationId),
-  ]);
-
-  console.log(`   ✓ VALIDATE: Eitje ${eitjeValidation.all_match ? '✓' : '✗'}, Bork ${borkValidation.revenue_match ? '✓' : '✗'}`);
-
-  return {
-    eitjeMatch: eitjeValidation.all_match,
-    borkMatch: borkValidation.revenue_match,
-  };
-}
-
-/**
- * STEP 4: Transform enriched data into dashboard structure
- */
-async function stepTransformData(
-  enrichedLabor: EnrichedLaborRecord[],
-  enrichedSales: EnrichedSalesRecord[],
-  locationName?: string
-): Promise<{ revenue: DashboardRevenue; labor: DashboardLabor; products: DashboardProducts; kpis: DashboardKPIs }> {
-  const revenue = buildRevenue(enrichedSales);
-  const labor = buildLabor(enrichedLabor, { locationName });
-  const products = buildProducts(enrichedSales);
-  const kpis = buildKPIs(revenue, labor);
-
-  console.log(`   📦 TRANSFORM: Revenue €${revenue.total.toFixed(2)}, Labor ${labor.total_hours.toFixed(1)}h @ €${labor.total_cost.toFixed(2)}, ${products.by_product.length} products`);
-
-  return { revenue, labor, products, kpis };
-}
-
-/**
- * STEP 5: Write dashboard document
- */
-async function stepWriteDashboard(
-  dateStr: string,
-  locId: ObjectId,
-  locationName: string,
-  location: any,
-  revenue: DashboardRevenue,
-  labor: DashboardLabor,
-  products: DashboardProducts,
-  kpis: DashboardKPIs,
-  sources: DashboardSources
-): Promise<{ success: boolean; id: string }> {
-  const db = await getDatabase();
-  const coll = db.collection(AGGREGATED_COLLECTION);
-  const existing = await coll.findOne({ date: dateStr, location_id: locId });
-
-  const now = new Date().toISOString();
-
-  const dashboard: Omit<DailyOpsDashboard, '_id'> & { _id: ObjectId } = {
-    _id: existing?._id ?? new ObjectId(),
-    date: dateStr,
-    location_id: locId,
-    location: location
-      ? { _id: new ObjectId(location._id.toString()), name: location.name, address: location.address, city: location.city, country: location.country }
-      : undefined,
-    revenue,
-    labor,
-    products,
-    kpis,
-    sources,
-    metadata: { createdAt: existing?.metadata?.createdAt ?? now, updatedAt: now, version: 1 },
-  };
-
-  const result = await coll.replaceOne({ date: dateStr, location_id: locId }, dashboard, { upsert: true });
-  console.log(`   💾 WRITE: Document ${existing ? 'updated' : 'created'}`);
-
-  return { success: true, id: dashboard._id.toString() };
-}
-
-/**
  * Build and store one daily aggregated dashboard for a date and location.
- * Steps: Fetch → Enrich → Validate → Transform → Write
+ * When defaultLocationId is set (e.g. first location), eitje_raw_data docs with null locationId are assigned to that location.
  */
 export async function buildDailyAggregation(
   date: string,
   locationId: string,
   options?: { defaultLocationId?: string }
 ): Promise<BuildAggregationResult> {
-  const steps: BuildAggregationResult['steps'] = {};
-
   try {
-    console.log(`\n📅 Aggregating ${date} for location ${locationId}`);
-
     await dbConnect();
     await ensureDailyOpsCollections();
     await loadAllMasterData();
@@ -363,69 +223,74 @@ export async function buildDailyAggregation(
     const dateObj = new Date(date + 'T12:00:00.000Z');
     const defaultLocId = options?.defaultLocationId ? new ObjectId(options.defaultLocationId) : undefined;
 
-    // STEP 1: FETCH
-    const fetchResult = await stepFetchRawData(dateObj, locId);
-    steps.fetch = fetchResult;
+    let laborResult = await enrichLaborBatch(dateObj, locId);
+    if (laborResult.total === 0) {
+      laborResult = await enrichLaborBatchFromEitjeRaw(dateObj, locId, { defaultLocationId: defaultLocId });
+    }
+    let salesResult = await enrichSalesBatch(dateObj, locId);
+    if (salesResult.total === 0) {
+      salesResult = await enrichSalesBatchFromBorkRaw(dateObj, locId);
+    }
 
-    // STEP 2: ENRICH
-    const enrichResult = await stepEnrichData(dateObj, locId, defaultLocId);
-    steps.enrich = { labor: enrichResult.labor.length, sales: enrichResult.sales.length };
+    const [eitjeValidation, borkValidation] = await Promise.all([
+      validateEitjeTotals(date, locationId),
+      validateBorkTotals(date, locationId),
+    ]);
 
-    // STEP 3: VALIDATE
-    const validateResult = await stepValidateData(date, locationId);
-    steps.validate = validateResult;
-
-    // STEP 4: TRANSFORM
     const location = await Location.findById(locationId).lean();
-    const locationName = location?.name ?? 'Unknown';
-    const transformResult = await stepTransformData(enrichResult.labor, enrichResult.sales, locationName);
-    steps.transform = {
-      revenue: transformResult.revenue.total,
-      labor: { hours: transformResult.labor.total_hours, cost: transformResult.labor.total_cost },
-      products: transformResult.products.by_product.length,
-    };
+    const locationName = location?.name ?? undefined;
+
+    const revenue = buildRevenue(salesResult.enriched);
+    const labor = buildLabor(laborResult.enriched, { locationName });
+    const products = buildProducts(salesResult.enriched);
+    const kpis = buildKPIs(revenue, labor);
 
     const sources: DashboardSources = {
       eitje: {
-        hours_records: enrichResult.labor.length,
-        csv_verified: validateResult.eitjeMatch,
-        api_verified: validateResult.eitjeMatch,
+        hours_records: laborResult.total,
+        csv_verified: eitjeValidation.all_match,
+        api_verified: eitjeValidation.all_match,
       },
       bork: {
-        sales_records: enrichResult.sales.length,
-        total_revenue: transformResult.revenue.total,
-        csv_verified: validateResult.borkMatch,
-        api_verified: validateResult.borkMatch,
+        sales_records: salesResult.total,
+        total_revenue: revenue.total,
+        csv_verified: borkValidation.revenue_match,
+        api_verified: borkValidation.revenue_match,
       },
       validation: {
-        eitje_vs_csv: { matches: validateResult.eitjeMatch, variance: 0 },
-        bork_vs_csv: { matches: validateResult.borkMatch, variance: 0 },
+        eitje_vs_csv: { matches: eitjeValidation.all_match, variance: eitjeValidation.variance_cost },
+        bork_vs_csv: { matches: borkValidation.revenue_match, variance: borkValidation.variance },
       },
     };
 
-    // STEP 5: WRITE
-    const writeResult = await stepWriteDashboard(
-      date,
-      locId,
-      locationName,
-      location,
-      transformResult.revenue,
-      transformResult.labor,
-      transformResult.products,
-      transformResult.kpis,
-      sources
-    );
-    steps.write = writeResult;
+    const now = new Date().toISOString();
 
+    const db = await getDatabase();
+    const coll = db.collection(AGGREGATED_COLLECTION);
+    const existing = await coll.findOne({ date, location_id: locId });
+
+    const dashboard: Omit<DailyOpsDashboard, '_id'> & { _id: ObjectId } = {
+      _id: existing?._id ?? new ObjectId(),
+      date,
+      location_id: locId,
+      location: location
+        ? { _id: new ObjectId(location._id.toString()), name: location.name, address: location.address, city: location.city, country: location.country }
+        : undefined,
+      revenue,
+      labor,
+      products,
+      kpis,
+      sources,
+      metadata: { createdAt: existing?.metadata?.createdAt ?? now, updatedAt: now, version: 1 },
+    };
+
+    await coll.replaceOne({ date, location_id: locId }, dashboard, { upsert: true });
     clearMasterDataCache();
 
-    console.log(`✅ Complete\n`);
-
-    return { success: true, dashboardId: writeResult.id, steps };
+    return { success: true, dashboardId: dashboard._id.toString() };
   } catch (err) {
     clearMasterDataCache();
     const message = err instanceof Error ? err.message : 'Unknown error';
-    console.log(`❌ Error: ${message}\n`);
-    return { success: false, error: message, steps };
+    return { success: false, error: message };
   }
 }

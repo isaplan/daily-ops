@@ -39,7 +39,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
-import { ConnectionSheet } from './ConnectionSheet'
+import ConnectionSheet from './ConnectionSheet'
 
 function MemberCard({
   member,
@@ -95,7 +95,7 @@ export default function MemberList() {
     viewModel.loadMembers()
     locationViewModel.loadLocations()
     teamViewModel.loadTeams()
-  }, [activeWorkspace, viewModel, locationViewModel, teamViewModel])
+  }, [activeWorkspace, viewModel.loadMembers, locationViewModel.loadLocations, teamViewModel.loadTeams])
 
   const filteredTeams = useMemo(() => {
     if (!viewModel.formData.location_id) return teamViewModel.teams

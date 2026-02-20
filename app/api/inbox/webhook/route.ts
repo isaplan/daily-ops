@@ -1,9 +1,9 @@
 /**
  * @registry-id: inboxWebhookAPI
  * @created: 2026-01-27T12:00:00.000Z
- * @last-modified: 2026-01-27T12:00:00.000Z
+ * @last-modified: 2026-02-02T12:00:00.000Z
  * @description: Inbox webhook API - receives Pub/Sub push notifications from Gmail
- * @last-fix: [2026-01-27] Initial implementation - Pub/Sub webhook handler for Gmail notifications
+ * @last-fix: [2026-02-02] Fixed historyId: use startHistoryId so history.list returns new messages; log webhook receipt
  * 
  * @imports-from:
  *   - app/lib/services/gmailWatchService.ts => Gmail watch service
@@ -61,18 +61,28 @@ function decodeMessageData(data: string): GmailNotification {
 }
 
 /**
+ * Gmail push sends the *current* historyId (after the change). history.list returns
+ * records *after* startHistoryId, so we must use (currentHistoryId - 1) to include the change.
+ */
+function toStartHistoryId(currentHistoryId: string): string {
+  const n = parseInt(currentHistoryId, 10)
+  if (Number.isNaN(n) || n < 1) return currentHistoryId
+  return String(n - 1)
+}
+
+/**
  * Process new emails from Gmail history
  */
-async function processNewEmails(historyId: string): Promise<{
+async function processNewEmails(notificationHistoryId: string): Promise<{
   emailsCreated: number
   emailsFailed: number
 }> {
   let emailsCreated = 0
   let emailsFailed = 0
+  const startHistoryId = toStartHistoryId(notificationHistoryId)
 
   try {
-    // Get history since last processed historyId
-    const historyRecords = await gmailWatchService.getHistory(historyId, 100)
+    const historyRecords = await gmailWatchService.getHistory(startHistoryId, 100)
 
     // Extract unique message IDs from history
     const messageIds = new Set<string>()
@@ -217,12 +227,11 @@ async function processNewEmails(historyId: string): Promise<{
       }
     }
   } catch (error) {
-    // Log overall error
     await ProcessingLog.create({
       eventType: 'fetch',
       status: 'error',
       message: `Failed to process Gmail history: ${error instanceof Error ? error.message : 'Unknown error'}`,
-      details: { historyId },
+      details: { notificationHistoryId, startHistoryId },
     })
   }
 
@@ -260,7 +269,15 @@ export async function POST(request: NextRequest) {
     // Decode message data
     const notification = decodeMessageData(message.message.data)
 
-    // Process new emails
+    // Log webhook receipt so verify-webhook-setup sees activity (even when 0 emails created)
+    await ProcessingLog.create({
+      eventType: 'fetch',
+      status: 'success',
+      message: `Webhook received from Gmail (historyId: ${notification.historyId})`,
+      details: { historyId: notification.historyId, emailAddress: notification.emailAddress },
+    })
+
+    // Process new emails (use notification historyId; we request history *after* (historyId - 1) inside processNewEmails)
     const result = await processNewEmails(notification.historyId)
 
     // Return 200 to acknowledge receipt

@@ -88,7 +88,7 @@ export default function TeamList() {
   useEffect(() => {
     viewModel.loadTeams()
     locationViewModel.loadLocations()
-  }, [activeWorkspace, viewModel, locationViewModel])
+  }, [activeWorkspace, viewModel.loadTeams, locationViewModel.loadLocations])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

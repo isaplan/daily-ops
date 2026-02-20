@@ -98,11 +98,19 @@ export default function InboxDashboardPage() {
     try {
       const result = await viewModel.processAll({ maxEmails: 50 })
       if (result) {
-        toast.success(`Processed ${result.emailsProcessed} emails`, {
-          description: result.emailsFailed > 0 
-            ? `${result.emailsFailed} emails failed to process`
-            : 'All emails processed successfully',
-        })
+        if (result.emailsProcessed === 0 && result.total === 0) {
+          toast.info('No emails to process', {
+            description: result.message ?? 'Sync inbox first to fetch emails, or all emails are already completed.',
+          })
+        } else if (result.emailsProcessed === 0) {
+          toast.info('Nothing to process', {
+            description: result.message ?? 'No unprocessed attachments found.',
+          })
+        } else {
+          toast.success(`Processed ${result.emailsProcessed} emails`, {
+            description: result.message ?? (result.emailsFailed > 0 ? `${result.emailsFailed} failed` : 'All done'),
+          })
+        }
         await viewModel.getUnprocessedCount().then(setUnprocessedCount)
         await viewModel.loadEmails(1, 5, { archived: false })
       } else {

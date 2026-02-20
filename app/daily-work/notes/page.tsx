@@ -12,6 +12,7 @@ import { Suspense, useEffect, useState } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import NoteList from '@/components/NoteList'
 import NoteForm from '@/components/NoteForm'
+import NoteEditorV2 from '@/components/notes/NoteEditorV2'
 import NotesDashboard from '@/components/notes/NotesDashboard'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -48,8 +49,7 @@ function NotesContent() {
     if (returnTo) {
       router.push(returnTo)
     } else {
-      setSelectedNote(null)
-      router.push('/daily-work/notes')
+      router.back()
     }
   }
 
@@ -58,7 +58,10 @@ function NotesContent() {
     return (
       <div className="min-h-screen p-8">
         <div className="max-w-7xl mx-auto">
-          <NotesDashboard />
+          <Button variant="ghost" size="sm" onClick={() => router.back()} className="mb-4 -ml-2 text-gray-600 hover:text-gray-900">
+            ← Back
+          </Button>
+          <NotesDashboard key={`notes-list-${searchParams.toString()}`} />
         </div>
       </div>
     )
@@ -74,21 +77,22 @@ function NotesContent() {
           </div>
         ) : createMode ? (
           <div>
-            <Button variant="outline" onClick={() => router.push('/daily-work/notes')} className="mb-4">
-              ← Back to Dashboard
+            <Button variant="ghost" size="sm" onClick={() => router.back()} className="mb-4 -ml-2 text-gray-600 hover:text-gray-900">
+              ← Back
             </Button>
-            <NoteForm
+            <NoteEditorV2
               note={null}
+              initialTemplate={searchParams.get('template') === 'weekly' ? 'weekly' : undefined}
               onSave={() => router.push('/daily-work/notes')}
               onCancel={() => router.push('/daily-work/notes')}
             />
           </div>
         ) : selectedNote ? (
           <div>
-            <Button variant="outline" onClick={handleBack} className="mb-4">
+            <Button variant="ghost" size="sm" onClick={handleBack} className="mb-4 -ml-2 text-gray-600 hover:text-gray-900">
               ← Back
             </Button>
-            <NoteForm
+            <NoteEditorV2
               note={selectedNote}
               onSave={handleBack}
               onCancel={handleBack}

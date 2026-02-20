@@ -53,6 +53,7 @@ export class ApiService {
     try {
       const response = await fetch(`${this.baseUrl}${endpoint}`, {
         method: 'GET',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
           ...options?.headers,
@@ -95,6 +96,7 @@ export class ApiService {
     try {
       const response = await fetch(`${this.baseUrl}${endpoint}`, {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
           ...options?.headers,
@@ -138,6 +140,7 @@ export class ApiService {
     try {
       const response = await fetch(`${this.baseUrl}${endpoint}`, {
         method: 'PUT',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
           ...options?.headers,
@@ -180,6 +183,7 @@ export class ApiService {
     try {
       const response = await fetch(`${this.baseUrl}${endpoint}`, {
         method: 'DELETE',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
           ...options?.headers,

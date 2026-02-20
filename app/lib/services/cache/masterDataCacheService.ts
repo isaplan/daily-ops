@@ -1,9 +1,9 @@
 /**
  * @registry-id: masterDataCacheService
  * @created: 2026-01-30T00:00:00.000Z
- * @last-modified: 2026-01-30T00:00:00.000Z
+ * @last-modified: 2026-02-02T00:00:00.000Z
  * @description: Cache service for master data (members, locations, teams, products, categories)
- * @last-fix: [2026-01-30] Initial implementation
+ * @last-fix: [2026-02-02] Location names from unified_location.canonicalName so Bork and Eitje use same source
  *
  * @exports-to:
  *   ✓ app/lib/services/enrichment/laborEnrichmentService.ts
@@ -13,6 +13,7 @@
 
 import type { ObjectId } from 'mongodb';
 import dbConnect from '@/lib/mongodb';
+import { getDatabase } from '@/lib/mongodb/v2-connection';
 import Member from '@/models/Member';
 import Location from '@/models/Location';
 import Team from '@/models/Team';
@@ -59,8 +60,19 @@ export async function loadAllMasterData(): Promise<void> {
   for (const m of members as MemberDoc[]) {
     memberCache.set(m._id.toString(), m);
   }
+  // Locations: prefer unified_location.canonicalName so Bork and Eitje both use unified source
+  const db = await getDatabase();
+  const unifiedLocations = await db.collection('unified_location').find({}).toArray();
+  const unifiedNameByPrimaryId = new Map<string, string>();
+  for (const u of unifiedLocations) {
+    const pid = u.primaryId?.toString?.();
+    if (pid && (u.canonicalName ?? u.primaryName)) {
+      unifiedNameByPrimaryId.set(pid, u.canonicalName ?? u.primaryName);
+    }
+  }
   for (const l of locations as LocationDoc[]) {
-    locationCache.set(l._id.toString(), l);
+    const name = unifiedNameByPrimaryId.get(l._id.toString()) ?? l.name;
+    locationCache.set(l._id.toString(), { _id: l._id, name });
   }
   for (const t of teams as TeamDoc[]) {
     teamCache.set(t._id.toString(), t);

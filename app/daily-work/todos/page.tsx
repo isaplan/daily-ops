@@ -83,40 +83,48 @@ function TodosContent() {
 
   if (viewModel.loading && viewModel.todos.length === 0) {
     return (
-      <div className="space-y-4">
-        <Skeleton className="h-10 w-48" />
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {[1, 2, 3].map((i) => (
-            <Card key={i}>
-              <CardHeader>
-                <Skeleton className="h-6 w-32" />
-              </CardHeader>
-              <CardContent>
-                <Skeleton className="h-4 w-full" />
-              </CardContent>
-            </Card>
-          ))}
+      <div className="min-h-screen p-8 bg-gray-50">
+        <div className="max-w-7xl mx-auto">
+          <div className="mb-8">
+            <Skeleton className="h-10 w-48" />
+            <Skeleton className="h-5 w-64 mt-2" />
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {[1, 2, 3].map((i) => (
+              <Card key={i} className="bg-white border rounded-lg shadow-sm">
+                <CardHeader>
+                  <Skeleton className="h-6 w-32" />
+                </CardHeader>
+                <CardContent>
+                  <Skeleton className="h-4 w-full" />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <Button variant="ghost" onClick={handleBack} className="mb-4">
+    <div className="min-h-screen p-8 bg-gray-50">
+      <div className="max-w-7xl mx-auto">
+        <div className="mb-8">
+          <Button variant="ghost" size="sm" onClick={handleBack} className="mb-4 -ml-2 text-gray-600 hover:text-gray-900">
             ← Back
           </Button>
-          <h1 className="text-4xl font-bold mb-2">Todos</h1>
-          <p className="text-muted-foreground">Manage and track todos</p>
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <h1 className="text-4xl font-bold mb-2 text-gray-900">Todos</h1>
+              <p className="text-gray-700">Manage and track todos</p>
+            </div>
+            <Button onClick={() => setShowCreateForm(true)}>+ New Todo</Button>
+          </div>
         </div>
-        <Button onClick={() => setShowCreateForm(true)}>+ New Todo</Button>
-      </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label htmlFor="filter-status-select">Filter by Status</Label>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+          <div className="space-y-2">
+            <Label htmlFor="filter-status-select" className="text-gray-700">Filter by Status</Label>
           <Select
             value={filter.status || 'all'}
             onValueChange={(value) => setFilter({ ...filter, status: value === 'all' ? '' : value })}
@@ -132,24 +140,24 @@ function TodosContent() {
               <SelectItem value="cancelled">Cancelled</SelectItem>
             </SelectContent>
           </Select>
+          </div>
         </div>
-      </div>
 
-      {viewModel.error && (
-        <Card>
-          <CardContent className="pt-6">
-            <p className="text-destructive">{viewModel.error}</p>
-          </CardContent>
-        </Card>
-      )}
+        {viewModel.error && (
+          <Card className="bg-white border rounded-lg shadow-sm">
+            <CardContent className="pt-6">
+              <p className="text-destructive">{viewModel.error}</p>
+            </CardContent>
+          </Card>
+        )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2">
           {selectedTodo ? (
-            <Card>
+            <Card className="bg-white border rounded-lg shadow-sm">
               <CardHeader>
                 <div className="flex justify-between items-start">
-                  <CardTitle className="text-2xl">{selectedTodo.title}</CardTitle>
+                  <CardTitle className="text-2xl text-gray-900">{selectedTodo.title}</CardTitle>
                   <Button
                     variant="ghost"
                     size="sm"
@@ -161,7 +169,7 @@ function TodosContent() {
               </CardHeader>
               <CardContent className="space-y-4">
                 {selectedTodo.description && (
-                  <p className="text-muted-foreground">{selectedTodo.description}</p>
+                  <p className="text-gray-600">{selectedTodo.description}</p>
                 )}
                 <div className="space-y-2">
                   <div className="flex items-center gap-2">
@@ -188,10 +196,10 @@ function TodosContent() {
 
                 {/* Many-to-Many Connections */}
                 {selectedTodo._id && (
-                  <Card className="mt-4">
+                  <Card className="mt-4 bg-white border rounded-lg shadow-sm">
                     <CardHeader>
-                      <CardTitle className="text-sm">LINKED ENTITIES</CardTitle>
-                      <p className="text-xs text-muted-foreground">
+                      <CardTitle className="text-sm text-gray-900">LINKED ENTITIES</CardTitle>
+                      <p className="text-xs text-gray-600">
                         Link this todo to other entities (notes, channels, events, decisions)
                       </p>
                     </CardHeader>
@@ -220,15 +228,15 @@ function TodosContent() {
                 viewModel.todos.map((todo) => (
                   <Card
                     key={todo._id}
-                    className="cursor-pointer hover:shadow-md transition-shadow"
+                    className="bg-white border rounded-lg shadow-sm cursor-pointer hover:shadow-md transition-shadow"
                     onClick={() => setSelectedTodo(todo)}
                   >
                     <CardHeader>
-                      <CardTitle className="text-lg">{todo.title}</CardTitle>
+                      <CardTitle className="text-lg text-gray-900">{todo.title}</CardTitle>
                     </CardHeader>
                     <CardContent>
                       {todo.description && (
-                        <p className="text-sm text-muted-foreground mb-2">
+                        <p className="text-sm text-gray-600 mb-2">
                           {todo.description}
                         </p>
                       )}
@@ -246,26 +254,27 @@ function TodosContent() {
               )}
             </div>
           )}
+          </div>
         </div>
-      </div>
 
-      {/* Create Todo Modal */}
-      {showCreateForm && (
-        <Dialog open={showCreateForm} onOpenChange={setShowCreateForm}>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Create Todo</DialogTitle>
-            </DialogHeader>
-            <TodoForm
-              onSave={() => {
-                setShowCreateForm(false)
-                viewModel.loadTodos(filter)
-              }}
-              onCancel={() => setShowCreateForm(false)}
-            />
-          </DialogContent>
-        </Dialog>
-      )}
+        {/* Create Todo Modal */}
+        {showCreateForm && (
+          <Dialog open={showCreateForm} onOpenChange={setShowCreateForm}>
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Create Todo</DialogTitle>
+              </DialogHeader>
+              <TodoForm
+                onSave={() => {
+                  setShowCreateForm(false)
+                  viewModel.loadTodos(filter)
+                }}
+                onCancel={() => setShowCreateForm(false)}
+              />
+            </DialogContent>
+          </Dialog>
+        )}
+      </div>
     </div>
   )
 }

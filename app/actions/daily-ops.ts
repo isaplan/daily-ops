@@ -17,8 +17,8 @@ import { ObjectId } from 'mongodb';
 import { getDatabase } from '@/lib/mongodb/v2-connection';
 import type { DailyOpsDashboard } from '@/lib/types/dashboard.types';
 
-/** Collection name: v2_daily_ops_dashboard_aggregated. DB: MONGODB_DB_NAME env or "daily-ops". */
-const COLLECTION = 'v2_daily_ops_dashboard_aggregated';
+/** Collection name: daily_ops_dashboard_aggregated. DB: MONGODB_DB_NAME env or "daily-ops". */
+const COLLECTION = 'daily_ops_dashboard_aggregated';
 
 export interface GetDailyDashboardResult {
   data?: DailyOpsDashboard | null;

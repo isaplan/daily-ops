@@ -29,7 +29,7 @@ export const DAILY_OPS_SNAPSHOT_COLLECTIONS = [
   'bork_reconciliation',
 ] as const;
 
-export const DAILY_OPS_AGGREGATED_COLLECTION = 'v2_daily_ops_dashboard_aggregated';
+export const DAILY_OPS_AGGREGATED_COLLECTION = 'daily_ops_dashboard_aggregated';
 
 const ALL_DAILY_OPS_COLLECTIONS = [
   ...DAILY_OPS_RAW_COLLECTIONS,

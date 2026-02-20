@@ -1,9 +1,9 @@
 /**
  * @registry-id: DailyWorkDashboard
  * @created: 2026-01-24T00:00:00.000Z
- * @last-modified: 2026-01-24T00:00:00.000Z
+ * @last-modified: 2026-02-14T00:00:00.000Z
  * @description: Daily Work dashboard (migrated from root /)
- * @last-fix: [2026-01-24] Moved to /daily-work and updated internal links
+ * @last-fix: [2026-02-14] Aligned styling with /daily-work/notes (removed bg-gray-50)
  */
 
 'use client';
@@ -59,10 +59,8 @@ export default function DailyWorkHome() {
   const [assignedEvents, setAssignedEvents] = useState<IEvent[]>([]);
 
   useEffect(() => {
-    if (!authLoading) {
-      fetchDashboardData();
-    }
-  }, [authLoading, user]);
+    fetchDashboardData();
+  }, [user?.id]);
 
   async function fetchDashboardData() {
     try {
@@ -96,9 +94,9 @@ export default function DailyWorkHome() {
     }
   }
 
-  if (authLoading || loading) {
+  if (loading) {
     return (
-      <div className="min-h-screen p-8 bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen p-8 flex items-center justify-center">
         <div className="text-center">
           <div className="mb-4 text-lg">Loading dashboard...</div>
           <div className="text-sm text-muted-foreground">Fetching your data</div>
@@ -108,7 +106,7 @@ export default function DailyWorkHome() {
   }
 
   return (
-    <div className="min-h-screen p-8 bg-gray-50">
+    <div className="min-h-screen p-8">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">
@@ -323,7 +321,7 @@ export default function DailyWorkHome() {
               <div className="p-6 bg-white border rounded-lg shadow-sm">
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-xl font-semibold text-gray-900">Recent Tasks</h2>
-                  <Link href="/daily-work/todos" className="text-sm text-blue-600 hover:underline">
+                  <Link href="/daily-work/todos" className="text-sm text-blue-600 hover:underline cursor-pointer py-1.5 pr-1 -my-1 select-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 rounded inline-block">
                     View all
                   </Link>
                 </div>
@@ -361,7 +359,7 @@ export default function DailyWorkHome() {
               <div className="p-6 bg-white border rounded-lg shadow-sm">
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-xl font-semibold text-gray-900">Recent Notes</h2>
-                  <Link href="/daily-work/notes" className="text-sm text-blue-600 hover:underline">
+                  <Link href="/daily-work/notes" className="text-sm text-blue-600 hover:underline cursor-pointer py-1.5 pr-1 -my-1 select-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 rounded inline-block">
                     View all
                   </Link>
                 </div>
@@ -394,7 +392,7 @@ export default function DailyWorkHome() {
               <div className="p-6 bg-white border rounded-lg shadow-sm">
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-xl font-semibold text-gray-900">Upcoming Events</h2>
-                  <Link href="/daily-work/events" className="text-sm text-blue-600 hover:underline">
+                  <Link href="/daily-work/events" className="text-sm text-blue-600 hover:underline cursor-pointer py-1.5 pr-1 -my-1 select-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 rounded inline-block">
                     View all
                   </Link>
                 </div>

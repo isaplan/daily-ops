@@ -36,7 +36,6 @@ import {
   MessageSquare,
   Hash,
   Building2,
-  Palette,
   Plus,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
@@ -367,22 +366,6 @@ export default function DesignV2Sidebar() {
           })()
         )}
 
-        <div className="pt-4">
-          <Link href="/daily-work/design">
-            <Button
-              variant="ghost"
-              className={cn(
-                'w-full justify-start gap-3 text-sm',
-                pathname === '/daily-work/design'
-                  ? 'bg-gradient-to-r from-amber-500/20 to-orange-500/20 text-white'
-                  : 'text-slate-300 hover:bg-white/5 hover:text-white'
-              )}
-            >
-              <span className="text-lg">🎨</span>
-              <span className="font-medium">Design System</span>
-            </Button>
-          </Link>
-        </div>
       </div>
     </aside>
   )

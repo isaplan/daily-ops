@@ -84,7 +84,7 @@ class NoteService extends ApiService {
     if (limit !== undefined) params.append('limit', limit.toString())
 
     const query = params.toString()
-    return this.get<Note[]>(`/notes${query ? `?${query}` : ''}`)
+    return this.get<Note[]>(`/notes${query ? `?${query}` : ''}`, { cache: 'no-store' })
   }
 
   async getById(id: string): Promise<ApiResponse<Note>> {

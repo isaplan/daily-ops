@@ -1,9 +1,9 @@
 /**
  * @registry-id: unifiedCollectionsService
  * @created: 2026-01-25T00:00:00.000Z
- * @last-modified: 2026-01-26T00:00:00.000Z
- * @description: Service to create unified collections that merge IDs and names from all sources (Eitje, internal models, etc.)
- * @last-fix: [2026-01-26] CRITICAL FIX: Now extracts user names from time_registration_shifts and planning_shifts endpoints (extracted.user_name, rawApiResponse.user.name) in addition to users endpoint. This fixes "Unknown" user names in unified_user collection.
+ * @last-modified: 2026-02-02T00:00:00.000Z
+ * @description: Service to create unified collections that merge IDs and names from all sources (Eitje, Bork, internal models)
+ * @last-fix: [2026-02-02] Bork: add borkIds/borkNames to unified_location from systemMappings and bork_raw_data; allIdValues includes borkIds
  * 
  * @imports-from:
  *   - app/lib/mongodb/v2-connection.ts => getDatabase
@@ -92,18 +92,25 @@ interface UnifiedLocation {
   eitjeIds: number[];
   eitjeNames: string[];
   
+  // Bork mappings (CenterKey, CenterName from tickets)
+  borkIds: string[];
+  borkNames: string[];
+  
   // All known IDs across sources
   allIds: {
-    source: 'internal' | 'eitje';
+    source: 'internal' | 'eitje' | 'bork';
     id: string | number | ObjectId;
     name?: string;
   }[];
   
-  // Unified canonical name (prefer internal, fallback to Eitje)
+  // Unified canonical name (prefer internal, fallback to Eitje/Bork)
   canonicalName: string;
   
   // Abbreviation (e.g., VKB, BEA, LAT)
   abbreviation?: string;
+  
+  // FLAT array for $in lookups (primaryId, eitjeIds, borkIds)
+  allIdValues?: (string | number | ObjectId)[];
   
   // Metadata
   isActive: boolean;
@@ -238,6 +245,8 @@ export async function syncUnifiedLocations(): Promise<{ created: number; updated
         primaryName: locName,
         eitjeIds: [],
         eitjeNames: [],
+        borkIds: [],
+        borkNames: [],
         allIds: [{
           source: 'internal',
           id: loc._id,
@@ -250,11 +259,13 @@ export async function syncUnifiedLocations(): Promise<{ created: number; updated
         updatedAt: new Date(),
       };
     } else {
-      // Update existing
+      // Update existing (may come from DB without borkIds/borkNames)
       unified.primaryName = loc.name || unified.primaryName;
       unified.isActive = loc.is_active !== false;
       unified.lastSeen = new Date();
       unified.updatedAt = new Date();
+      if (!unified.borkIds) unified.borkIds = [];
+      if (!unified.borkNames) unified.borkNames = [];
     }
     
     unifiedMap.set(locId, unified);
@@ -267,6 +278,52 @@ export async function syncUnifiedLocations(): Promise<{ created: number; updated
         if (!unified.eitjeIds.includes(eitjeId)) {
           unified.eitjeIds.push(eitjeId);
         }
+      }
+      // Bork: add Bork location/environment IDs to unified_location
+      const borkMapping = loc.systemMappings.find((m: any) => m.system === 'bork');
+      if (borkMapping && borkMapping.externalId) {
+        const borkId = String(borkMapping.externalId);
+        if (!unified.borkIds.includes(borkId)) {
+          unified.borkIds.push(borkId);
+        }
+        if (borkMapping.name && !unified.borkNames.includes(borkMapping.name)) {
+          unified.borkNames.push(borkMapping.name);
+        }
+        unified.allIds.push({
+          source: 'bork',
+          id: borkId,
+          name: borkMapping.name,
+        });
+      }
+    }
+  }
+  
+  // Process Bork: add CenterKey/CenterName from bork_raw_data to respective unified_location (by locationId)
+  const borkRawDocs = await db.collection('bork_raw_data').find({}).toArray();
+  for (const doc of borkRawDocs) {
+    const locationId = doc.locationId;
+    if (!locationId) continue;
+    const locIdStr = locationId.toString();
+    const unified = unifiedMap.get(locIdStr);
+    if (!unified) continue;
+    const tickets = Array.isArray(doc.rawApiResponse) ? doc.rawApiResponse : [];
+    for (const ticket of tickets) {
+      const t = ticket as Record<string, unknown>;
+      const centerKey = t.CenterKey ?? t.centerKey;
+      const centerName = t.CenterName ?? t.centerName;
+      if (centerKey != null && centerKey !== '') {
+        const key = String(centerKey);
+        if (!unified.borkIds.includes(key)) {
+          unified.borkIds.push(key);
+          unified.allIds.push({
+            source: 'bork',
+            id: key,
+            name: centerName != null ? String(centerName) : undefined,
+          });
+        }
+      }
+      if (centerName != null && centerName !== '' && !unified.borkNames.includes(String(centerName))) {
+        unified.borkNames.push(String(centerName));
       }
     }
   }
@@ -339,6 +396,15 @@ export async function syncUnifiedLocations(): Promise<{ created: number; updated
     }
   }
   
+  // Build allIdValues for each unified (primaryId + eitjeIds + borkIds) for $in lookups
+  for (const unified of unifiedMap.values()) {
+    const allIdValues: (string | number | ObjectId)[] = [];
+    if (unified.primaryId) allIdValues.push(unified.primaryId);
+    if (unified.eitjeIds?.length) allIdValues.push(...unified.eitjeIds);
+    if (unified.borkIds?.length) allIdValues.push(...unified.borkIds);
+    unified.allIdValues = allIdValues;
+  }
+
   // Upsert all unified locations - use canonicalName as fallback key to prevent duplicates
   const operations = Array.from(unifiedMap.values()).map((unified) => {
     // Use primaryId if available, otherwise use canonicalName for matching
@@ -411,9 +477,11 @@ export async function syncUnifiedLocations(): Promise<{ created: number; updated
         return currName.length > bestName.length ? curr : best;
       }, keep);
       
-      // Merge eitjeIds, eitjeNames, allIds
+      // Merge eitjeIds, eitjeNames, borkIds, borkNames, allIds
       const mergedEitjeIds = new Set(keep.eitjeIds || []);
       const mergedEitjeNames = new Set(keep.eitjeNames || []);
+      const mergedBorkIds = new Set(keep.borkIds || []);
+      const mergedBorkNames = new Set(keep.borkNames || []);
       const mergedAllIds = [...(keep.allIds || [])];
       
       for (const dup of merge) {
@@ -422,6 +490,12 @@ export async function syncUnifiedLocations(): Promise<{ created: number; updated
         }
         if (dup.eitjeNames) {
           for (const name of dup.eitjeNames) mergedEitjeNames.add(name);
+        }
+        if (dup.borkIds) {
+          for (const id of dup.borkIds) mergedBorkIds.add(id);
+        }
+        if (dup.borkNames) {
+          for (const name of dup.borkNames) mergedBorkNames.add(name);
         }
         if (dup.allIds) {
           for (const idObj of dup.allIds) {
@@ -435,6 +509,11 @@ export async function syncUnifiedLocations(): Promise<{ created: number; updated
         }
       }
       
+      const mergedAllIdValues: (string | number | ObjectId)[] = [];
+      if (keep.primaryId) mergedAllIdValues.push(keep.primaryId);
+      mergedAllIdValues.push(...Array.from(mergedEitjeIds));
+      mergedAllIdValues.push(...Array.from(mergedBorkIds));
+      
       // Update the kept one with merged data and best canonical name
       await db.collection('unified_location').updateOne(
         { _id: keep._id },
@@ -443,7 +522,10 @@ export async function syncUnifiedLocations(): Promise<{ created: number; updated
             canonicalName: bestName.canonicalName || bestName.primaryName,
             eitjeIds: Array.from(mergedEitjeIds),
             eitjeNames: Array.from(mergedEitjeNames),
+            borkIds: Array.from(mergedBorkIds),
+            borkNames: Array.from(mergedBorkNames),
             allIds: mergedAllIds,
+            allIdValues: mergedAllIdValues,
             abbreviation: getLocationAbbreviation(bestName.canonicalName || bestName.primaryName),
             updatedAt: new Date(),
           }

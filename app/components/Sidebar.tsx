@@ -38,12 +38,11 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useEnvironment } from '@/lib/environmentContext'
-import { LayoutDashboard, FileText, CheckSquare, Target, MessageSquare, Calendar, Building2, Palette } from 'lucide-react'
+import { LayoutDashboard, FileText, CheckSquare, Target, MessageSquare, Calendar, Building2 } from 'lucide-react'
 // TEMPORARILY DISABLED: Manager-only restriction
 // import { useAuth } from '@/lib/hooks/useAuth'
 
 const navItems = [
-  { href: '/daily-work/design', label: 'Design System', icon: Palette },
   { href: '/daily-work', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/daily-work/notes', label: 'Notes', icon: FileText },
   { href: '/daily-work/todos', label: 'Todos', icon: CheckSquare },

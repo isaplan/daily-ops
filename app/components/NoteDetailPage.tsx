@@ -25,6 +25,7 @@ import { useRouter } from 'next/navigation'
 import { useMemberViewModel } from '@/lib/viewmodels/useMemberViewModel'
 import { noteService, type Note } from '@/lib/services/noteService'
 import ConnectionPicker from './ConnectionPicker'
+import BlockNoteContentView from './notes/BlockNoteContentView'
 import { EditMode } from './ui/edit-mode'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -687,10 +688,10 @@ export default function NoteDetailPage({ slug }: NoteDetailPageProps) {
               </div>
             )}
 
-            {/* Content with EditMode */}
+            {/* Content with EditMode - Edit opens same block editor as create */}
             <EditMode
-              isEditing={isEditing}
-              onEdit={() => setIsEditing(true)}
+              isEditing={false}
+              onEdit={() => router.push(`/daily-work/notes?note=${note._id}&returnTo=${encodeURIComponent(`/daily-work/notes/${slug}`)}`)}
               onSave={handleSave}
               onCancel={() => {
                 setIsEditing(false)
@@ -698,38 +699,8 @@ export default function NoteDetailPage({ slug }: NoteDetailPageProps) {
               }}
               loading={actionLoading}
             >
-              {isEditing ? (
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="edit-content">Content</Label>
-                    <Textarea
-                      id="edit-content"
-                      value={editData.content ?? ''}
-                      onChange={(e) => setEditData({ ...editData, content: e.target.value })}
-                      rows={12}
-                      className="font-mono text-sm"
-                    />
-                  </div>
-                </div>
-              ) : (
-                <div className="prose prose-sm max-w-none whitespace-pre-wrap">
-                  {note.content}
-                </div>
-              )}
+              <BlockNoteContentView content={note.content ?? ''} />
             </EditMode>
-            
-            {/* Title editing (separate from EditMode) */}
-            {isEditing && (
-              <div className="space-y-2">
-                <Label htmlFor="edit-title">Title</Label>
-                <Input
-                  id="edit-title"
-                  value={editData.title ?? ''}
-                  onChange={(e) => setEditData({ ...editData, title: e.target.value })}
-                  className="text-2xl font-bold"
-                />
-              </div>
-            )}
 
             {/* Linked Todos Info */}
             {note.linked_todos && note.linked_todos.length > 0 && (

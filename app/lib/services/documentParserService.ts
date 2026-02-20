@@ -35,7 +35,7 @@ class DocumentParserService {
   /**
    * Auto-detect file format from MIME type or filename
    */
-  private detectFormat(fileName: string, mimeType: string): 'csv' | 'xlsx' | 'pdf' | 'unknown' {
+  private detectFormat(fileName: string, mimeType: string): 'csv' | 'xlsx' | 'pdf' | 'html' | 'unknown' {
     const lowerName = fileName.toLowerCase()
     const lowerMime = mimeType.toLowerCase()
 
@@ -52,6 +52,9 @@ class DocumentParserService {
     }
     if (lowerMime.includes('pdf') || lowerName.endsWith('.pdf')) {
       return 'pdf'
+    }
+    if (lowerName.endsWith('.html') || lowerName.endsWith('.htm') || lowerMime.includes('text/html')) {
+      return 'html'
     }
 
     return 'unknown'
@@ -120,6 +123,17 @@ class DocumentParserService {
           }
           parseResult = await parsePDF(options.data, { extractTables: true })
           break
+        }
+
+        case 'html': {
+          return {
+            success: false,
+            format: 'html',
+            headers: [],
+            rows: [],
+            rowCount: 0,
+            error: 'HTML files are ignored (not parsed)',
+          }
         }
 
         default: {

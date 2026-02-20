@@ -67,8 +67,23 @@ export async function POST(
         attachment.parseStatus = 'parsing'
         await attachment.save()
 
+        const lowerName = attachment.fileName?.toLowerCase() ?? ''
+        const lowerMime = attachment.mimeType?.toLowerCase() ?? ''
+        const isHtml =
+          lowerName.endsWith('.html') || lowerName.endsWith('.htm') || lowerMime.includes('text/html')
+        if (isHtml) {
+          attachment.parseStatus = 'success'
+          attachment.documentType = 'other'
+          attachment.metadata = { ...attachment.metadata, format: 'unknown' }
+          attachment.parseError = undefined
+          await attachment.save()
+          continue
+        }
+
         let parseData: string | Buffer
-        const isCsv = attachment.mimeType?.toLowerCase().includes('csv') ?? false
+        const isCsv =
+          (attachment.mimeType?.toLowerCase().includes('csv') ?? false) ||
+          attachment.fileName?.toLowerCase().endsWith('.csv')
 
         if (attachment.originalData) {
           // Re-parse using stored content (manual upload or previous download)

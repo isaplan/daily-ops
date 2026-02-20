@@ -80,35 +80,39 @@ export function useNoteViewModel(initialNote?: Note) {
   }, [setLoading, setError, setData])
 
   const createNote = useCallback(
-    async (data: CreateNoteDto) => {
+    async (data: CreateNoteDto): Promise<boolean> => {
       setLoading(true)
       try {
         const response = await noteService.create(data)
         if (response.success) {
           await loadNotes()
           formState.resetForm()
-        } else {
-          setError(response.error || 'Failed to create note')
+          return true
         }
+        setError(response.error || 'Failed to create note')
+        return false
       } catch (error) {
         setError(error instanceof Error ? error.message : 'Failed to create note')
+        return false
       }
     },
     [setLoading, setError, loadNotes, formState]
   )
 
   const updateNote = useCallback(
-    async (id: string, data: UpdateNoteDto) => {
+    async (id: string, data: UpdateNoteDto): Promise<boolean> => {
       setLoading(true)
       try {
         const response = await noteService.update(id, data)
         if (response.success) {
           await loadNotes()
-        } else {
-          setError(response.error || 'Failed to update note')
+          return true
         }
+        setError(response.error || 'Failed to update note')
+        return false
       } catch (error) {
         setError(error instanceof Error ? error.message : 'Failed to update note')
+        return false
       }
     },
     [setLoading, setError, loadNotes]

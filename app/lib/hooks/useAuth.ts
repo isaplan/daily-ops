@@ -12,16 +12,11 @@
 
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useContext } from 'react';
+import { useAuthContext, type AuthUser } from '@/lib/authContext';
 
-export interface AuthUser {
-  id: string;
-  name: string;
-  email: string;
-  role: 'member' | 'manager' | 'admin';
-  location_id?: string;
-  team_id?: string;
-}
+// Re-export for consumers that import AuthUser from useAuth
+export type { AuthUser } from '@/lib/authContext';
 
 interface AuthState {
   user: AuthUser | null;
@@ -29,61 +24,15 @@ interface AuthState {
   error: string | null;
 }
 
-const DEFAULT_STATE: AuthState = {
-  user: null,
-  loading: true,
-  error: null,
-};
-
 export function useAuth() {
-  const [state, setState] = useState<AuthState>(DEFAULT_STATE);
-
-  useEffect(() => {
-    fetchCurrentUser();
-  }, []);
-
-  async function fetchCurrentUser() {
-    try {
-      // Note: 401 responses are expected when user is not authenticated.
-      // The browser will log these as failed requests, but this is normal behavior.
-      const response = await fetch('/api/auth/me', {
-        credentials: 'include',
-      });
-      
-      // 401 is expected when not authenticated - handle silently
-      if (response.status === 401) {
-        setState({
-          user: null,
-          loading: false,
-          error: null,
-        });
-        return;
-      }
-      
-      if (!response.ok) {
-        setState({
-          user: null,
-          loading: false,
-          error: 'Not authenticated',
-        });
-        return;
-      }
-
-      const user = await response.json();
-      setState({
-        user,
-        loading: false,
-        error: null,
-      });
-    } catch (error) {
-      // Network errors - handle silently (401s are expected and normal)
-      setState({
-        user: null,
-        loading: false,
-        error: null,
-      });
-    }
-  }
+  const contextState = useAuthContext();
+  // When AuthProvider is used (recommended), contextState is defined and we use it.
+  // Otherwise fall back to a safe default so callers still get loading: true until they mount outside provider.
+  const state: AuthState = contextState ?? {
+    user: null,
+    loading: true,
+    error: null,
+  };
 
   /**
    * Check if user can view content at specific scope

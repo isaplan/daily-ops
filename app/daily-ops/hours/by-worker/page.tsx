@@ -1,8 +1,9 @@
 /**
  * @registry-id: HoursByWorkerPage
  * @created: 2026-01-25T00:00:00.000Z
- * @last-modified: 2026-01-25T00:00:00.000Z
- * @description: Hours breakdown by worker - shows total hours per worker
+ * @last-modified: 2026-02-02T14:00:00.000Z
+ * @description: Hours breakdown by worker - shows total hours per worker; optional Contract totals (CSV, all-time) from test-eitje-contracts
+ * @last-fix: [2026-02-02] Added Data source toggle: Synced shifts vs Contract totals (CSV)
  */
 
 'use client';
@@ -41,6 +42,7 @@ export default function HoursByWorkerPage() {
     startDate: defaultStartDate,
     endDate: defaultEndDate,
     endpoint: 'time_registration_shifts',
+    source: 'synced' as 'synced' | 'contracts',
     sortBy: 'total_hours',
     sortOrder: 'desc',
   });
@@ -50,17 +52,20 @@ export default function HoursByWorkerPage() {
       fetchHoursData();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authLoading, filters.startDate, filters.endDate, filters.endpoint, filters.sortBy, filters.sortOrder]);
+  }, [authLoading, filters.startDate, filters.endDate, filters.endpoint, filters.source, filters.sortBy, filters.sortOrder]);
 
   async function fetchHoursData() {
     try {
       setLoading(true);
       setError(null);
       const params = new URLSearchParams();
-      
-      if (filters.startDate) params.append('startDate', filters.startDate);
-      if (filters.endDate) params.append('endDate', filters.endDate);
-      params.append('endpoint', filters.endpoint);
+      if (filters.source === 'synced') {
+        if (filters.startDate) params.append('startDate', filters.startDate);
+        if (filters.endDate) params.append('endDate', filters.endDate);
+        params.append('endpoint', filters.endpoint);
+      } else {
+        params.append('source', 'contracts');
+      }
       params.append('groupBy', 'worker');
       params.append('sortBy', filters.sortBy);
       params.append('sortOrder', filters.sortOrder);
@@ -94,6 +99,7 @@ export default function HoursByWorkerPage() {
       startDate: defaultStartDate,
       endDate: defaultEndDate,
       endpoint: 'time_registration_shifts',
+      source: 'synced',
       sortBy: 'total_hours',
       sortOrder: 'desc',
     });
@@ -164,39 +170,58 @@ export default function HoursByWorkerPage() {
         <CardContent>
           <div className="grid gap-4 md:grid-cols-4">
             <div className="space-y-2">
-              <Label htmlFor="endpoint">Endpoint</Label>
+              <Label htmlFor="source">Data source</Label>
               <Select
-                value={filters.endpoint}
-                onValueChange={(value) => handleFilterChange('endpoint', value)}
+                value={filters.source}
+                onValueChange={(value: 'synced' | 'contracts') => handleFilterChange('source', value)}
               >
-                <SelectTrigger id="endpoint">
+                <SelectTrigger id="source">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="time_registration_shifts">Time Registration Shifts</SelectItem>
-                  <SelectItem value="revenue_days">Revenue Days</SelectItem>
-                  <SelectItem value="planning_shifts">Planning Shifts</SelectItem>
+                  <SelectItem value="synced">Synced shifts (date range)</SelectItem>
+                  <SelectItem value="contracts">Contract totals (CSV, all-time)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="startDate">Start Date</Label>
-              <Input
-                id="startDate"
-                type="date"
-                value={filters.startDate}
-                onChange={(e) => handleFilterChange('startDate', e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="endDate">End Date</Label>
-              <Input
-                id="endDate"
-                type="date"
-                value={filters.endDate}
-                onChange={(e) => handleFilterChange('endDate', e.target.value)}
-              />
-            </div>
+            {filters.source === 'synced' && (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="endpoint">Endpoint</Label>
+                  <Select
+                    value={filters.endpoint}
+                    onValueChange={(value) => handleFilterChange('endpoint', value)}
+                  >
+                    <SelectTrigger id="endpoint">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="time_registration_shifts">Time Registration Shifts</SelectItem>
+                      <SelectItem value="revenue_days">Revenue Days</SelectItem>
+                      <SelectItem value="planning_shifts">Planning Shifts</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="startDate">Start Date</Label>
+                  <Input
+                    id="startDate"
+                    type="date"
+                    value={filters.startDate}
+                    onChange={(e) => handleFilterChange('startDate', e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="endDate">End Date</Label>
+                  <Input
+                    id="endDate"
+                    type="date"
+                    value={filters.endDate}
+                    onChange={(e) => handleFilterChange('endDate', e.target.value)}
+                  />
+                </div>
+              </>
+            )}
             <div className="space-y-2">
               <Label htmlFor="sortBy">Sort By</Label>
               <Select
@@ -209,6 +234,7 @@ export default function HoursByWorkerPage() {
                 <SelectContent>
                   <SelectItem value="worker_name">Worker Name</SelectItem>
                   <SelectItem value="total_hours">Total Hours</SelectItem>
+                  <SelectItem value="total_cost">Total Cost</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -277,7 +303,7 @@ export default function HoursByWorkerPage() {
         <CardHeader>
           <CardTitle>Hours by Worker</CardTitle>
           <CardDescription>
-            {loading ? 'Loading...' : `${hoursData.length} ${hoursData.length === 1 ? 'worker' : 'workers'} found`}
+            {loading ? 'Loading...' : `${hoursData.length} ${hoursData.length === 1 ? 'worker' : 'workers'} found${filters.source === 'contracts' ? ' (contract CSV, all-time)' : ''}`}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -292,7 +318,11 @@ export default function HoursByWorkerPage() {
               />
               {hoursData.length === 0 && !loading && (
                 <div className="mt-4 text-center space-y-2">
-                  <p className="text-sm text-muted-foreground">Hours data is synced from the Eitje API.</p>
+                  <p className="text-sm text-muted-foreground">
+                    {filters.source === 'contracts'
+                      ? 'No contract totals. Upload the Eitje contract CSV (Inbox) so "* totaal gewerkte uren" is available.'
+                      : 'Hours data is synced from the Eitje API. Use "Contract totals (CSV, all-time)" for full worker hours from the contract CSV.'}
+                  </p>
                 </div>
               )}
             </>

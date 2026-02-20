@@ -1,9 +1,9 @@
 /**
  * @registry-id: inboxProcessAllAPI
  * @created: 2026-01-28T00:00:00.000Z
- * @last-modified: 2026-01-28T00:00:00.000Z
+ * @last-modified: 2026-02-02T12:00:00.000Z
  * @description: Process all unprocessed emails - batch process all emails with unprocessed attachments
- * @last-fix: [2026-01-28] Removed debug instrumentation after fixing pdfjs-dist SSR issue
+ * @last-fix: [2026-02-02] Added data.message for clear UI feedback when 0 processed
  */
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -83,14 +83,28 @@ export async function POST(request: NextRequest) {
 
             // Decode base64
             const fileBuffer = Buffer.from(gmailAttachment.data, 'base64')
+            const lowerName = attachment.fileName.toLowerCase()
+            const lowerMime = attachment.mimeType.toLowerCase()
+            const isHtml =
+              lowerName.endsWith('.html') || lowerName.endsWith('.htm') || lowerMime.includes('text/html')
+            if (isHtml) {
+              attachment.parseStatus = 'success'
+              attachment.documentType = 'other'
+              attachment.metadata = { ...attachment.metadata, format: 'unknown' }
+              attachment.parseError = undefined
+              await attachment.save()
+              attachmentsProcessed++
+              continue
+            }
+            // Parser expects CSV as string; Gmail often sends CSV as text/plain or application/octet-stream
+            const isCsvByMimeOrExt =
+              lowerMime.includes('csv') || lowerName.endsWith('.csv')
 
             // Parse document
             const parseResult = await documentParserService.parseDocument({
               fileName: attachment.fileName,
               mimeType: attachment.mimeType,
-              data: attachment.mimeType.includes('csv')
-                ? fileBuffer.toString('utf-8')
-                : fileBuffer,
+              data: isCsvByMimeOrExt ? fileBuffer.toString('utf-8') : fileBuffer,
               autoDetectType: true,
             })
 
@@ -275,15 +289,27 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // #region agent log
-    log('process-all/route.ts:278', 'process-all completed', { totalProcessed, totalFailed, total: emails.length, resultsCount: results.length }, 'G')
-    // #endregion
+    const total = emails.length
+    let message: string
+    if (total === 0) {
+      message = 'No emails to process. Sync inbox first to fetch emails, or all emails are already completed.'
+    } else if (totalProcessed === 0 && totalFailed === 0) {
+      message = 'No unprocessed attachments found. All checked emails are already up to date.'
+    } else if (totalProcessed === 0 && totalFailed > 0) {
+      message = `No attachments could be processed. ${totalFailed} email(s) had errors.`
+    } else if (totalFailed > 0) {
+      message = `${totalProcessed} email(s) processed, ${totalFailed} failed.`
+    } else {
+      message = `Processed ${totalProcessed} email(s) successfully.`
+    }
+
     return NextResponse.json({
       success: true,
       data: {
         emailsProcessed: totalProcessed,
         emailsFailed: totalFailed,
-        total: emails.length,
+        total,
+        message,
         results,
       },
     })

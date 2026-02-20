@@ -1,8 +1,9 @@
 /**
  * @registry-id: NotesDashboard
  * @created: 2026-01-16T22:00:00.000Z
- * @last-modified: 2026-01-24T00:00:00.000Z
+ * @last-modified: 2026-02-14T00:00:00.000Z
  * @description: Notes dashboard component showing overview and quick access
+ * @last-fix: [2026-02-14] Light theme to match /daily-work dashboard (white cards, gray text, blue links)
  * 
  * @imports-from:
  *   - app/lib/viewmodels/useNoteViewModel.ts => Note ViewModel
@@ -15,7 +16,7 @@
 
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useNoteViewModel } from '@/lib/viewmodels/useNoteViewModel'
 import { useAuth } from '@/lib/hooks/useAuth'
@@ -24,24 +25,19 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { FileText, Plus, Lock, Globe } from 'lucide-react'
+import { FileText, Plus, Lock, Globe, CalendarRange } from 'lucide-react'
 import Link from 'next/link'
 
 export default function NotesDashboard() {
   const { user } = useAuth()
   const viewModel = useNoteViewModel()
   const router = useRouter()
-  const hasLoadedRef = useRef(false)
 
   useEffect(() => {
-    // Only load once on mount
-    if (!hasLoadedRef.current) {
-      hasLoadedRef.current = true
-      viewModel.loadNotes({})
-    }
+    viewModel.loadNotes({})
   }, [viewModel.loadNotes])
 
-  if (viewModel.loading && viewModel.notes.length === 0 && !viewModel.error) {
+  if (viewModel.notes.length === 0 && !viewModel.error) {
     return (
       <div className="space-y-6">
         <Skeleton className="h-12 w-64" />
@@ -102,145 +98,103 @@ export default function NotesDashboard() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-white mb-2">Notes Dashboard</h1>
-          <p className="text-slate-400">Overview of your notes and quick access</p>
+          <h1 className="text-4xl font-bold mb-2 text-gray-900">Notes</h1>
+          <p className="text-gray-700">Overview of your notes and quick access</p>
         </div>
-        <Button
-          onClick={() => router.push('/daily-work/notes?create=true')}
-          className="bg-gradient-to-r from-indigo-500 to-blue-600 hover:from-indigo-600 hover:to-blue-700"
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          Create Note
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={() => router.push('/daily-work/notes?create=true')}>
+            <Plus className="h-4 w-4 mr-2" />
+            Create Note
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => router.push('/daily-work/notes?create=true&template=weekly')}
+          >
+            <CalendarRange className="h-4 w-4 mr-2" />
+            Create Weekly
+          </Button>
+        </div>
       </div>
 
       {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-3">
-        <Card className="border-white/10 bg-slate-900/70">
+        <Card className="bg-white border rounded-lg shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-slate-300">My Private Notes</CardTitle>
-            <Lock className="h-4 w-4 text-slate-400" />
+            <CardTitle className="text-sm font-medium text-gray-600">My Private Notes</CardTitle>
+            <Lock className="h-4 w-4 text-gray-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-white">{myPrivateNotes.length}</div>
-            <p className="text-xs text-slate-400 mt-1">Notes only you can see</p>
-            <Link href="/daily-work/notes/my-notes">
-              <Button variant="ghost" size="sm" className="mt-2 text-xs">
-                View All →
-              </Button>
+            <div className="text-3xl font-bold text-gray-900">{myPrivateNotes.length}</div>
+            <p className="text-xs text-gray-500 mt-1">Notes only you can see</p>
+            <Link href="/daily-work/notes/my-notes" className="text-sm text-blue-600 hover:underline mt-2 inline-block cursor-pointer py-1.5 pr-1 -my-1 select-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 rounded">
+              View all
             </Link>
           </CardContent>
         </Card>
 
-        <Card className="border-white/10 bg-slate-900/70">
+        <Card className="bg-white border rounded-lg shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-slate-300">Public Notes</CardTitle>
-            <Globe className="h-4 w-4 text-slate-400" />
+            <CardTitle className="text-sm font-medium text-gray-600">Public Notes</CardTitle>
+            <Globe className="h-4 w-4 text-gray-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-white">{publicNotes.length}</div>
-            <p className="text-xs text-slate-400 mt-1">Shared with teams/locations</p>
-            <Link href="/daily-work/notes/public-notes">
-              <Button variant="ghost" size="sm" className="mt-2 text-xs">
-                View All →
-              </Button>
+            <div className="text-3xl font-bold text-gray-900">{publicNotes.length}</div>
+            <p className="text-xs text-gray-500 mt-1">Shared with teams/locations</p>
+            <Link href="/daily-work/notes/public-notes" className="text-sm text-blue-600 hover:underline mt-2 inline-block cursor-pointer py-1.5 pr-1 -my-1 select-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 rounded">
+              View all
             </Link>
           </CardContent>
         </Card>
 
-        <Card className="border-white/10 bg-slate-900/70">
+        <Card className="bg-white border rounded-lg shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-slate-300">Total Notes</CardTitle>
-            <FileText className="h-4 w-4 text-slate-400" />
+            <CardTitle className="text-sm font-medium text-gray-600">Total Notes</CardTitle>
+            <FileText className="h-4 w-4 text-gray-500" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-white">{allNotes.length}</div>
-            <p className="text-xs text-slate-400 mt-1">All your notes</p>
-            <Link href="/daily-work/notes">
-              <Button variant="ghost" size="sm" className="mt-2 text-xs">
-                View All →
-              </Button>
+            <div className="text-3xl font-bold text-gray-900">{allNotes.length}</div>
+            <p className="text-xs text-gray-500 mt-1">All your notes</p>
+            <Link href="/daily-work/notes" className="text-sm text-blue-600 hover:underline mt-2 inline-block cursor-pointer py-1.5 pr-1 -my-1 select-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 rounded">
+              View all
             </Link>
           </CardContent>
         </Card>
-      </div>
-
-      {/* Quick Actions */}
-      <div className="grid gap-4 md:grid-cols-3">
-        <Link href="/daily-work/notes?create=true">
-          <Card className="border-white/10 bg-slate-900/70 hover:bg-slate-900/90 cursor-pointer transition-colors">
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Plus className="h-5 w-5" />
-                Create Note
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-slate-400">Start a new note</p>
-            </CardContent>
-          </Card>
-        </Link>
-
-        <Link href="/daily-work/notes/my-notes">
-          <Card className="border-white/10 bg-slate-900/70 hover:bg-slate-900/90 cursor-pointer transition-colors">
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Lock className="h-5 w-5" />
-                My Notes
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-slate-400">View your private notes</p>
-            </CardContent>
-          </Card>
-        </Link>
-
-        <Link href="/daily-work/notes/public-notes">
-          <Card className="border-white/10 bg-slate-900/70 hover:bg-slate-900/90 cursor-pointer transition-colors">
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Globe className="h-5 w-5" />
-                Public Notes
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-slate-400">View shared notes</p>
-            </CardContent>
-          </Card>
-        </Link>
       </div>
 
       {/* Recent Notes */}
       {recentNotes.length > 0 && (
         <div>
-          <h2 className="text-xl font-semibold text-white mb-4">Recent Notes</h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold text-gray-900">Recent Notes</h2>
+            <Link href="/daily-work/notes" className="text-sm text-blue-600 hover:underline cursor-pointer py-1.5 pr-1 -my-1 select-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 rounded inline-block">
+              View all
+            </Link>
+          </div>
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {recentNotes.map((note) => (
               <Link key={note._id} href={`/daily-work/notes/${note.slug || note._id}`}>
-                <Card className="border-white/10 bg-slate-900/70 hover:bg-slate-900/90 cursor-pointer transition-colors">
+                <Card className="bg-white border rounded-lg shadow-sm hover:shadow-md transition-shadow cursor-pointer">
                   <CardHeader>
                     <div className="flex items-start justify-between">
-                      <CardTitle className="text-base line-clamp-2">{note.title}</CardTitle>
+                      <CardTitle className="text-base line-clamp-2 text-gray-900">{note.title}</CardTitle>
                       {note.is_pinned && (
-                        <Badge variant="outline" className="text-yellow-600 border-yellow-400 text-xs">
+                        <Badge variant="outline" className="text-yellow-600 border-yellow-400 text-xs shrink-0">
                           📌
                         </Badge>
                       )}
                     </div>
                   </CardHeader>
                   <CardContent>
-                    <p className="text-sm text-slate-400 line-clamp-2 mb-2">{note.content}</p>
-                    <div className="flex items-center justify-between text-xs text-slate-500">
-                      <span>
-                        {new Date(note.created_at).toLocaleDateString()}
-                      </span>
+                    <p className="text-sm text-gray-600 line-clamp-2 mb-2">{note.content}</p>
+                    <div className="flex items-center justify-between text-xs text-gray-500">
+                      <span>{new Date(note.created_at).toLocaleDateString()}</span>
                       {note.connected_to?.team_id || note.connected_to?.location_id ? (
-                        <Badge variant="outline" className="text-xs">
+                        <Badge variant="outline" className="text-xs text-gray-600 border-gray-300">
                           <Globe className="h-3 w-3 mr-1" />
                           Public
                         </Badge>
                       ) : (
-                        <Badge variant="outline" className="text-xs">
+                        <Badge variant="outline" className="text-xs text-gray-600 border-gray-300">
                           <Lock className="h-3 w-3 mr-1" />
                           Private
                         </Badge>

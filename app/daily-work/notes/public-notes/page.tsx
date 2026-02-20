@@ -2,12 +2,16 @@
 
 import { Suspense, useEffect, useState, useRef } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
+import Link from 'next/link'
 import NoteForm from '@/components/NoteForm'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { noteService } from '@/lib/services/noteService'
 import { useNoteViewModel } from '@/lib/viewmodels/useNoteViewModel'
 import { useAuth } from '@/lib/hooks/useAuth'
+import { Globe } from 'lucide-react'
 import type { Note } from '@/lib/types/note.types'
 
 function PublicNotesContent() {
@@ -51,7 +55,7 @@ function PublicNotesContent() {
     if (returnTo) {
       router.push(returnTo)
     } else {
-      setSelectedNote(null)
+      router.back()
     }
   }
 
@@ -82,11 +86,14 @@ function PublicNotesContent() {
   })
 
   return (
-    <div className="min-h-screen p-8">
+    <div className="min-h-screen p-8 bg-gray-50">
       <div className="max-w-7xl mx-auto">
         <div className="mb-8">
-          <h1 className="text-4xl font-bold mb-2">Public Notes</h1>
-          <p className="text-muted-foreground">
+          <Button variant="ghost" size="sm" onClick={() => router.back()} className="mb-4 -ml-2 text-gray-600 hover:text-gray-900">
+            ← Back
+          </Button>
+          <h1 className="text-4xl font-bold mb-2 text-gray-900">Public Notes</h1>
+          <p className="text-gray-700">
             All notes you own and all notes connected to your teams and locations
           </p>
         </div>
@@ -119,16 +126,16 @@ function PublicNotesContent() {
         ) : (
           <div className="space-y-4">
             <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold">Public Notes ({publicNotes.length})</h2>
+              <h2 className="text-2xl font-bold text-gray-900">Public Notes ({publicNotes.length})</h2>
               {process.env.NODE_ENV === 'development' && (
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-gray-500">
                   Total notes loaded: {viewModel.notes.length} | User ID: {user?.id || 'Not authenticated'}
                 </p>
               )}
             </div>
             {publicNotes.length === 0 ? (
               <div className="text-center py-12">
-                <p className="text-muted-foreground">
+                <p className="text-gray-600">
                   {viewModel.notes.length === 0 
                     ? 'No notes found. Make sure you have run the seed script to create dummy data.'
                     : 'No public notes available. Public notes are notes you own or notes connected to your teams and locations.'}
@@ -143,52 +150,59 @@ function PublicNotesContent() {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {publicNotes.map((note) => (
-                  <div
-                    key={note._id}
-                    className="border border-white/10 rounded-lg p-4 bg-slate-900/70 hover:bg-slate-900/90 transition-colors cursor-pointer"
-                    onClick={() => router.push(`/daily-work/notes/${note.slug || note._id}`)}
-                  >
-                    <div className="flex items-start justify-between mb-2">
-                      <h3 className="font-semibold text-lg text-white line-clamp-2">{note.title}</h3>
-                      {note.is_pinned && (
-                        <span className="text-yellow-400 text-sm">📌</span>
-                      )}
-                    </div>
-                    <p className="text-sm text-slate-400 line-clamp-3 mb-3">
-                      {note.content}
-                    </p>
-                    {note.connected_to && (
-                      <div className="text-xs text-slate-400 mb-2 space-y-1">
-                        {note.connected_to.team_id && (
-                          <div className="flex items-center gap-1">
-                            <span>👥</span>
-                            <span>{typeof note.connected_to.team_id === 'object' ? note.connected_to.team_id.name : 'Team'}</span>
+                  <Link key={note._id} href={`/daily-work/notes/${note.slug || note._id}`}>
+                    <Card className="bg-white border rounded-lg shadow-sm hover:shadow-md transition-shadow cursor-pointer h-full">
+                      <CardHeader>
+                        <div className="flex items-start justify-between">
+                          <CardTitle className="text-base line-clamp-2 text-gray-900">{note.title}</CardTitle>
+                          {note.is_pinned && (
+                            <Badge variant="outline" className="text-yellow-600 border-yellow-400 text-xs shrink-0">
+                              📌
+                            </Badge>
+                          )}
+                        </div>
+                      </CardHeader>
+                      <CardContent>
+                        <p className="text-sm text-gray-600 line-clamp-3 mb-3">
+                          {note.content}
+                        </p>
+                        {note.connected_to && (
+                          <div className="text-xs text-gray-600 mb-2 space-y-1">
+                            {note.connected_to.team_id && (
+                              <div className="flex items-center gap-1">
+                                <span>👥</span>
+                                <span>{typeof note.connected_to.team_id === 'object' ? note.connected_to.team_id.name : 'Team'}</span>
+                              </div>
+                            )}
+                            {note.connected_to.location_id && (
+                              <div className="flex items-center gap-1">
+                                <span>📍</span>
+                                <span>{typeof note.connected_to.location_id === 'object' ? note.connected_to.location_id.name : 'Location'}</span>
+                              </div>
+                            )}
                           </div>
                         )}
-                        {note.connected_to.location_id && (
-                          <div className="flex items-center gap-1">
-                            <span>📍</span>
-                            <span>{typeof note.connected_to.location_id === 'object' ? note.connected_to.location_id.name : 'Location'}</span>
+                        {note.tags && note.tags.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mb-2">
+                            {note.tags.slice(0, 3).map((tag, idx) => (
+                              <Badge key={idx} variant="secondary" className="text-xs">
+                                {tag}
+                              </Badge>
+                            ))}
                           </div>
                         )}
-                      </div>
-                    )}
-                    {note.tags && note.tags.length > 0 && (
-                      <div className="flex flex-wrap gap-1 mb-2">
-                        {note.tags.slice(0, 3).map((tag, idx) => (
-                          <span key={idx} className="text-xs bg-slate-800 text-slate-300 px-2 py-1 rounded">
-                            {tag}
+                        <div className="text-xs text-gray-500 flex items-center justify-between">
+                          <span>
+                            by {note.author_id && typeof note.author_id === 'object' ? note.author_id.name : 'Unknown'} • {new Date(note.created_at).toLocaleDateString()}
                           </span>
-                        ))}
-                      </div>
-                    )}
-                    <div className="text-xs text-slate-500 flex items-center justify-between">
-                      <span>
-                        by {note.author_id && typeof note.author_id === 'object' ? note.author_id.name : 'Unknown'} • {new Date(note.created_at).toLocaleDateString()}
-                      </span>
-                      <span className="text-slate-400">🌐 Public</span>
-                    </div>
-                  </div>
+                          <Badge variant="outline" className="text-xs text-gray-600 border-gray-300">
+                            <Globe className="h-3 w-3 mr-1" />
+                            Public
+                          </Badge>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </Link>
                 ))}
               </div>
             )}

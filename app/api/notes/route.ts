@@ -17,6 +17,7 @@ import MemberTeamAssociation from '@/models/MemberTeamAssociation';
 import MemberLocationAssociation from '@/models/MemberLocationAssociation';
 import { generateSlug } from '@/lib/utils/slug';
 import { getErrorMessage } from '@/lib/types/errors';
+import { requireAuth } from '@/lib/api-middleware';
 
 export async function GET(request: NextRequest) {
   try {
@@ -177,24 +178,43 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     await dbConnect();
+
+    const auth = await requireAuth(request);
+    let authorId: string;
+
+    if (auth.authorized && auth.user?.id) {
+      authorId = auth.user.id;
+    } else {
+      const fallbackMember = await Member.findOne().sort({ _id: 1 }).select('_id').lean();
+      if (!fallbackMember) {
+        return NextResponse.json(
+          { success: false, error: 'Unauthorized and no fallback member in DB. Create a member or sign in.' },
+          { status: 401 }
+        );
+      }
+      authorId = fallbackMember._id.toString();
+    }
+
     const body = await request.json();
-    
-    const slug = generateSlug(body.title);
+    const title = (body.title && String(body.title).trim()) || 'Untitled';
+    const content = body.content != null ? String(body.content) : '';
+    const slug = generateSlug(title);
+
     const note = await Note.create({
-      title: body.title,
-      content: body.content,
+      title,
+      content,
       slug,
-      author_id: body.author_id,
+      author_id: authorId,
       connected_to: {
-        location_id: body.location_id,
-        team_id: body.team_id,
-        member_id: body.member_id,
+        location_id: body.location_id || undefined,
+        team_id: body.team_id || undefined,
+        member_id: body.member_id || undefined,
       },
       tags: body.tags || [],
       is_pinned: body.is_pinned || false,
       status: 'draft',
     });
-    
+
     await note.populate('author_id', 'name email');
     await note.populate('connected_to.location_id', 'name');
     await note.populate('connected_to.team_id', 'name');

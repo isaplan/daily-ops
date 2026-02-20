@@ -191,29 +191,14 @@ class InboxService extends ApiService {
     emailsProcessed: number
     emailsFailed: number
     total: number
+    message?: string
     results: Array<{ emailId: string; success: boolean; attachmentsProcessed: number; error?: string }>
   }>> {
     return this.post<{
       emailsProcessed: number
       emailsFailed: number
       total: number
-      results: Array<{ emailId: string; success: boolean; attachmentsProcessed: number; error?: string }>
-    }>('/inbox/process-all', options)
-  }
-
-  /**
-   * Process all unprocessed emails (batch process)
-   */
-  async processAll(options?: { maxEmails?: number }): Promise<ApiResponse<{
-    emailsProcessed: number
-    emailsFailed: number
-    total: number
-    results: Array<{ emailId: string; success: boolean; attachmentsProcessed: number; error?: string }>
-  }>> {
-    return this.post<{
-      emailsProcessed: number
-      emailsFailed: number
-      total: number
+      message?: string
       results: Array<{ emailId: string; success: boolean; attachmentsProcessed: number; error?: string }>
     }>('/inbox/process-all', options)
   }
