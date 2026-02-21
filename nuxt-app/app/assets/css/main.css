@@ -1,2 +1,17 @@
 @import "tailwindcss";
 @import "@nuxt/ui";
+
+/* Match Next.js app primary (dark blue-slate from app/globals.css :root --primary) */
+@theme static {
+  --color-primary-50: hsl(210 40% 98%);
+  --color-primary-100: hsl(214 32% 91%);
+  --color-primary-200: hsl(213 27% 84%);
+  --color-primary-300: hsl(212 24% 68%);
+  --color-primary-400: hsl(215 20% 45%);
+  --color-primary-500: hsl(222.2 47.4% 11.2%);
+  --color-primary-600: hsl(222.2 47.4% 9%);
+  --color-primary-700: hsl(222.2 50% 7%);
+  --color-primary-800: hsl(222.2 52% 5%);
+  --color-primary-900: hsl(224 55% 4%);
+  --color-primary-950: hsl(226 60% 2%);
+}

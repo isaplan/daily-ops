@@ -23,29 +23,56 @@
       </p>
       <ul class="space-y-1">
         <li v-if="activeEnvironment === 'daily-notes'">
-          <NuxtLink
-            to="/"
-            :class="navLinkClass(isNotesHome)"
-          >
+          <NuxtLink to="/" :class="navLinkClass(isDashboard)">
             <UIcon name="i-lucide-layout-dashboard" class="size-4 shrink-0" />
             <span>Dashboard</span>
           </NuxtLink>
         </li>
         <li v-if="activeEnvironment === 'daily-notes'">
-          <NuxtLink
-            to="/notes/new"
-            :class="navLinkClass(isNotesNew)"
-          >
+          <NuxtLink to="/notes/all" :class="navLinkClass(isAllNotes)">
+            <UIcon name="i-lucide-file-text" class="size-4 shrink-0" />
+            <span>All Notes</span>
+          </NuxtLink>
+        </li>
+        <li v-if="activeEnvironment === 'daily-notes'">
+          <NuxtLink to="/notes/private" :class="navLinkClass(isPrivateNotes)">
+            <UIcon name="i-lucide-lock" class="size-4 shrink-0" />
+            <span>Private Notes</span>
+          </NuxtLink>
+        </li>
+        <li v-if="activeEnvironment === 'daily-notes'">
+          <NuxtLink to="/notes/public" :class="navLinkClass(isPublicNotes)">
+            <UIcon name="i-lucide-globe" class="size-4 shrink-0" />
+            <span>Public Notes</span>
+          </NuxtLink>
+        </li>
+        <li v-if="activeEnvironment === 'daily-notes'">
+          <NuxtLink to="/notes/drafts" :class="navLinkClass(isDrafts)">
+            <UIcon name="i-lucide-file-edit" class="size-4 shrink-0" />
+            <span>Drafts & Concepts</span>
+          </NuxtLink>
+        </li>
+        <li v-if="activeEnvironment === 'daily-notes'">
+          <NuxtLink to="/notes/todos" :class="navLinkClass(isTodos)">
+            <UIcon name="i-lucide-list-checks" class="size-4 shrink-0" />
+            <span>Todo's List</span>
+          </NuxtLink>
+        </li>
+        <li v-if="activeEnvironment === 'daily-notes'">
+          <NuxtLink to="/notes/agreed" :class="navLinkClass(isAgreed)">
+            <UIcon name="i-lucide-handshake" class="size-4 shrink-0" />
+            <span>Agreed List</span>
+          </NuxtLink>
+        </li>
+        <li v-if="activeEnvironment === 'daily-notes'">
+          <NuxtLink to="/notes/new" :class="navLinkClass(isNotesNew)">
             <UIcon name="i-lucide-file-plus" class="size-4 shrink-0" />
             <span>New note</span>
           </NuxtLink>
         </li>
         <li v-if="activeEnvironment === 'daily-notes'">
-          <NuxtLink
-            to="/notes/new?template=weekly"
-            :class="navLinkClass(isNotesWeekly)"
-          >
-            <UIcon name="i-lucide-file-text" class="size-4 shrink-0" />
+          <NuxtLink to="/notes/new?template=weekly" :class="navLinkClass(isNotesWeekly)">
+            <UIcon name="i-lucide-calendar-range" class="size-4 shrink-0" />
             <span>New Weekly</span>
           </NuxtLink>
         </li>
@@ -92,7 +119,13 @@ function onEnvironmentChange(value: unknown) {
   if (typeof id === 'string') setActiveEnvironment(id as EnvironmentId)
 }
 
-const isNotesHome = computed(() => route.path === '/' || route.path === '')
+const isDashboard = computed(() => route.path === '/' || route.path === '')
+const isAllNotes = computed(() => route.path === '/notes/all')
+const isPrivateNotes = computed(() => route.path === '/notes/private')
+const isPublicNotes = computed(() => route.path === '/notes/public')
+const isDrafts = computed(() => route.path === '/notes/drafts')
+const isTodos = computed(() => route.path === '/notes/todos')
+const isAgreed = computed(() => route.path === '/notes/agreed')
 const isNotesNew = computed(() => route.path === '/notes/new' && !route.query.template)
 const isNotesWeekly = computed(() => route.path === '/notes/new' && route.query.template === 'weekly')
 
