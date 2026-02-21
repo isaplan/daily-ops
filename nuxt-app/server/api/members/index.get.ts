@@ -4,9 +4,23 @@ export default defineEventHandler(async () => {
   const db = await getDb()
   const members = await db
     .collection('members')
-    .find({ is_active: true })
+    .find({
+      $or: [
+        { is_active: true },
+        { isActive: true },
+        { is_active: { $exists: false }, isActive: { $exists: false } },
+      ],
+    })
     .sort({ name: 1 })
-    .project({ _id: 1, name: 1, email: 1 })
     .toArray()
-  return { success: true, data: members }
+  const data = members.map((m: Record<string, unknown>) => {
+    const nameVal = m.name ?? m.Name ?? m.naam ?? m.displayName ?? m.full_name ?? m.title
+    const name = typeof nameVal === 'string' ? nameVal.trim() : ''
+    return {
+      _id: String(m._id),
+      name: name || `Member ${String(m._id).slice(-6)}`,
+      email: (typeof m.email === 'string' ? m.email : '') || '',
+    }
+  })
+  return { success: true, data }
 })

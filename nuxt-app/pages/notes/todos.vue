@@ -3,36 +3,50 @@
     <h1 class="text-4xl font-bold mb-2 text-gray-900">Todo's List</h1>
     <p class="text-gray-700 mb-6">Tasks from your notes (/todo and @todo … @Todo ends). Use @member in a todo to assign it.</p>
 
-    <div class="flex flex-wrap items-center gap-3 mb-4">
-      <span class="text-sm font-medium text-gray-600">Show:</span>
-      <div class="flex rounded-md border border-gray-200 bg-white p-0.5">
+    <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+      <div class="flex items-center gap-3">
+        <span class="text-sm font-medium text-gray-600">Show:</span>
+        <div class="flex rounded-md border border-gray-200 bg-white p-0.5">
+          <button
+            type="button"
+            :class="['rounded px-3 py-1.5 text-sm font-medium transition-colors', filterMode === 'all' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-100']"
+            @click="filterMode = 'all'"
+          >
+            All
+          </button>
+          <button
+            type="button"
+            :class="['rounded px-3 py-1.5 text-sm font-medium transition-colors', filterMode === 'mine' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-100']"
+            @click="filterMode = 'mine'"
+          >
+            My todo's
+          </button>
+        </div>
+      </div>
+      <div class="flex items-center gap-1">
+        <div class="relative w-48">
+          <select
+            v-model="selectedMemberId"
+            class="w-full rounded-md border border-gray-200 bg-white pl-3 pr-10 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 appearance-none"
+          >
+            <option value="">Select member…</option>
+            <option v-for="u in unifiedUsers" :key="u._id" :value="String(u._id)">
+              {{ displayName(u) }}
+            </option>
+          </select>
+          <span class="pointer-events-none absolute inset-y-0 right-3 flex items-center text-gray-500" aria-hidden="true">
+            <UIcon name="i-lucide-chevron-down" class="size-4" />
+          </span>
+        </div>
         <button
           type="button"
-          :class="['rounded px-3 py-1.5 text-sm font-medium transition-colors', filterMode === 'all' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-100']"
-          @click="filterMode = 'all'"
+          aria-label="Reset member"
+          class="rounded-md p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          @click="selectedMemberId = ''"
         >
-          All
-        </button>
-        <button
-          type="button"
-          :class="['rounded px-3 py-1.5 text-sm font-medium transition-colors', filterMode === 'mine' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-100']"
-          @click="filterMode = 'mine'"
-        >
-          My todo's
+          <UIcon name="i-lucide-rotate-ccw" class="size-4" />
         </button>
       </div>
-      <template v-if="filterMode === 'mine'">
-        <span class="text-sm text-gray-500">I am</span>
-        <select
-          v-model="selectedMemberId"
-          class="w-48 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-        >
-          <option value="">Select member…</option>
-          <option v-for="u in unifiedUsers" :key="u._id" :value="u._id">
-            {{ u.canonicalName || u.primaryName }}
-          </option>
-        </select>
-      </template>
     </div>
 
     <div v-if="pending" class="space-y-3">
@@ -112,20 +126,31 @@ const items = computed<TodoItem[]>(() => {
 const filterMode = ref<'all' | 'mine'>('all')
 
 type UnifiedUser = { _id: string; canonicalName: string; primaryName: string; slackUsername: string | null }
-const { data: unifiedUsersData } = await useFetch<{ success: boolean; data: UnifiedUser[] }>('/api/unified-users')
-const { data: membersFallbackData } = await useFetch<{ success: boolean; data: { _id: string; name: string }[] }>('/api/members')
+const { data: unifiedUsersData } = await useFetch<{ success: boolean; data: UnifiedUser[] }>('/api/unified-users', { server: false })
+const { data: membersFallbackData } = await useFetch<{ success: boolean; data: { _id: string; name: string }[] }>('/api/members', { server: false })
 const unifiedUsers = computed(() => {
   const list = unifiedUsersData.value?.data ?? []
   if (list.length > 0) {
-    return list.map((u) => ({ _id: String(u._id), canonicalName: u.canonicalName, primaryName: u.primaryName, slackUsername: u.slackUsername ?? null }))
+    return list.map((u) => ({
+      _id: typeof u._id === 'string' ? u._id : String((u._id as { toString?: () => string })?.toString?.() ?? u._id),
+      canonicalName: u.canonicalName ?? '',
+      primaryName: u.primaryName ?? '',
+      slackUsername: u.slackUsername ?? null,
+    }))
   }
   const members = membersFallbackData.value?.data ?? []
   return members.map((m) => {
     const name = m.name ?? 'Unknown'
     const first = name.trim().split(/\s+/)[0] ?? ''
-    return { _id: String(m._id), canonicalName: name, primaryName: name, slackUsername: first ? first.toLowerCase() : null }
+    const id = typeof m._id === 'string' ? m._id : String((m._id as { toString?: () => string })?.toString?.() ?? m._id)
+    return { _id: id, canonicalName: name, primaryName: name, slackUsername: first ? first.toLowerCase() : null }
   })
 })
+
+function displayName(u: UnifiedUser): string {
+  const n = (u.canonicalName || u.primaryName || '').trim()
+  return n || 'Unknown'
+}
 
 /** Slug used to match @mention to unified user (slackUsername, or first word of canonical/primary name). */
 function unifiedUserSlug(u: UnifiedUser): string {
