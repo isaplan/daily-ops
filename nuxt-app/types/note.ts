@@ -15,6 +15,8 @@ export interface Note {
   status?: 'draft' | 'published'
   created_at: string
   updated_at: string
+  /** Populated from unified_users when fetching a single note */
+  mentioned_members?: { _id: string; canonicalName: string }[]
 }
 
 export interface NotesListResponse {

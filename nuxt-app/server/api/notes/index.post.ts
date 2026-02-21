@@ -1,5 +1,6 @@
 import { ObjectId } from 'mongodb'
 import { getNotesCollection } from '../../utils/db'
+import { collectMentionSlugsFromContent, resolveSlugsToUnifiedUserIds } from '../../utils/noteMentions'
 
 function generateSlug(title: string): string {
   return title
@@ -40,6 +41,10 @@ export default defineEventHandler(async (event) => {
   if (teamId) connectedTo.team_id = new ObjectId(teamId)
   if (memberId) connectedTo.member_id = new ObjectId(memberId)
 
+  const mentioned_unified_user_ids = content
+    ? await resolveSlugsToUnifiedUserIds(collectMentionSlugsFromContent(content))
+    : []
+
   const doc = {
     title,
     content,
@@ -48,6 +53,7 @@ export default defineEventHandler(async (event) => {
     connected_to: connectedTo,
     connected_members: [],
     linked_todos: [],
+    mentioned_unified_user_ids,
     tags,
     is_pinned: isPinned,
     is_archived: false,

@@ -16,10 +16,19 @@ function htmlToLines(html: string): string[] {
   return text.split('\n').map((s) => s.trim()).filter(Boolean)
 }
 
+/** Extract @member mention from todo text (last @word wins). Ignores @todo/@Todo. Returns lowercase slug, e.g. "alvinio". */
+export function extractAssignedTo(todoText: string): string | undefined {
+  const match = todoText.match(/@([a-zA-Z0-9_-]+)/g)
+  if (!match?.length) return undefined
+  const slugs = match.map((m) => m.slice(1).toLowerCase()).filter((s) => s !== 'todo')
+  return slugs[slugs.length - 1]
+}
+
 /**
  * Parse block content for:
  * - @todo ... @Todo ends  (inline block → one todo)
  * - /todo <rest of line>   (slash command → one todo per line)
+ * - @member in text assigns the todo to that member (for "My todo's" filter).
  * Preserves existing todo id and checked state when text matches.
  */
 export function parseBlockTodos(content: string, existingTodos: BlockTodo[]): BlockTodo[] {
@@ -35,7 +44,13 @@ export function parseBlockTodos(content: string, existingTodos: BlockTodo[]): Bl
     const t = m[1].trim()
     if (t && !seen.has(t)) {
       seen.add(t)
-      todos.push(existingByText.get(t) ?? createEmptyBlockTodo(t, 'inline'))
+      const assignedTo = extractAssignedTo(t)
+      const existing = existingByText.get(t)
+      if (existing) {
+        todos.push({ ...existing, assignedTo: assignedTo ?? existing.assignedTo })
+      } else {
+        todos.push(createEmptyBlockTodo(t, 'inline', assignedTo))
+      }
     }
   }
 
@@ -45,7 +60,13 @@ export function parseBlockTodos(content: string, existingTodos: BlockTodo[]): Bl
     const rest = line.slice(idx + 5).trim()
     if (rest && !seen.has(rest)) {
       seen.add(rest)
-      todos.push(existingByText.get(rest) ?? createEmptyBlockTodo(rest, 'slash'))
+      const assignedTo = extractAssignedTo(rest)
+      const existing = existingByText.get(rest)
+      if (existing) {
+        todos.push({ ...existing, assignedTo: assignedTo ?? existing.assignedTo })
+      } else {
+        todos.push(createEmptyBlockTodo(rest, 'slash', assignedTo))
+      }
     }
   }
 

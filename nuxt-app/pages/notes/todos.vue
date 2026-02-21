@@ -1,21 +1,68 @@
 <template>
   <div class="space-y-4">
     <h1 class="text-4xl font-bold mb-2 text-gray-900">Todo's List</h1>
-    <p class="text-gray-700 mb-6">Tasks from your notes (/todo and @todo … @Todo ends)</p>
+    <p class="text-gray-700 mb-6">Tasks from your notes (/todo and @todo … @Todo ends). Use @member in a todo to assign it.</p>
+
+    <div class="flex flex-wrap items-center gap-3 mb-4">
+      <span class="text-sm font-medium text-gray-600">Show:</span>
+      <div class="flex rounded-md border border-gray-200 bg-white p-0.5">
+        <button
+          type="button"
+          :class="['rounded px-3 py-1.5 text-sm font-medium transition-colors', filterMode === 'all' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-100']"
+          @click="filterMode = 'all'"
+        >
+          All
+        </button>
+        <button
+          type="button"
+          :class="['rounded px-3 py-1.5 text-sm font-medium transition-colors', filterMode === 'mine' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-100']"
+          @click="filterMode = 'mine'"
+        >
+          My todo's
+        </button>
+      </div>
+      <template v-if="filterMode === 'mine'">
+        <span class="text-sm text-gray-500">I am</span>
+        <select
+          v-model="selectedMemberId"
+          class="w-48 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+        >
+          <option value="">Select member…</option>
+          <option v-for="u in unifiedUsers" :key="u._id" :value="u._id">
+            {{ u.canonicalName || u.primaryName }}
+          </option>
+        </select>
+      </template>
+    </div>
 
     <div v-if="pending" class="space-y-3">
       <div v-for="i in 8" :key="i" class="h-14 rounded-lg bg-gray-100 animate-pulse" />
     </div>
     <UAlert v-else-if="error" color="error" :title="String(error)" />
-    <p v-else-if="!items.length" class="text-gray-500 py-8">No todos in your notes yet. Add /todo or @todo … @Todo ends in a note.</p>
+    <p v-else-if="!filteredItems.length" class="text-gray-500 py-8">
+      {{ filterMode === 'mine' ? "No todos assigned to you. Add @yourname in a todo." : "No todos in your notes yet. Add /todo or @todo … @Todo ends in a note." }}
+    </p>
     <ul v-else class="space-y-2">
       <li
-        v-for="item in items"
+        v-for="item in filteredItems"
         :key="item.id"
         class="flex items-center gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3"
       >
         <UCheckbox :model-value="item.checked" disabled class="shrink-0" />
-        <span :class="item.checked ? 'text-gray-500 line-through text-sm flex-1' : 'text-sm flex-1'">{{ item.text }}</span>
+        <span :class="item.checked ? 'text-gray-500 line-through text-sm flex-1' : 'text-sm flex-1'">
+          <template v-for="(seg, segIdx) in todoTextSegments(item.text)" :key="`${item.id}-${segIdx}`">
+            <template v-if="seg.type === 'mention'">
+              <button
+                type="button"
+                class="cursor-pointer text-blue-600 hover:underline font-medium focus:outline focus:ring-2 focus:ring-blue-400 rounded"
+                @click.prevent="filterByMention(seg.slug)"
+              >
+                @{{ seg.slug }}
+              </button>
+            </template>
+            <span v-else>{{ seg.value }}</span>
+          </template>
+        </span>
         <NuxtLink :to="`/notes/${item.noteSlug || item.noteId}`" class="text-sm text-blue-600 hover:underline shrink-0">
           {{ item.noteTitle }}
         </NuxtLink>
@@ -28,8 +75,11 @@
 import type { NotesListResponse } from '~/types/note'
 import type { BlockTodo } from '~/types/noteBlock'
 import { parseBlockNoteContent } from '~/types/noteBlock'
+import { extractAssignedTo } from '~/lib/utils/blockTodoParser'
 
 const { data, pending, error } = await useFetch<NotesListResponse>('/api/notes?limit=200')
+
+const MEMBER_STORAGE_KEY = 'nuxt-todos-my-unified-user'
 
 type TodoItem = BlockTodo & { noteId: string; noteSlug?: string; noteTitle: string }
 
@@ -46,10 +96,86 @@ const items = computed<TodoItem[]>(() => {
     for (const block of blocks) {
       const todos = block.todos ?? []
       for (const t of todos) {
-        out.push({ ...t, noteId, noteSlug, noteTitle })
+        out.push({
+          ...t,
+          noteId,
+          noteSlug,
+          noteTitle,
+          assignedTo: t.assignedTo ?? extractAssignedTo(t.text),
+        })
       }
     }
   }
   return out
 })
+
+const filterMode = ref<'all' | 'mine'>('all')
+
+type UnifiedUser = { _id: string; canonicalName: string; primaryName: string; slackUsername: string | null }
+const { data: unifiedUsersData } = await useFetch<{ success: boolean; data: UnifiedUser[] }>('/api/unified-users')
+const { data: membersFallbackData } = await useFetch<{ success: boolean; data: { _id: string; name: string }[] }>('/api/members')
+const unifiedUsers = computed(() => {
+  const list = unifiedUsersData.value?.data ?? []
+  if (list.length > 0) {
+    return list.map((u) => ({ _id: String(u._id), canonicalName: u.canonicalName, primaryName: u.primaryName, slackUsername: u.slackUsername ?? null }))
+  }
+  const members = membersFallbackData.value?.data ?? []
+  return members.map((m) => {
+    const name = m.name ?? 'Unknown'
+    const first = name.trim().split(/\s+/)[0] ?? ''
+    return { _id: String(m._id), canonicalName: name, primaryName: name, slackUsername: first ? first.toLowerCase() : null }
+  })
+})
+
+/** Slug used to match @mention to unified user (slackUsername, or first word of canonical/primary name). */
+function unifiedUserSlug(u: UnifiedUser): string {
+  if (u.slackUsername) return u.slackUsername.toLowerCase()
+  const first = (u.canonicalName || u.primaryName || '').trim().split(/\s+/)[0] ?? ''
+  return first.toLowerCase()
+}
+
+const savedMemberId = typeof localStorage !== 'undefined' ? localStorage.getItem(MEMBER_STORAGE_KEY) : null
+const selectedMemberId = ref<string>(savedMemberId ?? '')
+
+watch(selectedMemberId, (id) => {
+  if (typeof localStorage !== 'undefined') {
+    if (id) localStorage.setItem(MEMBER_STORAGE_KEY, id)
+    else localStorage.removeItem(MEMBER_STORAGE_KEY)
+  }
+}, { immediate: true })
+
+const filteredItems = computed<TodoItem[]>(() => {
+  const list = items.value
+  if (filterMode.value !== 'mine') return list
+  const user = unifiedUsers.value.find((u) => u._id === selectedMemberId.value)
+  if (!user) return list
+  const slug = unifiedUserSlug(user)
+  return list.filter((item) => item.assignedTo === slug)
+})
+
+type TextSegment = { type: 'text'; value: string } | { type: 'mention'; slug: string }
+
+function todoTextSegments(text: string): TextSegment[] {
+  if (!text) return []
+  const parts = text.split(/(@[a-zA-Z0-9_-]+)/g)
+  const segments: TextSegment[] = []
+  for (const p of parts) {
+    if (p.startsWith('@')) {
+      const slug = p.slice(1).toLowerCase()
+      if (slug !== 'todo') segments.push({ type: 'mention', slug })
+      else segments.push({ type: 'text', value: p })
+    } else {
+      segments.push({ type: 'text', value: p })
+    }
+  }
+  return segments
+}
+
+function filterByMention(slug: string): void {
+  const user = unifiedUsers.value.find((u) => unifiedUserSlug(u) === slug)
+  if (user) {
+    selectedMemberId.value = user._id
+    filterMode.value = 'mine'
+  }
+}
 </script>

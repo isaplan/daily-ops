@@ -3,6 +3,8 @@ export interface BlockTodo {
   text: string
   checked: boolean
   source: 'inline' | 'slash'
+  /** Member mention slug (e.g. "alvinio" from @alvinio) – assigns todo to that member for "My todo's" filter */
+  assignedTo?: string
 }
 
 export interface BlockAgree {
@@ -39,12 +41,17 @@ export function createEmptyBlockAgree(text: string): BlockAgree {
   }
 }
 
-export function createEmptyBlockTodo(text: string, source: BlockTodo['source']): BlockTodo {
+export function createEmptyBlockTodo(
+  text: string,
+  source: BlockTodo['source'],
+  assignedTo?: string,
+): BlockTodo {
   return {
     id: crypto.randomUUID?.() ?? `todo-${Date.now()}-${Math.random().toString(36).slice(2)}`,
     text,
     checked: false,
     source,
+    ...(assignedTo && { assignedTo }),
   }
 }
 

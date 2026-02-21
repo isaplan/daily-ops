@@ -1,5 +1,6 @@
 import { ObjectId } from 'mongodb'
 import { getNotesCollection } from '../../utils/db'
+import { collectMentionSlugsFromContent, resolveSlugsToUnifiedUserIds } from '../../utils/noteMentions'
 
 function isMongoId(str: string): boolean {
   return /^[0-9a-f]{24}$/i.test(str)
@@ -32,7 +33,11 @@ export default defineEventHandler(async (event) => {
 
   const update: Record<string, unknown> = { updated_at: new Date() }
   if (body.title !== undefined) update.title = String(body.title).trim() || 'Untitled'
-  if (body.content !== undefined) update.content = String(body.content)
+  if (body.content !== undefined) {
+    update.content = String(body.content)
+    const slugs = collectMentionSlugsFromContent(body.content)
+    update.mentioned_unified_user_ids = await resolveSlugsToUnifiedUserIds(slugs)
+  }
   if (body.slug !== undefined) update.slug = String(body.slug).trim()
   if (
     body.location_id !== undefined ||

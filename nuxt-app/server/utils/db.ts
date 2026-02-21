@@ -17,3 +17,8 @@ export async function getNotesCollection(): Promise<Collection> {
   const db = await getDb()
   return db.collection('notes')
 }
+
+export async function getUnifiedUsersCollection(): Promise<Collection> {
+  const db = await getDb()
+  return db.collection('unified_users')
+}
