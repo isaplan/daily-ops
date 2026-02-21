@@ -1,5 +1,5 @@
 <template>
-  <div class="p-8 max-w-5xl mx-auto">
+  <div>
     <UButton variant="ghost" size="sm" class="mb-4 -ml-2" to="/">
       ← Back
     </UButton>

@@ -1,5 +1,5 @@
 <template>
-  <aside class="w-64 shrink-0 border-r border-gray-200 bg-gray-50 flex flex-col">
+  <aside class="w-64 shrink-0 border-r border-gray-200 flex flex-col">
     <div class="flex items-center gap-2 px-4 py-3 border-b border-gray-200">
       <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gray-900 text-white">
         <UIcon name="i-lucide-layout-dashboard" class="size-4" />

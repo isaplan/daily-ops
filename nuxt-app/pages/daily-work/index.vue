@@ -1,5 +1,5 @@
 <template>
-  <div class="p-8 max-w-2xl mx-auto">
+  <div class="max-w-2xl">
     <div class="rounded-lg border border-gray-200 bg-white p-8 text-center shadow-sm">
       <h1 class="text-2xl font-bold text-gray-900 mb-2">Daily Work</h1>
       <p class="text-gray-600">

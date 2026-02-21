@@ -1,5 +1,5 @@
 <template>
-  <div class="space-y-6 p-8 max-w-7xl mx-auto">
+  <div class="space-y-6">
     <div class="flex items-center justify-between">
       <div>
         <h1 class="text-4xl font-bold mb-2 text-gray-900">Dashboard</h1>

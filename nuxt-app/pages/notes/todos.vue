@@ -1,5 +1,5 @@
 <template>
-  <div class="p-8 max-w-7xl mx-auto">
+  <div class="space-y-4">
     <h1 class="text-4xl font-bold mb-2 text-gray-900">Todo's List</h1>
     <p class="text-gray-700 mb-6">Tasks from your notes (/todo and @todo … @Todo ends)</p>
 
