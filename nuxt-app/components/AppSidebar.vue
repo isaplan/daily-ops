@@ -1,5 +1,5 @@
 <template>
-  <aside class="w-64 shrink-0 border-r border-gray-200 flex flex-col">
+  <aside class="w-64 shrink-0 border-r border-gray-200 bg-white flex flex-col h-screen">
     <div class="flex items-center gap-2 px-4 py-3 border-b border-gray-200">
       <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gray-900 text-white">
         <UIcon name="i-lucide-layout-dashboard" class="size-4" />
@@ -10,7 +10,7 @@
         value-key="value"
         class="min-w-0 flex-1"
         :ui="{
-          trigger: 'border-0 bg-transparent shadow-none focus:ring-0 hover:bg-transparent py-0 min-h-0',
+          trigger: '!bg-white !text-gray-900 border border-gray-200 shadow-none focus:ring-0 hover:!bg-gray-50 ring-0 rounded-md py-0 min-h-0 min-w-0 flex-1',
           value: 'text-sm font-semibold text-gray-900',
         }"
         @update:model-value="onEnvironmentChange"
@@ -138,3 +138,17 @@ function navLinkClass(active: boolean) {
   ]
 }
 </script>
+
+<style scoped>
+/* Force environment select trigger to white (Nuxt UI overrides ui.trigger) */
+:deep(button[data-slot="base"]),
+:deep([data-slot="base"].group) {
+  background-color: white !important;
+  color: #111827 !important;
+  border: 1px solid #e5e7eb !important;
+}
+:deep(button[data-slot="base"]:hover),
+:deep([data-slot="base"].group:hover) {
+  background-color: #f9fafb !important;
+}
+</style>

@@ -6,7 +6,7 @@
         <p class="text-gray-700">Most recent notes</p>
       </div>
       <div class="flex gap-2">
-        <UButton to="/notes/new" variant="solid">
+        <UButton to="/notes/new" variant="solid" class="!bg-gray-900 !text-white hover:!bg-gray-800">
           <UIcon name="i-lucide-plus" class="size-4 mr-2" />
           Create Note
         </UButton>
