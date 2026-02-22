@@ -2,9 +2,9 @@
   <div class="relative flex flex-nowrap w-full h-full min-h-0 overflow-hidden bg-white text-gray-900">
     <aside
       class="shrink-0 border-r border-gray-200 flex flex-col overflow-hidden transition-[width] duration-200 ease-linear bg-[hsl(45,15%,95%)]"
-      :class="sidebarOpen ? 'w-64' : 'w-0'"
+      :class="isCollapsed ? 'w-16' : 'w-64'"
     >
-      <AppSidebar v-show="sidebarOpen" class="w-64" />
+      <AppSidebar :collapsed="isCollapsed" class="h-full min-w-0" :class="isCollapsed ? 'w-16' : 'w-64'" />
     </aside>
     <UButton
       type="button"
@@ -12,14 +12,14 @@
       size="icon"
       :class="[
         'absolute z-10 h-8 w-8 hover:bg-gray-100 transition-[left] duration-200',
-        sidebarOpen ? 'left-64 pl-2' : 'left-4',
+        isCollapsed ? 'left-16 pl-2' : 'left-64 pl-2',
         'top-3',
       ]"
-      aria-label="Toggle Sidebar"
+      :aria-label="isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'"
       @click="toggle"
     >
       <UIcon
-        :name="sidebarOpen ? 'i-lucide-panel-left-close' : 'i-lucide-panel-left-open'"
+        :name="isCollapsed ? 'i-lucide-panel-left-open' : 'i-lucide-panel-left-close'"
         class="size-6 pl-4"
       />
     </UButton>
@@ -32,5 +32,5 @@
 </template>
 
 <script setup lang="ts">
-const { sidebarOpen, toggle } = useSidebar()
+const { isCollapsed, toggle } = useSidebar()
 </script>

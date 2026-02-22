@@ -1,24 +1,69 @@
 <template>
   <div>
-    <UButton variant="ghost" size="sm" class="mb-4 -ml-2" to="/">
-      ← Back
-    </UButton>
+    <div class="mb-4 flex items-center justify-between -ml-2">
+      <UButton variant="ghost" size="sm" to="/">
+        ← Back
+      </UButton>
+      <!-- Tab strip: Details | Todo | Agreed (same look as before, replaces More/Close + Todo + Agreed) -->
+      <div
+        v-if="showDetailsButton || hasTodos || hasAgrees"
+        class="flex rounded-md border border-black bg-white p-0.5"
+      >
+        <button
+          v-if="showDetailsButton"
+          type="button"
+          :class="[
+            'rounded px-3 py-1.5 text-sm font-medium transition-colors',
+            asideTab === 'details'
+              ? 'bg-gray-900 text-white'
+              : 'text-gray-600 hover:bg-gray-100',
+          ]"
+          @click="asideTab === 'details' ? closeAside() : setAsideTab('details')"
+        >
+          Details
+        </button>
+        <button
+          v-if="hasTodos"
+          type="button"
+          :class="[
+            'rounded px-3 py-1.5 text-sm font-medium transition-colors',
+            asideTab === 'todos' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-100',
+          ]"
+          @click="asideTab === 'todos' ? closeAside() : setAsideTab('todos')"
+        >
+          Todo
+        </button>
+        <button
+          v-if="hasAgrees"
+          type="button"
+          :class="[
+            'rounded px-3 py-1.5 text-sm font-medium transition-colors',
+            asideTab === 'agreed' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-100',
+          ]"
+          @click="asideTab === 'agreed' ? closeAside() : setAsideTab('agreed')"
+        >
+          Agreed
+        </button>
+      </div>
+    </div>
 
-    <div v-if="!isNew && note" class="flex gap-6">
+    <div v-if="!isNew && note" class="flex flex-col gap-6 md:flex-row">
       <div class="min-w-0 flex-1">
         <UCard
-          class="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm"
-          :ui="{ body: { base: '', padding: 'p-6' }, header: { padding: 'px-6 pt-6 pb-0' } }"
+          class="overflow-hidden bg-white shadow-sm"
+          :ui="{ body: '!p-0', header: 'p-4 sm:px-6 border-b border-black', root: 'rounded-lg overflow-hidden !ring-0 !divide-none' }"
         >
           <template #header>
             <UInput
               v-model="editableTitle"
               placeholder="Note title"
-              class="text-xl font-semibold border-0 border-b border-gray-200 rounded-none px-0 focus:ring-0 bg-transparent w-full"
+              variant="none"
+              class="text-xl font-semibold rounded-none px-0 w-full"
             />
           </template>
           <WeeklyNoteEditor
             v-if="isBlockNote"
+            v-model:details-open="detailsOpen"
             :note="note"
             :external-title="editableTitle"
             @saved="onSaved"
@@ -33,48 +78,94 @@
           />
         </UCard>
       </div>
-      <aside v-if="activeMembers.length" class="w-56 shrink-0">
-        <div class="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-          <h3 class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-3">Active members</h3>
-          <ul class="space-y-2">
+      <div
+        v-if="asideVisible || activeMembers.length"
+        class="flex w-full shrink-0 flex-col gap-4 rounded-lg p-4 md:max-w-[25%] md:w-3/12 bg-[hsl(45,12%,92%)]/90 backdrop-blur-md"
+      >
+        <!-- Tab content (tabs are in the header now) -->
+        <div v-if="asideTab === 'details' && detailsOpen" id="details-panel-target" class="min-h-0" />
+        <div v-else-if="asideTab === 'todos'" class="min-h-0 space-y-2">
+          <h3 class="text-xs font-semibold uppercase tracking-wide text-gray-500">Todo</h3>
+          <ul class="space-y-1.5">
             <li
-              v-for="m in activeMembers"
-              :key="m._id"
-              class="text-sm font-medium text-gray-900"
+              v-for="todo in noteTodos"
+              :key="todo.id"
+              class="flex items-start gap-2 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm"
             >
-              {{ m.canonicalName }}
+              <span
+                :class="todo.checked ? 'text-gray-500 line-through' : 'text-gray-900'"
+              >
+                {{ todo.text }}
+              </span>
             </li>
           </ul>
         </div>
-      </aside>
+        <div v-else-if="asideTab === 'agreed'" class="min-h-0 space-y-2">
+          <h3 class="text-xs font-semibold uppercase tracking-wide text-gray-500">Agreed</h3>
+          <ul class="space-y-1.5">
+            <li
+              v-for="agree in noteAgrees"
+              :key="agree.id"
+              class="flex items-start gap-2 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900"
+            >
+              <UIcon name="i-lucide-handshake" class="mt-0.5 size-4 shrink-0 text-gray-500" />
+              {{ agree.text }}
+            </li>
+          </ul>
+        </div>
+        <aside v-if="activeMembers.length" class="shrink-0">
+          <div class="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+            <h3 class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-3">Active members</h3>
+            <ul class="space-y-2">
+              <li
+                v-for="m in activeMembers"
+                :key="m._id"
+                class="text-sm font-medium text-gray-900"
+              >
+                {{ m.canonicalName }}
+              </li>
+            </ul>
+          </div>
+        </aside>
+      </div>
     </div>
 
-    <UCard
-      v-else-if="isNew"
-      class="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm"
-      :ui="{ body: { base: '', padding: 'p-6' }, header: { padding: 'px-6 pt-6 pb-0' } }"
-    >
-      <template #header>
-        <UInput
-          v-model="editableTitle"
-          placeholder="Note title"
-          class="text-xl font-semibold border-0 border-b border-gray-200 rounded-none px-0 focus:ring-0 bg-transparent w-full"
-        />
-      </template>
-      <WeeklyNoteEditor
-        v-if="useWeekly"
-        :initial-template="useWeekly ? 'weekly' : undefined"
-        :external-title="editableTitle"
-        @saved="onSaved"
-        @cancel="navigateTo('/')"
+    <div v-else-if="isNew" class="flex flex-col gap-6 md:flex-row">
+      <div class="min-w-0 flex-1">
+        <UCard
+          class="overflow-hidden rounded-lg bg-white shadow-sm"
+          :ui="{ body: '!p-0', header: 'p-4 sm:px-6 border-b border-black', root: 'rounded-lg overflow-hidden !ring-0 !divide-none' }"
+        >
+          <template #header>
+            <UInput
+              v-model="editableTitle"
+              placeholder="Note title"
+              variant="none"
+              class="text-xl font-semibold rounded-none px-0 w-full"
+            />
+          </template>
+          <WeeklyNoteEditor
+            v-if="useWeekly"
+            v-model:details-open="detailsOpen"
+            :initial-template="useWeekly ? 'weekly' : undefined"
+            :external-title="editableTitle"
+            @saved="onSaved"
+            @cancel="navigateTo('/')"
+          />
+          <NotesForm
+            v-else
+            :external-title="editableTitle"
+            @saved="onSaved"
+            @cancel="navigateTo('/')"
+          />
+        </UCard>
+      </div>
+      <div
+        v-if="detailsOpen && showDetailsButton"
+        id="details-panel-target"
+        class="w-full shrink-0 rounded-lg p-4 md:max-w-[25%] md:w-3/12 bg-[hsl(45,12%,92%)]/90 backdrop-blur-md"
       />
-      <NotesForm
-        v-else
-        :external-title="editableTitle"
-        @saved="onSaved"
-        @cancel="navigateTo('/')"
-      />
-    </UCard>
+    </div>
 
     <div v-else-if="pending">
       <USkeleton class="h-12 w-3/4 mb-4" />
@@ -88,7 +179,7 @@
 
 <script setup lang="ts">
 import type { Note, NoteResponse } from '~/types/note'
-import { isBlockNoteContent } from '~/types/noteBlock'
+import { isBlockNoteContent, parseBlockNoteContent } from '~/types/noteBlock'
 import { getWeeklyNoteTitle } from '~/lib/templates/weeklyNoteTemplate'
 
 const route = useRoute()
@@ -106,7 +197,36 @@ const note = computed(() => data.value?.data ?? null)
 const isBlockNote = computed(() =>
   note.value?.content ? isBlockNoteContent(note.value.content) : false
 )
+const noteBlocks = computed(() =>
+  note.value?.content ? (parseBlockNoteContent(note.value.content) ?? []) : []
+)
+const noteTodos = computed(() => noteBlocks.value.flatMap((b) => b.todos ?? []))
+const noteAgrees = computed(() => noteBlocks.value.flatMap((b) => b.agrees ?? []))
+const hasTodos = computed(() => !isNew.value && isBlockNote.value && noteTodos.value.length > 0)
+const hasAgrees = computed(() => !isNew.value && isBlockNote.value && noteAgrees.value.length > 0)
+
 const activeMembers = computed(() => note.value?.mentioned_members ?? [])
+const showDetailsButton = computed(() => (!isNew.value && isBlockNote.value) || (isNew.value && useWeekly.value))
+const detailsOpen = ref(false)
+/** Which tab is shown in the aside: details (More), todos, or agreed. null = aside closed. */
+const asideTab = ref<'details' | 'todos' | 'agreed' | null>(null)
+
+const asideVisible = computed(
+  () =>
+    (detailsOpen.value && showDetailsButton.value) ||
+    asideTab.value === 'todos' ||
+    asideTab.value === 'agreed' ||
+    activeMembers.value.length > 0
+)
+
+function closeAside() {
+  detailsOpen.value = false
+  asideTab.value = null
+}
+function setAsideTab(tab: 'details' | 'todos' | 'agreed') {
+  asideTab.value = tab
+  detailsOpen.value = tab === 'details'
+}
 
 const editableTitle = ref('')
 watch(

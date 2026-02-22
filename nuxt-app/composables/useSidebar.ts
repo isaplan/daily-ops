@@ -1,11 +1,12 @@
-const sidebarOpen = ref(true)
+/** true = icon-only narrow bar (default on load), false = full sidebar */
+const isCollapsed = ref(true)
 
 export function useSidebar() {
   function toggle() {
-    sidebarOpen.value = !sidebarOpen.value
+    isCollapsed.value = !isCollapsed.value
   }
   return {
-    sidebarOpen,
+    isCollapsed,
     toggle,
   }
 }

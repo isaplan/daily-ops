@@ -1,10 +1,18 @@
 <template>
-  <aside class="w-64 shrink-0 border-r border-gray-200 bg-white flex flex-col h-screen z-10 shadow-2xl">
-    <div class="flex items-center gap-2 px-4 py-3 border-b border-gray-200">
+  <aside
+    class="shrink-0 border-r border-gray-200 bg-white flex flex-col h-full z-10 transition-[width] duration-200 ease-linear"
+    :class="collapsed ? 'w-16' : 'w-64'"
+  >
+    <!-- Header: logo + env switcher (env only when expanded) -->
+    <div
+      class="flex items-center border-b border-gray-200 shrink-0"
+      :class="collapsed ? 'justify-center px-0 py-3' : 'gap-2 px-4 py-3'"
+    >
       <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gray-900 text-white">
         <UIcon name="i-lucide-layout-dashboard" class="size-4" />
       </div>
       <USelectMenu
+        v-if="!collapsed"
         v-model="selectedEnv"
         :items="environmentOptions"
         value-key="value"
@@ -17,73 +25,141 @@
       />
     </div>
 
-    <nav class="flex-1 p-4 overflow-y-auto">
-      <p class="mb-2 text-xs font-semibold uppercase tracking-tight text-gray-500">
+    <nav class="flex-1 p-2 overflow-y-auto" :class="collapsed ? 'px-2' : 'p-4'">
+      <p v-if="!collapsed" class="mb-2 text-xs font-semibold uppercase tracking-tight text-gray-500">
         Navigation
       </p>
       <ul class="space-y-1">
-        <li v-if="activeEnvironment === 'daily-notes'">
-          <NuxtLink to="/" :class="navLinkClass(isDashboard)">
-            <UIcon name="i-lucide-layout-dashboard" class="size-4 shrink-0" />
-            <span>Dashboard</span>
-          </NuxtLink>
-        </li>
-        <li v-if="activeEnvironment === 'daily-notes'">
-          <NuxtLink to="/notes/all" :class="navLinkClass(isAllNotes)">
-            <UIcon name="i-lucide-file-text" class="size-4 shrink-0" />
-            <span>All Notes</span>
-          </NuxtLink>
-        </li>
-        <li v-if="activeEnvironment === 'daily-notes'">
-          <NuxtLink to="/notes/private" :class="navLinkClass(isPrivateNotes)">
-            <UIcon name="i-lucide-lock" class="size-4 shrink-0" />
-            <span>Private Notes</span>
-          </NuxtLink>
-        </li>
-        <li v-if="activeEnvironment === 'daily-notes'">
-          <NuxtLink to="/notes/public" :class="navLinkClass(isPublicNotes)">
-            <UIcon name="i-lucide-globe" class="size-4 shrink-0" />
-            <span>Public Notes</span>
-          </NuxtLink>
-        </li>
-        <li v-if="activeEnvironment === 'daily-notes'">
-          <NuxtLink to="/notes/drafts" :class="navLinkClass(isDrafts)">
-            <UIcon name="i-lucide-file-edit" class="size-4 shrink-0" />
-            <span>Drafts & Concepts</span>
-          </NuxtLink>
-        </li>
-        <li v-if="activeEnvironment === 'daily-notes'">
-          <NuxtLink to="/notes/todos" :class="navLinkClass(isTodos)">
-            <UIcon name="i-lucide-list-checks" class="size-4 shrink-0" />
-            <span>Todo's List</span>
-          </NuxtLink>
-        </li>
-        <li v-if="activeEnvironment === 'daily-notes'">
-          <NuxtLink to="/notes/agreed" :class="navLinkClass(isAgreed)">
-            <UIcon name="i-lucide-handshake" class="size-4 shrink-0" />
-            <span>Agreed List</span>
-          </NuxtLink>
-        </li>
-        <li v-if="activeEnvironment === 'daily-notes'">
-          <NuxtLink to="/notes/new" :class="navLinkClass(isNotesNew)">
-            <UIcon name="i-lucide-file-plus" class="size-4 shrink-0" />
-            <span>New note</span>
-          </NuxtLink>
-        </li>
-        <li v-if="activeEnvironment === 'daily-notes'">
-          <NuxtLink to="/notes/new?template=weekly" :class="navLinkClass(isNotesWeekly)">
-            <UIcon name="i-lucide-calendar-range" class="size-4 shrink-0" />
-            <span>New Weekly</span>
-          </NuxtLink>
-        </li>
+        <template v-if="activeEnvironment === 'daily-notes'">
+          <li>
+            <UTooltip v-if="collapsed" text="Dashboard" :popper="{ placement: 'right' }">
+              <NuxtLink to="/" :class="navLinkClass(isDashboard)">
+                <UIcon name="i-lucide-layout-dashboard" class="size-5 shrink-0" />
+                <span v-if="!collapsed">Dashboard</span>
+              </NuxtLink>
+            </UTooltip>
+            <NuxtLink v-else to="/" :class="navLinkClass(isDashboard)">
+              <UIcon name="i-lucide-layout-dashboard" class="size-4 shrink-0" />
+              <span>Dashboard</span>
+            </NuxtLink>
+          </li>
+          <li>
+            <UTooltip v-if="collapsed" text="All Notes" :popper="{ placement: 'right' }">
+              <NuxtLink to="/notes/all" :class="navLinkClass(isAllNotes)">
+                <UIcon name="i-lucide-file-text" class="size-5 shrink-0" />
+                <span v-if="!collapsed">All Notes</span>
+              </NuxtLink>
+            </UTooltip>
+            <NuxtLink v-else to="/notes/all" :class="navLinkClass(isAllNotes)">
+              <UIcon name="i-lucide-file-text" class="size-4 shrink-0" />
+              <span>All Notes</span>
+            </NuxtLink>
+          </li>
+          <li>
+            <UTooltip v-if="collapsed" text="Private Notes" :popper="{ placement: 'right' }">
+              <NuxtLink to="/notes/private" :class="navLinkClass(isPrivateNotes)">
+                <UIcon name="i-lucide-lock" class="size-5 shrink-0" />
+                <span v-if="!collapsed">Private Notes</span>
+              </NuxtLink>
+            </UTooltip>
+            <NuxtLink v-else to="/notes/private" :class="navLinkClass(isPrivateNotes)">
+              <UIcon name="i-lucide-lock" class="size-4 shrink-0" />
+              <span>Private Notes</span>
+            </NuxtLink>
+          </li>
+          <li>
+            <UTooltip v-if="collapsed" text="Public Notes" :popper="{ placement: 'right' }">
+              <NuxtLink to="/notes/public" :class="navLinkClass(isPublicNotes)">
+                <UIcon name="i-lucide-globe" class="size-5 shrink-0" />
+                <span v-if="!collapsed">Public Notes</span>
+              </NuxtLink>
+            </UTooltip>
+            <NuxtLink v-else to="/notes/public" :class="navLinkClass(isPublicNotes)">
+              <UIcon name="i-lucide-globe" class="size-4 shrink-0" />
+              <span>Public Notes</span>
+            </NuxtLink>
+          </li>
+          <li>
+            <UTooltip v-if="collapsed" text="Drafts & Concepts" :popper="{ placement: 'right' }">
+              <NuxtLink to="/notes/drafts" :class="navLinkClass(isDrafts)">
+                <UIcon name="i-lucide-file-edit" class="size-5 shrink-0" />
+                <span v-if="!collapsed">Drafts & Concepts</span>
+              </NuxtLink>
+            </UTooltip>
+            <NuxtLink v-else to="/notes/drafts" :class="navLinkClass(isDrafts)">
+              <UIcon name="i-lucide-file-edit" class="size-4 shrink-0" />
+              <span>Drafts & Concepts</span>
+            </NuxtLink>
+          </li>
+          <li>
+            <UTooltip v-if="collapsed" text="Todo's List" :popper="{ placement: 'right' }">
+              <NuxtLink to="/notes/todos" :class="navLinkClass(isTodos)">
+                <UIcon name="i-lucide-list-checks" class="size-5 shrink-0" />
+                <span v-if="!collapsed">Todo's List</span>
+              </NuxtLink>
+            </UTooltip>
+            <NuxtLink v-else to="/notes/todos" :class="navLinkClass(isTodos)">
+              <UIcon name="i-lucide-list-checks" class="size-4 shrink-0" />
+              <span>Todo's List</span>
+            </NuxtLink>
+          </li>
+          <li>
+            <UTooltip v-if="collapsed" text="Agreed List" :popper="{ placement: 'right' }">
+              <NuxtLink to="/notes/agreed" :class="navLinkClass(isAgreed)">
+                <UIcon name="i-lucide-handshake" class="size-5 shrink-0" />
+                <span v-if="!collapsed">Agreed List</span>
+              </NuxtLink>
+            </UTooltip>
+            <NuxtLink v-else to="/notes/agreed" :class="navLinkClass(isAgreed)">
+              <UIcon name="i-lucide-handshake" class="size-4 shrink-0" />
+              <span>Agreed List</span>
+            </NuxtLink>
+          </li>
+          <li>
+            <UTooltip v-if="collapsed" text="New note" :popper="{ placement: 'right' }">
+              <NuxtLink to="/notes/new" :class="navLinkClass(isNotesNew)">
+                <UIcon name="i-lucide-file-plus" class="size-5 shrink-0" />
+                <span v-if="!collapsed">New note</span>
+              </NuxtLink>
+            </UTooltip>
+            <NuxtLink v-else to="/notes/new" :class="navLinkClass(isNotesNew)">
+              <UIcon name="i-lucide-file-plus" class="size-4 shrink-0" />
+              <span>New note</span>
+            </NuxtLink>
+          </li>
+          <li>
+            <UTooltip v-if="collapsed" text="New Weekly" :popper="{ placement: 'right' }">
+              <NuxtLink to="/notes/new?template=weekly" :class="navLinkClass(isNotesWeekly)">
+                <UIcon name="i-lucide-calendar-range" class="size-5 shrink-0" />
+                <span v-if="!collapsed">New Weekly</span>
+              </NuxtLink>
+            </UTooltip>
+            <NuxtLink v-else to="/notes/new?template=weekly" :class="navLinkClass(isNotesWeekly)">
+              <UIcon name="i-lucide-calendar-range" class="size-4 shrink-0" />
+              <span>New Weekly</span>
+            </NuxtLink>
+          </li>
+        </template>
         <li v-if="activeEnvironment === 'daily-ops'">
-          <NuxtLink to="/daily-ops" :class="navLinkClass(route.path === '/daily-ops')">
+          <UTooltip v-if="collapsed" text="Dashboard" :popper="{ placement: 'right' }">
+            <NuxtLink to="/daily-ops" :class="navLinkClass(route.path === '/daily-ops')">
+              <UIcon name="i-lucide-building-2" class="size-5 shrink-0" />
+              <span v-if="!collapsed">Dashboard</span>
+            </NuxtLink>
+          </UTooltip>
+          <NuxtLink v-else to="/daily-ops" :class="navLinkClass(route.path === '/daily-ops')">
             <UIcon name="i-lucide-building-2" class="size-4 shrink-0" />
             <span>Dashboard</span>
           </NuxtLink>
         </li>
         <li v-if="activeEnvironment === 'daily-work'">
-          <NuxtLink to="/daily-work" :class="navLinkClass(route.path === '/daily-work')">
+          <UTooltip v-if="collapsed" text="Dashboard" :popper="{ placement: 'right' }">
+            <NuxtLink to="/daily-work" :class="navLinkClass(route.path === '/daily-work')">
+              <UIcon name="i-lucide-layout-dashboard" class="size-5 shrink-0" />
+              <span v-if="!collapsed">Dashboard</span>
+            </NuxtLink>
+          </UTooltip>
+          <NuxtLink v-else to="/daily-work" :class="navLinkClass(route.path === '/daily-work')">
             <UIcon name="i-lucide-layout-dashboard" class="size-4 shrink-0" />
             <span>Dashboard</span>
           </NuxtLink>
@@ -96,6 +172,11 @@
 <script setup lang="ts">
 import type { EnvironmentId } from '~/types/environment'
 import { ENVIRONMENT_LABELS } from '~/types/environment'
+
+const props = withDefaults(
+  defineProps<{ collapsed?: boolean }>(),
+  { collapsed: false }
+)
 
 const route = useRoute()
 const { activeEnvironment, setActiveEnvironment } = useEnvironment()
@@ -131,7 +212,8 @@ const isNotesWeekly = computed(() => route.path === '/notes/new' && route.query.
 
 function navLinkClass(active: boolean) {
   return [
-    'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium no-underline transition-colors',
+    'flex items-center rounded-md text-sm font-medium no-underline transition-colors',
+    props.collapsed ? 'justify-center p-2' : 'gap-3 px-3 py-2',
     active
       ? 'bg-gray-200 text-gray-900'
       : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900',

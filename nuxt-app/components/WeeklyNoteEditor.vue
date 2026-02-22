@@ -5,19 +5,14 @@
         <section
           v-for="(block, index) in blocks"
           :key="block.id"
-          class="rounded-lg border border-gray-200 bg-gray-50/40 p-4 space-y-3"
+          class="rounded-lg bg-gray-50/40 p-4 space-y-3"
         >
-          <UInput
-            v-model="block.title"
-            placeholder="Block title (optional)"
-            class="border-0 border-b border-gray-200 rounded-none px-0 font-semibold focus:ring-0 bg-transparent"
-          />
-          <div class="flex gap-2">
-            <RichTextEditor
-              :model-value="block.content"
-              :placeholder="index === 0 ? blockPlaceholder : 'Add content… Use /todo or /agree for tasks and agreements.'"
-              class="min-w-0 flex-1"
-              @update:model-value="setBlockContent(index, $event)"
+          <div class="flex items-center gap-2">
+            <UInput
+              v-model="block.title"
+              placeholder="Block title (optional)"
+              variant="none"
+              class="min-w-0 flex-1 rounded-none px-0 font-semibold border-b border-black"
             />
             <UButton
               v-if="blocks.length > 1"
@@ -29,6 +24,12 @@
               @click="removeBlock(index)"
             />
           </div>
+          <RichTextEditor
+            :model-value="block.content"
+            :placeholder="index === 0 ? blockPlaceholder : 'Add content… Use /todo or /agree for tasks and agreements.'"
+            class="min-w-0"
+            @update:model-value="setBlockContent(index, $event)"
+          />
           <div v-if="block.todos.length" class="ml-1 border-l-2 border-gray-300 pl-4 space-y-2">
             <label
               v-for="todo in block.todos"
@@ -81,52 +82,51 @@
         </UButton>
       </div>
     </div>
-
-    <aside class="w-72 shrink-0">
-      <UCard>
-        <template #header>
-          <span class="font-semibold">Details</span>
-        </template>
-        <div class="space-y-4">
-          <UFormField label="Location">
-            <USelectMenu
-              v-model="form.location_id"
-              :items="locationOptions"
-              value-key="value"
-              placeholder="Select location"
-              @update:model-value="form.team_id = ''"
-            />
-          </UFormField>
-          <UFormField label="Team">
-            <USelectMenu
-              v-model="form.team_id"
-              :items="teamOptions"
-              value-key="value"
-              placeholder="Select team"
-              :disabled="!form.location_id"
-            />
-          </UFormField>
-          <UFormField label="Member">
-            <USelectMenu
-              v-model="form.member_id"
-              :items="memberOptions"
-              value-key="value"
-              placeholder="Select member"
-            />
-          </UFormField>
-          <UFormField label="Tags">
-            <UInput
-              v-model="form.tags"
-              placeholder="tag1, tag2"
-            />
-          </UFormField>
-          <div class="flex items-center gap-2">
-            <UCheckbox v-model="form.is_pinned" />
-            <span class="text-sm">Pin note</span>
+    <ClientOnly>
+      <Teleport to="#details-panel-target" v-if="detailsOpenSynced">
+        <aside class="w-full min-w-0 shrink-0 md:max-w-72">
+          <div class="space-y-4">
+            <h3 class="text-sm font-semibold text-gray-900">Details</h3>
+            <UFormField label="Location">
+              <USelectMenu
+                v-model="form.location_id"
+                :items="locationOptions"
+                value-key="value"
+                placeholder="Select location"
+                @update:model-value="form.team_id = ''"
+              />
+            </UFormField>
+            <UFormField label="Team">
+              <USelectMenu
+                v-model="form.team_id"
+                :items="teamOptions"
+                value-key="value"
+                placeholder="Select team"
+                :disabled="!form.location_id"
+              />
+            </UFormField>
+            <UFormField label="Member">
+              <USelectMenu
+                v-model="form.member_id"
+                :items="memberOptions"
+                value-key="value"
+                placeholder="Select member"
+              />
+            </UFormField>
+            <UFormField label="Tags">
+              <UInput
+                v-model="form.tags"
+                placeholder="tag1, tag2"
+              />
+            </UFormField>
+            <div class="flex items-center gap-2">
+              <UCheckbox v-model="form.is_pinned" />
+              <span class="text-sm">Pin note</span>
+            </div>
           </div>
-        </div>
-      </UCard>
-    </aside>
+        </aside>
+      </Teleport>
+    </ClientOnly>
   </form>
 </template>
 
@@ -145,11 +145,13 @@ const props = defineProps<{
   note?: Note | null
   initialTemplate?: 'weekly'
   externalTitle?: string
+  detailsOpen?: boolean
 }>()
 
 const emit = defineEmits<{
   saved: [note: Note]
   cancel: []
+  'update:detailsOpen': [value: boolean]
 }>()
 
 function connectedToId(ct: Note['connected_to'], key: 'location_id' | 'team_id' | 'member_id'): string {
@@ -276,6 +278,14 @@ function addBlock() {
 }
 
 const loading = ref(false)
+const detailsOpenInternal = ref(false)
+const detailsOpenSynced = computed({
+  get: () => props.detailsOpen ?? detailsOpenInternal.value,
+  set: (v: boolean) => {
+    if (props.detailsOpen !== undefined) emit('update:detailsOpen', v)
+    else detailsOpenInternal.value = v
+  },
+})
 
 async function submit() {
   // Flush editor content (blur so any pending update is emitted)
