@@ -5,6 +5,10 @@ export interface BlockTodo {
   source: 'inline' | 'slash'
   /** Member mention slug (e.g. "alvinio" from @alvinio) – assigns todo to that member for "My todo's" filter */
   assignedTo?: string
+  /** Display name of user who marked this todo done */
+  doneBy?: string
+  /** ISO date when todo was marked done */
+  doneAt?: string
 }
 
 export interface BlockAgree {

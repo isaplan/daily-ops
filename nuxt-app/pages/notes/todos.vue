@@ -56,32 +56,83 @@
     <p v-else-if="!filteredItems.length" class="text-gray-500 py-8">
       {{ filterMode === 'mine' ? "No todos assigned to you. Add @yourname in a todo." : "No todos in your notes yet. Add /todo or @todo … @Todo ends in a note." }}
     </p>
-    <ul v-else class="space-y-2">
-      <li
-        v-for="item in filteredItems"
-        :key="item.id"
-        class="flex items-center gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3"
-      >
-        <UCheckbox :model-value="item.checked" disabled class="shrink-0" />
-        <span :class="item.checked ? 'text-gray-500 line-through text-sm flex-1' : 'text-sm flex-1'">
-          <template v-for="(seg, segIdx) in todoTextSegments(item.text)" :key="`${item.id}-${segIdx}`">
-            <template v-if="seg.type === 'mention'">
-              <button
-                type="button"
-                class="cursor-pointer text-blue-600 hover:underline font-medium focus:outline focus:ring-2 focus:ring-blue-400 rounded"
-                @click.prevent="filterByMention(seg.slug)"
-              >
-                @{{ seg.slug }}
-              </button>
-            </template>
-            <span v-else>{{ seg.value }}</span>
-          </template>
-        </span>
-        <NuxtLink :to="`/notes/${item.noteSlug || item.noteId}`" class="text-sm text-blue-600 hover:underline shrink-0">
-          {{ item.noteTitle }}
-        </NuxtLink>
-      </li>
-    </ul>
+    <template v-else>
+      <section v-if="activeTodos.length" class="space-y-2">
+        <h2 class="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-2">Todo's</h2>
+        <ul class="space-y-2">
+          <li
+            v-for="item in activeTodos"
+            :key="item.id"
+            class="flex items-center gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3"
+          >
+            <UCheckbox
+              :model-value="item.checked"
+              class="shrink-0"
+              :disabled="togglingId === item.id"
+              @update:model-value="(v: boolean) => setTodoDone(item, v)"
+            />
+            <div class="min-w-0 flex-1">
+              <span class="text-sm">
+                <template v-for="(seg, segIdx) in todoTextSegments(item.text)" :key="`${item.id}-${segIdx}`">
+                  <template v-if="seg.type === 'mention'">
+                    <button
+                      type="button"
+                      class="cursor-pointer text-blue-600 hover:underline font-medium focus:outline focus:ring-2 focus:ring-blue-400 rounded"
+                      @click.prevent="filterByMention(seg.slug)"
+                    >
+                      @{{ seg.slug }}
+                    </button>
+                  </template>
+                  <span v-else>{{ seg.value }}</span>
+                </template>
+              </span>
+            </div>
+            <NuxtLink :to="`/notes/${item.noteSlug || item.noteId}`" class="text-sm text-blue-600 hover:underline shrink-0">
+              {{ item.noteTitle }}
+            </NuxtLink>
+          </li>
+        </ul>
+      </section>
+      <section v-if="finishedTodos.length" class="space-y-2 mt-6">
+        <h2 class="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-2">Finished</h2>
+        <ul class="space-y-2">
+          <li
+            v-for="item in finishedTodos"
+            :key="item.id"
+            class="flex items-center gap-3 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3"
+          >
+            <UCheckbox
+              :model-value="item.checked"
+              class="shrink-0"
+              :disabled="togglingId === item.id"
+              @update:model-value="(v: boolean) => setTodoDone(item, v)"
+            />
+            <div class="min-w-0 flex-1">
+              <span class="text-sm text-gray-500 line-through">
+                <template v-for="(seg, segIdx) in todoTextSegments(item.text)" :key="`${item.id}-${segIdx}`">
+                  <template v-if="seg.type === 'mention'">
+                    <button
+                      type="button"
+                      class="cursor-pointer text-blue-600 hover:underline font-medium"
+                      @click.prevent="filterByMention(seg.slug)"
+                    >
+                      @{{ seg.slug }}
+                    </button>
+                  </template>
+                  <span v-else>{{ seg.value }}</span>
+                </template>
+              </span>
+              <p v-if="item.doneBy || item.doneAt" class="text-xs text-gray-400 mt-1">
+                Done by {{ item.doneBy || 'Unknown' }} on {{ formatDoneAt(item.doneAt) }}
+              </p>
+            </div>
+            <NuxtLink :to="`/notes/${item.noteSlug || item.noteId}`" class="text-sm text-blue-600 hover:underline shrink-0">
+              {{ item.noteTitle }}
+            </NuxtLink>
+          </li>
+        </ul>
+      </section>
+    </template>
   </div>
 </template>
 
@@ -91,7 +142,7 @@ import type { BlockTodo } from '~/types/noteBlock'
 import { parseBlockNoteContent } from '~/types/noteBlock'
 import { extractAssignedTo } from '~/lib/utils/blockTodoParser'
 
-const { data, pending, error } = await useFetch<NotesListResponse>('/api/notes?limit=200')
+const { data, pending, error, refresh } = await useFetch<NotesListResponse>('/api/notes?limit=200')
 
 const MEMBER_STORAGE_KEY = 'nuxt-todos-my-unified-user'
 
@@ -177,6 +228,36 @@ const filteredItems = computed<TodoItem[]>(() => {
   const slug = unifiedUserSlug(user)
   return list.filter((item) => item.assignedTo === slug)
 })
+
+const activeTodos = computed(() => filteredItems.value.filter((t) => !t.checked))
+const finishedTodos = computed(() => filteredItems.value.filter((t) => t.checked))
+
+const togglingId = ref<string | null>(null)
+
+function formatDoneAt(iso: string | undefined): string {
+  if (!iso) return '—'
+  try {
+    return new Date(iso).toLocaleDateString(undefined, { dateStyle: 'short' })
+  } catch {
+    return iso
+  }
+}
+
+async function setTodoDone(item: TodoItem, checked: boolean): Promise<void> {
+  togglingId.value = item.id
+  try {
+    const selected = unifiedUsers.value.find((u) => u._id === selectedMemberId.value)
+    const doneBy = checked && selected ? displayName(selected) : undefined
+    const doneAt = checked ? new Date().toISOString() : undefined
+    await $fetch(`/api/notes/${item.noteId}/todos/${item.id}`, {
+      method: 'PUT',
+      body: { checked, doneBy, doneAt },
+    })
+    await refresh()
+  } finally {
+    togglingId.value = null
+  }
+}
 
 type TextSegment = { type: 'text'; value: string } | { type: 'mention'; slug: string }
 

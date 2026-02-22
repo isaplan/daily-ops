@@ -6,4 +6,7 @@ export default defineNuxtConfig({
     port: 8080,
   },
   compatibilityDate: '2026-02-21',
+  ui: {
+    colorMode: false,
+  },
 })

@@ -1,5 +1,5 @@
 <template>
-  <div class="rounded-md border border-gray-200 bg-gray-50/50 min-h-[120px]">
+  <div class="rounded-md bg-gray-50/50 min-h-[120px]">
     <UEditor
       v-slot="{ editor }"
       :model-value="modelValue"

@@ -1,13 +1,20 @@
 <template>
-  <div>
-    <div class="mb-4 flex items-center justify-between -ml-2">
-      <UButton variant="ghost" size="sm" to="/">
+  <div class="flex h-full min-h-0 flex-col">
+    <div class="sticky top-0 z-10 shrink-0 mb-4 flex min-w-0 items-center gap-3 -ml-2 bg-[hsl(45,15%,95%)] pb-2">
+      <UButton variant="ghost" size="sm" to="/" class="shrink-0">
         ← Back
       </UButton>
-      <!-- Tab strip: Details | Todo | Agreed (same look as before, replaces More/Close + Todo + Agreed) -->
+      <UInput
+        v-if="!pending && (note || isNew)"
+        v-model="editableTitle"
+        placeholder="Note title"
+        variant="none"
+        class="min-w-0 flex-1 text-2xl font-semibold rounded-none px-0"
+      />
+      <!-- Tab strip: Details | Todo | Agreed -->
       <div
         v-if="showDetailsButton || hasTodos || hasAgrees"
-        class="flex rounded-md border border-black bg-white p-0.5"
+        class="shrink-0 flex rounded-md border border-black bg-white p-0.5"
       >
         <button
           v-if="showDetailsButton"
@@ -47,20 +54,12 @@
       </div>
     </div>
 
-    <div v-if="!isNew && note" class="flex flex-col gap-6 md:flex-row">
-      <div class="min-w-0 flex-1">
+    <div v-if="!isNew && note" class="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto md:flex-row">
+      <div class="min-h-0 min-w-0 flex-1 overflow-y-auto">
         <UCard
           class="overflow-hidden bg-white shadow-sm"
-          :ui="{ body: '!p-0', header: 'p-4 sm:px-6 border-b border-black', root: 'rounded-lg overflow-hidden !ring-0 !divide-none' }"
+          :ui="{ body: '!p-0', root: 'rounded-lg overflow-hidden !ring-0 !divide-none' }"
         >
-          <template #header>
-            <UInput
-              v-model="editableTitle"
-              placeholder="Note title"
-              variant="none"
-              class="text-xl font-semibold rounded-none px-0 w-full"
-            />
-          </template>
           <WeeklyNoteEditor
             v-if="isBlockNote"
             v-model:details-open="detailsOpen"
@@ -80,7 +79,7 @@
       </div>
       <div
         v-if="asideVisible || activeMembers.length"
-        class="flex w-full shrink-0 flex-col gap-4 rounded-lg p-4 md:max-w-[25%] md:w-3/12 bg-[hsl(45,12%,92%)]/90 backdrop-blur-md"
+        class="sticky top-0 flex h-fit w-full shrink-0 flex-col gap-4 self-start rounded-lg p-4 md:max-w-[25%] md:w-3/12 bg-[hsl(45,12%,92%)]/90 backdrop-blur-md"
       >
         <!-- Tab content (tabs are in the header now) -->
         <div v-if="asideTab === 'details' && detailsOpen" id="details-panel-target" class="min-h-0" />
@@ -130,20 +129,12 @@
       </div>
     </div>
 
-    <div v-else-if="isNew" class="flex flex-col gap-6 md:flex-row">
-      <div class="min-w-0 flex-1">
+    <div v-else-if="isNew" class="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto md:flex-row">
+      <div class="min-h-0 min-w-0 flex-1 overflow-y-auto">
         <UCard
           class="overflow-hidden rounded-lg bg-white shadow-sm"
-          :ui="{ body: '!p-0', header: 'p-4 sm:px-6 border-b border-black', root: 'rounded-lg overflow-hidden !ring-0 !divide-none' }"
+          :ui="{ body: '!p-0', root: 'rounded-lg overflow-hidden !ring-0 !divide-none' }"
         >
-          <template #header>
-            <UInput
-              v-model="editableTitle"
-              placeholder="Note title"
-              variant="none"
-              class="text-xl font-semibold rounded-none px-0 w-full"
-            />
-          </template>
           <WeeklyNoteEditor
             v-if="useWeekly"
             v-model:details-open="detailsOpen"
