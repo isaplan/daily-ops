@@ -1,7 +1,7 @@
 <template>
   <aside
-    class="shrink-0 border-r border-gray-200 bg-white flex flex-col h-full z-10 transition-[width] duration-200 ease-linear"
-    :class="collapsed ? 'w-16' : 'w-64'"
+    class="shrink-0 border-r border-gray-200 bg-white flex flex-col h-full z-10 transition-[width] duration-200 ease-linear w-16 min-w-16 max-w-16"
+    :class="{ '!w-64 !min-w-64 !max-w-64': !collapsed }"
   >
     <!-- Header: logo + env switcher (env only when expanded) -->
     <div
@@ -175,7 +175,7 @@ import { ENVIRONMENT_LABELS } from '~/types/environment'
 
 const props = withDefaults(
   defineProps<{ collapsed?: boolean }>(),
-  { collapsed: false }
+  { collapsed: true }
 )
 
 const route = useRoute()

@@ -73,19 +73,18 @@
         </div>
       </div>
 
-      <!-- Spacer so content isn't hidden behind fixed bar -->
+      <!-- Spacer so content isn't hidden behind sticky bar -->
       <div class="h-14 shrink-0" aria-hidden="true" />
-    </div>
-    <div
-      class="fixed bottom-0 right-0 z-30 flex justify-end gap-2 border-t border-gray-200 bg-white p-2"
-      :class="sidebarCollapsed ? 'left-16' : 'left-64'"
-    >
-      <UButton type="submit" :loading="loading">
-        {{ note ? 'Save' : 'Create' }}
-      </UButton>
-      <UButton type="button" variant="outline" @click="$emit('cancel')">
-        Cancel
-      </UButton>
+      <div
+        class="sticky bottom-0 z-30 flex justify-end gap-2 border-t border-gray-200/50 bg-[hsl(45,15%,95%)]/70 backdrop-blur-md p-2 -mx-1 rounded-b-lg"
+      >
+        <UButton type="submit" :loading="loading">
+          {{ note ? 'Save' : 'Create' }}
+        </UButton>
+        <UButton type="button" variant="outline" @click="$emit('cancel')">
+          Cancel
+        </UButton>
+      </div>
     </div>
     <ClientOnly>
       <Teleport to="#details-panel-target" v-if="detailsOpenSynced">

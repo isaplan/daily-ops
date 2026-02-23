@@ -9,7 +9,7 @@
         v-model="editableTitle"
         placeholder="Note title"
         variant="none"
-        class="min-w-0 flex-1 text-2xl font-semibold rounded-none px-0"
+        class="min-w-0 flex-1 text-5xl font-bold rounded-none px-0"
       />
           <div
             v-if="showDetailsButton || hasTodos || hasAgrees"

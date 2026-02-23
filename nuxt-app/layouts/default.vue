@@ -1,25 +1,24 @@
 <template>
   <div class="relative flex h-full flex-1 flex-nowrap w-full min-h-0 overflow-hidden bg-white text-gray-900">
     <aside
-      class="h-full shrink-0 border-r border-gray-200 flex flex-col overflow-hidden transition-[width] duration-200 ease-linear bg-[hsl(45,15%,95%)]"
-      :class="isCollapsed ? 'w-16' : 'w-64'"
+      class="h-full shrink-0 border-r border-gray-200 flex flex-col overflow-hidden transition-[width] duration-200 ease-linear bg-[hsl(45,15%,95%)] w-16 min-w-16 max-w-16"
+      :class="{ '!w-64 !min-w-64 !max-w-64': showExpanded }"
     >
-      <AppSidebar :collapsed="isCollapsed" class="h-full min-w-0" :class="isCollapsed ? 'w-16' : 'w-64'" />
+      <AppSidebar :collapsed="!showExpanded" class="h-full min-w-0 w-16 min-w-16 max-w-16" :class="{ '!w-64 !min-w-64 !max-w-64': showExpanded }" />
     </aside>
     <UButton
       type="button"
       variant="ghost"
       size="icon"
       :class="[
-        'absolute z-20 h-8 w-8 shrink-0 hover:bg-gray-100 transition-[left] duration-200',
-        isCollapsed ? 'left-16 pl-2' : 'left-64 pl-2',
-        'top-3',
+        'absolute z-20 h-8 w-8 shrink-0 hover:bg-gray-100 transition-[left] duration-200 left-16 pl-2 top-3',
+        showExpanded && '!left-64',
       ]"
-      :aria-label="isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'"
+      :aria-label="showExpanded ? 'Collapse sidebar' : 'Expand sidebar'"
       @click="toggle"
     >
       <UIcon
-        :name="isCollapsed ? 'i-lucide-panel-left-open' : 'i-lucide-panel-left-close'"
+        :name="showExpanded ? 'i-lucide-panel-left-close' : 'i-lucide-panel-left-open'"
         class="size-6 pl-4"
       />
     </UButton>
@@ -33,4 +32,8 @@
 
 <script setup lang="ts">
 const { isCollapsed, toggle } = useSidebar()
+// Only apply expanded width after mount so SSR and first paint stay collapsed (avoids flash)
+const ready = ref(false)
+onMounted(() => { ready.value = true })
+const showExpanded = computed(() => ready.value && !isCollapsed.value)
 </script>
