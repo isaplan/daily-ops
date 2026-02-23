@@ -1,65 +1,61 @@
 <template>
-  <div class="flex h-full min-h-0 flex-col">
-    <div class="sticky top-0 z-10 shrink-0 mb-4 flex min-w-0 items-center gap-3 -ml-2 bg-[hsl(45,15%,95%)] pb-2">
-      <UButton variant="ghost" size="sm" to="/" class="shrink-0">
-        ← Back
-      </UButton>
-      <UInput
+  <div class="flex min-h-0 flex-1 flex-col bg-[hsl(45,15%,95%)]">
+    <div class="sticky top-3 z-10 mb-4 flex min-w-0 shrink-0 items-center gap-3 border-b border-gray-200 pb-2">
+          <UButton variant="ghost" size="sm" to="/" class="shrink-0">
+            ← Back
+          </UButton>
+<UInput
         v-if="!pending && (note || isNew)"
         v-model="editableTitle"
         placeholder="Note title"
         variant="none"
         class="min-w-0 flex-1 text-2xl font-semibold rounded-none px-0"
       />
-      <!-- Tab strip: Details | Todo | Agreed -->
-      <div
-        v-if="showDetailsButton || hasTodos || hasAgrees"
-        class="shrink-0 flex rounded-md border border-black bg-white p-0.5"
-      >
-        <button
-          v-if="showDetailsButton"
-          type="button"
-          :class="[
-            'rounded px-3 py-1.5 text-sm font-medium transition-colors',
-            asideTab === 'details'
-              ? 'bg-gray-900 text-white'
-              : 'text-gray-600 hover:bg-gray-100',
-          ]"
-          @click="asideTab === 'details' ? closeAside() : setAsideTab('details')"
-        >
-          Details
-        </button>
-        <button
-          v-if="hasTodos"
-          type="button"
-          :class="[
-            'rounded px-3 py-1.5 text-sm font-medium transition-colors',
-            asideTab === 'todos' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-100',
-          ]"
-          @click="asideTab === 'todos' ? closeAside() : setAsideTab('todos')"
-        >
-          Todo
-        </button>
-        <button
-          v-if="hasAgrees"
-          type="button"
-          :class="[
-            'rounded px-3 py-1.5 text-sm font-medium transition-colors',
-            asideTab === 'agreed' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-100',
-          ]"
-          @click="asideTab === 'agreed' ? closeAside() : setAsideTab('agreed')"
-        >
-          Agreed
-        </button>
-      </div>
-    </div>
+          <div
+            v-if="showDetailsButton || hasTodos || hasAgrees"
+            class="shrink-0 flex rounded-md border border-black bg-white p-0.5"
+          >
+            <button
+              v-if="showDetailsButton"
+              type="button"
+              :class="[
+                'rounded px-3 py-1.5 text-sm font-medium transition-colors',
+                asideTab === 'details'
+                  ? 'bg-gray-900 text-white'
+                  : 'text-gray-600 hover:bg-gray-100',
+              ]"
+              @click="asideTab === 'details' ? closeAside() : setAsideTab('details')"
+            >
+              Details
+            </button>
+            <button
+              v-if="hasTodos"
+              type="button"
+              :class="[
+                'rounded px-3 py-1.5 text-sm font-medium transition-colors',
+                asideTab === 'todos' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-100',
+              ]"
+              @click="asideTab === 'todos' ? closeAside() : setAsideTab('todos')"
+            >
+              Todo
+            </button>
+            <button
+              v-if="hasAgrees"
+              type="button"
+              :class="[
+                'rounded px-3 py-1.5 text-sm font-medium transition-colors',
+                asideTab === 'agreed' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-100',
+              ]"
+              @click="asideTab === 'agreed' ? closeAside() : setAsideTab('agreed')"
+            >
+              Agreed
+            </button>
+          </div>
+        </div>
 
-    <div v-if="!isNew && note" class="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto md:flex-row">
-      <div class="min-h-0 min-w-0 flex-1 overflow-y-auto">
-        <UCard
-          class="overflow-hidden bg-white shadow-sm"
-          :ui="{ body: '!p-0', root: 'rounded-lg overflow-hidden !ring-0 !divide-none' }"
-        >
+    <div v-if="!isNew && note" class="flex min-h-0 flex-1 flex-col gap-6 overflow-hidden md:flex-row">
+      <div class="flex min-h-0 min-w-0 flex-1 flex-col">
+        <div class="min-h-0 flex-1 overflow-y-auto">
           <WeeklyNoteEditor
             v-if="isBlockNote"
             v-model:details-open="detailsOpen"
@@ -75,7 +71,7 @@
             @saved="onSaved"
             @cancel="navigateTo('/')"
           />
-        </UCard>
+        </div>
       </div>
       <div
         v-if="asideVisible || activeMembers.length"
@@ -131,10 +127,6 @@
 
     <div v-else-if="isNew" class="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto md:flex-row">
       <div class="min-h-0 min-w-0 flex-1 overflow-y-auto">
-        <UCard
-          class="overflow-hidden rounded-lg bg-white shadow-sm"
-          :ui="{ body: '!p-0', root: 'rounded-lg overflow-hidden !ring-0 !divide-none' }"
-        >
           <WeeklyNoteEditor
             v-if="useWeekly"
             v-model:details-open="detailsOpen"
@@ -149,7 +141,6 @@
             @saved="onSaved"
             @cancel="navigateTo('/')"
           />
-        </UCard>
       </div>
       <div
         v-if="detailsOpen && showDetailsButton"

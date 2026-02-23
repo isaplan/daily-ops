@@ -5,7 +5,7 @@
         <section
           v-for="(block, index) in blocks"
           :key="block.id"
-          class="rounded-lg bg-gray-50/40 p-4 space-y-3"
+          class="rounded-lg bg-white shadow-sm p-4 space-y-3"
         >
           <div class="flex items-center gap-2">
             <UInput
@@ -76,7 +76,10 @@
       <!-- Spacer so content isn't hidden behind fixed bar -->
       <div class="h-14 shrink-0" aria-hidden="true" />
     </div>
-    <div class="fixed bottom-0 left-0 right-0 z-30 flex justify-end gap-2 border-t border-gray-200 bg-white p-2 shadow-[0_-2px_10px_rgba(0,0,0,0.06)]">
+    <div
+      class="fixed bottom-0 right-0 z-30 flex justify-end gap-2 border-t border-gray-200 bg-white p-2"
+      :class="sidebarCollapsed ? 'left-16' : 'left-64'"
+    >
       <UButton type="submit" :loading="loading">
         {{ note ? 'Save' : 'Create' }}
       </UButton>
@@ -155,6 +158,8 @@ const emit = defineEmits<{
   cancel: []
   'update:detailsOpen': [value: boolean]
 }>()
+
+const { isCollapsed: sidebarCollapsed } = useSidebar()
 
 function connectedToId(ct: Note['connected_to'], key: 'location_id' | 'team_id' | 'member_id'): string {
   const v = ct?.[key]
