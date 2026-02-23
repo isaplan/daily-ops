@@ -1,6 +1,6 @@
 <template>
-  <form @submit.prevent="submit" class="flex gap-6">
-    <div class="min-w-0 space-y-4">
+  <form @submit.prevent="submit" class="flex w-full gap-6">
+    <div class="min-w-0 flex-1 space-y-4">
       <div class="space-y-8">
         <section
           v-for="(block, index) in blocks"
@@ -74,7 +74,7 @@
       </div>
 
       <div
-        class="sticky bottom-0 z-30 flex justify-end gap-2 border-t border-gray-200/50 bg-transparent backdrop-blur-sm p-2 -mx-1 rounded-b-lg"
+        class="sticky bottom-0 z-30 flex w-full justify-end gap-2 border-t border-gray-200/50 bg-transparent backdrop-blur-sm p-2 -mx-1 rounded-b-lg"
       >
         <UButton type="submit" :loading="loading">
           {{ note ? 'Save' : 'Create' }}

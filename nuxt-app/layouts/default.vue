@@ -23,7 +23,7 @@
       />
     </UButton>
     <main class="flex min-w-0 flex-1 flex-col overflow-y-auto overflow-x-hidden bg-[hsl(45,15%,95%)] shadow-[0_0_15px_rgba(0,0,0,0.06)] transition-[width] duration-200 ease-linear">
-      <div class="mx-auto flex min-h-0 w-11/12 flex-1 flex-col px-6 py-8">
+      <div class="flex min-h-0 w-full flex-1 flex-col px-6 py-8">
         <slot />
       </div>
     </main>
