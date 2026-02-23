@@ -1,6 +1,6 @@
 <template>
   <form @submit.prevent="submit" class="flex gap-6">
-    <div class="min-w-0 flex-1 space-y-4">
+    <div class="min-w-0 space-y-4">
       <div class="space-y-8">
         <section
           v-for="(block, index) in blocks"
@@ -73,10 +73,8 @@
         </div>
       </div>
 
-      <!-- Spacer so content isn't hidden behind sticky bar -->
-      <div class="h-14 shrink-0" aria-hidden="true" />
       <div
-        class="sticky bottom-0 z-30 flex justify-end gap-2 border-t border-gray-200/50 bg-[hsl(45,15%,95%)]/70 backdrop-blur-md p-2 -mx-1 rounded-b-lg"
+        class="sticky bottom-0 z-30 flex justify-end gap-2 border-t border-gray-200/50 bg-transparent backdrop-blur-sm p-2 -mx-1 rounded-b-lg"
       >
         <UButton type="submit" :loading="loading">
           {{ note ? 'Save' : 'Create' }}
