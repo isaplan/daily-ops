@@ -1,4 +1,8 @@
 /**
+ * @registry-id: enrichmentTest
+ * @created: 2026-02-22T00:00:00.000Z
+ * @last-modified: 2026-02-22T00:00:00.000Z
+ *
  * Unit tests for enrichment logic (enrichLaborRecord, enrichSalesRecord).
  * @vitest-environment node
  */

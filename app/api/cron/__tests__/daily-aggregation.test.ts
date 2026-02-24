@@ -1,4 +1,8 @@
 /**
+ * @registry-id: dailyAggregationCronTest
+ * @created: 2026-02-22T00:00:00.000Z
+ * @last-modified: 2026-02-22T00:00:00.000Z
+ *
  * Integration test for daily-aggregation cron: POST handler calls buildDailyAggregation per location.
  * @vitest-environment node
  */

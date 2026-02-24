@@ -1,5 +1,6 @@
 <template>
   <div class="flex min-h-0 flex-1 flex-col bg-[hsl(45,15%,95%)]">
+    <template v-if="(note || isNew) && !pending">
     <div class="sticky top-3 z-10 mb-4 flex min-w-0 shrink-0 items-center gap-3 border-b border-gray-200 pb-2">
           <UButton variant="ghost" size="sm" to="/" class="shrink-0">
             ← Back
@@ -53,20 +54,25 @@
           </div>
         </div>
 
-    <div v-if="!isNew && note" class="flex min-h-0 flex-1 flex-col gap-6 overflow-hidden md:flex-row">
+    <div
+      class="flex min-h-0 flex-1 flex-col gap-6 overflow-hidden md:flex-row"
+    >
       <div class="flex min-h-0 min-w-0 flex-1 flex-col">
         <div class="min-h-0 flex-1 overflow-y-auto">
           <WeeklyNoteEditor
-            v-if="isBlockNote"
+            v-if="(note && isBlockNote) || isNew"
             v-model:details-open="detailsOpen"
-            :note="note"
+            :note="note ?? undefined"
+            :editing="note?.status === 'published' ? publishedNoteEditing : true"
+            :initial-template="isNew && useWeekly ? 'weekly' : undefined"
             :external-title="editableTitle"
             @saved="onSaved"
-            @cancel="navigateTo('/')"
+            @cancel="onEditorCancel"
+            @start-edit="publishedNoteEditing = true"
           />
           <NotesForm
             v-else
-            :note="note"
+            :note="note ?? undefined"
             :external-title="editableTitle"
             @saved="onSaved"
             @cancel="navigateTo('/')"
@@ -77,8 +83,33 @@
         v-if="asideVisible || activeMembers.length"
         class="sticky top-0 flex h-fit w-full shrink-0 flex-col gap-4 self-start rounded-lg p-4 md:max-w-[25%] md:w-3/12 bg-[hsl(45,12%,92%)]/90 backdrop-blur-md"
       >
-        <!-- Tab content (tabs are in the header now) -->
-        <div v-if="asideTab === 'details' && detailsOpen" id="details-panel-target" class="min-h-0" />
+        <template v-if="asideTab === 'details' && detailsOpen">
+          <div
+            v-if="note && note.status === 'published' && !publishedNoteEditing"
+            class="min-h-0 space-y-3 text-sm text-gray-700"
+          >
+            <p>
+              <span class="font-semibold text-gray-900">Owner</span><br>
+              {{ ownerLabel }}
+            </p>
+            <p>
+              <span class="font-semibold text-gray-900">Date Created</span><br>
+              {{ formatDate(note.created_at) }}
+            </p>
+            <p>
+              <span class="font-semibold text-gray-900">Published</span><br>
+              {{ note.status === 'published' ? 'Yes' : 'No' }}
+              <span v-if="note.status === 'published' && note.updated_at">
+                — {{ formatDate(note.updated_at) }}
+              </span>
+            </p>
+            <p>
+              <span class="font-semibold text-gray-900">Shared with members</span><br>
+              {{ sharedWithLabel }}
+            </p>
+          </div>
+          <div v-else id="details-panel-target" class="min-h-0" />
+        </template>
         <div v-else-if="asideTab === 'todos'" class="min-h-0 space-y-2">
           <h3 class="text-xs font-semibold uppercase tracking-wide text-gray-500">Todo</h3>
           <ul class="space-y-1.5">
@@ -124,36 +155,13 @@
         </aside>
       </div>
     </div>
-
-    <div v-else-if="isNew" class="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto md:flex-row">
-      <div class="min-h-0 min-w-0 flex-1 overflow-y-auto">
-          <WeeklyNoteEditor
-            v-if="useWeekly"
-            v-model:details-open="detailsOpen"
-            :initial-template="useWeekly ? 'weekly' : undefined"
-            :external-title="editableTitle"
-            @saved="onSaved"
-            @cancel="navigateTo('/')"
-          />
-          <NotesForm
-            v-else
-            :external-title="editableTitle"
-            @saved="onSaved"
-            @cancel="navigateTo('/')"
-          />
-      </div>
-      <div
-        v-if="detailsOpen && showDetailsButton"
-        id="details-panel-target"
-        class="w-full shrink-0 rounded-lg p-4 md:max-w-[25%] md:w-3/12 bg-[hsl(45,12%,92%)]/90 backdrop-blur-md"
-      />
-    </div>
+    </template>
 
     <div v-else-if="pending">
       <USkeleton class="h-12 w-3/4 mb-4" />
       <USkeleton class="h-64 w-full" />
     </div>
-    <div v-else-if="error || !note">
+    <div v-else-if="!isNew && (error || !note)">
       <p class="text-red-600">Note not found or failed to load.</p>
     </div>
   </div>
@@ -188,10 +196,14 @@ const hasTodos = computed(() => !isNew.value && isBlockNote.value && noteTodos.v
 const hasAgrees = computed(() => !isNew.value && isBlockNote.value && noteAgrees.value.length > 0)
 
 const activeMembers = computed(() => note.value?.mentioned_members ?? [])
-const showDetailsButton = computed(() => (!isNew.value && isBlockNote.value) || (isNew.value && useWeekly.value))
+const showDetailsButton = computed(
+  () => (!isNew.value && isBlockNote.value) || isNew.value
+)
 const detailsOpen = ref(false)
 /** Which tab is shown in the aside: details (More), todos, or agreed. null = aside closed. */
 const asideTab = ref<'details' | 'todos' | 'agreed' | null>(null)
+/** When viewing a published note, false = view mode, true = edit mode. */
+const publishedNoteEditing = ref(false)
 
 const asideVisible = computed(
   () =>
@@ -221,15 +233,54 @@ watch(
   { immediate: true }
 )
 
-function onSaved(updated: Note) {
+async function onSaved(updated: Note) {
   if (isNew.value) {
     navigateTo(`/notes/${updated.slug || updated._id}`)
   } else {
-    refresh()
+    await refresh()
+    if (updated.status === 'published') publishedNoteEditing.value = false
+    const canonical = updated.slug || updated._id
+    if (canonical && route.params.id !== canonical) {
+      await router.replace(`/notes/${canonical}`)
+    }
+  }
+}
+
+function onEditorCancel() {
+  if (note.value?.status === 'published') {
+    publishedNoteEditing.value = false
+  } else {
+    navigateTo('/')
   }
 }
 
 function navigateTo(path: string) {
   router.push(path)
 }
+
+function formatDate(iso: string | undefined): string {
+  if (!iso) return '—'
+  try {
+    return new Date(iso).toLocaleDateString(undefined, {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    })
+  } catch {
+    return '—'
+  }
+}
+
+const ownerLabel = computed(() => {
+  const a = note.value?.author_id
+  if (!a) return '—'
+  return typeof a === 'object' && a?.name ? a.name : '—'
+})
+
+const sharedWithLabel = computed(() => {
+  const members = note.value?.mentioned_members
+  if (!members?.length) return '—'
+  return members.map((m) => m.canonicalName).join(', ')
+})
+
+watch(id, () => { publishedNoteEditing.value = false })
 </script>

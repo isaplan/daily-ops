@@ -1,4 +1,8 @@
 /**
+ * @registry-id: dailyOpsAggregationTest
+ * @created: 2026-02-22T00:00:00.000Z
+ * @last-modified: 2026-02-22T00:00:00.000Z
+ *
  * Unit tests for Daily Ops aggregation logic (buildRevenue, buildLabor, buildProducts, buildKPIs).
  * @vitest-environment node
  */

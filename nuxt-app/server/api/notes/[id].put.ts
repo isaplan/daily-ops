@@ -16,6 +16,7 @@ export default defineEventHandler(async (event) => {
     title?: string
     content?: string
     slug?: string
+    status?: 'draft' | 'published'
     location_id?: string
     team_id?: string
     member_id?: string
@@ -60,6 +61,12 @@ export default defineEventHandler(async (event) => {
     }
   }
   if (body.tags !== undefined) update.tags = Array.isArray(body.tags) ? body.tags : []
+  if (body.status !== undefined) {
+    if (body.status !== 'draft' && body.status !== 'published') {
+      throw createError({ statusCode: 400, message: 'status must be "draft" or "published"' })
+    }
+    update.status = body.status
+  }
   if (body.is_pinned !== undefined) update.is_pinned = Boolean(body.is_pinned)
   if (body.is_archived !== undefined) update.is_archived = Boolean(body.is_archived)
 

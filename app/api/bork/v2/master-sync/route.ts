@@ -1,4 +1,8 @@
 /**
+ * @registry-id: borkV2MasterSyncRoute
+ * @created: 2026-02-22T00:00:00.000Z
+ * @last-modified: 2026-02-22T00:00:00.000Z
+ *
  * POST /api/bork/v2/master-sync
  * Sync Bork master data (product_groups, payment_methods, cost_centers, users) to MongoDB.
  *

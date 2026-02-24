@@ -1,4 +1,8 @@
 /**
+ * @registry-id: salesSyncService
+ * @created: 2026-02-22T00:00:00.000Z
+ * @last-modified: 2026-02-22T00:00:00.000Z
+ *
  * Sales Sync Service (Bork API → MongoDB)
  * Syncs sales data from Bork API to bork_raw_data with batched bulkWrite.
  *

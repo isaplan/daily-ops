@@ -1,4 +1,8 @@
 /**
+ * @registry-id: borkV2CredentialsRoute
+ * @created: 2026-02-22T00:00:00.000Z
+ * @last-modified: 2026-02-22T00:00:00.000Z
+ *
  * GET: list Bork credentials (per location).
  * POST: save/update Bork credential for a location.
  */

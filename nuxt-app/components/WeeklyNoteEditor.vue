@@ -6,29 +6,43 @@
           v-for="(block, index) in blocks"
           :key="block.id"
           class="rounded-lg bg-white shadow-sm p-4 space-y-3"
+          :class="{ 'min-h-[75vh]': isDefaultNewBlock && index === 0 }"
         >
           <div class="flex items-center gap-2">
             <UInput
+              v-if="isEditMode"
               v-model="block.title"
               placeholder="Block title (optional)"
               variant="none"
               class="min-w-0 flex-1 rounded-none px-0 font-semibold border-b border-black"
             />
-            <UButton
-              v-if="blocks.length > 1"
-              type="button"
-              variant="ghost"
-              color="red"
-              icon="i-heroicons-trash"
-              square
-              @click="removeBlock(index)"
+            <span
+              v-else
+              class="min-w-0 flex-1 font-semibold border-b border-black pb-1"
+            >
+              {{ block.title || ' ' }}
+            </span>
+<UButton
+            v-if="isEditMode && blocks.length > 1"
+            type="button"
+            variant="ghost"
+            color="red"
+            icon="i-heroicons-trash"
+            square
+            @click="removeBlock(index)"
             />
           </div>
           <RichTextEditor
+            v-if="isEditMode"
             :model-value="block.content"
             :placeholder="index === 0 ? blockPlaceholder : 'Add content… Use /todo or /agree for tasks and agreements.'"
             class="min-w-0"
             @update:model-value="setBlockContent(index, $event)"
+          />
+          <div
+            v-else
+            class="min-h-[120px] px-3 py-2 prose prose-sm max-w-none min-w-0 [&_.ProseMirror]:min-h-[100px]"
+            v-html="highlightTodoAgree(block.content)"
           />
           <div v-if="block.todos.length" class="ml-1 border-l-2 border-gray-300 pl-4 space-y-2">
             <label
@@ -59,7 +73,7 @@
           </div>
         </section>
 
-        <div class="flex items-center gap-4">
+        <div v-if="isEditMode" class="flex items-center gap-4">
           <div class="h-px flex-1 bg-gray-200" />
           <UButton
             type="button"
@@ -76,16 +90,38 @@
       <div
         class="sticky bottom-0 z-30 flex w-full justify-end gap-2 border-t border-gray-200/50 bg-transparent backdrop-blur-sm p-2 -mx-1 rounded-b-lg"
       >
-        <UButton type="submit" :loading="loading">
-          {{ note ? 'Save' : 'Create' }}
-        </UButton>
-        <UButton type="button" variant="outline" @click="$emit('cancel')">
-          Cancel
-        </UButton>
+        <template v-if="isPublished && !isEditMode">
+          <span
+            class="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium bg-emerald-100 text-emerald-800"
+          >
+            <UIcon name="i-lucide-check-circle" class="size-4" />
+            Published
+          </span>
+          <UButton type="button" variant="solid" @click="$emit('startEdit')">
+            Edit
+          </UButton>
+        </template>
+        <template v-else>
+          <UButton type="submit" :loading="loading">
+            {{ note ? 'Save' : 'Create' }}
+          </UButton>
+          <UButton
+            v-if="note && !isPublished"
+            type="button"
+            variant="outline"
+            :loading="publishLoading"
+            @click="publish"
+          >
+            Publish
+          </UButton>
+          <UButton type="button" variant="outline" @click="$emit('cancel')">
+            Cancel
+          </UButton>
+        </template>
       </div>
     </div>
     <ClientOnly>
-      <Teleport to="#details-panel-target" v-if="detailsOpenSynced">
+      <Teleport to="#details-panel-target" v-if="detailsOpenSynced && isEditMode">
         <aside class="w-full min-w-0 shrink-0 md:max-w-72">
           <div class="space-y-4">
             <h3 class="text-sm font-semibold text-gray-900">Details</h3>
@@ -145,6 +181,8 @@ import { parseBlockTodos, parseBlockAgrees } from '~/lib/utils/blockTodoParser'
 
 const props = defineProps<{
   note?: Note | null
+  /** When note is published: false = view mode (Edit button, read-only), true = edit mode. Ignored when draft/new. */
+  editing?: boolean
   initialTemplate?: 'weekly'
   externalTitle?: string
   detailsOpen?: boolean
@@ -153,8 +191,14 @@ const props = defineProps<{
 const emit = defineEmits<{
   saved: [note: Note]
   cancel: []
+  startEdit: []
   'update:detailsOpen': [value: boolean]
 }>()
+
+const isPublished = computed(() => props.note?.status === 'published')
+const isEditMode = computed(
+  () => !props.note || props.note.status !== 'published' || props.editing !== false
+)
 
 const { isCollapsed: sidebarCollapsed } = useSidebar()
 
@@ -228,6 +272,10 @@ const memberOptions = computed(() => [
 ])
 
 const blocks = ref<NoteBlock[]>([])
+/** Single empty block on new note (no template): give first block ~75% height */
+const isDefaultNewBlock = computed(
+  () => !props.note && blocks.value.length === 1
+)
 
 function initBlocks() {
   if (props.initialTemplate === 'weekly' && !props.note) {
@@ -248,6 +296,29 @@ onMounted(initBlocks)
 watch(() => [props.note?._id, props.initialTemplate], initBlocks, { immediate: false })
 
 const blockPlaceholder = 'Write your note… Use @todo … @Todo ends or /todo for tasks, /agree for agreements. Add blocks with the button below.'
+
+function slugFromTitle(title: string): string {
+  const t = (title || 'untitled').trim().toLowerCase()
+  return t
+    .replace(/[^\w\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'untitled'
+}
+
+/** Wrap /todo and /agree phrases in HTML with highlight classes for published view mode. */
+function highlightTodoAgree(html: string): string {
+  if (!html) return ''
+  return html
+    .replace(
+      /(\/todo\s+[^<\n]*)/gi,
+      '<mark class="bg-amber-100 text-amber-900 rounded px-0.5">$1</mark>'
+    )
+    .replace(
+      /(\/agree\s+[^<\n]*)/gi,
+      '<mark class="bg-emerald-100 text-emerald-900 rounded px-0.5">$1</mark>'
+    )
+}
 
 function blockAgrees(block: NoteBlock) {
   return block.agrees ?? []
@@ -282,6 +353,7 @@ function addBlock() {
 }
 
 const loading = ref(false)
+const publishLoading = ref(false)
 const detailsOpenInternal = ref(false)
 const detailsOpenSynced = computed({
   get: () => props.detailsOpen ?? detailsOpenInternal.value,
@@ -315,6 +387,7 @@ async function submit() {
         method: 'PUT',
         body: {
         title,
+        slug: slugFromTitle(title),
         content,
         tags,
         is_pinned: form.is_pinned,
@@ -341,6 +414,20 @@ async function submit() {
     }
   } finally {
     loading.value = false
+  }
+}
+
+async function publish() {
+  if (!props.note) return
+  publishLoading.value = true
+  try {
+    const res = await $fetch<NoteResponse>(`/api/notes/${props.note._id}`, {
+      method: 'PUT',
+      body: { status: 'published' },
+    })
+    if (res.success && res.data) emit('saved', res.data)
+  } finally {
+    publishLoading.value = false
   }
 }
 </script>
