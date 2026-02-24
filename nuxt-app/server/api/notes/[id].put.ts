@@ -16,6 +16,7 @@ export default defineEventHandler(async (event) => {
     title?: string
     content?: string
     slug?: string
+    status?: 'draft' | 'published'
     location_id?: string
     team_id?: string
     member_id?: string
@@ -78,6 +79,9 @@ export default defineEventHandler(async (event) => {
   }
   if (body.is_pinned !== undefined) update.is_pinned = Boolean(body.is_pinned)
   if (body.is_archived !== undefined) update.is_archived = Boolean(body.is_archived)
+  if (body.status !== undefined && (body.status === 'draft' || body.status === 'published')) {
+    update.status = body.status
+  }
 
   const result = await coll.findOneAndUpdate(
     filter,

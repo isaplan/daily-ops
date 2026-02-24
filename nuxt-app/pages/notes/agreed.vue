@@ -29,7 +29,7 @@ import type { NotesListResponse } from '~/types/note'
 import type { BlockAgree } from '~/types/noteBlock'
 import { parseBlockNoteContent } from '~/types/noteBlock'
 
-const { data, pending, error } = await useFetch<NotesListResponse>('/api/notes?limit=200')
+const { data, pending, error } = await useFetch<NotesListResponse>('/api/notes?scope=published&limit=200')
 
 type AgreeItem = BlockAgree & { noteId: string; noteSlug?: string; noteTitle: string }
 

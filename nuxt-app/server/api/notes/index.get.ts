@@ -35,6 +35,8 @@ export default defineEventHandler(async (event) => {
       { status: 'draft' },
       { status: { $ne: 'published' } },
     ]
+  } else if (scope === 'published') {
+    filter.status = 'published'
   }
 
   const coll = await getNotesCollection()

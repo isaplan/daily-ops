@@ -1,5 +1,5 @@
 <template>
-  <div class="rounded-md min-h-[120px]">
+  <div class="rich-text-editor rounded-md min-h-[120px]">
     <UEditor
       v-slot="{ editor }"
       :model-value="modelValue"
@@ -9,12 +9,27 @@
       @update:model-value="$emit('update:modelValue', $event)"
     >
       <UEditorToolbar :editor="editor" :items="bubbleToolbarItems" layout="bubble" />
+      <UEditorMentionMenu
+        :editor="editor"
+        :items="memberItems"
+        char="@"
+        plugin-key="memberMentionMenu"
+        :limit="12"
+      />
+      <UEditorMentionMenu
+        :editor="editor"
+        :items="tagItems"
+        char="#"
+        plugin-key="tagMentionMenu"
+        :limit="12"
+      />
     </UEditor>
   </div>
 </template>
 
 <script setup lang="ts">
 import type { EditorToolbarItem } from '@nuxt/ui'
+import { useMentionTagSuggestions } from '~/composables/useMentionTagSuggestions'
 
 defineProps<{
   modelValue: string
@@ -22,6 +37,8 @@ defineProps<{
 }>()
 
 defineEmits<{ 'update:modelValue': [value: string] }>()
+
+const { memberItems, tagItems } = useMentionTagSuggestions()
 
 const bubbleToolbarItems: EditorToolbarItem[][] = [
   // H1 H2 H3 p
@@ -57,3 +74,14 @@ const bubbleToolbarItems: EditorToolbarItem[][] = [
   ],
 ]
 </script>
+
+<style scoped>
+/* Single Enter = single line: reduce paragraph margin so new <p> doesn't look like two breaks */
+.rich-text-editor :deep(.ProseMirror p) {
+  margin-top: 0;
+  margin-bottom: 0.25em;
+}
+.rich-text-editor :deep(.ProseMirror p:last-child) {
+  margin-bottom: 0;
+}
+</style>

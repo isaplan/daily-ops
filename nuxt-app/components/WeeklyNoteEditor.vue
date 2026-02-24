@@ -1,5 +1,5 @@
 <template>
-  <form @submit.prevent="submit" class="flex w-full gap-6">
+  <form @submit.prevent="onSaveClick" class="flex w-full gap-6">
     <div class="min-w-0 flex-1 space-y-4">
       <div class="space-y-8">
         <section
@@ -78,6 +78,14 @@
       >
         <UButton type="submit" :loading="loading">
           {{ note ? 'Save' : 'Create' }}
+        </UButton>
+        <UButton
+          v-if="note && note.status !== 'published'"
+          type="button"
+          :loading="loading"
+          @click="onPublishClick"
+        >
+          Publish
         </UButton>
         <UButton type="button" variant="outline" @click="$emit('cancel')">
           Cancel
@@ -159,7 +167,7 @@
                 />
                 <div class="flex flex-wrap gap-1.5">
                   <span
-                    v-for="tag in form.tag_list"
+                    v-for="tag in allTags"
                     :key="tag"
                     class="inline-flex items-center gap-1 rounded-md bg-gray-100 px-2 py-1 text-sm"
                   >
@@ -347,7 +355,19 @@ function dedupeTags(tags: string[]): string[] {
   }).map((t) => t.replace(/^#+/, '').trim() || t)
 }
 
-const existingTagsSet = computed(() => new Set(form.tag_list.map((t) => canonicalTag(t)).filter(Boolean)))
+/** #tags parsed from block content (shown in Details, included on save). */
+const tagsFromContent = computed(() => collectTagsFromBlocks(blocks.value))
+
+/** When user removes a tag that came only from content, we don't persist it. */
+const tagsExcludedFromContent = ref<Set<string>>(new Set())
+
+/** All tags to show in Details and to save: content tags (minus excluded) + manually added. */
+const allTags = computed(() => {
+  const fromContent = tagsFromContent.value.filter((c) => !tagsExcludedFromContent.value.has(c))
+  return dedupeTags([...fromContent, ...form.tag_list])
+})
+
+const existingTagsSet = computed(() => new Set(allTags.value.map((t) => canonicalTag(t)).filter(Boolean)))
 
 /** Autocomplete: suggest existing tags (from API) while typing; only show tags not already on the note. */
 const tagSuggestionsFiltered = computed(() => {
@@ -385,7 +405,13 @@ function appendTag(tag: string) {
 
 function removeTag(tag: string) {
   const c = canonicalTag(tag)
-  form.tag_list = form.tag_list.filter((x) => canonicalTag(x) !== c)
+  if (!c) return
+  const inForm = form.tag_list.some((x) => canonicalTag(x) === c)
+  if (inForm) {
+    form.tag_list = form.tag_list.filter((x) => canonicalTag(x) !== c)
+  } else {
+    tagsExcludedFromContent.value = new Set([...tagsExcludedFromContent.value, c])
+  }
 }
 
 onMounted(async () => {
@@ -458,7 +484,10 @@ function initBlocks() {
 }
 
 onMounted(initBlocks)
-watch(() => [props.note?._id, props.initialTemplate], initBlocks, { immediate: false })
+watch(() => [props.note?._id, props.initialTemplate], () => {
+  tagsExcludedFromContent.value = new Set()
+  initBlocks()
+}, { immediate: false })
 
 /** Collect @mention slugs from current blocks (content + todo text). */
 function collectMentionSlugsFromBlocks(blockList: NoteBlock[]): string[] {
@@ -474,6 +503,17 @@ function collectMentionSlugsFromBlocks(blockList: NoteBlock[]): string[] {
     }
   }
   return [...slugs]
+}
+
+/** Collect #tag strings from current block content (same as @mentions: show in Details, persist on save). */
+function collectTagsFromBlocks(blockList: NoteBlock[]): string[] {
+  const tags = new Set<string>()
+  for (const block of blockList) {
+    const raw = (block.content ?? '').replace(/<[^>]+>/g, ' ')
+    const matches = raw.match(/#([a-zA-Z0-9_-]+)/g)
+    if (matches) for (const m of matches) { tags.add(canonicalTag(m.slice(1))) }
+  }
+  return [...tags].filter(Boolean)
 }
 
 const mentionedMembers = computed(() => {
@@ -526,6 +566,7 @@ function addBlock() {
 }
 
 const loading = ref(false)
+const publishAfterSave = ref(false)
 const detailsOpenInternal = ref(false)
 const detailsOpenSynced = computed({
   get: () => props.detailsOpen ?? detailsOpenInternal.value,
@@ -534,6 +575,16 @@ const detailsOpenSynced = computed({
     else detailsOpenInternal.value = v
   },
 })
+
+function onSaveClick() {
+  publishAfterSave.value = false
+  submit()
+}
+
+function onPublishClick() {
+  publishAfterSave.value = true
+  submit()
+}
 
 async function submit() {
   // Flush editor content (blur so any pending update is emitted)
@@ -548,37 +599,52 @@ async function submit() {
   }))
   blocks.value = normalized
   const content = serializeBlockNoteContent(blocks.value)
-  const tags = form.tag_list.filter((t) => t.trim() !== '')
+  const tags = allTags.value.filter((t) => t.trim() !== '')
   loading.value = true
   try {
     if (props.note) {
       const res = await $fetch<NoteResponse>(`/api/notes/${props.note._id}`, {
         method: 'PUT',
         body: {
-        title,
-        content,
-        tags,
-        visible_to_same_team_name: form.visible_to_same_team_name,
-        attending_unified_user_ids: form.attending_ids,
-        is_pinned: form.is_pinned,
-        location_id: form.location_id || undefined,
-        team_id: form.team_id || undefined,
-      },
+          title,
+          content,
+          tags,
+          visible_to_same_team_name: form.visible_to_same_team_name,
+          attending_unified_user_ids: form.attending_ids,
+          is_pinned: form.is_pinned,
+          location_id: form.location_id || undefined,
+          team_id: form.team_id || undefined,
+        },
       })
-      if (res.success && res.data) emit('saved', res.data)
+      if (res.success && res.data) {
+        if (publishAfterSave.value) {
+          const published = await $fetch<NoteResponse>(`/api/notes/${props.note._id}`, {
+            method: 'PUT',
+            body: { status: 'published' },
+          })
+          if (published.success && published.data) {
+            emit('saved', published.data)
+          } else {
+            emit('saved', res.data)
+          }
+        } else {
+          emit('saved', res.data)
+        }
+        publishAfterSave.value = false
+      }
     } else {
       const res = await $fetch<NoteResponse>('/api/notes', {
         method: 'POST',
         body: {
-        title,
-        content,
-        tags,
-        visible_to_same_team_name: form.visible_to_same_team_name,
-        attending_unified_user_ids: form.attending_ids,
-        is_pinned: form.is_pinned,
-        location_id: form.location_id || undefined,
-        team_id: form.team_id || undefined,
-      },
+          title,
+          content,
+          tags,
+          visible_to_same_team_name: form.visible_to_same_team_name,
+          attending_unified_user_ids: form.attending_ids,
+          is_pinned: form.is_pinned,
+          location_id: form.location_id || undefined,
+          team_id: form.team_id || undefined,
+        },
       })
       if (res.success && res.data) emit('saved', res.data)
     }

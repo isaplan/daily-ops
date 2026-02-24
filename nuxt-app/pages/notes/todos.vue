@@ -142,7 +142,7 @@ import type { BlockTodo } from '~/types/noteBlock'
 import { parseBlockNoteContent } from '~/types/noteBlock'
 import { extractAssignedTo } from '~/lib/utils/blockTodoParser'
 
-const { data, pending, error, refresh } = await useFetch<NotesListResponse>('/api/notes?limit=200')
+const { data, pending, error, refresh } = await useFetch<NotesListResponse>('/api/notes?scope=published&limit=200')
 
 const MEMBER_STORAGE_KEY = 'nuxt-todos-my-unified-user'
 

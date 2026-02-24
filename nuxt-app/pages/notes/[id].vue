@@ -53,7 +53,60 @@
           </div>
         </div>
 
-    <div v-if="!isNew && note" class="flex min-h-0 flex-1 flex-col gap-6 overflow-hidden md:flex-row">
+    <div v-if="!isNew && note && isPublished" class="flex min-h-0 flex-1 flex-col gap-6 overflow-hidden md:flex-row">
+      <div class="flex min-h-0 min-w-0 flex-1 flex-col">
+        <div class="min-h-0 flex-1 overflow-y-auto rounded-lg bg-white p-6 shadow-sm">
+          <NoteReadOnlyView :note="note" :blocks="noteBlocks" />
+        </div>
+        <div class="sticky bottom-0 z-30 flex w-full justify-end gap-2 border-t border-gray-200/50 bg-[hsl(45,15%,95%)] p-2 rounded-b-lg">
+          <UButton variant="outline" @click="setStatusDraft">
+            Edit
+          </UButton>
+          <UButton variant="ghost" @click="navigateTo('/')">
+            Cancel
+          </UButton>
+        </div>
+      </div>
+      <div
+        v-if="asideVisible"
+        class="sticky top-0 flex h-fit w-full shrink-0 flex-col gap-4 self-start rounded-lg p-4 md:max-w-[25%] md:w-3/12 bg-[hsl(45,12%,92%)]/90 backdrop-blur-md"
+      >
+        <div v-if="asideTab === 'details' && detailsOpen" class="min-h-0 max-h-[calc(100vh-10rem)] overflow-y-auto space-y-3">
+          <h3 class="text-sm font-semibold text-gray-900">Details</h3>
+          <p class="text-xs text-gray-500">Edit the note to change location, team, tags and more.</p>
+          <div v-if="note?.tags?.length" class="flex flex-wrap gap-1.5">
+            <span v-for="tag in note.tags" :key="tag" class="rounded-md bg-gray-100 px-2 py-1 text-sm">#{{ tag }}</span>
+          </div>
+        </div>
+        <div v-else-if="asideTab === 'todos'" class="min-h-0 space-y-2">
+          <h3 class="text-xs font-semibold uppercase tracking-wide text-gray-500">Todo</h3>
+          <ul class="space-y-1.5">
+            <li
+              v-for="todo in noteTodos"
+              :key="todo.id"
+              class="flex items-start gap-2 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm"
+            >
+              <span :class="todo.checked ? 'text-gray-500 line-through' : 'text-gray-900'">{{ todo.text }}</span>
+            </li>
+          </ul>
+        </div>
+        <div v-else-if="asideTab === 'agreed'" class="min-h-0 space-y-2">
+          <h3 class="text-xs font-semibold uppercase tracking-wide text-gray-500">Agreed</h3>
+          <ul class="space-y-1.5">
+            <li
+              v-for="agree in noteAgrees"
+              :key="agree.id"
+              class="flex items-start gap-2 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900"
+            >
+              <UIcon name="i-lucide-handshake" class="mt-0.5 size-4 shrink-0 text-gray-500" />
+              {{ agree.text }}
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div v-else-if="!isNew && note && !isPublished" class="flex min-h-0 flex-1 flex-col gap-6 overflow-hidden md:flex-row">
       <div class="flex min-h-0 min-w-0 flex-1 flex-col">
         <div class="min-h-0 flex-1 overflow-y-auto">
           <WeeklyNoteEditor
@@ -162,6 +215,7 @@ const { data, pending, error, refresh } = await useFetch<NoteResponse>(
 )
 
 const note = computed(() => data.value?.data ?? null)
+const isPublished = computed(() => note.value?.status === 'published')
 const isBlockNote = computed(() =>
   note.value?.content ? isBlockNoteContent(note.value.content) : false
 )
@@ -200,7 +254,7 @@ watch(
   ({ isNew: newMode, useWeekly: weekly, note: n }) => {
     if (newMode && weekly) editableTitle.value = getWeeklyNoteTitle()
     else if (newMode) editableTitle.value = ''
-    else if (n?.title) editableTitle.value = n.title
+    else if (n) editableTitle.value = (n.title && n.title.trim()) || 'Untitled'
   },
   { immediate: true }
 )
@@ -215,5 +269,18 @@ function onSaved(updated: Note) {
 
 function navigateTo(path: string) {
   router.push(path)
+}
+
+async function setStatusDraft() {
+  if (!note.value) return
+  try {
+    await $fetch(`/api/notes/${note.value._id}`, {
+      method: 'PUT',
+      body: { status: 'draft' },
+    })
+    await refresh()
+  } catch {
+    // ignore
+  }
 }
 </script>
