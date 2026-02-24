@@ -19,6 +19,9 @@ export default defineEventHandler(async (event) => {
     location_id?: string
     team_id?: string
     member_id?: string
+    member_ids?: string[]
+    visible_to_same_team_name?: boolean
+    attending_unified_user_ids?: string[]
     tags?: string[]
     is_pinned?: boolean
     is_archived?: boolean
@@ -60,6 +63,19 @@ export default defineEventHandler(async (event) => {
     }
   }
   if (body.tags !== undefined) update.tags = Array.isArray(body.tags) ? body.tags : []
+  if (body.visible_to_same_team_name !== undefined) update.visible_to_same_team_name = Boolean(body.visible_to_same_team_name)
+  if (body.attending_unified_user_ids !== undefined) {
+    const ids = Array.isArray(body.attending_unified_user_ids)
+      ? body.attending_unified_user_ids.filter((id): id is string => typeof id === 'string' && /^[0-9a-f]{24}$/i.test(id))
+      : []
+    update.attending_unified_user_ids = ids.map((id) => new ObjectId(id))
+  }
+  if (body.member_ids !== undefined) {
+    const ids = Array.isArray(body.member_ids)
+      ? body.member_ids.filter((id): id is string => typeof id === 'string' && /^[0-9a-f]{24}$/i.test(id))
+      : []
+    update.connected_member_ids = ids.map((id) => new ObjectId(id))
+  }
   if (body.is_pinned !== undefined) update.is_pinned = Boolean(body.is_pinned)
   if (body.is_archived !== undefined) update.is_archived = Boolean(body.is_archived)
 

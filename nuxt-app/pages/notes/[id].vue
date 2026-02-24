@@ -74,11 +74,11 @@
         </div>
       </div>
       <div
-        v-if="asideVisible || activeMembers.length"
+        v-if="asideVisible"
         class="sticky top-0 flex h-fit w-full shrink-0 flex-col gap-4 self-start rounded-lg p-4 md:max-w-[25%] md:w-3/12 bg-[hsl(45,12%,92%)]/90 backdrop-blur-md"
       >
         <!-- Tab content (tabs are in the header now) -->
-        <div v-if="asideTab === 'details' && detailsOpen" id="details-panel-target" class="min-h-0" />
+        <div v-if="asideTab === 'details' && detailsOpen" id="details-panel-target" class="min-h-0 max-h-[calc(100vh-10rem)] overflow-y-auto" />
         <div v-else-if="asideTab === 'todos'" class="min-h-0 space-y-2">
           <h3 class="text-xs font-semibold uppercase tracking-wide text-gray-500">Todo</h3>
           <ul class="space-y-1.5">
@@ -108,20 +108,6 @@
             </li>
           </ul>
         </div>
-        <aside v-if="activeMembers.length" class="shrink-0">
-          <div class="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-            <h3 class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-3">Active members</h3>
-            <ul class="space-y-2">
-              <li
-                v-for="m in activeMembers"
-                :key="m._id"
-                class="text-sm font-medium text-gray-900"
-              >
-                {{ m.canonicalName }}
-              </li>
-            </ul>
-          </div>
-        </aside>
       </div>
     </div>
 
@@ -187,7 +173,6 @@ const noteAgrees = computed(() => noteBlocks.value.flatMap((b) => b.agrees ?? []
 const hasTodos = computed(() => !isNew.value && isBlockNote.value && noteTodos.value.length > 0)
 const hasAgrees = computed(() => !isNew.value && isBlockNote.value && noteAgrees.value.length > 0)
 
-const activeMembers = computed(() => note.value?.mentioned_members ?? [])
 const showDetailsButton = computed(() => (!isNew.value && isBlockNote.value) || (isNew.value && useWeekly.value))
 const detailsOpen = ref(false)
 /** Which tab is shown in the aside: details (More), todos, or agreed. null = aside closed. */
@@ -197,8 +182,7 @@ const asideVisible = computed(
   () =>
     (detailsOpen.value && showDetailsButton.value) ||
     asideTab.value === 'todos' ||
-    asideTab.value === 'agreed' ||
-    activeMembers.value.length > 0
+    asideTab.value === 'agreed'
 )
 
 function closeAside() {

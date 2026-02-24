@@ -9,6 +9,8 @@ export interface Note {
     team_id?: string | { _id: string; name: string }
     member_id?: string | { _id: string; name: string }
   }
+  /** When true, note is readable by users in a team with the same name at any location (e.g. all "Kitchen" teams). */
+  visible_to_same_team_name?: boolean
   tags?: string[]
   is_pinned: boolean
   is_archived: boolean
@@ -17,6 +19,10 @@ export interface Note {
   updated_at: string
   /** Populated from unified_users when fetching a single note */
   mentioned_members?: { _id: string; canonicalName: string }[]
+  /** Populated when fetching a single note; IDs of users attending/collaborating (notified on share). */
+  attending_members?: { _id: string; canonicalName: string }[]
+  /** Member IDs connected to this note (from members collection). Populated when fetching; may be empty if only legacy member_id exists. */
+  connected_member_ids?: string[]
 }
 
 export interface NotesListResponse {

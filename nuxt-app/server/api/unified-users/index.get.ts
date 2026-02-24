@@ -21,6 +21,7 @@ function getDisplayName(doc: Record<string, unknown>): string {
   return ''
 }
 
+/** Returns all active unified users (no location filter). Used e.g. for Attending dropdown. */
 export default defineEventHandler(async () => {
   try {
     const coll = await getUnifiedUsersCollection()
@@ -38,12 +39,15 @@ export default defineEventHandler(async () => {
     const data = list.map((u) => {
       const display = getDisplayName(u) || `User ${String(u._id).slice(-6)}`
       const slack = typeof u.slackUsername === 'string' ? u.slackUsername : (typeof (u as Record<string, unknown>).slackusername === 'string' ? (u as Record<string, unknown>).slackusername : null)
+      const locId = u.location_id ?? u.locationId ?? (u as Record<string, unknown>).primaryLocationId
+      const location_id = locId != null ? String(locId) : null
       return {
         _id: String(u._id),
         canonicalName: display,
         primaryName: display,
         primaryEmail: (typeof u.primaryEmail === 'string' ? u.primaryEmail : '') || '',
         slackUsername: slack ?? null,
+        location_id,
       }
     })
 

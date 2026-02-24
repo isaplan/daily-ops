@@ -18,7 +18,7 @@
               v-if="blocks.length > 1"
               type="button"
               variant="ghost"
-              color="red"
+              color="error"
               icon="i-heroicons-trash"
               square
               @click="removeBlock(index)"
@@ -38,7 +38,7 @@
             >
               <UCheckbox
                 :model-value="todo.checked"
-                @update:model-value="(v: boolean) => setTodoChecked(index, todo.id, v)"
+                @update:model-value="(v) => setTodoChecked(index, todo.id, v === true)"
               />
               <span
                 :class="todo.checked ? 'text-gray-500 line-through text-sm' : 'text-sm'"
@@ -85,42 +85,113 @@
       </div>
     </div>
     <ClientOnly>
+      <!-- ASIDE_DETAILS_PANEL_SPOT: Note aside (location, team, members, tags, visible_to_same_team, etc.) -->
       <Teleport to="#details-panel-target" v-if="detailsOpenSynced">
         <aside class="w-full min-w-0 shrink-0 md:max-w-72">
           <div class="space-y-4">
             <h3 class="text-sm font-semibold text-gray-900">Details</h3>
-            <UFormField label="Location">
-              <USelectMenu
-                v-model="form.location_id"
-                :items="locationOptions"
-                value-key="value"
-                placeholder="Select location"
-                @update:model-value="form.team_id = ''"
-              />
+            <div class="grid grid-cols-2 gap-3">
+              <UFormField label="Location">
+                <USelectMenu
+                  v-model="selectedLocationOption"
+                  :items="locationOptions"
+                  by="value"
+                  placeholder="Select location"
+                  @update:model-value="onLocationChange"
+                />
+              </UFormField>
+              <UFormField label="Team">
+                <USelectMenu
+                  v-model="selectedTeamOption"
+                  :items="teamOptions"
+                  by="value"
+                  placeholder="Select team"
+                  :disabled="!form.location_id"
+                />
+              </UFormField>
+            </div>
+            <UFormField label="Attending">
+              <div class="flex flex-col gap-1.5">
+                <USelectMenu
+                  v-model="attendingAddId"
+                  :items="attendingCandidates"
+                  value-key="value"
+                  placeholder="Add attending…"
+                  @update:model-value="addAttending"
+                />
+                <div class="flex flex-wrap gap-1.5">
+                  <span
+                    v-for="id in form.attending_ids"
+                    :key="id"
+                    class="inline-flex items-center gap-1 rounded-md bg-gray-100 px-2 py-1 text-sm"
+                  >
+                    {{ attendingLabel(id) }}
+                    <button
+                      type="button"
+                      class="rounded p-0.5 hover:bg-gray-200"
+                      aria-label="Remove"
+                      @click="removeAttending(id)"
+                    >
+                      <UIcon name="i-lucide-x" class="size-3.5" />
+                    </button>
+                  </span>
+                </div>
+              </div>
             </UFormField>
-            <UFormField label="Team">
-              <USelectMenu
-                v-model="form.team_id"
-                :items="teamOptions"
-                value-key="value"
-                placeholder="Select team"
-                :disabled="!form.location_id"
-              />
-            </UFormField>
-            <UFormField label="Member">
-              <USelectMenu
-                v-model="form.member_id"
-                :items="memberOptions"
-                value-key="value"
-                placeholder="Select member"
-              />
+            <UFormField v-if="mentionedMembers.length" label="Mentioned">
+              <ul class="flex flex-wrap gap-1.5">
+                <li
+                  v-for="m in mentionedMembers"
+                  :key="m._id"
+                  class="inline-flex items-center rounded-md bg-amber-50 px-2 py-1 text-xs text-amber-900"
+                >
+                  {{ m.canonicalName }}
+                </li>
+              </ul>
             </UFormField>
             <UFormField label="Tags">
-              <UInput
-                v-model="form.tags"
-                placeholder="tag1, tag2"
-              />
+              <div class="flex flex-col gap-1.5">
+                <UInput
+                  v-model="tagInputBuffer"
+                  placeholder="Type tag and press Enter"
+                  class="min-w-0"
+                  @keydown.enter.prevent="addCurrentTag"
+                />
+                <div class="flex flex-wrap gap-1.5">
+                  <span
+                    v-for="tag in form.tag_list"
+                    :key="tag"
+                    class="inline-flex items-center gap-1 rounded-md bg-gray-100 px-2 py-1 text-sm"
+                  >
+                    #{{ tag }}
+                    <button
+                      type="button"
+                      class="rounded p-0.5 hover:bg-gray-200"
+                      aria-label="Remove tag"
+                      @click="removeTag(tag)"
+                    >
+                      <UIcon name="i-lucide-x" class="size-3.5" />
+                    </button>
+                  </span>
+                </div>
+                <div v-if="tagSuggestionsFiltered.length" class="flex flex-wrap gap-1.5">
+                  <UButton
+                    v-for="s in tagSuggestionsFiltered"
+                    :key="s"
+                    size="xs"
+                    variant="soft"
+                    color="neutral"
+                    @click="appendTag(s)"
+                  >
+                    #{{ s }}
+                  </UButton>
+                </div>
+              </div>
             </UFormField>
+            <div class="flex items-center gap-2">
+              <UCheckbox v-model="form.visible_to_same_team_name" />
+              <span class="text-sm">Visible to same team in other locations</span>
+            </div>
             <div class="flex items-center gap-2">
               <UCheckbox v-model="form.is_pinned" />
               <span class="text-sm">Pin note</span>
@@ -168,8 +239,9 @@ const form = reactive({
   title: props.note?.title ?? (props.initialTemplate === 'weekly' ? getWeeklyNoteTitle() : ''),
   location_id: connectedToId(props.note?.connected_to, 'location_id'),
   team_id: connectedToId(props.note?.connected_to, 'team_id'),
-  member_id: connectedToId(props.note?.connected_to, 'member_id'),
-  tags: (props.note?.tags ?? []).join(', '),
+  visible_to_same_team_name: props.note?.visible_to_same_team_name ?? false,
+  attending_ids: [] as string[],
+  tag_list: [...(props.note?.tags ?? [])],
   is_pinned: props.note?.is_pinned ?? false,
 })
 
@@ -186,25 +258,47 @@ watch(
     if (!ct) return
     form.location_id = connectedToId(ct, 'location_id')
     form.team_id = connectedToId(ct, 'team_id')
-    form.member_id = connectedToId(ct, 'member_id')
+  },
+  { immediate: true }
+)
+watch(
+  () => props.note?.visible_to_same_team_name,
+  (v) => {
+    if (v !== undefined && v !== null) form.visible_to_same_team_name = v
+  },
+  { immediate: true }
+)
+watch(
+  () => props.note?.attending_members,
+  (list) => {
+    form.attending_ids = (list ?? []).map((m) => m._id)
+  },
+  { immediate: true }
+)
+watch(
+  () => props.note?.tags,
+  (t) => {
+    const raw = Array.isArray(t) ? t : []
+    form.tag_list = dedupeTags(raw)
   },
   { immediate: true }
 )
 
+const tagInputBuffer = ref('')
 const locations = ref<{ _id: string; name: string }[]>([])
 const teams = ref<{ _id: string; name: string; location_id?: unknown }[]>([])
-const members = ref<{ _id: string; name: string }[]>([])
+const unifiedUsers = ref<{ _id: string; canonicalName: string; location_id?: string | null }[]>([])
+const tagSuggestions = ref<string[]>([])
+const attendingAddId = ref('')
 
-onMounted(async () => {
-  const [locRes, teamRes, memRes] = await Promise.all([
-    $fetch<{ success: boolean; data: { _id: string; name: string }[] }>('/api/locations'),
-    $fetch<{ success: boolean; data: { _id: string; name: string; location_id?: unknown }[] }>('/api/teams'),
-    $fetch<{ success: boolean; data: { _id: string; name: string }[] }>('/api/members'),
-  ])
-  if (locRes.success && locRes.data) locations.value = locRes.data
-  if (teamRes.success && teamRes.data) teams.value = teamRes.data
-  if (memRes.success && memRes.data) members.value = memRes.data
-})
+function toOptionValue(v: unknown): string {
+  if (v == null) return ''
+  if (typeof v === 'string') return v
+  const o = v as { value?: string; _id?: string }
+  return (o.value ?? o._id ?? '') as string
+}
+
+type Option = { label: string; value: string }
 
 const locationOptions = computed(() => [
   { label: 'None', value: '' },
@@ -222,10 +316,129 @@ const teamOptions = computed(() => {
       })
   return [{ label: 'None', value: '' }, ...list.map((t) => ({ label: t.name, value: t._id }))]
 })
-const memberOptions = computed(() => [
-  { label: 'None', value: '' },
-  ...members.value.map((m) => ({ label: m.name, value: m._id })),
-])
+const selectedLocationOption = computed({
+  get: (): Option => locationOptions.value.find((o) => o.value === form.location_id) ?? locationOptions.value[0] ?? { label: 'None', value: '' },
+  set: (v: unknown) => {
+    form.location_id = toOptionValue(v)
+  },
+})
+const selectedTeamOption = computed({
+  get: (): Option => teamOptions.value.find((o) => o.value === form.team_id) ?? teamOptions.value[0] ?? { label: 'None', value: '' },
+  set: (v: unknown) => {
+    form.team_id = toOptionValue(v)
+  },
+})
+function onLocationChange() {
+  form.team_id = ''
+}
+
+/** Normalize for comparison: strip leading #, trim, lowercase. Same tag cannot be added twice. */
+function canonicalTag(t: string): string {
+  return t.replace(/^#+/, '').trim().toLowerCase()
+}
+
+function dedupeTags(tags: string[]): string[] {
+  const seen = new Set<string>()
+  return tags.filter((t) => {
+    const c = canonicalTag(t)
+    if (!c || seen.has(c)) return false
+    seen.add(c)
+    return true
+  }).map((t) => t.replace(/^#+/, '').trim() || t)
+}
+
+const existingTagsSet = computed(() => new Set(form.tag_list.map((t) => canonicalTag(t)).filter(Boolean)))
+
+/** Autocomplete: suggest existing tags (from API) while typing; only show tags not already on the note. */
+const tagSuggestionsFiltered = computed(() => {
+  const prefix = canonicalTag(tagInputBuffer.value)
+  const existing = existingTagsSet.value
+  if (!prefix) return tagSuggestions.value.filter((t) => !existing.has(canonicalTag(t))).slice(0, 12)
+  return tagSuggestions.value
+    .filter((t) => {
+      const c = canonicalTag(t)
+      return !existing.has(c) && c.startsWith(prefix)
+    })
+    .slice(0, 12)
+})
+
+function addCurrentTag() {
+  const raw = tagInputBuffer.value.trim()
+  const c = canonicalTag(raw)
+  if (!c) {
+    tagInputBuffer.value = ''
+    return
+  }
+  if (existingTagsSet.value.has(c)) {
+    tagInputBuffer.value = ''
+    return
+  }
+  form.tag_list = [...form.tag_list, raw.replace(/^#+/, '').trim() || raw]
+  tagInputBuffer.value = ''
+}
+
+function appendTag(tag: string) {
+  const c = canonicalTag(tag)
+  if (!c || existingTagsSet.value.has(c)) return
+  form.tag_list = [...form.tag_list, tag.replace(/^#+/, '').trim() || tag]
+}
+
+function removeTag(tag: string) {
+  const c = canonicalTag(tag)
+  form.tag_list = form.tag_list.filter((x) => canonicalTag(x) !== c)
+}
+
+onMounted(async () => {
+  const [locRes, teamRes, tagRes, unifiedRes] = await Promise.all([
+    $fetch<{ success: boolean; data: { _id: string; name: string }[] }>('/api/locations'),
+    $fetch<{ success: boolean; data: { _id: string; name: string; location_id?: unknown }[] }>('/api/teams'),
+    $fetch<{ success: boolean; data: string[] }>('/api/tags').catch(() => ({ success: false, data: [] })),
+    $fetch<{ success: boolean; data: { _id: string; canonicalName: string; location_id?: string | null }[] }>('/api/unified-users').catch(() => ({ success: false, data: [] })),
+  ])
+  if (locRes.success && locRes.data) locations.value = locRes.data
+  if (teamRes.success && teamRes.data) teams.value = teamRes.data
+  if (tagRes.success && tagRes.data) tagSuggestions.value = tagRes.data
+  if (unifiedRes.success && unifiedRes.data) unifiedUsers.value = unifiedRes.data
+  if (locations.value.length === 1 && !form.location_id) {
+    const first = locations.value[0]
+    if (first) form.location_id = first._id
+  }
+})
+
+const attendingCandidates = computed(() => {
+  const added = new Set(form.attending_ids)
+  const locId = (form.location_id && String(form.location_id).trim()) || null
+  const available = unifiedUsers.value.filter((u) => !added.has(u._id))
+  const norm = (id: string | null | undefined) => (id == null || id === '') ? null : String(id).trim()
+  const sameLocation = available
+    .filter((u) => norm(u.location_id) === locId)
+    .sort((a, b) => a.canonicalName.localeCompare(b.canonicalName, undefined, { sensitivity: 'base' }))
+    .map((u) => ({ label: u.canonicalName, value: u._id }))
+  const other = available
+    .filter((u) => norm(u.location_id) !== locId)
+    .sort((a, b) => a.canonicalName.localeCompare(b.canonicalName, undefined, { sensitivity: 'base' }))
+    .map((u) => ({ label: u.canonicalName, value: u._id }))
+  const sep = { type: 'separator' as const, label: '' }
+  if (sameLocation.length === 0 && other.length === 0) return []
+  if (sameLocation.length === 0) return other
+  if (other.length === 0) return sameLocation
+  return [...sameLocation, sep, ...other]
+})
+
+function attendingLabel(id: string): string {
+  return unifiedUsers.value.find((u) => u._id === id)?.canonicalName ?? id.slice(-6)
+}
+
+function addAttending(v: unknown) {
+  const id = toOptionValue(v)
+  if (!id || form.attending_ids.includes(id)) return
+  form.attending_ids = [...form.attending_ids, id]
+  attendingAddId.value = ''
+}
+
+function removeAttending(id: string) {
+  form.attending_ids = form.attending_ids.filter((x) => x !== id)
+}
 
 const blocks = ref<NoteBlock[]>([])
 
@@ -246,6 +459,37 @@ function initBlocks() {
 
 onMounted(initBlocks)
 watch(() => [props.note?._id, props.initialTemplate], initBlocks, { immediate: false })
+
+/** Collect @mention slugs from current blocks (content + todo text). */
+function collectMentionSlugsFromBlocks(blockList: NoteBlock[]): string[] {
+  const slugs = new Set<string>()
+  for (const block of blockList) {
+    const raw = (block.content ?? '').replace(/<[^>]+>/g, ' ')
+    const matches = raw.match(/@([a-zA-Z0-9_-]+)/g)
+    if (matches) for (const m of matches) { const s = m.slice(1).toLowerCase(); if (s !== 'todo') slugs.add(s) }
+    for (const todo of block.todos ?? []) {
+      const t = todo as { text?: string; assignedTo?: string }
+      const slug = t.assignedTo ?? (t.text ?? '').match(/@([a-zA-Z0-9_-]+)/g)?.slice(-1)[0]?.slice(1).toLowerCase()
+      if (slug && slug !== 'todo') slugs.add(slug)
+    }
+  }
+  return [...slugs]
+}
+
+const mentionedMembers = computed(() => {
+  const fromNote = new Map<string, { _id: string; canonicalName: string }>((props.note?.mentioned_members ?? []).map((m) => [m._id, m]))
+  const slugs = collectMentionSlugsFromBlocks(blocks.value)
+  for (const slug of slugs) {
+    const u = unifiedUsers.value.find(
+      (x) =>
+        (x.canonicalName?.toLowerCase() === slug) ||
+        (x.canonicalName?.toLowerCase().replace(/\s+/g, '-') === slug) ||
+        (x.canonicalName?.toLowerCase().split(/\s+/)[0] === slug)
+    )
+    if (u && !fromNote.has(u._id)) fromNote.set(u._id, { _id: u._id, canonicalName: u.canonicalName })
+  }
+  return Array.from(fromNote.values())
+})
 
 const blockPlaceholder = 'Write your note… Use @todo … @Todo ends or /todo for tasks, /agree for agreements. Add blocks with the button below.'
 
@@ -304,10 +548,7 @@ async function submit() {
   }))
   blocks.value = normalized
   const content = serializeBlockNoteContent(blocks.value)
-  const tags = form.tags
-    .split(',')
-    .map((t) => t.trim())
-    .filter(Boolean)
+  const tags = form.tag_list.filter((t) => t.trim() !== '')
   loading.value = true
   try {
     if (props.note) {
@@ -317,10 +558,11 @@ async function submit() {
         title,
         content,
         tags,
+        visible_to_same_team_name: form.visible_to_same_team_name,
+        attending_unified_user_ids: form.attending_ids,
         is_pinned: form.is_pinned,
         location_id: form.location_id || undefined,
         team_id: form.team_id || undefined,
-        member_id: form.member_id || undefined,
       },
       })
       if (res.success && res.data) emit('saved', res.data)
@@ -331,10 +573,11 @@ async function submit() {
         title,
         content,
         tags,
+        visible_to_same_team_name: form.visible_to_same_team_name,
+        attending_unified_user_ids: form.attending_ids,
         is_pinned: form.is_pinned,
         location_id: form.location_id || undefined,
         team_id: form.team_id || undefined,
-        member_id: form.member_id || undefined,
       },
       })
       if (res.success && res.data) emit('saved', res.data)

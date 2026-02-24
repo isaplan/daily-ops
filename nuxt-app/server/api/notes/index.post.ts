@@ -21,6 +21,9 @@ export default defineEventHandler(async (event) => {
     location_id?: string
     team_id?: string
     member_id?: string
+    member_ids?: string[]
+    visible_to_same_team_name?: boolean
+    attending_unified_user_ids?: string[]
     tags?: string[]
     is_pinned?: boolean
   }>(event)
@@ -34,6 +37,13 @@ export default defineEventHandler(async (event) => {
   const memberId = body?.member_id?.trim()
   const tags = Array.isArray(body?.tags) ? body.tags : []
   const isPinned = Boolean(body?.is_pinned)
+  const visibleToSameTeamName = Boolean(body?.visible_to_same_team_name)
+  const attendingIds = Array.isArray(body?.attending_unified_user_ids)
+    ? (body.attending_unified_user_ids as string[]).filter((id) => typeof id === 'string' && /^[0-9a-f]{24}$/i.test(id))
+    : []
+  const memberIds = Array.isArray(body?.member_ids)
+    ? (body.member_ids as string[]).filter((id) => typeof id === 'string' && /^[0-9a-f]{24}$/i.test(id))
+    : []
 
   const now = new Date()
   const connectedTo: Record<string, unknown> = {}
@@ -54,7 +64,10 @@ export default defineEventHandler(async (event) => {
     connected_members: [],
     linked_todos: [],
     mentioned_unified_user_ids,
+    attending_unified_user_ids: attendingIds.map((id) => new ObjectId(id)),
+    connected_member_ids: memberIds.map((id) => new ObjectId(id)),
     tags,
+    visible_to_same_team_name: visibleToSameTeamName,
     is_pinned: isPinned,
     is_archived: false,
     status: 'draft',

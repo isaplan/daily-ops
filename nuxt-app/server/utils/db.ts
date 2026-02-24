@@ -18,7 +18,8 @@ export async function getNotesCollection(): Promise<Collection> {
   return db.collection('notes')
 }
 
+/** Uses unified_user (singular) – the collection with the latest correct users. */
 export async function getUnifiedUsersCollection(): Promise<Collection> {
   const db = await getDb()
-  return db.collection('unified_users')
+  return db.collection('unified_user')
 }
