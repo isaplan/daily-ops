@@ -55,10 +55,13 @@
 
     <div v-if="!isNew && note && isPublished" class="flex min-h-0 flex-1 flex-col gap-6 overflow-hidden md:flex-row">
       <div class="flex min-h-0 min-w-0 flex-1 flex-col">
-        <div class="min-h-0 flex-1 overflow-y-auto rounded-lg bg-white p-6 shadow-sm">
-          <NoteReadOnlyView :note="note" :blocks="noteBlocks" />
+        <div class="min-h-0 flex-1 overflow-y-auto">
+          <NoteReadOnlyView :note="note" :blocks="noteBlocks" :note-id="id" @todo-toggled="refresh" />
         </div>
         <div class="sticky bottom-0 z-30 flex w-full justify-end gap-2 border-t border-gray-200/50 bg-[hsl(45,15%,95%)] p-2 rounded-b-lg">
+          <UButton variant="outline" trailing-icon="i-lucide-file-down" @click="generatePdf">
+            PDF
+          </UButton>
           <UButton variant="outline" @click="setStatusDraft">
             Edit
           </UButton>
@@ -67,6 +70,7 @@
           </UButton>
         </div>
       </div>
+
       <div
         v-if="asideVisible"
         class="sticky top-0 flex h-fit w-full shrink-0 flex-col gap-4 self-start rounded-lg p-4 md:max-w-[25%] md:w-3/12 bg-[hsl(45,12%,92%)]/90 backdrop-blur-md"
@@ -115,14 +119,14 @@
             :note="note"
             :external-title="editableTitle"
             @saved="onSaved"
-            @cancel="navigateTo('/')"
+            @cancel="onEditorCancel"
           />
           <NotesForm
             v-else
             :note="note"
             :external-title="editableTitle"
             @saved="onSaved"
-            @cancel="navigateTo('/')"
+            @cancel="onEditorCancel"
           />
         </div>
       </div>
@@ -202,6 +206,7 @@
 import type { Note, NoteResponse } from '~/types/note'
 import { isBlockNoteContent, parseBlockNoteContent } from '~/types/noteBlock'
 import { getWeeklyNoteTitle } from '~/lib/templates/weeklyNoteTemplate'
+import { buildNotePdfDocumentForPrint } from '~/lib/pdf/notePdfDocument'
 
 const route = useRoute()
 const router = useRouter()
@@ -239,6 +244,28 @@ const asideVisible = computed(
     asideTab.value === 'agreed'
 )
 
+function generatePdf() {
+  if (!note.value) return
+  try {
+    const title = (note.value.title && note.value.title.trim()) || 'Untitled'
+    const doc = buildNotePdfDocumentForPrint(
+      title,
+      noteBlocks.value,
+      noteBlocks.value.length ? undefined : note.value.content
+    )
+    const iframe = document.createElement('iframe')
+    iframe.setAttribute('style', 'position:fixed;width:0;height:0;border:0;visibility:hidden')
+    document.body.appendChild(iframe)
+    iframe.srcdoc = doc
+    iframe.onload = () => {
+      iframe.contentWindow?.print()
+      setTimeout(() => iframe.remove(), 1000)
+    }
+  } catch {
+    // silent fail
+  }
+}
+
 function closeAside() {
   detailsOpen.value = false
   asideTab.value = null
@@ -263,7 +290,11 @@ function onSaved(updated: Note) {
   if (isNew.value) {
     navigateTo(`/notes/${updated.slug || updated._id}`)
   } else {
-    refresh()
+    if (updated?.status === 'published') {
+      data.value = { success: true, data: updated }
+    } else {
+      refresh()
+    }
   }
 }
 
@@ -279,8 +310,26 @@ async function setStatusDraft() {
       body: { status: 'draft' },
     })
     await refresh()
+    router.replace({ path: route.path, query: { ...route.query, fromPublished: '1' } })
   } catch {
     // ignore
+  }
+}
+
+async function onEditorCancel() {
+  if (route.query.fromPublished === '1' && note.value) {
+    try {
+      await $fetch(`/api/notes/${note.value._id}`, {
+        method: 'PUT',
+        body: { status: 'published' },
+      })
+      await router.replace({ path: route.path, query: {} })
+      await refresh()
+    } catch {
+      navigateTo('/')
+    }
+  } else {
+    navigateTo('/')
   }
 }
 </script>
