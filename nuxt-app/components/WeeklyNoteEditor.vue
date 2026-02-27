@@ -5,9 +5,23 @@
         <section
           v-for="(block, index) in blocks"
           :key="block.id"
-          class="rounded-lg bg-white shadow-sm p-4 space-y-3"
+          :class="block.id === WEEKLY_DETAILS_BLOCK_ID ? 'space-y-2 py-1' : 'rounded-lg bg-white shadow-sm p-4 space-y-3'"
         >
-          <div class="flex items-center gap-2">
+          <!-- Details block: toggle + delete only (no card, no title input) -->
+          <div
+            v-if="block.id === WEEKLY_DETAILS_BLOCK_ID"
+            class="flex items-center gap-2"
+          >
+            <button
+              type="button"
+              class="flex min-w-0 flex-1 items-center gap-2 text-left text-sm font-semibold text-gray-900"
+              @click="detailsBlockCollapsed = !detailsBlockCollapsed"
+            >
+              <UIcon :name="detailsBlockCollapsed ? 'i-lucide-chevron-right' : 'i-lucide-chevron-down'" class="size-4 shrink-0" />
+              <span>Details</span>
+            </button>
+          </div>
+          <div v-else class="flex items-center gap-2">
             <UInput
               v-model="block.title"
               placeholder="Block title (optional)"
@@ -21,16 +35,70 @@
               color="error"
               icon="i-heroicons-trash"
               square
-              @click="removeBlock(index)"
+              aria-label="Delete block"
+              @click.stop="removeBlock(index)"
             />
           </div>
-          <RichTextEditor
-            :model-value="block.content"
-            :placeholder="index === 0 ? blockPlaceholder : 'Add content… Use /todo or /agree for tasks and agreements.'"
-            class="min-w-0"
-            @update:model-value="setBlockContent(index, $event)"
-          />
-          <div v-if="block.todos.length" class="ml-1 border-l-2 border-gray-300 pl-4 space-y-2">
+          <!-- Details block content (location, team, attendees) -->
+          <div v-if="block.id === WEEKLY_DETAILS_BLOCK_ID" class="space-y-2">
+            <div v-show="!detailsBlockCollapsed" class="space-y-3">
+              <div class="flex flex-wrap items-end gap-3">
+                <UFormField label="Location" class="min-w-0 flex-1 shrink-0 sm:max-w-[12rem]">
+                  <USelectMenu
+                    v-model="selectedLocationOption"
+                    :items="locationOptions"
+                    by="value"
+                    placeholder="Select location"
+                    @update:model-value="onLocationChange"
+                  />
+                </UFormField>
+                <UFormField label="Team" class="min-w-0 flex-1 shrink-0 sm:max-w-[12rem]">
+                  <USelectMenu
+                    v-model="selectedTeamOption"
+                    :items="teamOptions"
+                    by="value"
+                    placeholder="Select team"
+                    :disabled="!form.location_id"
+                  />
+                </UFormField>
+                <UFormField label="Attendees" class="min-w-0 flex-1 shrink-0 sm:max-w-[12rem]">
+                  <USelectMenu
+                    v-model="attendingAddId"
+                    :items="attendingCandidates"
+                    value-key="value"
+                    placeholder="Add…"
+                    @update:model-value="addAttending"
+                  />
+                </UFormField>
+              </div>
+              <div v-if="form.attending_ids.length" class="flex flex-wrap gap-1.5">
+                <span
+                  v-for="id in form.attending_ids"
+                  :key="id"
+                  class="inline-flex items-center gap-1 rounded-md bg-gray-100 px-2 py-1 text-sm"
+                >
+                  {{ attendingLabel(id) }}
+                  <button
+                    type="button"
+                    class="rounded p-0.5 hover:bg-gray-200"
+                    aria-label="Remove"
+                    @click="removeAttending(id)"
+                  >
+                    <UIcon name="i-lucide-x" class="size-3.5" />
+                  </button>
+                </span>
+              </div>
+            </div>
+          </div>
+          <template v-else>
+            <RichTextEditor
+              :model-value="block.content"
+              :placeholder="index === 0 ? blockPlaceholder : 'Add content… Use /todo or /agree for tasks and agreements.'"
+              class="min-w-0"
+              @update:model-value="setBlockContent(index, $event)"
+            />
+          </template>
+          <div v-if="block.id !== WEEKLY_DETAILS_BLOCK_ID && block.todos.length" class="ml-1 border-l-2 border-gray-300 pl-4 space-y-2">
             <label
               v-for="todo in block.todos"
               :key="todo.id"
@@ -47,7 +115,7 @@
               </span>
             </label>
           </div>
-          <div v-if="blockAgrees(block).length" class="ml-1 border-l-2 border-gray-300 pl-4 space-y-2">
+          <div v-if="block.id !== WEEKLY_DETAILS_BLOCK_ID && blockAgrees(block).length" class="ml-1 border-l-2 border-gray-300 pl-4 space-y-2">
             <div
               v-for="agree in blockAgrees(block)"
               :key="agree.id"
@@ -219,7 +287,7 @@ import {
   parseBlockNoteContent,
   serializeBlockNoteContent,
 } from '~/types/noteBlock'
-import { getWeeklyTemplateBlocks, getWeeklyNoteTitle } from '~/lib/templates/weeklyNoteTemplate'
+import { getWeeklyTemplateBlocks, getWeeklyNoteTitle, WEEKLY_DETAILS_BLOCK_ID } from '~/lib/templates/weeklyNoteTemplate'
 import { parseBlockTodos, parseBlockAgrees } from '~/lib/utils/blockTodoParser'
 
 const props = defineProps<{
@@ -467,6 +535,8 @@ function removeAttending(id: string) {
 }
 
 const blocks = ref<NoteBlock[]>([])
+/** Details block: open on first creation (new note), closed on revisit (existing note). */
+const detailsBlockCollapsed = ref(!!props.note)
 
 function initBlocks() {
   if (props.initialTemplate === 'weekly' && !props.note) {
@@ -486,6 +556,7 @@ function initBlocks() {
 onMounted(initBlocks)
 watch(() => [props.note?._id, props.initialTemplate], () => {
   tagsExcludedFromContent.value = new Set()
+  detailsBlockCollapsed.value = !!props.note
   initBlocks()
 }, { immediate: false })
 

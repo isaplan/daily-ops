@@ -56,7 +56,7 @@
     <div v-if="!isNew && note && isPublished" class="flex min-h-0 flex-1 flex-col gap-6 overflow-hidden md:flex-row">
       <div class="flex min-h-0 min-w-0 flex-1 flex-col">
         <div class="min-h-0 flex-1 overflow-y-auto">
-          <NoteReadOnlyView :note="note" :blocks="noteBlocks" :note-id="id" @todo-toggled="refresh" />
+          <NoteReadOnlyView :note="note" :blocks="readOnlyBlocks" :note-id="id" @todo-toggled="refresh" />
         </div>
         <div class="sticky bottom-0 z-30 flex w-full justify-end gap-2 border-t border-gray-200/50 bg-[hsl(45,15%,95%)] p-2 rounded-b-lg">
           <UButton variant="outline" trailing-icon="i-lucide-file-down" @click="generatePdf">
@@ -205,7 +205,7 @@
 <script setup lang="ts">
 import type { Note, NoteResponse } from '~/types/note'
 import { isBlockNoteContent, parseBlockNoteContent } from '~/types/noteBlock'
-import { getWeeklyNoteTitle } from '~/lib/templates/weeklyNoteTemplate'
+import { getWeeklyNoteTitle, WEEKLY_DETAILS_BLOCK_ID } from '~/lib/templates/weeklyNoteTemplate'
 import { buildNotePdfDocumentForPrint } from '~/lib/pdf/notePdfDocument'
 
 const route = useRoute()
@@ -226,6 +226,12 @@ const isBlockNote = computed(() =>
 )
 const noteBlocks = computed(() =>
   note.value?.content ? (parseBlockNoteContent(note.value.content) ?? []) : []
+)
+/** When published, hide Details block in main content (aside shows details). */
+const readOnlyBlocks = computed(() =>
+  isPublished.value
+    ? noteBlocks.value.filter((b) => b.id !== WEEKLY_DETAILS_BLOCK_ID)
+    : noteBlocks.value
 )
 const noteTodos = computed(() => noteBlocks.value.flatMap((b) => b.todos ?? []))
 const noteAgrees = computed(() => noteBlocks.value.flatMap((b) => b.agrees ?? []))
