@@ -42,8 +42,8 @@
           <!-- Details block content (location, team, attendees) -->
           <div v-if="block.id === WEEKLY_DETAILS_BLOCK_ID" class="space-y-2">
             <div v-show="!detailsBlockCollapsed" class="space-y-3">
-              <div class="flex flex-wrap items-end gap-3">
-                <UFormField label="Location" class="min-w-0 flex-1 shrink-0 sm:max-w-[12rem]">
+              <div class="flex flex-wrap items-end gap-y-2 gap-x-4">
+                <UFormField label="Location" class="[&_button]:w-auto [&_button]:min-w-[10ch]">
                   <USelectMenu
                     v-model="selectedLocationOption"
                     :items="locationOptions"
@@ -52,7 +52,7 @@
                     @update:model-value="onLocationChange"
                   />
                 </UFormField>
-                <UFormField label="Team" class="min-w-0 flex-1 shrink-0 sm:max-w-[12rem]">
+                <UFormField label="Team" class="[&_button]:w-auto [&_button]:min-w-[9ch]">
                   <USelectMenu
                     v-model="selectedTeamOption"
                     :items="teamOptions"
@@ -61,12 +61,12 @@
                     :disabled="!form.location_id"
                   />
                 </UFormField>
-                <UFormField label="Attendees" class="min-w-0 flex-1 shrink-0 sm:max-w-[12rem]">
-                  <USelectMenu
+                <UFormField label="Attendees" class="[&_button]:w-auto">
+                  <UInputMenu
                     v-model="attendingAddId"
                     :items="attendingCandidates"
-                    value-key="value"
-                    placeholder="Add…"
+                    :value-key="ATTENDEES_VALUE_KEY"
+                    placeholder="Add members…"
                     @update:model-value="addAttending"
                   />
                 </UFormField>
@@ -188,11 +188,11 @@
             </div>
             <UFormField label="Attending">
               <div class="flex flex-col gap-1.5">
-                <USelectMenu
+                <UInputMenu
                   v-model="attendingAddId"
                   :items="attendingCandidates"
-                  value-key="value"
-                  placeholder="Add attending…"
+                  :value-key="ATTENDEES_VALUE_KEY"
+                  placeholder="Add members…"
                   @update:model-value="addAttending"
                 />
                 <div class="flex flex-wrap gap-1.5">
@@ -375,6 +375,9 @@ function toOptionValue(v: unknown): string {
 }
 
 type Option = { label: string; value: string }
+
+/** UInputMenu value-key for { label, value } items; type assertion for component typings */
+const ATTENDEES_VALUE_KEY = 'value' as 'label'
 
 const locationOptions = computed(() => [
   { label: 'None', value: '' },
