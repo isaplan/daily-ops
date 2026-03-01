@@ -3,9 +3,17 @@
  * Attempts to detect menu tables in PDFs and convert them to string[][] format.
  */
 
-import * as pdfjsLib from 'pdfjs-dist'
+let pdfjsLib: typeof import('pdfjs-dist') | null = null
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`
+async function getPdfJs() {
+  if (!pdfjsLib) {
+    pdfjsLib = await import('pdfjs-dist')
+    if (typeof pdfjsLib.GlobalWorkerOptions !== 'undefined') {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`
+    }
+  }
+  return pdfjsLib
+}
 
 export type ParsePdfResult =
   | { success: true; rows: string[][]; rowCount: number }
@@ -28,7 +36,8 @@ interface TextContent {
  * Groups text items that are at similar vertical positions.
  */
 async function extractTextItems(pdfBuffer: Buffer): Promise<TextItem[][]> {
-  const pdf = await pdfjsLib.getDocument({ data: pdfBuffer }).promise
+  const pdfjs = await getPdfJs()
+  const pdf = await pdfjs.getDocument({ data: pdfBuffer }).promise
   const allItems: TextItem[] = []
 
   for (let pageNum = 1; pageNum <= Math.min(pdf.numPages, 5); pageNum++) {
