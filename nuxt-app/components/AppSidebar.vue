@@ -164,6 +164,30 @@
             <span>Dashboard</span>
           </NuxtLink>
         </li>
+        <li v-if="activeEnvironment === 'daily-menu-products'">
+          <UTooltip v-if="collapsed" text="Dashboard" :popper="{ placement: 'right' }">
+            <NuxtLink to="/daily-menu-products" :class="navLinkClass(route.path === '/daily-menu-products')">
+              <UIcon name="i-lucide-utensils-crossed" class="size-5 shrink-0" />
+              <span v-if="!collapsed">Dashboard</span>
+            </NuxtLink>
+          </UTooltip>
+          <NuxtLink v-else to="/daily-menu-products" :class="navLinkClass(route.path === '/daily-menu-products')">
+            <UIcon name="i-lucide-utensils-crossed" class="size-4 shrink-0" />
+            <span>Dashboard</span>
+          </NuxtLink>
+        </li>
+        <li v-if="activeEnvironment === 'daily-menu-products'">
+          <UTooltip v-if="collapsed" text="Products" :popper="{ placement: 'right' }">
+            <NuxtLink to="/daily-menu-products/products" :class="navLinkClass(route.path === '/daily-menu-products/products')">
+              <UIcon name="i-lucide-package" class="size-5 shrink-0" />
+              <span v-if="!collapsed">Products</span>
+            </NuxtLink>
+          </UTooltip>
+          <NuxtLink v-else to="/daily-menu-products/products" :class="navLinkClass(route.path === '/daily-menu-products/products')">
+            <UIcon name="i-lucide-package" class="size-4 shrink-0" />
+            <span>Products</span>
+          </NuxtLink>
+        </li>
       </ul>
     </nav>
   </aside>
@@ -185,6 +209,7 @@ const environmentOptions = [
   { label: ENVIRONMENT_LABELS['daily-work'], value: 'daily-work' },
   { label: ENVIRONMENT_LABELS['daily-ops'], value: 'daily-ops' },
   { label: ENVIRONMENT_LABELS['daily-notes'], value: 'daily-notes' },
+  { label: ENVIRONMENT_LABELS['daily-menu-products'], value: 'daily-menu-products' },
 ]
 
 const selectedEnv = computed({

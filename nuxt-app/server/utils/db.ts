@@ -23,3 +23,8 @@ export async function getUnifiedUsersCollection(): Promise<Collection> {
   const db = await getDb()
   return db.collection('unified_user')
 }
+
+export async function getMenuItemsCollection(): Promise<Collection> {
+  const db = await getDb()
+  return db.collection('menu_items')
+}
