@@ -188,6 +188,18 @@
             <span>Products</span>
           </NuxtLink>
         </li>
+        <li v-if="activeEnvironment === 'daily-menu-products'">
+          <UTooltip v-if="collapsed" text="Menu Builder" :popper="{ placement: 'right' }">
+            <NuxtLink to="/daily-menu-products/menu-builder" :class="navLinkClass(route.path === '/daily-menu-products/menu-builder')">
+              <UIcon name="i-lucide-clipboard-list" class="size-5 shrink-0" />
+              <span v-if="!collapsed">Menu Builder</span>
+            </NuxtLink>
+          </UTooltip>
+          <NuxtLink v-else to="/daily-menu-products/menu-builder" :class="navLinkClass(route.path === '/daily-menu-products/menu-builder')">
+            <UIcon name="i-lucide-clipboard-list" class="size-4 shrink-0" />
+            <span>Menu Builder</span>
+          </NuxtLink>
+        </li>
       </ul>
     </nav>
   </aside>

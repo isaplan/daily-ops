@@ -8,7 +8,7 @@
 
       <!-- Upload -->
       <div class="space-y-3">
-        <h2 class="text-sm font-semibold text-gray-900">Import CSV or Excel</h2>
+        <h2 class="text-sm font-semibold text-gray-900">Import CSV, Excel, or PDF</h2>
 
         <!-- Drop zone -->
         <div
@@ -18,12 +18,12 @@
           @dragleave.prevent="isDragging = false"
           @drop.prevent="onDrop"
         >
-          <p class="text-sm text-gray-600">Drop CSV or Excel files here</p>
+          <p class="text-sm text-gray-600">Drop CSV, Excel, or PDF files here</p>
           <p class="text-xs text-gray-500">or</p>
           <input
             ref="fileInputRef"
             type="file"
-            accept=".csv,.xlsx,.xls"
+            accept=".csv,.xlsx,.xls,.pdf"
             multiple
             class="block w-full max-w-xs text-sm text-gray-500 file:mr-4 file:rounded-md file:border-0 file:bg-gray-100 file:px-4 file:py-2 file:text-sm file:font-medium file:text-gray-700 hover:file:bg-gray-200"
             @change="onFileChange"
@@ -80,7 +80,7 @@
 <script setup lang="ts">
 import type { MenuImportResult } from '~/types/menuItem'
 
-const ACCEPT_EXT = ['.csv', '.xlsx', '.xls']
+const ACCEPT_EXT = ['.csv', '.xlsx', '.xls', '.pdf']
 
 const fileInputRef = ref<HTMLInputElement | null>(null)
 const selectedFiles = ref<File[]>([])

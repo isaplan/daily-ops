@@ -1,14 +1,15 @@
 /**
- * Parse CSV or Excel file buffer into rows (array of string[] or Record<string, unknown>).
- * Used by menu import to support wijnkaart CSV/Excel.
+ * Parse CSV, Excel, or PDF file buffer into rows (array of string[] or Record<string, unknown>).
+ * Used by menu import to support wijnkaart CSV/Excel/PDF.
  */
 
 import Papa from 'papaparse'
 import * as XLSX from 'xlsx'
+import { parsePdfToRows } from './parsePdf'
 
 export type ParseMenuFileResult =
-  | { success: true; format: 'csv' | 'xlsx'; rows: string[][]; rowCount: number }
-  | { success: false; format: 'csv' | 'xlsx'; error: string }
+  | { success: true; format: 'csv' | 'xlsx' | 'pdf'; rows: string[][]; rowCount: number }
+  | { success: false; format: 'csv' | 'xlsx' | 'pdf'; error: string }
 
 const WIJNKAART_DATA_START_ROW = 5
 
@@ -221,4 +222,43 @@ export function extractWijnkaartItems(rows: string[][]): { items: MappedMenuItem
     if (item) items.push(item)
   }
   return { items, errors }
+}
+
+/**
+ * Parse a menu file (CSV, Excel, or PDF) into rows.
+ * Dispatches to the appropriate parser based on filename extension.
+ */
+export async function parseMenuFileToRows(
+  buffer: Buffer,
+  filename: string
+): Promise<ParseMenuFileResult> {
+  const lower = filename.toLowerCase()
+  const isPdf = lower.endsWith('.pdf')
+  const isCsv = lower.endsWith('.csv')
+  const isExcel = lower.endsWith('.xlsx') || lower.endsWith('.xls')
+
+  if (isCsv) {
+    const result = parseCsvToRows(buffer)
+    return result
+  }
+
+  if (isExcel) {
+    const result = parseExcelToRows(buffer)
+    return result
+  }
+
+  if (isPdf) {
+    const result = await parsePdfToRows(buffer)
+    if (result.success) {
+      return { success: true, format: 'pdf', rows: result.rows, rowCount: result.rowCount }
+    } else {
+      return { success: false, format: 'pdf', error: result.error }
+    }
+  }
+
+  return {
+    success: false,
+    format: 'csv',
+    error: `Unsupported format: ${filename}. Supported: CSV, Excel (.xlsx, .xls), PDF (.pdf)`,
+  }
 }

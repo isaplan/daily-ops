@@ -88,3 +88,10 @@ export type MenuImportResult = {
   failed: number
   errors: Array<{ row: number; error: string }>
 }
+
+export type Menu = {
+  _id?: string
+  name: string
+  createdAt?: Date
+  updatedAt?: Date
+}

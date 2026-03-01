@@ -1,6 +1,6 @@
 import { ObjectId } from 'mongodb'
 import { getMenuItemsCollection } from '../../utils/db'
-import { parseExcelToRows } from '../../utils/parseMenuFile'
+import { parseMenuFileToRows } from '../../utils/parseMenuFile'
 import {
   parseCsvToRows,
   extractDumpRows,
@@ -19,12 +19,13 @@ async function processOneFile(
   const lower = file.filename.toLowerCase()
   const isCsv = lower.endsWith('.csv')
   const isExcel = lower.endsWith('.xlsx') || lower.endsWith('.xls')
+  const isPdf = lower.endsWith('.pdf')
 
   let rows: string[][]
   if (isCsv) {
-    rows = parseCsvToRows(file.data)
-  } else if (isExcel) {
-    const parseResult = parseExcelToRows(file.data)
+    rows = parseCsvToRows(file.data).rows ?? []
+  } else if (isExcel || isPdf) {
+    const parseResult = await parseMenuFileToRows(file.data, file.filename)
     if (!parseResult.success) {
       acc.errors.push({ row: 0, error: `${file.filename}: ${parseResult.error}` })
       return

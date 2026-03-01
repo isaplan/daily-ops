@@ -28,3 +28,8 @@ export async function getMenuItemsCollection(): Promise<Collection> {
   const db = await getDb()
   return db.collection('menu_items')
 }
+
+export async function getMenusCollection(): Promise<Collection> {
+  const db = await getDb()
+  return db.collection('menus')
+}
