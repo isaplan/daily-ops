@@ -1,16 +1,29 @@
 <template>
   <div class="max-w-full space-y-6">
-    <div class="flex items-center gap-4">
+    <div class="flex items-center justify-between gap-4">
       <NuxtLink
         to="/daily-menu-products"
         class="text-sm font-medium text-gray-600 hover:text-gray-900"
       >
         ← Daily Menu & Products
       </NuxtLink>
+      <UButton
+        :loading="pending"
+        icon="i-lucide-refresh-cw"
+        variant="ghost"
+        size="sm"
+        @click="refresh"
+      >
+        Refresh
+      </UButton>
     </div>
     <div class="rounded-lg border border-gray-200 bg-white shadow-sm">
-      <div class="border-b border-gray-200 px-4 py-3">
+      <div class="border-b border-gray-200 px-4 py-3 flex items-center justify-between">
         <h1 class="text-lg font-semibold text-gray-900">Products ({{ total }})</h1>
+        <span v-if="pending" class="text-xs text-gray-500 flex items-center gap-1">
+          <UIcon name="i-lucide-loader-2" class="animate-spin size-3" />
+          Loading...
+        </span>
       </div>
       <div class="overflow-x-auto">
         <table class="min-w-full divide-y divide-gray-200 text-sm">
@@ -56,9 +69,18 @@
 <script setup lang="ts">
 import type { MenuItem } from '~/types/menuItem'
 
-const { data: listData, pending, refresh } = await useFetch<{ success: boolean; data: MenuItem[]; total: number }>(
-  '/api/menu/items?limit=1000'
+definePageMeta({
+  layout: 'default',
+})
+
+const { data: listData, pending, refresh } = useFetch<{ success: boolean; data: MenuItem[]; total: number }>(
+  () => '/api/menu/items?limit=1000',
+  {
+    watch: false,
+    server: true,
+  }
 )
+
 const items = computed(() => listData.value?.data ?? [])
 const total = computed(() => listData.value?.total ?? 0)
 
