@@ -177,6 +177,18 @@
           </NuxtLink>
         </li>
         <li v-if="activeEnvironment === 'daily-menu-products'">
+          <UTooltip v-if="collapsed" text="Upload Products" :popper="{ placement: 'right' }">
+            <NuxtLink to="/daily-menu-products/product-uploader" :class="navLinkClass(route.path === '/daily-menu-products/product-uploader')">
+              <UIcon name="i-lucide-upload-cloud" class="size-5 shrink-0" />
+              <span v-if="!collapsed">Upload Products</span>
+            </NuxtLink>
+          </UTooltip>
+          <NuxtLink v-else to="/daily-menu-products/product-uploader" :class="navLinkClass(route.path === '/daily-menu-products/product-uploader')">
+            <UIcon name="i-lucide-upload-cloud" class="size-4 shrink-0" />
+            <span>Upload Products</span>
+          </NuxtLink>
+        </li>
+        <li v-if="activeEnvironment === 'daily-menu-products'">
           <UTooltip v-if="collapsed" text="Products" :popper="{ placement: 'right' }">
             <NuxtLink to="/daily-menu-products/products" :class="navLinkClass(route.path === '/daily-menu-products/products')">
               <UIcon name="i-lucide-package" class="size-5 shrink-0" />

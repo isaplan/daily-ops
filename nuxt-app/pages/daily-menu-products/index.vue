@@ -1,145 +1,158 @@
 <template>
-  <div class="max-w-4xl space-y-6">
+  <div class="max-w-6xl space-y-6">
+    <!-- Header -->
     <div class="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-      <h1 class="text-2xl font-bold text-gray-900 mb-1">Daily Menu & Products</h1>
-      <p class="text-gray-600 text-sm mb-6">
-        Import drinks (wijnkaart CSV/Excel) or view the product list.
+      <h1 class="text-3xl font-bold text-gray-900 mb-2">Daily Menu & Products</h1>
+      <p class="text-gray-600 text-base">
+        Manage your menu items, import products, and organize your pricing structure in one place.
       </p>
+    </div>
 
-      <!-- Upload -->
-      <div class="space-y-3">
-        <h2 class="text-sm font-semibold text-gray-900">Import CSV, Excel, or PDF</h2>
-
-        <!-- Drop zone -->
-        <div
-          class="rounded-lg border-2 border-dashed transition-colors min-h-[120px] flex flex-col items-center justify-center gap-2 p-4"
-          :class="isDragging ? 'border-primary-500 bg-primary-50' : 'border-gray-300 bg-gray-50/50 hover:border-gray-400'"
-          @dragover.prevent="isDragging = true"
-          @dragleave.prevent="isDragging = false"
-          @drop.prevent="onDrop"
-        >
-          <p class="text-sm text-gray-600">Drop CSV, Excel, or PDF files here</p>
-          <p class="text-xs text-gray-500">or</p>
-          <input
-            ref="fileInputRef"
-            type="file"
-            accept=".csv,.xlsx,.xls,.pdf"
-            multiple
-            class="block w-full max-w-xs text-sm text-gray-500 file:mr-4 file:rounded-md file:border-0 file:bg-gray-100 file:px-4 file:py-2 file:text-sm file:font-medium file:text-gray-700 hover:file:bg-gray-200"
-            @change="onFileChange"
-          />
-        </div>
-
-        <div v-if="selectedFiles.length" class="flex flex-wrap items-center gap-2">
-          <span class="text-sm text-gray-600">{{ selectedFiles.length }} file(s):</span>
-          <span
-            v-for="(f, i) in selectedFiles"
-            :key="i"
-            class="inline-flex items-center gap-1 rounded bg-gray-200 px-2 py-0.5 text-xs text-gray-700"
+    <!-- Quick Actions Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <!-- Product Uploader Card -->
+      <NuxtLink
+        to="/daily-menu-products/product-uploader"
+        class="group rounded-lg border border-gray-200 bg-white p-6 shadow-sm hover:shadow-md hover:border-primary-300 transition-all"
+      >
+        <div class="flex items-start justify-between mb-4">
+          <div
+            class="inline-flex items-center justify-center size-12 rounded-lg bg-blue-100 text-blue-600 group-hover:bg-blue-200 transition-colors"
           >
-            {{ f.name }}
-          </span>
-          <UButton size="xs" color="neutral" variant="ghost" @click="clearFiles">Clear</UButton>
+            <UIcon name="i-lucide-upload-cloud" class="size-6" />
+          </div>
+          <UIcon name="i-lucide-arrow-right" class="size-5 text-gray-400 group-hover:text-primary-600 transition-colors" />
         </div>
-
-        <form @submit.prevent="submitImport" class="flex flex-wrap items-end gap-3">
-          <UButton
-            type="submit"
-            :loading="importLoading"
-            :disabled="selectedFiles.length === 0"
-          >
-            Import
-          </UButton>
-        </form>
-        <p v-if="importResult" class="text-sm" :class="importResult.success ? 'text-green-700' : 'text-amber-700'">
-          {{ importResult.imported }} imported, {{ importResult.updated }} updated
-          <span v-if="importResult.failed">, {{ importResult.failed }} errors</span>.
+        <h2 class="text-lg font-semibold text-gray-900 mb-1">Product Uploader</h2>
+        <p class="text-sm text-gray-600 mb-4">
+          Import menu products from CSV, Excel, or PDF files. Supports batch uploads with automatic deduplication.
         </p>
-        <ul v-if="importResult?.errors?.length" class="list-disc list-inside text-sm text-red-700">
-          <li v-for="(err, i) in importResult.errors.slice(0, 10)" :key="i">
-            Row {{ err.row }}: {{ err.error }}
-          </li>
-          <li v-if="importResult.errors.length > 10">
-            … and {{ importResult.errors.length - 10 }} more
-          </li>
-        </ul>
+        <div class="text-xs text-gray-500 space-y-1">
+          <div class="flex items-center gap-2">
+            <UIcon name="i-lucide-check" class="size-3" />
+            <span>Supports CSV, Excel, PDF</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <UIcon name="i-lucide-check" class="size-3" />
+            <span>Drag & drop or select files</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <UIcon name="i-lucide-check" class="size-3" />
+            <span>Max 10 MB per file</span>
+          </div>
+        </div>
+      </NuxtLink>
+
+      <!-- Products List Card -->
+      <NuxtLink
+        to="/daily-menu-products/products"
+        class="group rounded-lg border border-gray-200 bg-white p-6 shadow-sm hover:shadow-md hover:border-primary-300 transition-all"
+      >
+        <div class="flex items-start justify-between mb-4">
+          <div
+            class="inline-flex items-center justify-center size-12 rounded-lg bg-green-100 text-green-600 group-hover:bg-green-200 transition-colors"
+          >
+            <UIcon name="i-lucide-list" class="size-6" />
+          </div>
+          <UIcon name="i-lucide-arrow-right" class="size-5 text-gray-400 group-hover:text-primary-600 transition-colors" />
+        </div>
+        <h2 class="text-lg font-semibold text-gray-900 mb-1">Products List</h2>
+        <p class="text-sm text-gray-600 mb-4">
+          Browse, edit, and manage all imported products. View pricing, categories, and product details.
+        </p>
+        <div class="text-xs text-gray-500 space-y-1">
+          <div class="flex items-center gap-2">
+            <UIcon name="i-lucide-check" class="size-3" />
+            <span>Search and filter</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <UIcon name="i-lucide-check" class="size-3" />
+            <span>Inline editing</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <UIcon name="i-lucide-check" class="size-3" />
+            <span>Bulk operations</span>
+          </div>
+        </div>
+      </NuxtLink>
+
+      <!-- Menu Builder Card -->
+      <NuxtLink
+        to="/daily-menu-products/menu-builder"
+        class="group rounded-lg border border-gray-200 bg-white p-6 shadow-sm hover:shadow-md hover:border-primary-300 transition-all"
+      >
+        <div class="flex items-start justify-between mb-4">
+          <div
+            class="inline-flex items-center justify-center size-12 rounded-lg bg-purple-100 text-purple-600 group-hover:bg-purple-200 transition-colors"
+          >
+            <UIcon name="i-lucide-clipboard-list" class="size-6" />
+          </div>
+          <UIcon name="i-lucide-arrow-right" class="size-5 text-gray-400 group-hover:text-primary-600 transition-colors" />
+        </div>
+        <h2 class="text-lg font-semibold text-gray-900 mb-1">Menu Builder</h2>
+        <p class="text-sm text-gray-600 mb-4">
+          Create and organize menus by grouping products into categories and sections.
+        </p>
+        <div class="text-xs text-gray-500 space-y-1">
+          <div class="flex items-center gap-2">
+            <UIcon name="i-lucide-check" class="size-3" />
+            <span>Drag & drop organization</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <UIcon name="i-lucide-check" class="size-3" />
+            <span>Multiple menus</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <UIcon name="i-lucide-check" class="size-3" />
+            <span>Custom pricing per menu</span>
+          </div>
+        </div>
+      </NuxtLink>
+    </div>
+
+    <!-- Info Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div class="rounded-lg border border-blue-200 bg-blue-50 p-4">
+        <div class="flex items-start gap-3">
+          <UIcon name="i-lucide-info" class="size-5 text-blue-600 shrink-0 mt-0.5" />
+          <div class="text-sm">
+            <p class="font-medium text-blue-900">PDF Support</p>
+            <p class="text-blue-700 text-xs mt-1">
+              Upload menu PDFs with table structures. Our parser extracts and organizes the data automatically.
+            </p>
+          </div>
+        </div>
       </div>
 
-      <div class="mt-6 pt-6 border-t border-gray-200">
-        <NuxtLink
-          to="/daily-menu-products/products"
-          class="text-sm font-medium text-primary-600 hover:text-primary-700"
-        >
-          View products list →
-        </NuxtLink>
+      <div class="rounded-lg border border-green-200 bg-green-50 p-4">
+        <div class="flex items-start gap-3">
+          <UIcon name="i-lucide-info" class="size-5 text-green-600 shrink-0 mt-0.5" />
+          <div class="text-sm">
+            <p class="font-medium text-green-900">Format Flexibility</p>
+            <p class="text-green-700 text-xs mt-1">
+              Import from CSV, Excel, or PDF. Each format is automatically detected and parsed correctly.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div class="rounded-lg border border-amber-200 bg-amber-50 p-4">
+        <div class="flex items-start gap-3">
+          <UIcon name="i-lucide-info" class="size-5 text-amber-600 shrink-0 mt-0.5" />
+          <div class="text-sm">
+            <p class="font-medium text-amber-900">Smart Deduplication</p>
+            <p class="text-amber-700 text-xs mt-1">
+              Import the same products multiple times without creating duplicates. Automatically merged.
+            </p>
+          </div>
+        </div>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import type { MenuImportResult } from '~/types/menuItem'
-
-const ACCEPT_EXT = ['.csv', '.xlsx', '.xls', '.pdf']
-
-const fileInputRef = ref<HTMLInputElement | null>(null)
-const selectedFiles = ref<File[]>([])
-const isDragging = ref(false)
-const importLoading = ref(false)
-const importResult = ref<MenuImportResult | null>(null)
-
-function acceptFile(file: File): boolean {
-  const name = file.name.toLowerCase()
-  return ACCEPT_EXT.some((ext) => name.endsWith(ext))
-}
-
-function onFileChange(e: Event) {
-  const target = e.target as HTMLInputElement
-  const list = target.files
-  selectedFiles.value = list ? Array.from(list).filter(acceptFile) : []
-}
-
-function onDrop(e: DragEvent) {
-  isDragging.value = false
-  const list = e.dataTransfer?.files
-  if (!list) return
-  selectedFiles.value = Array.from(list).filter(acceptFile)
-  if (fileInputRef.value) fileInputRef.value.value = ''
-}
-
-function clearFiles() {
-  selectedFiles.value = []
-  if (fileInputRef.value) fileInputRef.value.value = ''
-}
-
-async function submitImport() {
-  if (selectedFiles.value.length === 0) return
-  importLoading.value = true
-  importResult.value = null
-  try {
-    const form = new FormData()
-    for (const file of selectedFiles.value) {
-      form.append('file', file)
-    }
-    const res = await $fetch<MenuImportResult>('/api/menu/import', {
-      method: 'POST',
-      body: form,
-    })
-    importResult.value = res
-    if (res.imported > 0 || res.updated > 0) {
-      await navigateTo('/daily-menu-products/products')
-    }
-    clearFiles()
-  } catch (e) {
-    importResult.value = {
-      success: false,
-      imported: 0,
-      updated: 0,
-      failed: 1,
-      errors: [{ row: 0, error: e instanceof Error ? e.message : 'Import failed' }],
-    }
-  } finally {
-    importLoading.value = false
-  }
-}
+definePageMeta({
+  layout: 'default',
+})
 </script>

@@ -40,7 +40,7 @@
       </div>
     </div>
 
-    <UModal v-model:open="showNewMenuModal" :ui="{ width: 'sm:max-w-md' }">
+    <UModal :open="showNewMenuModal" :ui="{ width: 'sm:max-w-md' }" @update:open="showNewMenuModal = $event">
       <template #content>
         <div class="p-4 space-y-4">
           <h2 class="text-lg font-semibold text-gray-900">New menu</h2>
