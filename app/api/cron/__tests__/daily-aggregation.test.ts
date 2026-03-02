@@ -1,5 +1,9 @@
 /**
- * Integration test for daily-aggregation cron: POST handler calls buildDailyAggregation per location.
+ * @registry-id: dailyAggregationCronTest
+ * @created: 2026-01-15T00:00:00.000Z
+ * @last-modified: 2026-03-02T00:00:00.000Z
+ * @description: Integration test for daily-aggregation cron POST handler
+ * @last-fix: [2026-03-02] Added metadata header for registry tracking
  * @vitest-environment node
  */
 

@@ -10,12 +10,14 @@ export default defineEventHandler(async (event) => {
   const teamId = query.team_id as string | undefined
   const locationId = query.location_id as string | undefined
   const scope = query.scope as string | undefined
+  const tag = query.tag as string | undefined
   const skip = Math.max(0, Number(query.skip) || 0)
   const limit = Math.min(MAX_LIMIT, Math.max(1, Number(query.limit) || DEFAULT_LIMIT))
 
   const filter: Record<string, unknown> = { is_archived: archived }
   if (teamId) filter['connected_to.team_id'] = new ObjectId(teamId)
   if (locationId) filter['connected_to.location_id'] = new ObjectId(locationId)
+  if (tag?.trim()) filter.tags = tag.trim()
 
   if (scope === 'private') {
     filter.$or = [

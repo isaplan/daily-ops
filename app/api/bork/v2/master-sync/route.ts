@@ -1,5 +1,10 @@
 /**
- * POST /api/bork/v2/master-sync
+ * @registry-id: borkV2MasterSyncRoute
+ * @created: 2026-01-15T00:00:00.000Z
+ * @last-modified: 2026-03-02T00:00:00.000Z
+ * @description: POST /api/bork/v2/master-sync - sync Bork master data to MongoDB
+ * @last-fix: [2026-03-02] Added metadata header for registry tracking
+ * 
  * Sync Bork master data (product_groups, payment_methods, cost_centers, users) to MongoDB.
  *
  * Body: locationId?, endpoint, baseUrl?, apiKey?

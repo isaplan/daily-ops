@@ -1,5 +1,9 @@
 /**
- * Unit tests for Daily Ops aggregation logic (buildRevenue, buildLabor, buildProducts, buildKPIs).
+ * @registry-id: dailyOpsAggregationTest
+ * @created: 2026-01-15T00:00:00.000Z
+ * @last-modified: 2026-03-02T00:00:00.000Z
+ * @description: Unit tests for Daily Ops aggregation logic (buildRevenue, buildLabor, buildProducts, buildKPIs)
+ * @last-fix: [2026-03-02] Added metadata header for registry tracking
  * @vitest-environment node
  */
 

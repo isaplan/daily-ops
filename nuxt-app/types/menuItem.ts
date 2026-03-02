@@ -89,9 +89,69 @@ export type MenuImportResult = {
   errors: Array<{ row: number; error: string }>
 }
 
+/** Per-product overrides in a menu (row-level display and calculation overrides) */
+export type MenuProductOverride = {
+  /** Display name (overrides product title) */
+  displayName?: string
+  /** Brand name */
+  brand?: string
+  /** Product type / style (e.g. Radler, Kriek) */
+  productType?: string
+  /** Description text */
+  description?: string
+  /** Supplier / leverancier */
+  supplier?: string
+  /** Batch cost (e.g. krat price); used for cost/item when itemsPerBatch set */
+  batchCost?: number
+  /** Items per batch (e.g. 24); used with batchCost for cost/item */
+  itemsPerBatch?: number
+  /** Override cost per item; if set, batchCost/itemsPerBatch ignored for calc */
+  costPerItem?: number
+  wastePercent?: number
+  marginMultiplier?: number
+  vatRate?: VatRate
+  /** If set, margin is derived from this (menu price inc VAT). */
+  menuPriceIncVat?: number
+}
+
+/** Sub-cards (sub-menus) per menu: custom sections with your own names */
+export type MenuSection = {
+  id: string
+  name: string
+  productIds: string[]
+  /** Per-product overrides; key = productId */
+  productOverrides?: Record<string, MenuProductOverride>
+}
+
+/** Global defaults for the menu builder (waste %, margin multiplier, BTW) */
+export type MenuBuilderDefaults = {
+  defaultWastePercent?: number
+  defaultMarginMultiplier?: number
+  defaultVatRate?: VatRate
+}
+
+/** Legacy: object keyed by section name. Prefer menuSections (array). */
+export type MenuSections = {
+  drinks?: string[]
+  diner?: string[]
+  snacks?: string[]
+  dessert?: string[]
+  coursesMenu?: string[]
+}
+
 export type Menu = {
   _id?: string
   name: string
+  startDate?: string
+  location?: string
+  /** Custom sections (your own names). Replaces legacy sections object. */
+  menuSections?: MenuSection[]
+  /** @deprecated Use menuSections instead */
+  sections?: MenuSections
+  /** Global defaults for calculations in builder */
+  defaultWastePercent?: number
+  defaultMarginMultiplier?: number
+  defaultVatRate?: VatRate
   createdAt?: Date
   updatedAt?: Date
 }

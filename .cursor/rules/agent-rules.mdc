@@ -25,6 +25,19 @@ alwaysApply: true
 
 ---
 
+## 🔴 RULE #0.5: CHECK TERMINAL / BUILD AFTER CHANGES (MANDATORY)
+
+**After creating or modifying code that affects the running app (Nuxt, Next, Vite, etc.):**
+
+1. **Read the terminal output** for the active dev server (e.g. `terminals/*.txt` where `active_command` is `pnpm dev` or `npm run dev`).
+2. **Look for:** `ERROR`, `error:`, `Failed to`, build failures, Vue/TS compile errors.
+3. **If any error appears:** Fix it before replying "done". Do not leave the user to discover errors.
+4. **Prefer:** Run a build or typecheck when unsure (`pnpm build`, `pnpm exec nuxi typecheck`, etc.) to surface errors early.
+
+**This applies especially when:** Adding/deleting pages or routes, changing imports, editing Vue/Nuxt/Next entry or layout files.
+
+---
+
 ## ⚡ CRITICAL RULES (10 Max)
 
 1. **Registry Check:** Always grep `function-registry.json` before editing

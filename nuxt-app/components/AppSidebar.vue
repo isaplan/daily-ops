@@ -56,42 +56,6 @@
             </NuxtLink>
           </li>
           <li>
-            <UTooltip v-if="collapsed" text="Private Notes" :popper="{ placement: 'right' }">
-              <NuxtLink to="/notes/private" :class="navLinkClass(isPrivateNotes)">
-                <UIcon name="i-lucide-lock" class="size-5 shrink-0" />
-                <span v-if="!collapsed">Private Notes</span>
-              </NuxtLink>
-            </UTooltip>
-            <NuxtLink v-else to="/notes/private" :class="navLinkClass(isPrivateNotes)">
-              <UIcon name="i-lucide-lock" class="size-4 shrink-0" />
-              <span>Private Notes</span>
-            </NuxtLink>
-          </li>
-          <li>
-            <UTooltip v-if="collapsed" text="Public Notes" :popper="{ placement: 'right' }">
-              <NuxtLink to="/notes/public" :class="navLinkClass(isPublicNotes)">
-                <UIcon name="i-lucide-globe" class="size-5 shrink-0" />
-                <span v-if="!collapsed">Public Notes</span>
-              </NuxtLink>
-            </UTooltip>
-            <NuxtLink v-else to="/notes/public" :class="navLinkClass(isPublicNotes)">
-              <UIcon name="i-lucide-globe" class="size-4 shrink-0" />
-              <span>Public Notes</span>
-            </NuxtLink>
-          </li>
-          <li>
-            <UTooltip v-if="collapsed" text="Drafts & Concepts" :popper="{ placement: 'right' }">
-              <NuxtLink to="/notes/drafts" :class="navLinkClass(isDrafts)">
-                <UIcon name="i-lucide-file-edit" class="size-5 shrink-0" />
-                <span v-if="!collapsed">Drafts & Concepts</span>
-              </NuxtLink>
-            </UTooltip>
-            <NuxtLink v-else to="/notes/drafts" :class="navLinkClass(isDrafts)">
-              <UIcon name="i-lucide-file-edit" class="size-4 shrink-0" />
-              <span>Drafts & Concepts</span>
-            </NuxtLink>
-          </li>
-          <li>
             <UTooltip v-if="collapsed" text="Todo's List" :popper="{ placement: 'right' }">
               <NuxtLink to="/notes/todos" :class="navLinkClass(isTodos)">
                 <UIcon name="i-lucide-list-checks" class="size-5 shrink-0" />
@@ -116,27 +80,15 @@
             </NuxtLink>
           </li>
           <li>
-            <UTooltip v-if="collapsed" text="New note" :popper="{ placement: 'right' }">
-              <NuxtLink to="/notes/new" :class="navLinkClass(isNotesNew)">
-                <UIcon name="i-lucide-file-plus" class="size-5 shrink-0" />
-                <span v-if="!collapsed">New note</span>
+            <UTooltip v-if="collapsed" text="Projects" :popper="{ placement: 'right' }">
+              <NuxtLink to="/notes/projects" :class="navLinkClass(isProjects)">
+                <UIcon name="i-lucide-folder-kanban" class="size-5 shrink-0" />
+                <span v-if="!collapsed">Projects</span>
               </NuxtLink>
             </UTooltip>
-            <NuxtLink v-else to="/notes/new" :class="navLinkClass(isNotesNew)">
-              <UIcon name="i-lucide-file-plus" class="size-4 shrink-0" />
-              <span>New note</span>
-            </NuxtLink>
-          </li>
-          <li>
-            <UTooltip v-if="collapsed" text="New Weekly" :popper="{ placement: 'right' }">
-              <NuxtLink to="/notes/new?template=weekly" :class="navLinkClass(isNotesWeekly)">
-                <UIcon name="i-lucide-calendar-range" class="size-5 shrink-0" />
-                <span v-if="!collapsed">New Weekly</span>
-              </NuxtLink>
-            </UTooltip>
-            <NuxtLink v-else to="/notes/new?template=weekly" :class="navLinkClass(isNotesWeekly)">
-              <UIcon name="i-lucide-calendar-range" class="size-4 shrink-0" />
-              <span>New Weekly</span>
+            <NuxtLink v-else to="/notes/projects" :class="navLinkClass(isProjects)">
+              <UIcon name="i-lucide-folder-kanban" class="size-4 shrink-0" />
+              <span>Projects</span>
             </NuxtLink>
           </li>
         </template>
@@ -251,13 +203,9 @@ function onEnvironmentChange(value: unknown) {
 
 const isDashboard = computed(() => route.path === '/' || route.path === '')
 const isAllNotes = computed(() => route.path === '/notes/all')
-const isPrivateNotes = computed(() => route.path === '/notes/private')
-const isPublicNotes = computed(() => route.path === '/notes/public')
-const isDrafts = computed(() => route.path === '/notes/drafts')
 const isTodos = computed(() => route.path === '/notes/todos')
 const isAgreed = computed(() => route.path === '/notes/agreed')
-const isNotesNew = computed(() => route.path === '/notes/new' && !route.query.template)
-const isNotesWeekly = computed(() => route.path === '/notes/new' && route.query.template === 'weekly')
+const isProjects = computed(() => route.path === '/notes/projects')
 
 function navLinkClass(active: boolean) {
   return [
