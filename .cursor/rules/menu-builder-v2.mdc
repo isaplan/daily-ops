@@ -1,0 +1,34 @@
+---
+alwaysApply: false
+---
+
+# Menu Builder V2 – Conventions
+
+**When to apply:** When editing or adding code under `nuxt-app/pages/daily-menu-products/menu-builder-v2`, `nuxt-app/server/api/menu`, or menu types/composables for V2.
+
+## Route convention
+
+- V2 pages live under `pages/daily-menu-products/menu-builder-v2/` (index = list, [id] = builder).
+- API: same `/api/menu/*`; V2 uses `menuSectionsV2`, `POST /api/menu/menus/copy`, `POST .../menus/[id]/products/bulk`, `GET .../menus/[id]/versions`, `POST .../menus/[id]/versions`.
+
+## Section vs subsection
+
+- **Section:** e.g. Beers. Has optional section-level defaults (waste %, margin, VAT).
+- **Subsection:** e.g. Draft Beers, Bottled Beers. Belongs to one section; has `productIds`, `productOverrides`. Products are attached to subsections.
+
+## Show on Printed Menu
+
+- Per-product override: `productOverrides[productId].showOnPrintedMenu` (boolean). Default/undefined = include on printed menu.
+- **Printed menu export:** Only items with `showOnPrintedMenu !== false`. Full menu (all items) is used for calculations and checkout; designer/PDF gets only “on printed menu” items.
+
+## Versioning
+
+- **Version** = snapshot of menu state (menuSectionsV2 or menuSections + productOverrides) at save time. Stored in `menu_versions` collection.
+- **Autosave:** Debounced PATCH of current state to menu document (no version record unless user clicks “Save version”).
+- **Save version:** POST to `/api/menu/menus/[id]/versions` creates a snapshot for retrace. List via GET; optional read-only load of a snapshot.
+
+## Data
+
+- **Menus:** `menus` collection; `menuSectionsV2` (sections with subsections) or legacy `menuSections`; `copiedFromMenuId` set when menu created via Copy.
+- **Products:** `menu_items` collection; menu stores only references and overrides.
+- **Calculations:** Reuse `useMenuRowCalculation`; apply section or subsection defaults when present.

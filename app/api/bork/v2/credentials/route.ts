@@ -1,8 +1,10 @@
 /**
  * @registry-id: borkV2CredentialsRoute
- * @created: 2026-02-22T00:00:00.000Z
- * @last-modified: 2026-02-22T00:00:00.000Z
- *
+ * @created: 2026-01-15T00:00:00.000Z
+ * @last-modified: 2026-03-02T00:00:00.000Z
+ * @description: GET/POST /api/bork/v2/credentials - manage Bork API credentials per location
+ * @last-fix: [2026-03-02] Added metadata header for registry tracking
+ * 
  * GET: list Bork credentials (per location).
  * POST: save/update Bork credential for a location.
  */

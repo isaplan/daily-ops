@@ -1,19 +1,15 @@
 /**
  * @registry-id: salesSyncService
- * @created: 2026-02-22T00:00:00.000Z
- * @last-modified: 2026-02-22T00:00:00.000Z
- *
- * Sales Sync Service (Bork API → MongoDB)
+ * @created: 2026-01-15T00:00:00.000Z
+ * @last-modified: 2026-03-02T00:00:00.000Z
+ * @description: Sales sync service (Bork API → MongoDB) with batched bulkWrite operations
+ * @last-fix: [2026-03-02] Added metadata header for registry tracking
+ * 
  * Syncs sales data from Bork API to bork_raw_data with batched bulkWrite.
  *
  * Batching:
  * - API: fetchBorkDataForDateRange uses day-by-day requests with BORK_DAY_REQUEST_DELAY_MS and batch chunks.
  * - DB: operations chunked into BULK_WRITE_BATCH_SIZE; each chunk written with bulkWrite (ordered: false).
- *
- * @imports-from:
- *   - app/lib/mongodb/v2-connection.ts => getDatabase
- *   - app/lib/bork/v2-api-client.ts => fetchBorkDataForDateRange
- *   - app/lib/bork/v2-data-optimizer.ts => optimizeBorkTickets
  *
  * @exports-to:
  *   ✓ app/api/bork/v2/sync/route.ts => syncSalesData

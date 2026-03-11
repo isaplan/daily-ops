@@ -1,8 +1,10 @@
 /**
  * @registry-id: borkV2LocationsRoute
- * @created: 2026-02-22T00:00:00.000Z
- * @last-modified: 2026-02-22T00:00:00.000Z
- *
+ * @created: 2026-01-15T00:00:00.000Z
+ * @last-modified: 2026-03-02T00:00:00.000Z
+ * @description: GET /api/bork/v2/locations - list active locations for credential selection
+ * @last-fix: [2026-03-02] Added metadata header for registry tracking
+ * 
  * GET: list locations (for Bork credential dropdown).
  */
 

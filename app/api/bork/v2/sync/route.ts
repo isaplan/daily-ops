@@ -1,9 +1,10 @@
 /**
  * @registry-id: borkV2SyncRoute
- * @created: 2026-02-22T00:00:00.000Z
- * @last-modified: 2026-02-22T00:00:00.000Z
- *
- * POST /api/bork/v2/sync
+ * @created: 2026-01-15T00:00:00.000Z
+ * @last-modified: 2026-03-02T00:00:00.000Z
+ * @description: POST /api/bork/v2/sync - sync sales data from Bork API to MongoDB
+ * @last-fix: [2026-03-02] Added metadata header for registry tracking
+ * 
  * Sync sales data from Bork API to MongoDB (bork_raw_data).
  * V2 flow: locationId required (single location); credentials from MongoDB per location.
  *

@@ -20,25 +20,42 @@ export default defineEventHandler(async (event) => {
   }
 
   const noteObj = note as Record<string, unknown>
+  const usersColl = await getUnifiedUsersCollection()
   let mentioned_members: { _id: string; canonicalName: string }[] = []
+  let attending_members: { _id: string; canonicalName: string }[] = []
   const mentionedIds = noteObj.mentioned_unified_user_ids as ObjectId[] | undefined
-  if (Array.isArray(mentionedIds) && mentionedIds.length > 0) {
-    const usersColl = await getUnifiedUsersCollection()
+  const attendingIds = noteObj.attending_unified_user_ids as ObjectId[] | undefined
+  const allUserIds = [...(Array.isArray(mentionedIds) ? mentionedIds : []), ...(Array.isArray(attendingIds) ? attendingIds : [])]
+  const uniqueIds = allUserIds.length ? [...new Set(allUserIds.map((id) => id.toString()))].map((id) => new ObjectId(id)) : []
+  if (uniqueIds.length > 0) {
     const users = await usersColl
-      .find({ _id: { $in: mentionedIds } })
+      .find({ _id: { $in: uniqueIds } })
       .project({ _id: 1, canonicalName: 1 })
       .toArray() as { _id: ObjectId; canonicalName?: string }[]
-    mentioned_members = users.map((u) => ({
-      _id: String(u._id),
-      canonicalName: u.canonicalName ?? 'Unknown',
-    }))
+    const byId = Object.fromEntries(users.map((u) => [String(u._id), { _id: String(u._id), canonicalName: u.canonicalName ?? 'Unknown' }]))
+    if (Array.isArray(mentionedIds) && mentionedIds.length > 0) {
+      mentioned_members = mentionedIds.map((id) => byId[String(id)]).filter(Boolean)
+    }
+    if (Array.isArray(attendingIds) && attendingIds.length > 0) {
+      attending_members = attendingIds.map((id) => byId[String(id)]).filter(Boolean)
+    }
   }
+
+  const fromArray = (noteObj.connected_member_ids as ObjectId[] | undefined) ?? []
+  const legacyId = noteObj.connected_to && typeof (noteObj.connected_to as Record<string, unknown>).member_id !== 'undefined'
+    ? (noteObj.connected_to as { member_id?: ObjectId }).member_id
+    : null
+  const idsSet = new Set(fromArray.map((id) => String(id)))
+  if (legacyId) idsSet.add(String(legacyId))
+  const connected_member_ids = [...idsSet]
 
   return {
     success: true,
     data: {
       ...noteObj,
       mentioned_members,
+      attending_members,
+      connected_member_ids,
     },
   }
 })

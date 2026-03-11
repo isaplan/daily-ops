@@ -11,9 +11,16 @@ function block(id: string, title: string, content: string): NoteBlock {
   }
 }
 
+export const WEEKLY_DETAILS_BLOCK_ID = 'weekly-details'
+
 export function getWeeklyTemplateBlocks(): NoteBlock[] {
   const prefix = 'weekly-'
   return [
+    block(
+      WEEKLY_DETAILS_BLOCK_ID,
+      'Details',
+      ''
+    ),
     block(
       `${prefix}recap-intro`,
       'RECAP VORIGE NOTULEN (5 MIN)',
