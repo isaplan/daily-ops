@@ -14,7 +14,7 @@
       <USelectMenu
         v-if="!collapsed"
         v-model="selectedEnv"
-        :items="environmentOptions"
+        :items="environmentOptions.filter(e => e.value === 'daily-notes')"
         value-key="value"
         class="min-w-0 flex-1"
         :ui="{
@@ -92,78 +92,6 @@
             </NuxtLink>
           </li>
         </template>
-        <li v-if="activeEnvironment === 'daily-ops'">
-          <UTooltip v-if="collapsed" text="Dashboard" :popper="{ placement: 'right' }">
-            <NuxtLink to="/daily-ops" :class="navLinkClass(route.path === '/daily-ops')">
-              <UIcon name="i-lucide-building-2" class="size-5 shrink-0" />
-              <span v-if="!collapsed">Dashboard</span>
-            </NuxtLink>
-          </UTooltip>
-          <NuxtLink v-else to="/daily-ops" :class="navLinkClass(route.path === '/daily-ops')">
-            <UIcon name="i-lucide-building-2" class="size-4 shrink-0" />
-            <span>Dashboard</span>
-          </NuxtLink>
-        </li>
-        <li v-if="activeEnvironment === 'daily-work'">
-          <UTooltip v-if="collapsed" text="Dashboard" :popper="{ placement: 'right' }">
-            <NuxtLink to="/daily-work" :class="navLinkClass(route.path === '/daily-work')">
-              <UIcon name="i-lucide-layout-dashboard" class="size-5 shrink-0" />
-              <span v-if="!collapsed">Dashboard</span>
-            </NuxtLink>
-          </UTooltip>
-          <NuxtLink v-else to="/daily-work" :class="navLinkClass(route.path === '/daily-work')">
-            <UIcon name="i-lucide-layout-dashboard" class="size-4 shrink-0" />
-            <span>Dashboard</span>
-          </NuxtLink>
-        </li>
-        <li v-if="activeEnvironment === 'daily-menu-products'">
-          <UTooltip v-if="collapsed" text="Dashboard" :popper="{ placement: 'right' }">
-            <NuxtLink to="/daily-menu-products" :class="navLinkClass(route.path === '/daily-menu-products')">
-              <UIcon name="i-lucide-utensils-crossed" class="size-5 shrink-0" />
-              <span v-if="!collapsed">Dashboard</span>
-            </NuxtLink>
-          </UTooltip>
-          <NuxtLink v-else to="/daily-menu-products" :class="navLinkClass(route.path === '/daily-menu-products')">
-            <UIcon name="i-lucide-utensils-crossed" class="size-4 shrink-0" />
-            <span>Dashboard</span>
-          </NuxtLink>
-        </li>
-        <li v-if="activeEnvironment === 'daily-menu-products'">
-          <UTooltip v-if="collapsed" text="Upload Products" :popper="{ placement: 'right' }">
-            <NuxtLink to="/daily-menu-products/product-uploader" :class="navLinkClass(route.path === '/daily-menu-products/product-uploader')">
-              <UIcon name="i-lucide-upload-cloud" class="size-5 shrink-0" />
-              <span v-if="!collapsed">Upload Products</span>
-            </NuxtLink>
-          </UTooltip>
-          <NuxtLink v-else to="/daily-menu-products/product-uploader" :class="navLinkClass(route.path === '/daily-menu-products/product-uploader')">
-            <UIcon name="i-lucide-upload-cloud" class="size-4 shrink-0" />
-            <span>Upload Products</span>
-          </NuxtLink>
-        </li>
-        <li v-if="activeEnvironment === 'daily-menu-products'">
-          <UTooltip v-if="collapsed" text="Products" :popper="{ placement: 'right' }">
-            <NuxtLink to="/daily-menu-products/products" :class="navLinkClass(route.path === '/daily-menu-products/products')">
-              <UIcon name="i-lucide-package" class="size-5 shrink-0" />
-              <span v-if="!collapsed">Products</span>
-            </NuxtLink>
-          </UTooltip>
-          <NuxtLink v-else to="/daily-menu-products/products" :class="navLinkClass(route.path === '/daily-menu-products/products')">
-            <UIcon name="i-lucide-package" class="size-4 shrink-0" />
-            <span>Products</span>
-          </NuxtLink>
-        </li>
-        <li v-if="activeEnvironment === 'daily-menu-products'">
-          <UTooltip v-if="collapsed" text="Menu Builder" :popper="{ placement: 'right' }">
-            <NuxtLink to="/daily-menu-products/menu-builder" :class="navLinkClass(route.path === '/daily-menu-products/menu-builder')">
-              <UIcon name="i-lucide-clipboard-list" class="size-5 shrink-0" />
-              <span v-if="!collapsed">Menu Builder</span>
-            </NuxtLink>
-          </UTooltip>
-          <NuxtLink v-else to="/daily-menu-products/menu-builder" :class="navLinkClass(route.path === '/daily-menu-products/menu-builder')">
-            <UIcon name="i-lucide-clipboard-list" class="size-4 shrink-0" />
-            <span>Menu Builder</span>
-          </NuxtLink>
-        </li>
       </ul>
     </nav>
   </aside>
@@ -182,10 +110,7 @@ const route = useRoute()
 const { activeEnvironment, setActiveEnvironment } = useEnvironment()
 
 const environmentOptions = [
-  { label: ENVIRONMENT_LABELS['daily-work'], value: 'daily-work' },
-  { label: ENVIRONMENT_LABELS['daily-ops'], value: 'daily-ops' },
   { label: ENVIRONMENT_LABELS['daily-notes'], value: 'daily-notes' },
-  { label: ENVIRONMENT_LABELS['daily-menu-products'], value: 'daily-menu-products' },
 ]
 
 const selectedEnv = computed({
