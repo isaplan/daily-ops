@@ -2,11 +2,11 @@ export default defineNuxtConfig({
   ssr: false,
   modules: ['@nuxt/ui'],
   srcDir: '.',
-  css: ['~/app/assets/css/main.css'],
+  css: ['~/assets/css/main.css'],
   devServer: {
     port: 8080,
   },
-  compatibilityDate: '2026-02-21',
+  compatibilityDate: '2026-03-12',
   ui: {
     colorMode: false,
   },
