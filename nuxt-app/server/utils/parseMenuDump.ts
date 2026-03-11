@@ -58,7 +58,7 @@ function looksLikeHeaderRow(row: string[]): boolean {
 /**
  * Parse CSV buffer. Tries comma first, then semicolon if first row has only one column.
  */
-export function parseCsvToRows(buffer: Buffer): string[][] {
+function parseCsvToRows(buffer: Buffer): string[][] {
   const text = buffer.toString('utf-8')
   let result = Papa.parse<string[]>(text, { header: false, skipEmptyLines: false })
   const firstRow = (result.data as string[][])[0]
