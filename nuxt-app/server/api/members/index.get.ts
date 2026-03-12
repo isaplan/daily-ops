@@ -20,6 +20,7 @@ export default defineEventHandler(async () => {
       _id: String(m._id),
       name: name || `Member ${String(m._id).slice(-6)}`,
       email: (typeof m.email === 'string' ? m.email : '') || '',
+      slack_username: typeof m.slack_username === 'string' ? m.slack_username : undefined,
     }
   })
   return { success: true, data }

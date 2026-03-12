@@ -1,28 +1,48 @@
 <template>
   <aside
     class="shrink-0 border-r border-gray-200 bg-white flex flex-col h-full z-10 transition-[width] duration-200 ease-linear w-16 min-w-16 max-w-16"
-    :class="{ '!w-64 !min-w-64 !max-w-64': !collapsed }"
+    :class="{ '!w-48 !min-w-48 !max-w-48': !collapsed }"
   >
-    <!-- Header: logo + env switcher (env only when expanded) -->
+    <!-- Header: collapsed = initials in black box; open = dashboard icon + full env name -->
     <div
-      class="flex items-center border-b border-gray-200 shrink-0"
-      :class="collapsed ? 'justify-center px-0 py-3' : 'gap-2 px-4 py-3'"
+      class="flex items-center border-b border-gray-200 shrink-0 gap-2 px-4 py-3"
+      :class="collapsed ? 'justify-center px-0' : ''"
     >
-      <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gray-900 text-white">
-        <UIcon name="i-lucide-layout-dashboard" class="size-4" />
-      </div>
-      <USelectMenu
-        v-if="!collapsed"
-        v-model="selectedEnv"
-        :items="environmentOptions.filter(e => e.value === 'daily-notes')"
-        value-key="value"
-        class="min-w-0 flex-1"
-        :ui="{
-          trigger: '!bg-white !text-gray-900 border border-gray-200 shadow-none focus:ring-0 hover:!bg-gray-50 ring-0 rounded-md py-0 min-h-0 min-w-0 flex-1',
-          value: 'text-sm font-semibold text-gray-900',
-        }"
-        @update:model-value="onEnvironmentChange"
-      />
+      <UTooltip
+        v-if="collapsed"
+        :text="`${getEnvironmentLabel(activeEnvironment)} – click to change`"
+        :popper="{ placement: 'right' }"
+      >
+        <UDropdownMenu :items="envDropdownItems" :popper="{ placement: 'bottom-start' }">
+          <button
+            type="button"
+            class="flex min-w-0 flex-1 items-center justify-center rounded-md outline-none ring-gray-300 focus:ring-2"
+            :class="collapsed ? 'p-0' : ''"
+            :aria-label="`Environment: ${getEnvironmentLabel(activeEnvironment)}. Click to change.`"
+          >
+            <!-- Collapsed: black box with initials only -->
+            <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gray-900 text-xs font-semibold uppercase tracking-wide text-white">
+              {{ environmentInitials }}
+            </div>
+          </button>
+        </UDropdownMenu>
+      </UTooltip>
+      <UDropdownMenu v-else :items="envDropdownItems" :popper="{ placement: 'bottom-start' }">
+        <button
+          type="button"
+          class="flex min-w-0 flex-1 items-center gap-2 rounded-md outline-none ring-gray-300 focus:ring-2"
+          :aria-label="`Environment: ${getEnvironmentLabel(activeEnvironment)}. Click to change.`"
+        >
+          <!-- Open: black dashboard icon + full environment name + down chevron -->
+          <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gray-900 text-white">
+            <UIcon name="i-lucide-layout-dashboard" class="size-4" />
+          </div>
+          <span class="min-w-0 flex-1 truncate text-sm font-medium text-gray-900">
+            {{ getEnvironmentLabel(activeEnvironment) }}
+          </span>
+          <UIcon name="i-lucide-chevron-down" class="size-4 shrink-0 text-gray-500" />
+        </button>
+      </UDropdownMenu>
     </div>
 
     <nav class="flex-1 p-2 overflow-y-auto" :class="collapsed ? 'px-2' : 'p-4'">
@@ -30,8 +50,8 @@
         Navigation
       </p>
       <ul class="space-y-1">
-        <template v-if="activeEnvironment === 'daily-notes'">
-          <li>
+        <!-- Always show daily-notes nav (no env selector) -->
+        <li>
             <UTooltip v-if="collapsed" text="Dashboard" :popper="{ placement: 'right' }">
               <NuxtLink to="/" :class="navLinkClass(isDashboard)">
                 <UIcon name="i-lucide-layout-dashboard" class="size-5 shrink-0" />
@@ -88,18 +108,33 @@
             </UTooltip>
             <NuxtLink v-else to="/notes/projects" :class="navLinkClass(isProjects)">
               <UIcon name="i-lucide-folder-kanban" class="size-4 shrink-0" />
-              <span>Projects</span>
-            </NuxtLink>
-          </li>
-        </template>
+            <span>Projects</span>
+          </NuxtLink>
+        </li>
       </ul>
     </nav>
+
+    <!-- Footer: Organisation (fixed to bottom) -->
+    <div
+      class="shrink-0 border-t border-gray-200 p-2"
+      :class="collapsed ? 'px-2' : 'p-4'"
+    >
+      <UTooltip v-if="collapsed" text="Organisation" :popper="{ placement: 'right' }">
+        <NuxtLink to="/organisation" :class="navLinkClass(isOrganisation)" class="flex items-center">
+          <UIcon name="i-lucide-building-2" class="size-5 shrink-0" />
+        </NuxtLink>
+      </UTooltip>
+      <NuxtLink v-else to="/organisation" :class="navLinkClass(isOrganisation)" class="flex items-center gap-3">
+        <UIcon name="i-lucide-building-2" class="size-4 shrink-0" />
+        <span>Organisation</span>
+      </NuxtLink>
+    </div>
   </aside>
 </template>
 
 <script setup lang="ts">
 import type { EnvironmentId } from '~/types/environment'
-import { ENVIRONMENT_LABELS } from '~/types/environment'
+import { ENVIRONMENT_INITIALS, ENVIRONMENT_LABELS } from '~/types/environment'
 
 const props = withDefaults(
   defineProps<{ collapsed?: boolean }>(),
@@ -107,30 +142,23 @@ const props = withDefaults(
 )
 
 const route = useRoute()
-const { activeEnvironment, setActiveEnvironment } = useEnvironment()
+const { activeEnvironment, setActiveEnvironment, getEnvironmentLabel } = useEnvironment()
 
-const environmentOptions = [
-  { label: ENVIRONMENT_LABELS['daily-notes'], value: 'daily-notes' },
-]
+const environmentInitials = computed(() => ENVIRONMENT_INITIALS[activeEnvironment.value])
 
-const selectedEnv = computed({
-  get: () => activeEnvironment.value,
-  set: (v: unknown) => {
-    const id = typeof v === 'object' && v && 'value' in v ? (v as { value: string }).value : v
-    if (typeof id === 'string') setActiveEnvironment(id as EnvironmentId)
-  },
-})
-
-function onEnvironmentChange(value: unknown) {
-  const id = typeof value === 'object' && value && 'value' in value ? (value as { value: string }).value : value
-  if (typeof id === 'string') setActiveEnvironment(id as EnvironmentId)
-}
+const envDropdownItems = computed(() => [
+  (Object.entries(ENVIRONMENT_LABELS) as [EnvironmentId, string][]).map(([value, label]) => ({
+    label,
+    onSelect: () => setActiveEnvironment(value),
+  })),
+])
 
 const isDashboard = computed(() => route.path === '/' || route.path === '')
 const isAllNotes = computed(() => route.path === '/notes/all')
 const isTodos = computed(() => route.path === '/notes/todos')
 const isAgreed = computed(() => route.path === '/notes/agreed')
 const isProjects = computed(() => route.path === '/notes/projects')
+const isOrganisation = computed(() => route.path === '/organisation')
 
 function navLinkClass(active: boolean) {
   return [
@@ -142,17 +170,3 @@ function navLinkClass(active: boolean) {
   ]
 }
 </script>
-
-<style scoped>
-/* Force environment select trigger to white (Nuxt UI overrides ui.trigger) */
-:deep(button[data-slot="base"]),
-:deep([data-slot="base"].group) {
-  background-color: white !important;
-  color: #111827 !important;
-  border: 1px solid #e5e7eb !important;
-}
-:deep(button[data-slot="base"]:hover),
-:deep([data-slot="base"].group:hover) {
-  background-color: #f9fafb !important;
-}
-</style>

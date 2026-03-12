@@ -2,8 +2,15 @@
   <div class="flex min-h-0 flex-1 flex-col bg-[hsl(45,15%,95%)]">
     <template v-if="(note || isNew) && !pending">
     <div class="sticky top-3 z-10 mb-4 flex min-w-0 shrink-0 items-center gap-3 border-b border-gray-200 pb-2">
-          <UButton variant="ghost" size="sm" to="/" class="shrink-0">
-            ← Back
+          <UButton
+            variant="ghost"
+            size="sm"
+            class="shrink-0"
+            :loading="savingBeforeClose"
+            :disabled="savingBeforeClose"
+            @click="closeNote"
+          >
+            {{ savingBeforeClose ? 'Saving note…' : '← Back' }}
           </UButton>
 <UInput
         v-if="!pending && (note || isNew)"
@@ -61,6 +68,7 @@
         <div class="min-h-0 flex-1 overflow-y-auto">
           <WeeklyNoteEditor
             v-if="(note && isBlockNote) || isNew"
+            ref="weeklyEditorRef"
             v-model:details-open="detailsOpen"
             :note="note ?? undefined"
             :editing="note?.status === 'published' ? publishedNoteEditing : true"
@@ -246,11 +254,24 @@ async function onSaved(updated: Note) {
   }
 }
 
+const weeklyEditorRef = ref<{ saveBeforeClose: () => Promise<void> } | null>(null)
+const savingBeforeClose = ref(false)
+
+async function closeNote() {
+  savingBeforeClose.value = true
+  try {
+    await weeklyEditorRef.value?.saveBeforeClose()
+  } finally {
+    savingBeforeClose.value = false
+    navigateTo('/')
+  }
+}
+
 function onEditorCancel() {
   if (note.value?.status === 'published') {
     publishedNoteEditing.value = false
   } else {
-    navigateTo('/')
+    closeNote()
   }
 }
 

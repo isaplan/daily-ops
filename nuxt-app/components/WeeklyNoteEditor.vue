@@ -295,6 +295,10 @@ function initBlocks() {
 onMounted(initBlocks)
 watch(() => [props.note?._id, props.initialTemplate], initBlocks, { immediate: false })
 
+onBeforeUnmount(() => {
+  if (autoSaveTimeout) clearTimeout(autoSaveTimeout)
+})
+
 const blockPlaceholder = 'Write your note… Use @todo … @Todo ends or /todo for tasks, /agree for agreements. Add blocks with the button below.'
 
 function slugFromTitle(title: string): string {
@@ -355,6 +359,86 @@ function addBlock() {
 const loading = ref(false)
 const publishLoading = ref(false)
 const detailsOpenInternal = ref(false)
+
+/** Debounced auto-save: new drafts and existing notes, 10s after last change */
+let autoSaveTimeout: ReturnType<typeof setTimeout> | null = null
+function scheduleAutoSave() {
+  if (!isEditMode.value) return
+  if (autoSaveTimeout) clearTimeout(autoSaveTimeout)
+  autoSaveTimeout = setTimeout(() => {
+    autoSaveTimeout = null
+    doAutoSave()
+  }, 10000)
+}
+
+async function doAutoSave(): Promise<void> {
+  ;(document.activeElement as HTMLElement)?.blur()
+  await nextTick()
+  const title = (props.externalTitle !== undefined && props.externalTitle !== null ? props.externalTitle : form.title).trim() || 'Untitled'
+  const normalized = blocks.value.map((b) => ({
+    ...b,
+    todos: parseBlockTodos(b.content, b.todos),
+    agrees: parseBlockAgrees(b.content, b.agrees ?? []),
+  }))
+  blocks.value = normalized
+  const content = serializeBlockNoteContent(blocks.value)
+  const tags = form.tags
+    .split(',')
+    .map((t) => t.trim())
+    .filter(Boolean)
+
+  if (props.note) {
+    if (content === (props.note.content ?? '') && title === (props.note.title ?? '').trim()) return
+    const res = await $fetch<NoteResponse>(`/api/notes/${props.note._id}`, {
+      method: 'PUT',
+      body: {
+        title,
+        slug: slugFromTitle(title),
+        content,
+        tags,
+        is_pinned: form.is_pinned,
+        location_id: form.location_id || undefined,
+        team_id: form.team_id || undefined,
+        member_id: form.member_id || undefined,
+      },
+    })
+    if (res.success && res.data) emit('saved', res.data)
+    return
+  }
+
+  if (!title.trim() && !content.replace(/\s/g, '').replace(/<[^>]+>/g, '').trim()) return
+  const res = await $fetch<NoteResponse>('/api/notes', {
+    method: 'POST',
+    body: {
+      title: title || 'Untitled',
+      content,
+      tags,
+      is_pinned: form.is_pinned,
+      location_id: form.location_id || undefined,
+      team_id: form.team_id || undefined,
+      member_id: form.member_id || undefined,
+    },
+  })
+  if (res.success && res.data) emit('saved', res.data)
+}
+
+/** Called when closing the note: flush pending auto-save and save once. */
+async function saveBeforeClose(): Promise<void> {
+  if (autoSaveTimeout) {
+    clearTimeout(autoSaveTimeout)
+    autoSaveTimeout = null
+  }
+  await doAutoSave()
+}
+
+defineExpose({ saveBeforeClose })
+
+watch(blocks, () => scheduleAutoSave(), { deep: true })
+watch(
+  [() => props.externalTitle, () => form.title, () => form.tags, () => form.location_id, () => form.team_id, () => form.member_id, () => form.is_pinned],
+  () => scheduleAutoSave(),
+  { deep: true }
+)
 const detailsOpenSynced = computed({
   get: () => props.detailsOpen ?? detailsOpenInternal.value,
   set: (v: boolean) => {

@@ -6,3 +6,10 @@ export const ENVIRONMENT_LABELS: Record<EnvironmentId, string> = {
   'daily-notes': 'Daily Notes',
   'daily-menu-products': 'Daily Menu & Products',
 }
+
+export const ENVIRONMENT_INITIALS: Record<EnvironmentId, string> = {
+  'daily-ops': 'DO',
+  'daily-work': 'DW',
+  'daily-notes': 'DN',
+  'daily-menu-products': 'DMP',
+}

@@ -2,9 +2,9 @@
   <div class="relative flex h-full flex-1 flex-nowrap w-full min-h-0 overflow-hidden bg-white text-gray-900">
     <aside
       class="h-full shrink-0 border-r border-gray-200 flex flex-col overflow-hidden transition-[width] duration-200 ease-linear bg-[hsl(45,15%,95%)] w-16 min-w-16 max-w-16"
-      :class="{ '!w-64 !min-w-64 !max-w-64': showExpanded }"
+      :class="{ '!w-48 !min-w-48 !max-w-48': showExpanded }"
     >
-      <AppSidebar :collapsed="!showExpanded" class="h-full min-w-0 w-16 min-w-16 max-w-16" :class="{ '!w-64 !min-w-64 !max-w-64': showExpanded }" />
+      <AppSidebar :collapsed="!showExpanded" class="h-full min-w-0 w-16 min-w-16 max-w-16" :class="{ '!w-48 !min-w-48 !max-w-48': showExpanded }" />
     </aside>
     <UButton
       type="button"
