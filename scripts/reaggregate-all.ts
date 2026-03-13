@@ -18,9 +18,17 @@ import { syncAllUnified } from '../app/lib/services/unifiedCollectionsService';
 
 async function main() {
   try {
-    console.log('🚀 Starting full reaggregation...\n');
+    console.log('🚀 Starting full rebuild (unified first, then aggregation)...\n');
     
-    // Clear and reaggregate all
+    // 1. Rebuild unified collections first so one canonical doc per location/team/member
+    console.log('🔄 Syncing unified collections (locations, teams, users)...');
+    const unifiedResult = await syncAllUnified();
+    console.log(`  - Locations: ${unifiedResult.locations.created} created, ${unifiedResult.locations.updated} updated`);
+    console.log(`  - Teams: ${unifiedResult.teams.created} created, ${unifiedResult.teams.updated} updated`);
+    console.log(`  - Users: ${unifiedResult.users.created} created, ${unifiedResult.users.updated} updated\n`);
+    
+    // 2. Clear and reaggregate all (uses updated unified collections)
+    console.log('📊 Clearing and reaggregating...');
     const result = await clearAndReaggregateAll(
       undefined, // startDate
       undefined, // endDate
@@ -55,13 +63,6 @@ async function main() {
         console.log(`    - ${issue.collection}: ${issue.issue}`);
       });
     }
-    
-    // Sync unified collections
-    console.log('\n🔄 Syncing unified collections...');
-    const unifiedResult = await syncAllUnified();
-    console.log(`  - Locations: ${unifiedResult.locations.created} created, ${unifiedResult.locations.updated} updated`);
-    console.log(`  - Teams: ${unifiedResult.teams.created} created, ${unifiedResult.teams.updated} updated`);
-    console.log(`  - Users: ${unifiedResult.users.created} created, ${unifiedResult.users.updated} updated`);
     
     // Final validation
     console.log('\n🔍 Final validation...');

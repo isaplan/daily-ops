@@ -1,9 +1,9 @@
 /**
  * @registry-id: unifiedCollectionsService
  * @created: 2026-01-25T00:00:00.000Z
- * @last-modified: 2026-02-02T00:00:00.000Z
+ * @last-modified: 2026-03-13T00:00:00.000Z
  * @description: Service to create unified collections that merge IDs and names from all sources (Eitje, Bork, internal models)
- * @last-fix: [2026-02-02] Bork: add borkIds/borkNames to unified_location from systemMappings and bork_raw_data; allIdValues includes borkIds
+ * @last-fix: [2026-03-13] unified_user: same Eitje user must map to same unified member — match by name to Member (primaryId) when Eitje has no email; merge duplicate entries by eitjeId; post-write cleanup removes DB duplicates so aggregation does not double-count hours
  * 
  * @imports-from:
  *   - app/lib/mongodb/v2-connection.ts => getDatabase
@@ -1037,7 +1037,32 @@ export async function syncUnifiedUsers(): Promise<{ created: number; updated: nu
         });
       }
     } else if (!found) {
-      // Create new unified user without email (match by eitjeId only)
+      // Same person must map to same unified member: match Eitje user to Member by name when email is missing
+      const normalizedShiftName = (userName || '').toLowerCase().trim().replace(/\s+/g, ' ');
+      let matchedByName = false;
+      for (const [, unified] of unifiedMap.entries()) {
+        if (!unified.primaryId) continue;
+        const canonical = (unified.canonicalName || unified.primaryName || '').toLowerCase().trim().replace(/\s+/g, ' ');
+        if (!canonical || !normalizedShiftName) continue;
+        const nameMatch = canonical === normalizedShiftName ||
+          (normalizedShiftName.length >= 6 && (canonical.includes(normalizedShiftName) || normalizedShiftName.includes(canonical)));
+        if (nameMatch) {
+          if (!unified.eitjeIds.includes(eitjeId)) {
+            unified.eitjeIds.push(eitjeId);
+            unified.eitjeNames.push(userName);
+            if (userEmail) {
+              unified.eitjeEmails.push(userEmail);
+              if (!unified.canonicalEmail) unified.canonicalEmail = userEmail;
+            }
+            unified.allIds.push({ source: 'eitje', id: eitjeId, name: userName, email: userEmail });
+            unified.updatedAt = new Date();
+          }
+          matchedByName = true;
+          break;
+        }
+      }
+      if (matchedByName) continue;
+      // Create new unified user without email (match by eitjeId only) only when no Member matched by name
       const key = `eitje_${eitjeId}`;
       if (!unifiedMap.has(key)) {
         unifiedMap.set(key, {
@@ -1069,6 +1094,43 @@ export async function syncUnifiedUsers(): Promise<{ created: number; updated: nu
           }
           unified.updatedAt = new Date();
         }
+      }
+    }
+  }
+  
+  // Merge duplicate entries: one document per Eitje user (prevents double-count in aggregation)
+  // Any entry keyed by eitje_${id} that shares an eitjeId with another entry (e.g. email-keyed with primaryId) is merged into that one
+  const eitjeOnlyKeys: string[] = [];
+  for (const key of unifiedMap.keys()) {
+    if (key.startsWith('eitje_')) eitjeOnlyKeys.push(key);
+  }
+  for (const key of eitjeOnlyKeys) {
+    const entry = unifiedMap.get(key)!;
+    for (const eid of entry.eitjeIds || []) {
+      const otherKey = Array.from(unifiedMap.keys()).find(
+        (k) => k !== key && (unifiedMap.get(k)?.eitjeIds?.includes(eid) ?? false)
+      );
+      if (otherKey) {
+        const other = unifiedMap.get(otherKey)!;
+        for (let i = 0; i < (entry.eitjeIds?.length ?? 0); i++) {
+          const id = entry.eitjeIds![i];
+          if (!other.eitjeIds.includes(id)) {
+            other.eitjeIds.push(id);
+            other.eitjeNames.push(entry.eitjeNames?.[i] ?? 'Unknown');
+            if (entry.eitjeEmails?.[i]) other.eitjeEmails.push(entry.eitjeEmails[i]);
+            other.allIds.push({
+              source: 'eitje',
+              id,
+              name: entry.eitjeNames?.[i],
+            });
+          }
+        }
+        if (entry.hourly_rate != null && other.hourly_rate == null) other.hourly_rate = entry.hourly_rate;
+        if (entry.contract_type != null && other.contract_type == null) other.contract_type = entry.contract_type;
+        if (entry.contract_info != null && other.contract_info == null) other.contract_info = entry.contract_info;
+        other.updatedAt = new Date();
+        unifiedMap.delete(key);
+        break;
       }
     }
   }
@@ -1123,6 +1185,32 @@ export async function syncUnifiedUsers(): Promise<{ created: number; updated: nu
   });
   
   const result = await db.collection('unified_user').bulkWrite(operations);
+  
+  // Remove duplicate docs: same eitjeId in more than one document (keep one per user)
+  const allUsers = await db.collection('unified_user').find({}).toArray();
+  const byEitjeId = new Map<number, { _id: ObjectId; primaryId?: ObjectId; canonicalEmail?: string }[]>();
+  for (const doc of allUsers) {
+    for (const eid of doc.eitjeIds ?? []) {
+      if (!byEitjeId.has(eid)) byEitjeId.set(eid, []);
+      byEitjeId.get(eid)!.push({
+        _id: doc._id,
+        primaryId: doc.primaryId,
+        canonicalEmail: doc.canonicalEmail,
+      });
+    }
+  }
+  const idsToDelete: ObjectId[] = [];
+  for (const entries of byEitjeId.values()) {
+    if (entries.length <= 1) continue;
+    const keep = entries.find((e) => e.primaryId ?? e.canonicalEmail) ?? entries[0];
+    for (const e of entries) {
+      if (e._id.equals(keep._id)) continue;
+      idsToDelete.push(e._id);
+    }
+  }
+  if (idsToDelete.length > 0) {
+    await db.collection('unified_user').deleteMany({ _id: { $in: idsToDelete } });
+  }
   
   return {
     created: result.upsertedCount,
