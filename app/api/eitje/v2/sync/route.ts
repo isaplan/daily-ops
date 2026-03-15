@@ -346,6 +346,10 @@ export async function POST(request: NextRequest) {
         }
       }
 
+      const integrityUrl = process.env.NUXT_APP_URL || process.env.DATA_INTEGRITY_URL;
+      if (integrityUrl) {
+        fetch(`${integrityUrl.replace(/\/$/, '')}/api/cron/data-integrity`).catch(() => {});
+      }
       return NextResponse.json({
         success: true,
         recordsSaved,

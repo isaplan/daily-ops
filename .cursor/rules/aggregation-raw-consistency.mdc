@@ -1,0 +1,62 @@
+---
+description: When adding aggregation vs raw sums (e.g. hours), use shared logic and consistency checks
+globs: nuxt-app/server/**/hours*.ts, nuxt-app/server/utils/eitjeHours.ts
+alwaysApply: false
+---
+
+# Aggregation vs Raw Consistency (Nuxt / Eitje hours)
+
+When you add or change **aggregated totals** that can be compared to **sums of raw records** (e.g. hours by day, by location), follow these rules so the same class of bugs (wrong sums, mismatched rows) is handled by the code.
+
+---
+
+## 1. Single source of truth for derived values
+
+- **Hours from raw Eitje data:** Use `nuxt-app/server/utils/eitjeHours.ts`.
+  - **`EITJE_HOURS_ADD_FIELDS`** – MongoDB `$addFields` expression for `hours` (extracted.hours → hoursWorked → rawApiResponse.hours/hours_worked → start/end − break_minutes → 0). **Never** copy-paste a separate hours formula in API routes.
+  - **`getUtcDayRange(dateStr)`** – UTC day start/end for a `YYYY-MM-DD` string. Use for **all** raw date matching (aggregation fallback, row records, consistency check) so date boundaries are identical everywhere.
+
+- **Consumers:** `hours-aggregated.get.ts` (raw fallback), `hours-row-records.get.ts`, `hours-consistency-check.get.ts`. Any new route that computes hours from `eitje_raw_data` must import and use `EITJE_HOURS_ADD_FIELDS` (and `getUtcDayRange` for date filters).
+
+---
+
+## 2. Changing the hours formula
+
+- **Only** change it in `eitjeHours.ts`. Update all call sites to use the shared util if they still have an inline formula.
+- After changing the formula: run or trigger the **consistency check** (e.g. "Check consistency" in the Hours UI) and fix any new mismatches (e.g. date/timezone, location mapping, duplicates).
+
+---
+
+## 3. Adding new aggregation or “row detail” APIs
+
+- If the new API returns **aggregated sums** (e.g. by day, location, worker):
+  - Prefer reading from the **aggregation collection** when it exists; use **raw** only as fallback.
+  - For raw fallback (or raw-only endpoints), use **`EITJE_HOURS_ADD_FIELDS`** and **`getUtcDayRange`** for date matching. Do not invent a new hours or date logic.
+- If the new API returns **per-row detail** (e.g. individual records that roll up to a row total):
+  - Use the **same** hours and date logic as the aggregation/consistency check so “sum of above” can match “row total”.
+- If you introduce a **new grouping** (e.g. by team, by worker) that can be compared to raw:
+  - **Add or extend a consistency check** (e.g. `/api/hours-consistency-check` or a similar endpoint) that compares aggregation row totals to the sum of raw records for the same (date, location, …). Return mismatches and document **possible_causes** (date/timezone, location mapping, duplicates, formula).
+
+---
+
+## 4. Location and date matching
+
+- **Aggregation** uses `locationId` (unified ObjectId). **Raw** uses `environmentId` (Eitje) and sometimes `locationId`. When matching raw to a row, resolve the row’s `locationId` via **`unified_location`** and match raw by `locationId` **or** `environmentId` in that location’s **`eitjeIds`** (same pattern as `hours-row-records.get.ts` and `hours-consistency-check.get.ts`).
+- **Date:** Always use **UTC day range** from `getUtcDayRange(dateStr)` plus optional `date: dateStr` for string-stored dates, so aggregation and raw use the same day.
+
+---
+
+## 5. Data integrity (run on trigger, then fix)
+
+- **Trigger:** After Eitje sync or daily aggregation (they call `GET /api/cron/data-integrity`). Or call that URL manually.
+- **Runs:** Four checks (duplicates_raw, duplicates_aggregation, normalization, sums). **Fix:** removes aggregation duplicates (keeps one per period+location+user+team). Then stops.
+- **Next.js:** Set `NUXT_APP_URL` or `DATA_INTEGRITY_URL` so sync/aggregation can trigger the Nuxt endpoint.
+
+---
+
+## 6. Checklist when touching hours/aggregation
+
+- [ ] Any new or edited hours calculation from raw uses **`EITJE_HOURS_ADD_FIELDS`** from `server/utils/eitjeHours.ts`.
+- [ ] Any new or edited raw date filter uses **`getUtcDayRange`** (or the same UTC day logic).
+- [ ] If you added a new aggregated view that can be compared to raw, a **consistency check** exists and is documented (e.g. in VERIFICATION-CHECKLIST or this rule).
+- [ ] No duplicate inline hours formula in API routes; all reference `eitjeHours.ts`.

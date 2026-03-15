@@ -84,6 +84,17 @@ Critical files to add headers to:
 
 Use METADATA-SYNC-GUIDE.md as reference for format.
 
+## Aggregation vs raw consistency (Nuxt / Eitje hours)
+
+When adding or changing APIs that show **aggregated sums** vs **sums of raw records** (e.g. hours by day/location):
+
+- [ ] Hours from raw data use **single source of truth:** `nuxt-app/server/utils/eitjeHours.ts` (`EITJE_HOURS_ADD_FIELDS`); no duplicate inline hours formula in API routes.
+- [ ] Date matching for raw uses **`getUtcDayRange(dateStr)`** (or same UTC day logic) so aggregation and raw use the same day.
+- [ ] If you added a new aggregated view comparable to raw, a **consistency check** exists (e.g. `/api/hours-consistency-check` or extended) and possible causes are documented.
+- [ ] See `.cursor/rules/aggregation-raw-consistency.mdc` for full rules.
+
+---
+
 ## Validation Checklist
 
 Before committing code to critical files:
@@ -117,6 +128,7 @@ grep -B 2 "@registry-id: useAuth" app/lib/hooks/useAuth.ts
 | File | Purpose | Read This When |
 |------|---------|----------------|
 | `agent-rules.mdc` | Main rules | Daily development |
+| `aggregation-raw-consistency.mdc` | Aggregation vs raw sums (hours, date, consistency) | Adding/changing hours or aggregation APIs in Nuxt |
 | `METADATA-SYNC-GUIDE.md` | How to use metadata | Adding/updating metadata |
 | `UPDATE-SUMMARY.md` | Overview of changes | Understanding the system |
 | `.cursor/oud/metadata-header-system.md` | Detailed format | Writing complex headers |

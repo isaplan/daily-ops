@@ -46,6 +46,10 @@ export async function POST() {
     }
 
     const successCount = results.filter((r) => r.success).length;
+    const integrityUrl = process.env.NUXT_APP_URL || process.env.DATA_INTEGRITY_URL;
+    if (successCount > 0 && integrityUrl) {
+      fetch(`${integrityUrl.replace(/\/$/, '')}/api/cron/data-integrity`).catch(() => {});
+    }
     return NextResponse.json({
       success: successCount === results.length,
       date: dateStr,
