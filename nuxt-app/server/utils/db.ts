@@ -38,3 +38,7 @@ export async function getMenuVersionsCollection(): Promise<Collection> {
   const db = await getDb()
   return db.collection('menu_versions')
 }
+
+export async function connectToDatabase() {
+  return getDb()
+}

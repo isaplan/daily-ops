@@ -108,6 +108,8 @@
     "socket.io",
     "mongodb"
   ],
-  "author": "isaplan",
+  "engines": {
+    "node": "22.22.1"
+  },
   "license": "MIT"
 }
