@@ -1,0 +1,13 @@
+{
+  "directories": [],
+  "files": [
+    "next.config.js (505 B) - Next.js config",
+    "next-env.d.ts (262 B) - Next.js types",
+    ".eslintrc.json (282 B) - Next.js eslint",
+    "tailwind.config.ts (2.04 KB) - Next.js tailwind config",
+    "postcss.config.js (82 B) - PostCSS config (Nuxt includes)",
+    "function-registry.json (180.72 KB) - Development registry"
+  ],
+  "totalSize": 188274,
+  "timestamp": "2026-03-29T15:34:03.961Z"
+}

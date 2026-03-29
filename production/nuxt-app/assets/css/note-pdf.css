@@ -1,0 +1,45 @@
+/* PDF-only styles. Hex only so html2canvas can parse. No Tailwind, no oklch. */
+* { box-sizing: border-box; }
+body {
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #111827;
+  background: #ffffff;
+  margin: 0;
+  padding: 24px;
+}
+.pdf-title {
+  font-size: 24px;
+  font-weight: 700;
+  margin: 0 0 24px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #e5e7eb;
+}
+.pdf-block { margin-bottom: 24px; }
+.pdf-block-title {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0 0 8px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid #d1d5db;
+}
+.pdf-body p { margin: 0 0 0.25em; }
+.pdf-body p:last-child { margin-bottom: 0; }
+.pdf-body h1 { font-size: 20px; font-weight: 700; margin: 8px 0 4px; }
+.pdf-body h2 { font-size: 18px; font-weight: 700; margin: 8px 0 4px; }
+.pdf-body h3 { font-size: 16px; font-weight: 700; margin: 8px 0 4px; }
+.pdf-body ul, .pdf-body ol { padding-left: 24px; margin: 4px 0; }
+.pdf-body li { margin: 2px 0; }
+.pdf-body hr { border: none; border-top: 1px solid #e5e7eb; margin: 8px 0; }
+.pdf-body a { color: #2563eb; }
+.pdf-body blockquote { border-left: 4px solid #d1d5db; margin: 8px 0; padding-left: 16px; color: #374151; }
+.pdf-body code { background: #f3f4f6; border: 1px solid #e5e7eb; padding: 2px 6px; font-size: 13px; border-radius: 4px; }
+.pdf-list {
+  margin: 8px 0 8px 8px;
+  padding-left: 12px;
+  border-left: 2px solid #d1d5db;
+  font-size: 13px;
+}
+.pdf-list-item { margin: 4px 0; }
+.pdf-todo-done { color: #6b7280; text-decoration: line-through; }
