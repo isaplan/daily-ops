@@ -1,59 +1,34 @@
-name: Build Production
+# Validates that the production branch builds cleanly (Nuxt + Nitro).
+# DigitalOcean runs: npm run build, then npm start (see package.json "start").
+name: Production branch CI
 
-# Trigger on pushes to production branch (merges count as pushes)
 on:
   push:
     branches:
       - production
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
-  build-production:
+  verify-build:
     runs-on: ubuntu-latest
-    
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '22.22.1'
+          cache: 'npm'
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
-      - name: Run production build script
-        run: npm run build:production
+      - name: Build (Nuxt / Nitro)
+        run: npm run build
 
-      - name: Check git status
-        run: git status
-
-      - name: Configure git
-        run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
-
-      - name: Commit and push production build
-        run: |
-          cd production
-          git init
-          git config user.email "action@github.com"
-          git config user.name "GitHub Action"
-          git add .
-          git commit -m "chore: production build - stripped unused code [skip ci]"
-          git branch -M production
-          git remote add origin https://oauth2:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
-          git push -u origin production --force
-        continue-on-error: true
-
-      - name: Print summary
-        run: |
-          echo "✅ Production build completed"
-          echo "📂 Stripped production/ directory pushed to production branch"
-          if [ -f production/PRODUCTION_BUILD_REPORT.json ]; then
-            echo "📊 Build report:"
-            cat production/PRODUCTION_BUILD_REPORT.json | grep -E '"directories"|"files"|"totalSize"'
-          fi
-
+      - name: Confirm start script exists
+        run: grep -q '"start"' package.json && grep -q '.output/server/index.mjs' package.json
