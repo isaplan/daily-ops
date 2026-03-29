@@ -22,9 +22,9 @@ Thumbs.db
 # Build
 dist/
 build/
-.next/
-.nuxt/
 out/
+.nuxt/
+.output/
 
 # Runtime
 .cache/

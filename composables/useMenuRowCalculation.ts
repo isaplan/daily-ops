@@ -120,3 +120,68 @@ export function getCostPerItemFromProduct(
   }
   return itemPrice ?? 0
 }
+
+/** Get batch price from product data */
+export function getBatchFromProduct(
+  data: Record<string, unknown> | undefined,
+  fallback?: number
+): number {
+  if (data && typeof data === 'object') {
+    return parseProductNumber(
+      data['Inkoop Prijs'] ?? data['Eenheid Prijs'] ?? data['Inkoop']
+    )
+  }
+  return fallback ?? 0
+}
+
+/** Get items per batch from product data */
+export function getItemsFromProduct(
+  data: Record<string, unknown> | undefined,
+  fallback?: number
+): number {
+  if (data && typeof data === 'object') {
+    return parseProductNumber(
+      data['aantal per Items '] ?? data['aantal per Items'] ?? data['Items']
+    )
+  }
+  return fallback ?? 0
+}
+
+/** Get supplier from product data */
+export function getSupplierFromProduct(data: Record<string, unknown> | undefined): string {
+  if (data && typeof data === 'object') {
+    const supplier = data['Supplier'] ?? data['supplier'] ?? data['Leverancier']
+    if (supplier) return String(supplier)
+  }
+  return ''
+}
+
+/** Get cost per item for a specific size by batch type */
+export function getCostPerItemByBatchType(
+  batchPrice: number,
+  batchSize: number,
+  refSize: number,
+  batchType: string,
+  targetSize: number
+): number {
+  if (batchSize <= 0 || batchPrice <= 0) return 0
+  const costPerUnit = batchPrice / batchSize
+  if (batchType === 'bag' || batchType === 'crate') {
+    return costPerUnit * (targetSize / refSize)
+  }
+  return costPerUnit
+}
+
+/** Get cost per 1cL for a product */
+export function getCostPer1Cl(
+  batchPrice: number,
+  batchSize: number,
+  batchType: string,
+  refSize?: number
+): number {
+  if (batchSize <= 0 || batchPrice <= 0) return 0
+  if (batchType === 'bag' || batchType === 'crate') {
+    return refSize && refSize > 0 ? (batchPrice / batchSize) * (1 / refSize) : 0
+  }
+  return batchPrice / batchSize
+}

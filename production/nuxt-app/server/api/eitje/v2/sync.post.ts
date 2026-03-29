@@ -1,7 +1,0 @@
-export default defineEventHandler(async (event) => {
-  const body = await readBody<{ endpoint?: string }>(event)
-  return {
-    success: true,
-    message: `Sync test successful for endpoint: ${body?.endpoint || 'unknown'}`,
-  }
-})
