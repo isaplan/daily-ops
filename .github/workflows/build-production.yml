@@ -44,7 +44,7 @@ jobs:
           git add .
           git commit -m "chore: production build - stripped unused code [skip ci]"
           git branch -M production
-          git remote add origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
+          git remote add origin https://oauth2:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
           git push -u origin production --force
         continue-on-error: true
 
