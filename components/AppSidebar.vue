@@ -49,65 +49,171 @@
       <p v-if="!collapsed" class="mb-2 text-xs font-semibold uppercase tracking-tight text-gray-500">
         Navigation
       </p>
-      <ul class="space-y-1">
-        <!-- Always show daily-notes nav (no env selector) -->
+      <!-- Daily Ops environment: Dashboard, Settings, Hours, Inbox -->
+      <ul v-if="activeEnvironment === 'daily-ops'" class="space-y-1">
         <li>
-            <UTooltip v-if="collapsed" text="Dashboard" :popper="{ placement: 'right' }">
-              <NuxtLink to="/" :class="navLinkClass(isDashboard)">
-                <UIcon name="i-lucide-layout-dashboard" class="size-5 shrink-0" />
-                <span v-if="!collapsed">Dashboard</span>
-              </NuxtLink>
-            </UTooltip>
-            <NuxtLink v-else to="/" :class="navLinkClass(isDashboard)">
-              <UIcon name="i-lucide-layout-dashboard" class="size-4 shrink-0" />
-              <span>Dashboard</span>
+          <UTooltip v-if="collapsed" text="Dashboard" :popper="{ placement: 'right' }">
+            <NuxtLink to="/daily-ops" :class="navLinkClass(isDailyOpsDashboard)">
+              <UIcon name="i-lucide-layout-dashboard" class="size-5 shrink-0" />
+              <span v-if="!collapsed">Dashboard</span>
             </NuxtLink>
-          </li>
-          <li>
-            <UTooltip v-if="collapsed" text="All Notes" :popper="{ placement: 'right' }">
-              <NuxtLink to="/notes/all" :class="navLinkClass(isAllNotes)">
-                <UIcon name="i-lucide-file-text" class="size-5 shrink-0" />
-                <span v-if="!collapsed">All Notes</span>
-              </NuxtLink>
-            </UTooltip>
-            <NuxtLink v-else to="/notes/all" :class="navLinkClass(isAllNotes)">
-              <UIcon name="i-lucide-file-text" class="size-4 shrink-0" />
-              <span>All Notes</span>
+          </UTooltip>
+          <NuxtLink v-else to="/daily-ops" :class="navLinkClass(isDailyOpsDashboard)">
+            <UIcon name="i-lucide-layout-dashboard" class="size-4 shrink-0" />
+            <span>Dashboard</span>
+          </NuxtLink>
+        </li>
+        <li>
+          <UTooltip v-if="collapsed" text="Workers" :popper="{ placement: 'right' }">
+            <NuxtLink to="/daily-ops/workers" :class="navLinkClass(isWorkersPage)">
+              <UIcon name="i-lucide-users" class="size-5 shrink-0" />
+              <span v-if="!collapsed">Workers</span>
             </NuxtLink>
-          </li>
-          <li>
-            <UTooltip v-if="collapsed" text="Todo's List" :popper="{ placement: 'right' }">
-              <NuxtLink to="/notes/todos" :class="navLinkClass(isTodos)">
-                <UIcon name="i-lucide-list-checks" class="size-5 shrink-0" />
-                <span v-if="!collapsed">Todo's List</span>
-              </NuxtLink>
-            </UTooltip>
-            <NuxtLink v-else to="/notes/todos" :class="navLinkClass(isTodos)">
-              <UIcon name="i-lucide-list-checks" class="size-4 shrink-0" />
-              <span>Todo's List</span>
+          </UTooltip>
+          <NuxtLink v-else to="/daily-ops/workers" :class="navLinkClass(isWorkersPage)">
+            <UIcon name="i-lucide-users" class="size-4 shrink-0" />
+            <span>Workers</span>
+          </NuxtLink>
+        </li>
+        <li>
+          <UTooltip v-if="collapsed" text="Eitje API" :popper="{ placement: 'right' }">
+            <NuxtLink to="/daily-ops/settings/eitje-api" :class="navLinkClass(isEitjeApi)">
+              <UIcon name="i-lucide-settings" class="size-5 shrink-0" />
+              <span v-if="!collapsed">Eitje API</span>
             </NuxtLink>
-          </li>
-          <li>
-            <UTooltip v-if="collapsed" text="Agreed List" :popper="{ placement: 'right' }">
-              <NuxtLink to="/notes/agreed" :class="navLinkClass(isAgreed)">
-                <UIcon name="i-lucide-handshake" class="size-5 shrink-0" />
-                <span v-if="!collapsed">Agreed List</span>
-              </NuxtLink>
-            </UTooltip>
-            <NuxtLink v-else to="/notes/agreed" :class="navLinkClass(isAgreed)">
-              <UIcon name="i-lucide-handshake" class="size-4 shrink-0" />
-              <span>Agreed List</span>
+          </UTooltip>
+          <NuxtLink v-else to="/daily-ops/settings/eitje-api" :class="navLinkClass(isEitjeApi)">
+            <UIcon name="i-lucide-settings" class="size-4 shrink-0" />
+            <span>Eitje API</span>
+          </NuxtLink>
+        </li>
+        <li>
+          <UTooltip v-if="collapsed" text="Bork API" :popper="{ placement: 'right' }">
+            <NuxtLink to="/daily-ops/settings/bork-api" :class="navLinkClass(isBorkApi)">
+              <UIcon name="i-lucide-settings" class="size-5 shrink-0" />
+              <span v-if="!collapsed">Bork API</span>
             </NuxtLink>
-          </li>
-          <li>
-            <UTooltip v-if="collapsed" text="Projects" :popper="{ placement: 'right' }">
-              <NuxtLink to="/notes/projects" :class="navLinkClass(isProjects)">
-                <UIcon name="i-lucide-folder-kanban" class="size-5 shrink-0" />
-                <span v-if="!collapsed">Projects</span>
-              </NuxtLink>
-            </UTooltip>
-            <NuxtLink v-else to="/notes/projects" :class="navLinkClass(isProjects)">
-              <UIcon name="i-lucide-folder-kanban" class="size-4 shrink-0" />
+          </UTooltip>
+          <NuxtLink v-else to="/daily-ops/settings/bork-api" :class="navLinkClass(isBorkApi)">
+            <UIcon name="i-lucide-settings" class="size-4 shrink-0" />
+            <span>Bork API</span>
+          </NuxtLink>
+        </li>
+        <!-- Hours (collapsible) -->
+        <li>
+          <button
+            type="button"
+            :class="navLinkClass(isHoursSection)"
+            class="w-full flex items-center"
+            @click="isHoursOpen = !isHoursOpen"
+          >
+            <UIcon name="i-lucide-clock" class="size-4 shrink-0" />
+            <span v-if="!collapsed" class="flex-1 text-left">Hours</span>
+            <UIcon v-if="!collapsed" name="i-lucide-chevron-right" :class="['size-4 shrink-0 transition-transform', isHoursOpen && 'rotate-90']" />
+          </button>
+          <ul v-if="!collapsed && isHoursOpen" class="mt-1 ml-4 space-y-0.5 border-l border-gray-200 pl-3">
+            <li><NuxtLink to="/daily-ops/hours" :class="navLinkClass(route.path === '/daily-ops/hours')">Day & Location</NuxtLink></li>
+            <li><NuxtLink to="/daily-ops/hours/by-day" :class="navLinkClass(route.path === '/daily-ops/hours/by-day')">By Day</NuxtLink></li>
+            <li><NuxtLink to="/daily-ops/hours/by-team" :class="navLinkClass(route.path === '/daily-ops/hours/by-team')">By Team</NuxtLink></li>
+            <li><NuxtLink to="/daily-ops/hours/by-location" :class="navLinkClass(route.path === '/daily-ops/hours/by-location')">By Location</NuxtLink></li>
+          </ul>
+        </li>
+        <!-- Inbox (collapsible) -->
+        <li>
+          <button
+            type="button"
+            :class="navLinkClass(isInboxSection)"
+            class="w-full flex items-center"
+            @click="isInboxOpen = !isInboxOpen"
+          >
+            <UIcon name="i-lucide-mail" class="size-4 shrink-0" />
+            <span v-if="!collapsed" class="flex-1 text-left">Inbox</span>
+            <UIcon v-if="!collapsed" name="i-lucide-chevron-right" :class="['size-4 shrink-0 transition-transform', isInboxOpen && 'rotate-90']" />
+          </button>
+          <ul v-if="!collapsed && isInboxOpen" class="mt-1 ml-4 space-y-0.5 border-l border-gray-200 pl-3">
+            <li><NuxtLink to="/daily-ops/inbox" :class="navLinkClass(route.path === '/daily-ops/inbox')">Overview</NuxtLink></li>
+            <li><NuxtLink to="/daily-ops/inbox/emails" :class="navLinkClass(route.path === '/daily-ops/inbox/emails')">Emails</NuxtLink></li>
+            <li><NuxtLink to="/daily-ops/inbox/upload" :class="navLinkClass(route.path === '/daily-ops/inbox/upload')">Upload</NuxtLink></li>
+            <li class="pt-1 text-xs font-medium text-gray-500">Eitje</li>
+            <li><NuxtLink to="/daily-ops/inbox/eitje" :class="navLinkClass(isInboxEitje)">Eitje</NuxtLink></li>
+            <li><NuxtLink to="/daily-ops/inbox/eitje/hours" :class="navLinkClass(route.path === '/daily-ops/inbox/eitje/hours')">Hours</NuxtLink></li>
+            <li><NuxtLink to="/daily-ops/inbox/eitje/contracts" :class="navLinkClass(route.path === '/daily-ops/inbox/eitje/contracts')">Contracts</NuxtLink></li>
+            <li><NuxtLink to="/daily-ops/inbox/eitje/finance" :class="navLinkClass(route.path === '/daily-ops/inbox/eitje/finance')">Finance</NuxtLink></li>
+            <li class="pt-1 text-xs font-medium text-gray-500">Bork</li>
+            <li><NuxtLink to="/daily-ops/inbox/bork" :class="navLinkClass(isInboxBork)">Bork</NuxtLink></li>
+            <li><NuxtLink to="/daily-ops/inbox/bork/sales" :class="navLinkClass(route.path === '/daily-ops/inbox/bork/sales')">Sales</NuxtLink></li>
+            <li><NuxtLink to="/daily-ops/inbox/bork/product-mix" :class="navLinkClass(route.path === '/daily-ops/inbox/bork/product-mix')">Product Mix</NuxtLink></li>
+            <li><NuxtLink to="/daily-ops/inbox/bork/food-beverage" :class="navLinkClass(route.path === '/daily-ops/inbox/bork/food-beverage')">Food & Beverage</NuxtLink></li>
+            <li><NuxtLink to="/daily-ops/inbox/bork/basis-report" :class="navLinkClass(route.path === '/daily-ops/inbox/bork/basis-report')">Basis Report</NuxtLink></li>
+            <li><NuxtLink to="/daily-ops/inbox/bork/sales-per-hour" :class="navLinkClass(route.path === '/daily-ops/inbox/bork/sales-per-hour')">Sales Per Hour</NuxtLink></li>
+            <li class="pt-1 text-xs font-medium text-gray-500">Power-BI</li>
+            <li><NuxtLink to="/daily-ops/inbox/power-bi" :class="navLinkClass(isInboxPowerBi)">Power-BI</NuxtLink></li>
+            <li><NuxtLink to="/daily-ops/inbox/power-bi/reports" :class="navLinkClass(route.path === '/daily-ops/inbox/power-bi/reports')">Reports</NuxtLink></li>
+            <li class="pt-1 text-xs font-medium text-gray-500">Other</li>
+            <li><NuxtLink to="/daily-ops/inbox/other" :class="navLinkClass(isInboxOther)">Other</NuxtLink></li>
+            <li><NuxtLink to="/daily-ops/inbox/other/all-test-data" :class="navLinkClass(route.path === '/daily-ops/inbox/other/all-test-data')">All Test Data</NuxtLink></li>
+          </ul>
+        </li>
+      </ul>
+      <!-- Daily Notes / other environments -->
+      <ul v-else class="space-y-1">
+        <li>
+          <UTooltip v-if="collapsed" text="Dashboard" :popper="{ placement: 'right' }">
+            <NuxtLink to="/" :class="navLinkClass(isDashboard)">
+              <UIcon name="i-lucide-layout-dashboard" class="size-5 shrink-0" />
+              <span v-if="!collapsed">Dashboard</span>
+            </NuxtLink>
+          </UTooltip>
+          <NuxtLink v-else to="/" :class="navLinkClass(isDashboard)">
+            <UIcon name="i-lucide-layout-dashboard" class="size-4 shrink-0" />
+            <span>Dashboard</span>
+          </NuxtLink>
+        </li>
+        <li>
+          <UTooltip v-if="collapsed" text="All Notes" :popper="{ placement: 'right' }">
+            <NuxtLink to="/notes/all" :class="navLinkClass(isAllNotes)">
+              <UIcon name="i-lucide-file-text" class="size-5 shrink-0" />
+              <span v-if="!collapsed">All Notes</span>
+            </NuxtLink>
+          </UTooltip>
+          <NuxtLink v-else to="/notes/all" :class="navLinkClass(isAllNotes)">
+            <UIcon name="i-lucide-file-text" class="size-4 shrink-0" />
+            <span>All Notes</span>
+          </NuxtLink>
+        </li>
+        <li>
+          <UTooltip v-if="collapsed" text="Todo's List" :popper="{ placement: 'right' }">
+            <NuxtLink to="/notes/todos" :class="navLinkClass(isTodos)">
+              <UIcon name="i-lucide-list-checks" class="size-5 shrink-0" />
+              <span v-if="!collapsed">Todo's List</span>
+            </NuxtLink>
+          </UTooltip>
+          <NuxtLink v-else to="/notes/todos" :class="navLinkClass(isTodos)">
+            <UIcon name="i-lucide-list-checks" class="size-4 shrink-0" />
+            <span>Todo's List</span>
+          </NuxtLink>
+        </li>
+        <li>
+          <UTooltip v-if="collapsed" text="Agreed List" :popper="{ placement: 'right' }">
+            <NuxtLink to="/notes/agreed" :class="navLinkClass(isAgreed)">
+              <UIcon name="i-lucide-handshake" class="size-5 shrink-0" />
+              <span v-if="!collapsed">Agreed List</span>
+            </NuxtLink>
+          </UTooltip>
+          <NuxtLink v-else to="/notes/agreed" :class="navLinkClass(isAgreed)">
+            <UIcon name="i-lucide-handshake" class="size-4 shrink-0" />
+            <span>Agreed List</span>
+          </NuxtLink>
+        </li>
+        <li>
+          <UTooltip v-if="collapsed" text="Projects" :popper="{ placement: 'right' }">
+            <NuxtLink to="/notes/projects" :class="navLinkClass(isProjects)">
+              <UIcon name="i-lucide-folder-kanban" class="size-5 shrink-0" />
+              <span v-if="!collapsed">Projects</span>
+            </NuxtLink>
+          </UTooltip>
+          <NuxtLink v-else to="/notes/projects" :class="navLinkClass(isProjects)">
+            <UIcon name="i-lucide-folder-kanban" class="size-4 shrink-0" />
             <span>Projects</span>
           </NuxtLink>
         </li>
@@ -159,6 +265,43 @@ const isTodos = computed(() => route.path === '/notes/todos')
 const isAgreed = computed(() => route.path === '/notes/agreed')
 const isProjects = computed(() => route.path === '/notes/projects')
 const isOrganisation = computed(() => route.path === '/organisation')
+
+// Daily Ops nav state
+const isHoursOpen = ref(false)
+const isInboxOpen = ref(false)
+const isDailyOpsDashboard = computed(() => {
+  const p = route.path.replace(/\/$/, '') || '/'
+  if (
+    p.startsWith('/daily-ops/settings')
+    || p.startsWith('/daily-ops/hours')
+    || p.startsWith('/daily-ops/inbox')
+  ) {
+    return false
+  }
+  const dash = [
+    '/daily-ops',
+    '/daily-ops/revenue',
+    '/daily-ops/productivity',
+    '/daily-ops/workload',
+    '/daily-ops/products',
+    '/daily-ops/insights',
+  ]
+  return dash.includes(p)
+})
+const isWorkersPage = computed(() => route.path === '/daily-ops/workers' || route.path === '/daily-ops/workers/')
+const isEitjeApi = computed(() => route.path === '/daily-ops/settings/eitje-api')
+const isBorkApi = computed(() => route.path === '/daily-ops/settings/bork-api')
+const isHoursSection = computed(() => route.path.startsWith('/daily-ops/hours'))
+const isInboxSection = computed(() => route.path.startsWith('/daily-ops/inbox'))
+const isInboxEitje = computed(() => route.path === '/daily-ops/inbox/eitje' || route.path.startsWith('/daily-ops/inbox/eitje/'))
+const isInboxBork = computed(() => route.path === '/daily-ops/inbox/bork' || route.path.startsWith('/daily-ops/inbox/bork/'))
+const isInboxPowerBi = computed(() => route.path === '/daily-ops/inbox/power-bi' || route.path.startsWith('/daily-ops/inbox/power-bi/'))
+const isInboxOther = computed(() => route.path === '/daily-ops/inbox/other' || route.path.startsWith('/daily-ops/inbox/other/'))
+
+watch(() => route.path, (path) => {
+  if (path.startsWith('/daily-ops/hours')) isHoursOpen.value = true
+  if (path.startsWith('/daily-ops/inbox')) isInboxOpen.value = true
+}, { immediate: true })
 
 function navLinkClass(active: boolean) {
   return [

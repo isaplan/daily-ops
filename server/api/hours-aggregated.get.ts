@@ -19,13 +19,16 @@ export default defineEventHandler(async (event) => {
       const contractDocs = await db.collection('test-eitje-contracts').find({}).toArray()
       const results = contractDocs
         .filter((d: { total_worked_hours?: number }) => (d.total_worked_hours ?? 0) > 0)
-        .map((d: { employee_name?: string; support_id?: string; total_worked_hours?: number; hourly_rate?: number; total_worked_days?: number; contract_location?: string }) => ({
+        .map((d: { employee_name?: string; support_id?: string; total_worked_hours?: number; hourly_rate?: number; total_worked_days?: number; contract_location?: string; contract_type?: string }) => ({
           worker_id: d.support_id ?? '',
           worker_name: d.employee_name ?? 'Unknown',
           total_hours: d.total_worked_hours ?? 0,
           total_cost: Math.round((d.total_worked_hours ?? 0) * (d.hourly_rate ?? 0) * 100) / 100,
           record_count: d.total_worked_days ?? 0,
           location_count: d.contract_location ? 1 : 0,
+          hourly_rate: d.hourly_rate ?? 0,
+          contract_type: d.contract_type ?? '-',
+          team_name: '-',
         }))
       const sortField = sortBy === 'total_cost' ? 'total_cost' : sortBy === 'worker_name' ? 'worker_name' : 'total_hours'
       const dir = sortOrder === 'asc' ? 1 : -1
@@ -59,7 +62,11 @@ export default defineEventHandler(async (event) => {
       }
     }
 
-    let aggregation: unknown[] = [{ $match: q }]
+    let aggregation: unknown[] = [{ $match: { 
+      ...q,
+      // CRITICAL: Exclude "Unknown" values - they indicate data quality issues
+      team_name: { $ne: 'Unknown' }
+    } }]
 
     if (groupBy === 'day') {
       aggregation.push({
@@ -112,6 +119,9 @@ export default defineEventHandler(async (event) => {
           total_cost: { $sum: '$total_cost' },
           record_count: { $sum: '$record_count' },
           location_count: { $addToSet: '$locationId' },
+          team_names: { $addToSet: '$team_name' },
+          hourly_rate: { $first: '$hourly_rate' },
+          contract_type: { $first: '$contract_type' },
         },
       })
       aggregation.push({
@@ -123,6 +133,15 @@ export default defineEventHandler(async (event) => {
           total_cost: 1,
           record_count: 1,
           location_count: { $size: { $filter: { input: '$location_count', as: 'l', cond: { $ne: ['$$l', null] } } } },
+          team_name: {
+            $cond: [
+              { $eq: [{ $size: { $filter: { input: '$team_names', as: 't', cond: { $and: [{ $ne: ['$$t', null] }, { $ne: ['$$t', 'Unknown'] }] } } } }, 1] },
+              { $arrayElemAt: [{ $filter: { input: '$team_names', as: 't', cond: { $and: [{ $ne: ['$$t', null] }, { $ne: ['$$t', 'Unknown'] }] } } }, 0] },
+              { $concat: [{ $toString: { $size: { $filter: { input: '$team_names', as: 't', cond: { $and: [{ $ne: ['$$t', null] }, { $ne: ['$$t', 'Unknown'] }] } } } } }, ' teams'] }
+            ]
+          },
+          hourly_rate: { $ifNull: ['$hourly_rate', 0] },
+          contract_type: { $ifNull: ['$contract_type', '-'] },
         },
       })
     } else if (groupBy === 'location') {
@@ -147,6 +166,68 @@ export default defineEventHandler(async (event) => {
           worker_count: { $size: { $filter: { input: '$worker_count', as: 'w', cond: { $ne: ['$$w', null] } } } },
         },
       })
+    } else if (groupBy === 'worker_location_team') {
+      // Get worker's breakdown by location and team - this should group EXISTING aggregation docs
+      // Each doc in the aggregation collection is for a specific period+location+team+worker
+      // We group by location+team to sum across all periods
+      const workerId = query.workerId as string | undefined
+      
+      if (!workerId) {
+        return { success: true, data: [], summary: { total_records: 0, group_by: 'worker_location_team' }, locations: [] }
+      }
+      
+      // Try to parse as number first (most users have numeric IDs), then try ObjectId
+      let userIdMatch: Record<string, unknown>
+      const numId = Number(workerId)
+      if (!isNaN(numId) && numId.toString() === workerId.toString()) {
+        userIdMatch = numId
+      } else {
+        try {
+          userIdMatch = new ObjectId(workerId)
+        } catch {
+          userIdMatch = workerId
+        }
+      }
+      
+      // Query aggregation collection and group by location+team
+      // CRITICAL: Exclude "Unknown" teams - Eitje data must ALWAYS be valid!
+      aggregation = [
+        { $match: { 
+          ...q, 
+          userId: userIdMatch,
+          // STRICT filtering: no null, no "Unknown" values
+          locationId: { $exists: true, $ne: null },
+          teamId: { $exists: true, $ne: null },
+          team_name: { $exists: true, $nin: [null, 'Unknown'] },
+          location_name: { $exists: true, $nin: [null, 'Unknown'] }
+        } },
+        {
+          $group: {
+            _id: { 
+              locationId: '$locationId', 
+              location_name: '$location_name', 
+              teamId: '$teamId', 
+              team_name: '$team_name' 
+            },
+            total_hours: { $sum: '$total_hours' },
+            total_cost: { $sum: '$total_cost' },
+            record_count: { $sum: '$record_count' },
+            hourly_rate: { $first: '$hourly_rate' },
+          },
+        },
+        {
+          $project: {
+            _id: 0,
+            location_name: '$_id.location_name',
+            team_name: '$_id.team_name',
+            total_hours: 1,
+            total_cost: 1,
+            record_count: 1,
+            hourly_rate: { $ifNull: ['$hourly_rate', 0] },
+          },
+        },
+        { $sort: { location_name: 1, team_name: 1 } }
+      ]
     } else {
       // date_location: one row per (day, location) – group by period + locationId (collection has one doc per worker/team per location per day)
       aggregation.push({
@@ -173,13 +254,17 @@ export default defineEventHandler(async (event) => {
 
     const sortField = sortBy === 'location' || sortBy === 'location_name' ? 'location_name' : sortBy === 'team_name' ? 'team_name' : sortBy === 'worker_name' ? 'worker_name' : sortBy === 'total_hours' ? 'total_hours' : sortBy === 'total_cost' ? 'total_cost' : 'date'
     const sortDirection = sortOrder === 'asc' ? 1 : -1
-    aggregation.push({ $sort: { [sortField]: sortDirection } })
+    
+    // Only add sort if not already in pipeline (worker_location_team already has sort)
+    if (groupBy !== 'worker_location_team') {
+      aggregation.push({ $sort: { [sortField]: sortDirection } })
+    }
 
     const collectionName = endpoint === 'planning_shifts' ? 'eitje_planning_registration_aggregation' : 'eitje_time_registration_aggregation'
     let results = await db.collection(collectionName).aggregate(aggregation).toArray()
 
     // Fallback: if aggregation collection is empty, aggregate from raw data (eitje_raw_data)
-    if (results.length === 0 && endpoint === 'time_registration_shifts' && (groupBy === 'day' || groupBy === 'date_location' || (!['day', 'team', 'worker', 'location'].includes(groupBy)))) {
+    if (results.length === 0 && endpoint === 'time_registration_shifts' && (groupBy === 'day' || groupBy === 'date_location' || (!['day', 'team', 'worker', 'location', 'worker_location_team'].includes(groupBy)))) {
       try {
         const rawMatch: Record<string, unknown> = { endpoint: 'time_registration_shifts' }
         if (startDate || endDate) {
