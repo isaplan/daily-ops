@@ -74,7 +74,99 @@
           </div>
         </div>
 
-        <!-- Connections: summary cards + Notes / Todos / Decisions (like Next.js ConnectionsDisplay) -->
+        <!-- Worker Info Card: show contract, rates, contact details if available -->
+        <div v-if="hasWorkerData" class="bg-white border border-gray-200 rounded-lg p-6 mb-6">
+          <h2 class="text-xl font-bold text-gray-900 mb-4">Worker Information</h2>
+          
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- Contract Details -->
+            <div>
+              <h3 class="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">Contract Details</h3>
+              <div class="space-y-2 text-sm">
+                <div v-if="member.contract_type" class="flex justify-between">
+                  <span class="text-gray-600">Type:</span>
+                  <span class="font-medium">{{ member.contract_type }}</span>
+                </div>
+                <div v-if="member.contract_start_date" class="flex justify-between">
+                  <span class="text-gray-600">Start Date:</span>
+                  <span class="font-medium">{{ formatDate(member.contract_start_date) }}</span>
+                </div>
+                <div v-if="member.contract_end_date" class="flex justify-between">
+                  <span class="text-gray-600">End Date:</span>
+                  <span class="font-medium" :class="isContractExpired ? 'text-red-600' : 'text-green-600'">
+                    {{ formatDate(member.contract_end_date) }}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Compensation -->
+            <div>
+              <h3 class="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">Compensation</h3>
+              <div class="space-y-2 text-sm">
+                <div v-if="member.hourly_rate" class="flex justify-between">
+                  <span class="text-gray-600">Hourly Rate:</span>
+                  <span class="font-medium">€{{ member.hourly_rate.toFixed(2) }}</span>
+                </div>
+                <div v-if="member.weekly_hours" class="flex justify-between">
+                  <span class="text-gray-600">Weekly Hours:</span>
+                  <span class="font-medium">{{ member.weekly_hours.toFixed(1) }}h</span>
+                </div>
+                <div v-if="member.monthly_hours" class="flex justify-between">
+                  <span class="text-gray-600">Monthly Hours:</span>
+                  <span class="font-medium">{{ member.monthly_hours.toFixed(1) }}h</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Contact Information -->
+            <div>
+              <h3 class="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">Contact Information</h3>
+              <div class="space-y-2 text-sm">
+                <div v-if="member.phone" class="flex justify-between">
+                  <span class="text-gray-600">Phone:</span>
+                  <span class="font-medium">{{ member.phone }}</span>
+                </div>
+                <div v-if="member.birthday" class="flex justify-between">
+                  <span class="text-gray-600">Birthday:</span>
+                  <span class="font-medium">{{ member.birthday }}</span>
+                </div>
+                <div v-if="member.age" class="flex justify-between">
+                  <span class="text-gray-600">Age:</span>
+                  <span class="font-medium">{{ member.age }} years</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Address -->
+            <div v-if="hasAddressData">
+              <h3 class="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">Address</h3>
+              <div class="space-y-2 text-sm">
+                <div v-if="member.street" class="text-gray-900">{{ member.street }}</div>
+                <div v-if="member.postcode || member.city" class="text-gray-900">
+                  <span v-if="member.postcode">{{ member.postcode }}</span>
+                  <span v-if="member.postcode && member.city">&nbsp;</span>
+                  <span v-if="member.city">{{ member.city }}</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- IDs -->
+            <div v-if="member.nmbrs_id || member.support_id">
+              <h3 class="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">Identifiers</h3>
+              <div class="space-y-2 text-sm">
+                <div v-if="member.nmbrs_id" class="flex justify-between">
+                  <span class="text-gray-600">Nmbrs ID:</span>
+                  <span class="font-medium font-mono">{{ member.nmbrs_id }}</span>
+                </div>
+                <div v-if="member.support_id" class="flex justify-between">
+                  <span class="text-gray-600">Support ID:</span>
+                  <span class="font-medium font-mono">{{ member.support_id }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
         <div class="bg-white border border-gray-200 rounded-lg p-6">
           <h2 class="text-2xl font-bold text-gray-900 mb-4">Connections</h2>
 
@@ -188,6 +280,20 @@ type MemberItem = {
   location_name?: string
   team_name?: string
   is_active?: boolean
+  contract_type?: string
+  contract_start_date?: string | null
+  contract_end_date?: string | null
+  hourly_rate?: number
+  weekly_hours?: number
+  monthly_hours?: number
+  phone?: string
+  age?: number
+  birthday?: string
+  postcode?: string
+  city?: string
+  street?: string
+  nmbrs_id?: string
+  support_id?: string
 }
 type ConnectionNote = { _id: string; slug?: string; title: string; content?: string; created_at?: string | null }
 type ConnectionTodo = { _id: string; text: string; checked: boolean; noteId: string; noteSlug?: string; noteTitle: string }
@@ -241,6 +347,36 @@ function formatDate(val: string | null | undefined) {
     return ''
   }
 }
+
+const hasWorkerData = computed(() => {
+  if (!member.value) return false
+  return !!(
+    member.value.contract_type ||
+    member.value.contract_start_date ||
+    member.value.contract_end_date ||
+    member.value.hourly_rate ||
+    member.value.phone ||
+    member.value.age ||
+    member.value.birthday ||
+    member.value.street ||
+    member.value.postcode ||
+    member.value.city
+  )
+})
+
+const hasAddressData = computed(() => {
+  if (!member.value) return false
+  return !!(member.value.street || member.value.postcode || member.value.city)
+})
+
+const isContractExpired = computed(() => {
+  if (!member.value?.contract_end_date) return false
+  try {
+    return new Date(member.value.contract_end_date) < new Date()
+  } catch {
+    return false
+  }
+})
 
 const { data: locationsData } = await useFetch<{ success: boolean; data: LocationItem[] }>('/api/locations')
 const { data: teamsData } = await useFetch<{ success: boolean; data: TeamItem[] }>('/api/teams')

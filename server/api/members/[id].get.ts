@@ -55,6 +55,21 @@ export default defineEventHandler(async (event) => {
     location_name: locationName,
     team_name: teamName,
     is_active: m.is_active !== false && m.isActive !== false,
+    // Worker data fields
+    contract_type: typeof m.contract_type === 'string' ? m.contract_type : undefined,
+    contract_start_date: m.contract_start_date ? new Date(m.contract_start_date as string).toISOString() : undefined,
+    contract_end_date: m.contract_end_date ? new Date(m.contract_end_date as string).toISOString() : undefined,
+    hourly_rate: typeof m.hourly_rate === 'number' ? m.hourly_rate : undefined,
+    weekly_hours: typeof m.weekly_hours === 'number' ? m.weekly_hours : undefined,
+    monthly_hours: typeof m.monthly_hours === 'number' ? m.monthly_hours : undefined,
+    phone: typeof m.phone === 'string' ? m.phone : undefined,
+    age: typeof m.age === 'number' ? m.age : undefined,
+    birthday: typeof m.birthday === 'string' ? m.birthday : undefined,
+    postcode: typeof m.postcode === 'string' ? m.postcode : undefined,
+    city: typeof m.city === 'string' ? m.city : undefined,
+    street: typeof m.street === 'string' ? m.street : undefined,
+    nmbrs_id: typeof m.nmbrs_id === 'string' ? m.nmbrs_id : undefined,
+    support_id: typeof m.support_id === 'string' ? m.support_id : undefined,
   }
   return { success: true, data }
 })
