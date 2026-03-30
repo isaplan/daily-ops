@@ -471,40 +471,61 @@ export async function runIntegrityChecks (options: IntegrityRunOptions): Promise
   return report
 }
 
-/** Delete duplicate raw docs (keep one per date+location+user+team+supportId). Returns deleted count. */
+/** Delete duplicate raw docs by shift identity (date+user+team+supportId). Normalize so string/Date and number/string ids group together. Process per group to avoid huge array. */
 export async function fixRawDuplicates (options: { startDate: string; endDate: string; endpoint?: string }): Promise<number> {
   const db = await getDb()
+  const coll = db.collection('eitje_raw_data')
   const endpoint = options.endpoint === 'planning_shifts' ? 'planning_shifts' : 'time_registration_shifts'
+  const dayStart = new Date(options.startDate + 'T00:00:00.000Z')
+  const dayEnd = new Date(options.endDate + 'T23:59:59.999Z')
   const pipeline: unknown[] = [
     {
       $match: {
         endpoint,
-        date: { $gte: new Date(options.startDate + 'T00:00:00.000Z'), $lte: new Date(options.endDate + 'T23:59:59.999Z') },
+        $or: [
+          { date: { $gte: dayStart, $lte: dayEnd } },
+          { date: { $gte: options.startDate, $lte: options.endDate } },
+        ],
+      },
+    },
+    {
+      $addFields: {
+        _userId: { $toString: { $ifNull: ['$extracted.userId', '$rawApiResponse.user_id'] } },
+        _teamId: { $toString: { $ifNull: ['$extracted.teamId', '$rawApiResponse.team_id'] } },
+        _supportId: { $toString: { $ifNull: ['$extracted.supportId', { $ifNull: ['$rawApiResponse.support_id', { $ifNull: ['$rawApiResponse.id', '$_id'] }] }] } },
+        _dateStr: {
+          $cond: [
+            { $eq: [{ $type: '$date' }, 'string'] },
+            { $substr: ['$date', 0, 10] },
+            { $dateToString: { format: '%Y-%m-%d', date: { $toDate: '$date' } } },
+          ],
+        },
       },
     },
     {
       $group: {
-        _id: {
-          date: { $dateToString: { format: '%Y-%m-%d', date: '$date' } },
-          locationId: '$locationId',
-          userId: { $ifNull: ['$extracted.userId', '$rawApiResponse.user_id'] },
-          teamId: { $ifNull: ['$extracted.teamId', '$rawApiResponse.team_id'] },
-          supportId: { $ifNull: ['$extracted.supportId', '$rawApiResponse.support_id'] },
-        },
+        _id: { date: '$_dateStr', userId: '$_userId', teamId: '$_teamId', supportId: '$_supportId' },
         ids: { $push: '$_id' },
         count: { $sum: 1 },
       },
     },
     { $match: { count: { $gt: 1 } } },
-    { $project: { remove: { $slice: ['$ids', 1, { $subtract: [{ $size: '$ids' }, 1] }] } } },
-    { $unwind: '$remove' },
-    { $group: { _id: null, toDelete: { $push: '$remove' } } },
+    { $project: { ids: 1, count: 1 } },
   ]
-  const result = await db.collection('eitje_raw_data').aggregate(pipeline).toArray() as Array<{ toDelete?: unknown[] }>
-  const toDelete = result[0]?.toDelete ?? []
-  if (toDelete.length === 0) return 0
-  const del = await db.collection('eitje_raw_data').deleteMany({ _id: { $in: toDelete } })
-  return del.deletedCount
+  const groups = await coll.aggregate(pipeline).toArray() as Array<{ ids: unknown[]; count: number }>
+  const allToDelete: unknown[] = []
+  for (const g of groups) {
+    allToDelete.push(...g.ids.slice(1))
+  }
+  if (allToDelete.length === 0) return 0
+  const BATCH = 500
+  let totalDeleted = 0
+  for (let i = 0; i < allToDelete.length; i += BATCH) {
+    const batch = allToDelete.slice(i, i + BATCH)
+    const del = await coll.deleteMany({ _id: { $in: batch } })
+    totalDeleted += del.deletedCount
+  }
+  return totalDeleted
 }
 
 /** Delete duplicate aggregation docs (keep one per period+locationId+userId+teamId). Returns deleted count. */
@@ -644,12 +665,15 @@ export async function fixSumMismatches (options: { startDate: string; endDate: s
   return fixed
 }
 
-/** Run validation and cleanup. Fixes: raw duplicates, aggregation duplicates, sum mismatches (re-aggregate from raw). Returns counts only. */
-export async function runAndFix (options?: { startDate?: string; endDate?: string }): Promise<{ rawDeduped: number; aggDeduped: number; reAggregated: number }> {
+/** Run validation and cleanup. Fixes: raw duplicates, aggregation duplicates, sum mismatches (re-aggregate from raw). rawOnly=true runs only raw dedupe (fast). Returns counts only. */
+export async function runAndFix (options?: { startDate?: string; endDate?: string; rawOnly?: boolean }): Promise<{ rawDeduped: number; aggDeduped: number; reAggregated: number }> {
   const { startDate, endDate } = options?.startDate && options?.endDate
     ? options
     : getDefaultDateRange()
   const rawDeduped = await fixRawDuplicates({ startDate, endDate })
+  if (options?.rawOnly) {
+    return { rawDeduped, aggDeduped: 0, reAggregated: 0 }
+  }
   const aggDeduped = await fixAggregationDuplicates({ startDate, endDate })
   const reAggregated = await fixSumMismatches({ startDate, endDate })
   return { rawDeduped, aggDeduped, reAggregated }
