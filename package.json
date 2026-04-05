@@ -4,10 +4,12 @@
   "type": "module",
   "scripts": {
     "build": "nuxt build",
-    "dev": "nuxt dev",
+    "dev": "nuxt dev -p 8080",
+    "dev:clean": "lsof -ti:8080 | xargs kill -9 2>/dev/null; rm -rf .nuxt .output node_modules/.vite node_modules/.cache && nuxt dev -p 8080",
     "generate": "nuxt generate",
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
+    "copy:locations-teams": "node --experimental-strip-types scripts/copy-locations-teams-to-remote.ts",
     "start": "node .output/server/index.mjs"
   },
   "dependencies": {
@@ -25,9 +27,7 @@
     "vue-router": "^4.6.4",
     "xlsx": "^0.18.5"
   },
-  "devDependencies": {
-    "@nuxt/devtools": "latest"
-  },
+  "devDependencies": {},
   "engines": {
     "node": "22.22.1"
   }

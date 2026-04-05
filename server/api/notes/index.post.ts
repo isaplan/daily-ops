@@ -71,6 +71,7 @@ export default defineEventHandler(async (event) => {
     is_pinned: isPinned,
     is_archived: false,
     status: 'draft',
+    deleted_at: null,
     created_at: now,
     updated_at: now,
   }

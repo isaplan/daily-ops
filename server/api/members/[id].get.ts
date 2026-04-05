@@ -13,11 +13,6 @@ export default defineEventHandler(async (event) => {
   const db = await getDb()
   const member = await db.collection('members').findOne({
     _id: oid,
-    $or: [
-      { is_active: true },
-      { isActive: true },
-      { is_active: { $exists: false }, isActive: { $exists: false } },
-    ],
   })
   if (!member) {
     throw createError({ statusCode: 404, statusMessage: 'Member not found' })

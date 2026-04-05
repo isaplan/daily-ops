@@ -1,5 +1,6 @@
 import { ObjectId } from 'mongodb'
 import { getNotesCollection } from '../../utils/db'
+import { activeNotesMatch, trashedNotesMatch } from '../../utils/noteDeletedFilter'
 
 const DEFAULT_LIMIT = 20
 const MAX_LIMIT = 100
@@ -15,7 +16,14 @@ export default defineEventHandler(async (event) => {
   const skip = Math.max(0, Number(query.skip) || 0)
   const limit = Math.min(MAX_LIMIT, Math.max(1, Number(query.limit) || DEFAULT_LIMIT))
 
+  const scopeTrash = scope === 'trash'
+
   const filter: Record<string, unknown> = { is_archived: archived }
+  if (scopeTrash) {
+    Object.assign(filter, trashedNotesMatch())
+  } else {
+    Object.assign(filter, activeNotesMatch())
+  }
   if (teamId) filter['connected_to.team_id'] = new ObjectId(teamId)
   if (locationId) filter['connected_to.location_id'] = new ObjectId(locationId)
   if (memberId && /^[0-9a-f]{24}$/i.test(memberId)) {
@@ -26,25 +34,25 @@ export default defineEventHandler(async (event) => {
     ]
   }
 
-  if (scope === 'private') {
+  if (!scopeTrash && scope === 'private') {
     filter.$or = [
       { connected_to: { $exists: false } },
       { connected_to: null },
       { 'connected_to.team_id': null, 'connected_to.location_id': null },
     ]
-  } else if (scope === 'public') {
+  } else if (!scopeTrash && scope === 'public') {
     filter.$or = [
       { 'connected_to.team_id': { $exists: true, $nin: [null, ''] } },
       { 'connected_to.location_id': { $exists: true, $nin: [null, ''] } },
     ]
-  } else if (scope === 'drafts') {
+  } else if (!scopeTrash && scope === 'drafts') {
     filter.$or = [
       { status: { $exists: false } },
       { status: null },
       { status: 'draft' },
       { status: { $ne: 'published' } },
     ]
-  } else if (scope === 'published') {
+  } else if (!scopeTrash && scope === 'published') {
     filter.status = 'published'
   }
 

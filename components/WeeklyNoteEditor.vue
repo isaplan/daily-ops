@@ -1,50 +1,107 @@
 <template>
-  <form @submit.prevent="submit" class="flex w-full gap-6">
+  <form @submit.prevent="onSaveClick" class="flex w-full gap-6">
     <div class="min-w-0 flex-1 space-y-4">
       <div class="space-y-8">
         <section
           v-for="(block, index) in blocks"
           :key="block.id"
-          class="rounded-lg bg-white shadow-sm p-4 space-y-3"
-          :class="{ 'min-h-[75vh]': isDefaultNewBlock && index === 0 }"
+          :class="block.id === WEEKLY_DETAILS_BLOCK_ID ? 'space-y-2 py-1' : 'rounded-lg bg-white shadow-sm p-4 space-y-3'"
         >
-          <div class="flex items-center gap-2">
+          <!-- Details block: toggle + delete only (no card, no title input) -->
+          <div
+            v-if="block.id === WEEKLY_DETAILS_BLOCK_ID"
+            class="flex items-center gap-2"
+          >
+            <button
+              type="button"
+              class="flex min-w-0 flex-1 items-center gap-2 text-left text-sm font-semibold text-gray-900"
+              @click="detailsBlockCollapsed = !detailsBlockCollapsed"
+            >
+              <UIcon :name="detailsBlockCollapsed ? 'i-lucide-chevron-right' : 'i-lucide-chevron-down'" class="size-4 shrink-0" />
+              <span>Details</span>
+            </button>
+          </div>
+          <div v-else class="flex items-center gap-2">
             <UInput
-              v-if="isEditMode"
               v-model="block.title"
               placeholder="Block title (optional)"
               variant="none"
               class="min-w-0 flex-1 rounded-none px-0 font-semibold border-b border-black"
             />
-            <span
-              v-else
-              class="min-w-0 flex-1 font-semibold border-b border-black pb-1"
-            >
-              {{ block.title || ' ' }}
-            </span>
-<UButton
-            v-if="isEditMode && blocks.length > 1"
-            type="button"
-            variant="ghost"
-            color="red"
-            icon="i-heroicons-trash"
-            square
-            @click="removeBlock(index)"
+            <UButton
+              v-if="blocks.length > 1"
+              type="button"
+              variant="ghost"
+              color="error"
+              icon="i-heroicons-trash"
+              square
+              aria-label="Delete block"
+              @click.stop="removeBlock(index)"
             />
           </div>
-          <RichTextEditor
-            v-if="isEditMode"
-            :model-value="block.content"
-            :placeholder="index === 0 ? blockPlaceholder : 'Add content… Use /todo or /agree for tasks and agreements.'"
-            class="min-w-0"
-            @update:model-value="setBlockContent(index, $event)"
-          />
-          <div
-            v-else
-            class="min-h-[120px] px-3 py-2 prose prose-sm max-w-none min-w-0 [&_.ProseMirror]:min-h-[100px]"
-            v-html="highlightTodoAgree(block.content)"
-          />
-          <div v-if="block.todos.length" class="ml-1 border-l-2 border-gray-300 pl-4 space-y-2">
+          <!-- Details block content (location, team, attendees) -->
+          <div v-if="block.id === WEEKLY_DETAILS_BLOCK_ID" class="space-y-2">
+            <div v-show="!detailsBlockCollapsed" class="space-y-3">
+              <div class="flex flex-col gap-4 md:flex-row md:items-end md:gap-4">
+                <UFormField label="Location" class="min-w-0 w-full md:flex-1">
+                  <USelectMenu
+                    v-model="form.location_id"
+                    :items="locationOptions"
+                    value-key="value"
+                    placeholder="Select location"
+                    class="w-full"
+                    @update:model-value="onLocationChange"
+                  />
+                </UFormField>
+                <UFormField label="Team" class="min-w-0 w-full md:flex-1">
+                  <USelectMenu
+                    v-model="form.team_id"
+                    :items="teamOptions"
+                    value-key="value"
+                    placeholder="Select team"
+                    class="w-full"
+                    :disabled="!form.location_id"
+                  />
+                </UFormField>
+                <UFormField label="Attendees" class="min-w-0 w-full md:flex-1">
+                  <USelectMenu
+                    v-model="attendingAddId"
+                    :items="attendingCandidates"
+                    value-key="value"
+                    placeholder="Add…"
+                    class="w-full"
+                    @update:model-value="addAttending"
+                  />
+                </UFormField>
+              </div>
+              <div v-if="form.attending_ids.length" class="flex flex-wrap gap-1.5">
+                <span
+                  v-for="id in form.attending_ids"
+                  :key="id"
+                  class="inline-flex items-center gap-1 rounded-md bg-gray-100 px-2 py-1 text-sm"
+                >
+                  {{ attendingLabel(id) }}
+                  <button
+                    type="button"
+                    class="rounded p-0.5 hover:bg-gray-200"
+                    aria-label="Remove"
+                    @click="removeAttending(id)"
+                  >
+                    <UIcon name="i-lucide-x" class="size-3.5" />
+                  </button>
+                </span>
+              </div>
+            </div>
+          </div>
+          <template v-else>
+            <RichTextEditor
+              :model-value="block.content"
+              :placeholder="index === 0 ? blockPlaceholder : 'Add content… Use /todo or /agree for tasks and agreements.'"
+              class="min-w-0"
+              @update:model-value="setBlockContent(index, $event)"
+            />
+          </template>
+          <div v-if="block.id !== WEEKLY_DETAILS_BLOCK_ID && block.todos.length" class="ml-1 border-l-2 border-gray-300 pl-4 space-y-2">
             <label
               v-for="todo in block.todos"
               :key="todo.id"
@@ -52,7 +109,7 @@
             >
               <UCheckbox
                 :model-value="todo.checked"
-                @update:model-value="(v: boolean) => setTodoChecked(index, todo.id, v)"
+                @update:model-value="(v) => setTodoChecked(index, todo.id, v === true)"
               />
               <span
                 :class="todo.checked ? 'text-gray-500 line-through text-sm' : 'text-sm'"
@@ -61,7 +118,7 @@
               </span>
             </label>
           </div>
-          <div v-if="blockAgrees(block).length" class="ml-1 border-l-2 border-gray-300 pl-4 space-y-2">
+          <div v-if="block.id !== WEEKLY_DETAILS_BLOCK_ID && blockAgrees(block).length" class="ml-1 border-l-2 border-gray-300 pl-4 space-y-2">
             <div
               v-for="agree in blockAgrees(block)"
               :key="agree.id"
@@ -73,7 +130,7 @@
           </div>
         </section>
 
-        <div v-if="isEditMode" class="flex items-center gap-4">
+        <div class="flex items-center gap-4">
           <div class="h-px flex-1 bg-gray-200" />
           <UButton
             type="button"
@@ -90,73 +147,134 @@
       <div
         class="sticky bottom-0 z-30 flex w-full justify-end gap-2 border-t border-gray-200/50 bg-transparent backdrop-blur-sm p-2 -mx-1 rounded-b-lg"
       >
-        <template v-if="isPublished && !isEditMode">
-          <span
-            class="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium bg-emerald-100 text-emerald-800"
-          >
-            <UIcon name="i-lucide-check-circle" class="size-4" />
-            Published
-          </span>
-          <UButton type="button" variant="solid" @click="$emit('startEdit')">
-            Edit
-          </UButton>
-        </template>
-        <template v-else>
-          <UButton type="submit" :loading="loading">
-            {{ note ? 'Save' : 'Create' }}
-          </UButton>
-          <UButton
-            v-if="note && !isPublished"
-            type="button"
-            variant="outline"
-            :loading="publishLoading"
-            @click="publish"
-          >
-            Publish
-          </UButton>
-          <UButton type="button" variant="outline" @click="$emit('cancel')">
-            Cancel
-          </UButton>
-        </template>
+        <UButton type="submit" :loading="loading" class="text-black">
+          {{ note ? 'Save' : 'Create' }}
+        </UButton>
+        <UButton
+          v-if="note && note.status !== 'published'"
+          type="button"
+          :loading="loading"
+          class="text-black"
+          @click="onPublishClick"
+        >
+          Publish
+        </UButton>
+        <UButton type="button" variant="outline" @click="$emit('cancel')">
+          Cancel
+        </UButton>
       </div>
     </div>
     <ClientOnly>
-      <Teleport to="#details-panel-target" v-if="detailsOpenSynced && isEditMode">
+      <!-- ASIDE_DETAILS_PANEL_SPOT: Note aside (location, team, members, tags, visible_to_same_team, etc.) -->
+      <Teleport to="#details-panel-target" v-if="detailsOpenSynced">
         <aside class="w-full min-w-0 shrink-0 md:max-w-72">
           <div class="space-y-4">
             <h3 class="text-sm font-semibold text-gray-900">Details</h3>
-            <UFormField label="Location">
-              <USelectMenu
-                v-model="form.location_id"
-                :items="locationOptions"
-                value-key="value"
-                placeholder="Select location"
-                @update:model-value="form.team_id = ''"
-              />
+            <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:gap-3">
+              <UFormField label="Location" class="min-w-0 flex-1">
+                <USelectMenu
+                  v-model="form.location_id"
+                  :items="locationOptions"
+                  value-key="value"
+                  placeholder="Select location"
+                  class="w-full"
+                  @update:model-value="onLocationChange"
+                />
+              </UFormField>
+              <UFormField label="Team" class="min-w-0 flex-1">
+                <USelectMenu
+                  v-model="form.team_id"
+                  :items="teamOptions"
+                  value-key="value"
+                  placeholder="Select team"
+                  class="w-full"
+                  :disabled="!form.location_id"
+                />
+              </UFormField>
+            </div>
+            <UFormField label="Attending">
+              <div class="flex flex-col gap-1.5">
+                <USelectMenu
+                  v-model="attendingAddId"
+                  :items="attendingCandidates"
+                  value-key="value"
+                  placeholder="Add attending…"
+                  class="w-full"
+                  @update:model-value="addAttending"
+                />
+                <div class="flex flex-wrap gap-1.5">
+                  <span
+                    v-for="id in form.attending_ids"
+                    :key="id"
+                    class="inline-flex items-center gap-1 rounded-md bg-gray-100 px-2 py-1 text-sm"
+                  >
+                    {{ attendingLabel(id) }}
+                    <button
+                      type="button"
+                      class="rounded p-0.5 hover:bg-gray-200"
+                      aria-label="Remove"
+                      @click="removeAttending(id)"
+                    >
+                      <UIcon name="i-lucide-x" class="size-3.5" />
+                    </button>
+                  </span>
+                </div>
+              </div>
             </UFormField>
-            <UFormField label="Team">
-              <USelectMenu
-                v-model="form.team_id"
-                :items="teamOptions"
-                value-key="value"
-                placeholder="Select team"
-                :disabled="!form.location_id"
-              />
-            </UFormField>
-            <UFormField label="Member">
-              <USelectMenu
-                v-model="form.member_id"
-                :items="memberOptions"
-                value-key="value"
-                placeholder="Select member"
-              />
+            <UFormField v-if="mentionedMembers.length" label="Mentioned">
+              <ul class="flex flex-wrap gap-1.5">
+                <li
+                  v-for="m in mentionedMembers"
+                  :key="m._id"
+                  class="inline-flex items-center rounded-md bg-amber-50 px-2 py-1 text-xs text-amber-900"
+                >
+                  {{ m.canonicalName }}
+                </li>
+              </ul>
             </UFormField>
             <UFormField label="Tags">
-              <UInput
-                v-model="form.tags"
-                placeholder="tag1, tag2"
-              />
+              <div class="flex flex-col gap-1.5">
+                <UInput
+                  v-model="tagInputBuffer"
+                  placeholder="Type tag and press Enter"
+                  class="min-w-0"
+                  @keydown.enter.prevent="addCurrentTag"
+                />
+                <div class="flex flex-wrap gap-1.5">
+                  <span
+                    v-for="tag in allTags"
+                    :key="tag"
+                    class="inline-flex items-center gap-1 rounded-md bg-gray-100 px-2 py-1 text-sm"
+                  >
+                    #{{ tag }}
+                    <button
+                      type="button"
+                      class="rounded p-0.5 hover:bg-gray-200"
+                      aria-label="Remove tag"
+                      @click="removeTag(tag)"
+                    >
+                      <UIcon name="i-lucide-x" class="size-3.5" />
+                    </button>
+                  </span>
+                </div>
+                <div v-if="tagSuggestionsFiltered.length" class="flex flex-wrap gap-1.5">
+                  <UButton
+                    v-for="s in tagSuggestionsFiltered"
+                    :key="s"
+                    size="xs"
+                    variant="soft"
+                    color="neutral"
+                    @click="appendTag(s)"
+                  >
+                    #{{ s }}
+                  </UButton>
+                </div>
+              </div>
             </UFormField>
+            <div class="flex items-center gap-2">
+              <UCheckbox v-model="form.visible_to_same_team_name" />
+              <span class="text-sm">Visible to same team in other locations</span>
+            </div>
             <div class="flex items-center gap-2">
               <UCheckbox v-model="form.is_pinned" />
               <span class="text-sm">Pin note</span>
@@ -176,13 +294,11 @@ import {
   parseBlockNoteContent,
   serializeBlockNoteContent,
 } from '~/types/noteBlock'
-import { getWeeklyTemplateBlocks, getWeeklyNoteTitle } from '~/lib/templates/weeklyNoteTemplate'
+import { getWeeklyTemplateBlocks, getWeeklyNoteTitle, WEEKLY_DETAILS_BLOCK_ID } from '~/lib/templates/weeklyNoteTemplate'
 import { parseBlockTodos, parseBlockAgrees } from '~/lib/utils/blockTodoParser'
 
 const props = defineProps<{
   note?: Note | null
-  /** When note is published: false = view mode (Edit button, read-only), true = edit mode. Ignored when draft/new. */
-  editing?: boolean
   initialTemplate?: 'weekly'
   externalTitle?: string
   detailsOpen?: boolean
@@ -191,14 +307,8 @@ const props = defineProps<{
 const emit = defineEmits<{
   saved: [note: Note]
   cancel: []
-  startEdit: []
   'update:detailsOpen': [value: boolean]
 }>()
-
-const isPublished = computed(() => props.note?.status === 'published')
-const isEditMode = computed(
-  () => !props.note || props.note.status !== 'published' || props.editing !== false
-)
 
 const { isCollapsed: sidebarCollapsed } = useSidebar()
 
@@ -212,8 +322,9 @@ const form = reactive({
   title: props.note?.title ?? (props.initialTemplate === 'weekly' ? getWeeklyNoteTitle() : ''),
   location_id: connectedToId(props.note?.connected_to, 'location_id'),
   team_id: connectedToId(props.note?.connected_to, 'team_id'),
-  member_id: connectedToId(props.note?.connected_to, 'member_id'),
-  tags: (props.note?.tags ?? []).join(', '),
+  visible_to_same_team_name: props.note?.visible_to_same_team_name ?? false,
+  attending_ids: [] as string[],
+  tag_list: [...(props.note?.tags ?? [])],
   is_pinned: props.note?.is_pinned ?? false,
 })
 
@@ -230,29 +341,52 @@ watch(
     if (!ct) return
     form.location_id = connectedToId(ct, 'location_id')
     form.team_id = connectedToId(ct, 'team_id')
-    form.member_id = connectedToId(ct, 'member_id')
+  },
+  { immediate: true }
+)
+watch(
+  () => props.note?.visible_to_same_team_name,
+  (v) => {
+    if (v !== undefined && v !== null) form.visible_to_same_team_name = v
+  },
+  { immediate: true }
+)
+watch(
+  () => props.note?.attending_members,
+  (list) => {
+    form.attending_ids = (list ?? []).map((m) => m._id)
+  },
+  { immediate: true }
+)
+watch(
+  () => props.note?.tags,
+  (t) => {
+    const raw = Array.isArray(t) ? t : []
+    form.tag_list = dedupeTags(raw)
   },
   { immediate: true }
 )
 
+const tagInputBuffer = ref('')
 const locations = ref<{ _id: string; name: string }[]>([])
 const teams = ref<{ _id: string; name: string; location_id?: unknown }[]>([])
-const members = ref<{ _id: string; name: string }[]>([])
+const unifiedUsers = ref<{ _id: string; canonicalName: string; location_id?: string | null }[]>([])
+const tagSuggestions = ref<string[]>([])
+const attendingAddId = ref('')
 
-onMounted(async () => {
-  const [locRes, teamRes, memRes] = await Promise.all([
-    $fetch<{ success: boolean; data: { _id: string; name: string }[] }>('/api/locations'),
-    $fetch<{ success: boolean; data: { _id: string; name: string; location_id?: unknown }[] }>('/api/teams'),
-    $fetch<{ success: boolean; data: { _id: string; name: string }[] }>('/api/members'),
-  ])
-  if (locRes.success && locRes.data) locations.value = locRes.data
-  if (teamRes.success && teamRes.data) teams.value = teamRes.data
-  if (memRes.success && memRes.data) members.value = memRes.data
-})
+function toOptionValue(v: unknown): string {
+  if (v == null) return ''
+  if (typeof v === 'string') return v
+  const o = v as { value?: string; _id?: string }
+  return (o.value ?? o._id ?? '') as string
+}
 
 const locationOptions = computed(() => [
   { label: 'None', value: '' },
-  ...locations.value.map((l) => ({ label: l.name, value: l._id })),
+  ...locations.value.map((l) => ({
+    label: typeof l.name === 'string' && l.name.trim() ? l.name.trim() : `Location (${String(l._id).slice(-6)})`,
+    value: l._id,
+  })),
 ])
 const teamOptions = computed(() => {
   const locId = form.location_id
@@ -264,18 +398,151 @@ const teamOptions = computed(() => {
         const idStr = typeof tid === 'string' ? tid : (tid as { _id?: string })?._id ?? String(tid)
         return idStr === locId
       })
-  return [{ label: 'None', value: '' }, ...list.map((t) => ({ label: t.name, value: t._id }))]
+  return [
+    { label: 'None', value: '' },
+    ...list.map((t) => ({
+      label: typeof t.name === 'string' && t.name.trim() ? t.name.trim() : `Team (${String(t._id).slice(-6)})`,
+      value: t._id,
+    })),
+  ]
 })
-const memberOptions = computed(() => [
-  { label: 'None', value: '' },
-  ...members.value.map((m) => ({ label: m.name, value: m._id })),
-])
+function onLocationChange() {
+  form.team_id = ''
+}
+
+/** Normalize for comparison: strip leading #, trim, lowercase. Same tag cannot be added twice. */
+function canonicalTag(t: string): string {
+  return t.replace(/^#+/, '').trim().toLowerCase()
+}
+
+function dedupeTags(tags: string[]): string[] {
+  const seen = new Set<string>()
+  return tags.filter((t) => {
+    const c = canonicalTag(t)
+    if (!c || seen.has(c)) return false
+    seen.add(c)
+    return true
+  }).map((t) => t.replace(/^#+/, '').trim() || t)
+}
+
+/** #tags parsed from block content (shown in Details, included on save). */
+const tagsFromContent = computed(() => collectTagsFromBlocks(blocks.value))
+
+/** When user removes a tag that came only from content, we don't persist it. */
+const tagsExcludedFromContent = ref<Set<string>>(new Set())
+
+/** All tags to show in Details and to save: content tags (minus excluded) + manually added. */
+const allTags = computed(() => {
+  const fromContent = tagsFromContent.value.filter((c) => !tagsExcludedFromContent.value.has(c))
+  return dedupeTags([...fromContent, ...form.tag_list])
+})
+
+const existingTagsSet = computed(() => new Set(allTags.value.map((t) => canonicalTag(t)).filter(Boolean)))
+
+/** Autocomplete: suggest existing tags (from API) while typing; only show tags not already on the note. */
+const tagSuggestionsFiltered = computed(() => {
+  const prefix = canonicalTag(tagInputBuffer.value)
+  const existing = existingTagsSet.value
+  if (!prefix) return tagSuggestions.value.filter((t) => !existing.has(canonicalTag(t))).slice(0, 12)
+  return tagSuggestions.value
+    .filter((t) => {
+      const c = canonicalTag(t)
+      return !existing.has(c) && c.startsWith(prefix)
+    })
+    .slice(0, 12)
+})
+
+function addCurrentTag() {
+  const raw = tagInputBuffer.value.trim()
+  const c = canonicalTag(raw)
+  if (!c) {
+    tagInputBuffer.value = ''
+    return
+  }
+  if (existingTagsSet.value.has(c)) {
+    tagInputBuffer.value = ''
+    return
+  }
+  form.tag_list = [...form.tag_list, raw.replace(/^#+/, '').trim() || raw]
+  tagInputBuffer.value = ''
+}
+
+function appendTag(tag: string) {
+  const c = canonicalTag(tag)
+  if (!c || existingTagsSet.value.has(c)) return
+  form.tag_list = [...form.tag_list, tag.replace(/^#+/, '').trim() || tag]
+}
+
+function removeTag(tag: string) {
+  const c = canonicalTag(tag)
+  if (!c) return
+  const inForm = form.tag_list.some((x) => canonicalTag(x) === c)
+  if (inForm) {
+    form.tag_list = form.tag_list.filter((x) => canonicalTag(x) !== c)
+  } else {
+    tagsExcludedFromContent.value = new Set([...tagsExcludedFromContent.value, c])
+  }
+}
+
+onMounted(async () => {
+  const [locRes, teamRes, tagRes, unifiedRes] = await Promise.all([
+    $fetch<{ success: boolean; data: { _id: string; name: string }[] }>('/api/locations').catch(() => null),
+    $fetch<{ success: boolean; data: { _id: string; name: string; location_id?: unknown }[] }>('/api/teams').catch(() => null),
+    $fetch<{ success: boolean; data: string[] }>('/api/tags').catch(() => ({ success: false, data: [] as string[] })),
+    $fetch<{ success: boolean; data: { _id: string; canonicalName: string; location_id?: string | null }[] }>('/api/unified-users').catch(() => ({
+      success: false,
+      data: [] as { _id: string; canonicalName: string; location_id?: string | null }[],
+    })),
+  ])
+  if (locRes?.success && Array.isArray(locRes.data))
+    locations.value = locRes.data.filter((l) => l._id)
+  if (teamRes?.success && Array.isArray(teamRes.data))
+    teams.value = teamRes.data.filter((t) => t._id)
+  if (tagRes.success && tagRes.data) tagSuggestions.value = tagRes.data
+  if (unifiedRes.success && unifiedRes.data) unifiedUsers.value = unifiedRes.data.filter((u) => u._id)
+  if (locations.value.length === 1 && !form.location_id) {
+    const first = locations.value[0]
+    if (first) form.location_id = first._id
+  }
+})
+
+const attendingCandidates = computed(() => {
+  const added = new Set(form.attending_ids)
+  const locId = (form.location_id && String(form.location_id).trim()) || null
+  const available = unifiedUsers.value.filter((u) => !added.has(u._id))
+  const norm = (id: string | null | undefined) => (id == null || id === '') ? null : String(id).trim()
+  const sameLocation = available
+    .filter((u) => norm(u.location_id) === locId)
+    .sort((a, b) => a.canonicalName.localeCompare(b.canonicalName, undefined, { sensitivity: 'base' }))
+    .map((u) => ({ label: u.canonicalName, value: u._id }))
+  const other = available
+    .filter((u) => norm(u.location_id) !== locId)
+    .sort((a, b) => a.canonicalName.localeCompare(b.canonicalName, undefined, { sensitivity: 'base' }))
+    .map((u) => ({ label: u.canonicalName, value: u._id }))
+  if (sameLocation.length === 0 && other.length === 0) return []
+  if (sameLocation.length === 0) return other
+  if (other.length === 0) return sameLocation
+  return [...sameLocation, ...other]
+})
+
+function attendingLabel(id: string): string {
+  return unifiedUsers.value.find((u) => u._id === id)?.canonicalName ?? id.slice(-6)
+}
+
+function addAttending(v: unknown) {
+  const id = toOptionValue(v)
+  if (!id || form.attending_ids.includes(id)) return
+  form.attending_ids = [...form.attending_ids, id]
+  attendingAddId.value = ''
+}
+
+function removeAttending(id: string) {
+  form.attending_ids = form.attending_ids.filter((x) => x !== id)
+}
 
 const blocks = ref<NoteBlock[]>([])
-/** Single empty block on new note (no template): give first block ~75% height */
-const isDefaultNewBlock = computed(
-  () => !props.note && blocks.value.length === 1
-)
+/** Details block: open on first creation (new note), closed on revisit (existing note). */
+const detailsBlockCollapsed = ref(!!props.note)
 
 function initBlocks() {
   if (props.initialTemplate === 'weekly' && !props.note) {
@@ -293,36 +560,55 @@ function initBlocks() {
 }
 
 onMounted(initBlocks)
-watch(() => [props.note?._id, props.initialTemplate], initBlocks, { immediate: false })
+watch(() => [props.note?._id, props.initialTemplate], () => {
+  tagsExcludedFromContent.value = new Set()
+  detailsBlockCollapsed.value = !!props.note
+  initBlocks()
+}, { immediate: false })
 
-onBeforeUnmount(() => {
-  if (autoSaveTimeout) clearTimeout(autoSaveTimeout)
+/** Collect @mention slugs from current blocks (content + todo text). */
+function collectMentionSlugsFromBlocks(blockList: NoteBlock[]): string[] {
+  const slugs = new Set<string>()
+  for (const block of blockList) {
+    const raw = (block.content ?? '').replace(/<[^>]+>/g, ' ')
+    const matches = raw.match(/@([a-zA-Z0-9_-]+)/g)
+    if (matches) for (const m of matches) { const s = m.slice(1).toLowerCase(); if (s !== 'todo') slugs.add(s) }
+    for (const todo of block.todos ?? []) {
+      const t = todo as { text?: string; assignedTo?: string }
+      const slug = t.assignedTo ?? (t.text ?? '').match(/@([a-zA-Z0-9_-]+)/g)?.slice(-1)[0]?.slice(1).toLowerCase()
+      if (slug && slug !== 'todo') slugs.add(slug)
+    }
+  }
+  return [...slugs]
+}
+
+/** Collect #tag strings from current block content (same as @mentions: show in Details, persist on save). */
+function collectTagsFromBlocks(blockList: NoteBlock[]): string[] {
+  const tags = new Set<string>()
+  for (const block of blockList) {
+    const raw = (block.content ?? '').replace(/<[^>]+>/g, ' ')
+    const matches = raw.match(/#([a-zA-Z0-9_-]+)/g)
+    if (matches) for (const m of matches) { tags.add(canonicalTag(m.slice(1))) }
+  }
+  return [...tags].filter(Boolean)
+}
+
+const mentionedMembers = computed(() => {
+  const fromNote = new Map<string, { _id: string; canonicalName: string }>((props.note?.mentioned_members ?? []).map((m) => [m._id, m]))
+  const slugs = collectMentionSlugsFromBlocks(blocks.value)
+  for (const slug of slugs) {
+    const u = unifiedUsers.value.find(
+      (x) =>
+        (x.canonicalName?.toLowerCase() === slug) ||
+        (x.canonicalName?.toLowerCase().replace(/\s+/g, '-') === slug) ||
+        (x.canonicalName?.toLowerCase().split(/\s+/)[0] === slug)
+    )
+    if (u && !fromNote.has(u._id)) fromNote.set(u._id, { _id: u._id, canonicalName: u.canonicalName })
+  }
+  return Array.from(fromNote.values())
 })
 
 const blockPlaceholder = 'Write your note… Use @todo … @Todo ends or /todo for tasks, /agree for agreements. Add blocks with the button below.'
-
-function slugFromTitle(title: string): string {
-  const t = (title || 'untitled').trim().toLowerCase()
-  return t
-    .replace(/[^\w\s-]/g, '')
-    .replace(/\s+/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-+|-+$/g, '') || 'untitled'
-}
-
-/** Wrap /todo and /agree phrases in HTML with highlight classes for published view mode. */
-function highlightTodoAgree(html: string): string {
-  if (!html) return ''
-  return html
-    .replace(
-      /(\/todo\s+[^<\n]*)/gi,
-      '<mark class="bg-amber-100 text-amber-900 rounded px-0.5">$1</mark>'
-    )
-    .replace(
-      /(\/agree\s+[^<\n]*)/gi,
-      '<mark class="bg-emerald-100 text-emerald-900 rounded px-0.5">$1</mark>'
-    )
-}
 
 function blockAgrees(block: NoteBlock) {
   return block.agrees ?? []
@@ -357,88 +643,8 @@ function addBlock() {
 }
 
 const loading = ref(false)
-const publishLoading = ref(false)
+const publishAfterSave = ref(false)
 const detailsOpenInternal = ref(false)
-
-/** Debounced auto-save: new drafts and existing notes, 10s after last change */
-let autoSaveTimeout: ReturnType<typeof setTimeout> | null = null
-function scheduleAutoSave() {
-  if (!isEditMode.value) return
-  if (autoSaveTimeout) clearTimeout(autoSaveTimeout)
-  autoSaveTimeout = setTimeout(() => {
-    autoSaveTimeout = null
-    doAutoSave()
-  }, 10000)
-}
-
-async function doAutoSave(): Promise<void> {
-  ;(document.activeElement as HTMLElement)?.blur()
-  await nextTick()
-  const title = (props.externalTitle !== undefined && props.externalTitle !== null ? props.externalTitle : form.title).trim() || 'Untitled'
-  const normalized = blocks.value.map((b) => ({
-    ...b,
-    todos: parseBlockTodos(b.content, b.todos),
-    agrees: parseBlockAgrees(b.content, b.agrees ?? []),
-  }))
-  blocks.value = normalized
-  const content = serializeBlockNoteContent(blocks.value)
-  const tags = form.tags
-    .split(',')
-    .map((t) => t.trim())
-    .filter(Boolean)
-
-  if (props.note) {
-    if (content === (props.note.content ?? '') && title === (props.note.title ?? '').trim()) return
-    const res = await $fetch<NoteResponse>(`/api/notes/${props.note._id}`, {
-      method: 'PUT',
-      body: {
-        title,
-        slug: slugFromTitle(title),
-        content,
-        tags,
-        is_pinned: form.is_pinned,
-        location_id: form.location_id || undefined,
-        team_id: form.team_id || undefined,
-        member_id: form.member_id || undefined,
-      },
-    })
-    if (res.success && res.data) emit('saved', res.data)
-    return
-  }
-
-  if (!title.trim() && !content.replace(/\s/g, '').replace(/<[^>]+>/g, '').trim()) return
-  const res = await $fetch<NoteResponse>('/api/notes', {
-    method: 'POST',
-    body: {
-      title: title || 'Untitled',
-      content,
-      tags,
-      is_pinned: form.is_pinned,
-      location_id: form.location_id || undefined,
-      team_id: form.team_id || undefined,
-      member_id: form.member_id || undefined,
-    },
-  })
-  if (res.success && res.data) emit('saved', res.data)
-}
-
-/** Called when closing the note: flush pending auto-save and save once. */
-async function saveBeforeClose(): Promise<void> {
-  if (autoSaveTimeout) {
-    clearTimeout(autoSaveTimeout)
-    autoSaveTimeout = null
-  }
-  await doAutoSave()
-}
-
-defineExpose({ saveBeforeClose })
-
-watch(blocks, () => scheduleAutoSave(), { deep: true })
-watch(
-  [() => props.externalTitle, () => form.title, () => form.tags, () => form.location_id, () => form.team_id, () => form.member_id, () => form.is_pinned],
-  () => scheduleAutoSave(),
-  { deep: true }
-)
 const detailsOpenSynced = computed({
   get: () => props.detailsOpen ?? detailsOpenInternal.value,
   set: (v: boolean) => {
@@ -446,6 +652,16 @@ const detailsOpenSynced = computed({
     else detailsOpenInternal.value = v
   },
 })
+
+function onSaveClick() {
+  publishAfterSave.value = false
+  submit()
+}
+
+function onPublishClick() {
+  publishAfterSave.value = true
+  submit()
+}
 
 async function submit() {
   // Flush editor content (blur so any pending update is emitted)
@@ -460,58 +676,57 @@ async function submit() {
   }))
   blocks.value = normalized
   const content = serializeBlockNoteContent(blocks.value)
-  const tags = form.tags
-    .split(',')
-    .map((t) => t.trim())
-    .filter(Boolean)
+  const tags = allTags.value.filter((t) => t.trim() !== '')
   loading.value = true
   try {
     if (props.note) {
       const res = await $fetch<NoteResponse>(`/api/notes/${props.note._id}`, {
         method: 'PUT',
         body: {
-        title,
-        slug: slugFromTitle(title),
-        content,
-        tags,
-        is_pinned: form.is_pinned,
-        location_id: form.location_id || undefined,
-        team_id: form.team_id || undefined,
-        member_id: form.member_id || undefined,
-      },
+          title,
+          content,
+          tags,
+          visible_to_same_team_name: form.visible_to_same_team_name,
+          attending_unified_user_ids: form.attending_ids,
+          is_pinned: form.is_pinned,
+          location_id: form.location_id || undefined,
+          team_id: form.team_id || undefined,
+        },
       })
-      if (res.success && res.data) emit('saved', res.data)
+      if (res.success && res.data) {
+        if (publishAfterSave.value) {
+          const published = await $fetch<NoteResponse>(`/api/notes/${props.note._id}`, {
+            method: 'PUT',
+            body: { status: 'published' },
+          })
+          if (published.success && published.data) {
+            emit('saved', published.data)
+          } else {
+            emit('saved', res.data)
+          }
+        } else {
+          emit('saved', res.data)
+        }
+        publishAfterSave.value = false
+      }
     } else {
       const res = await $fetch<NoteResponse>('/api/notes', {
         method: 'POST',
         body: {
-        title,
-        content,
-        tags,
-        is_pinned: form.is_pinned,
-        location_id: form.location_id || undefined,
-        team_id: form.team_id || undefined,
-        member_id: form.member_id || undefined,
-      },
+          title,
+          content,
+          tags,
+          visible_to_same_team_name: form.visible_to_same_team_name,
+          attending_unified_user_ids: form.attending_ids,
+          is_pinned: form.is_pinned,
+          location_id: form.location_id || undefined,
+          team_id: form.team_id || undefined,
+        },
       })
       if (res.success && res.data) emit('saved', res.data)
     }
   } finally {
     loading.value = false
-  }
-}
-
-async function publish() {
-  if (!props.note) return
-  publishLoading.value = true
-  try {
-    const res = await $fetch<NoteResponse>(`/api/notes/${props.note._id}`, {
-      method: 'PUT',
-      body: { status: 'published' },
-    })
-    if (res.success && res.data) emit('saved', res.data)
-  } finally {
-    publishLoading.value = false
   }
 }
 </script>

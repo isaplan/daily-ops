@@ -32,6 +32,14 @@ export default defineEventHandler(async (event) => {
   const coll = await getNotesCollection()
   const filter = isMongoId(id) ? { _id: new ObjectId(id) } : { slug: id }
 
+  const existingNote = await coll.findOne(filter)
+  if (!existingNote) {
+    throw createError({ statusCode: 404, message: 'Note not found' })
+  }
+  if ((existingNote as Record<string, unknown>).deleted_at != null) {
+    throw createError({ statusCode: 400, message: 'Cannot edit a note in trash. Restore it first.' })
+  }
+
   const update: Record<string, unknown> = { updated_at: new Date() }
   if (body.title !== undefined) update.title = String(body.title).trim() || 'Untitled'
   if (body.content !== undefined) {
@@ -45,7 +53,7 @@ export default defineEventHandler(async (event) => {
     body.team_id !== undefined ||
     body.member_id !== undefined
   ) {
-    const existing = await coll.findOne(filter)
+    const existing = existingNote
     const existingCt = (existing?.connected_to as Record<string, unknown>) || {}
     update.connected_to = {
       ...existingCt,

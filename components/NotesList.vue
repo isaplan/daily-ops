@@ -17,6 +17,7 @@
             <div class="flex items-center gap-2 shrink-0">
               <UBadge v-if="note.is_pinned" color="primary" size="xs">Pinned</UBadge>
               <UButton :to="`/notes/${note.slug || note._id}`" variant="ghost" size="xs" trailing-icon="i-heroicons-pencil-square" color="neutral">Edit</UButton>
+              <UButton variant="ghost" size="xs" color="red" icon="i-heroicons-trash" :loading="deletingId === note._id" @click="deleteNote(note._id)" />
             </div>
           </div>
         </UCard>
@@ -43,7 +44,11 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   'update:skip': [value: number]
+  trashed: []
 }>()
+
+const toast = useToast()
+const deletingId = ref<string | null>(null)
 
 function formatDate(value: string): string {
   try { return new Date(value).toLocaleDateString() } catch { return '' }
@@ -58,5 +63,20 @@ function notePreview(note: Note): string {
   }
   const text = note.content.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
   return text.slice(0, 120) + (text.length > 120 ? '…' : '')
+}
+
+async function deleteNote(noteId: string) {
+  if (!confirm('Move this note to trash? You can restore it from Trash later.')) return
+  deletingId.value = noteId
+  try {
+    await $fetch(`/api/notes/${noteId}`, { method: 'DELETE' })
+    toast.add({ title: 'Moved to trash', color: 'green' })
+    emit('trashed')
+  } catch (err) {
+    toast.add({ title: 'Could not move note to trash', color: 'red' })
+    deletingId.value = null
+  } finally {
+    deletingId.value = null
+  }
 }
 </script>

@@ -76,7 +76,7 @@
           <USelectMenu
             v-model="teamForm.location_id"
             :items="locationOptions"
-            value-attribute="value"
+            value-key="value"
             class="w-full"
           >
             <template #leading>
@@ -137,7 +137,7 @@
           <USelectMenu
             v-model="memberForm.location_id"
             :items="memberLocationOptions"
-            value-attribute="value"
+            value-key="value"
             class="w-full"
             @update:model-value="memberForm.team_id = ''"
           >
@@ -150,7 +150,7 @@
           <USelectMenu
             v-model="memberForm.team_id"
             :items="filteredTeamOptions"
-            value-attribute="value"
+            value-key="value"
             class="w-full"
           >
             <template #leading>

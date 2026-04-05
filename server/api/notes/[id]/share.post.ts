@@ -21,6 +21,9 @@ export default defineEventHandler(async (event) => {
   if (!note) {
     throw createError({ statusCode: 404, message: 'Note not found' })
   }
+  if ((note as Record<string, unknown>).deleted_at != null) {
+    throw createError({ statusCode: 400, message: 'Cannot share a note that is in trash' })
+  }
 
   const noteObj = note as Record<string, unknown>
   const mentionedIds = (noteObj.mentioned_unified_user_ids as ObjectId[] | undefined) ?? []
