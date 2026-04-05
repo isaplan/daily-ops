@@ -1,5 +1,6 @@
 import { ObjectId } from 'mongodb'
 import { getDb } from '../../utils/db'
+import { fetchContractLocations, fetchHoursActivityByLocationTeam } from '../../utils/memberEitjeContext'
 
 export default defineEventHandler(async (event) => {
   const id = getRouterParam(event, 'id')
@@ -40,6 +41,17 @@ export default defineEventHandler(async (event) => {
       // ignore
     }
   }
+
+  const supportIdStr = typeof m.support_id === 'string' ? m.support_id : undefined
+  const [contract_locations, hours_activity] = await Promise.all([
+    fetchContractLocations(db, supportIdStr, name),
+    fetchHoursActivityByLocationTeam(db, {
+      supportId: supportIdStr,
+      userName: name,
+      monthsBack: 3,
+    }),
+  ])
+
   const data = {
     _id: String(member._id),
     name: name || `Member ${String(member._id).slice(-6)}`,
@@ -65,6 +77,12 @@ export default defineEventHandler(async (event) => {
     street: typeof m.street === 'string' ? m.street : undefined,
     nmbrs_id: typeof m.nmbrs_id === 'string' ? m.nmbrs_id : undefined,
     support_id: typeof m.support_id === 'string' ? m.support_id : undefined,
+    contract_locations,
+    hours_activity: {
+      range_start: hours_activity.range_start,
+      range_end: hours_activity.range_end,
+      entries: hours_activity.entries,
+    },
   }
   return { success: true, data }
 })

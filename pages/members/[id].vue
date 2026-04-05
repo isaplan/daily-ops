@@ -97,6 +97,15 @@
                     {{ formatDate(member.contract_end_date) }}
                   </span>
                 </div>
+                <div class="mt-3 border-t border-gray-100 pt-3">
+                  <p class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Contract location (Eitje)</p>
+                  <ul v-if="member.contract_locations?.length" class="list-disc list-inside space-y-1 text-gray-900">
+                    <li v-for="(loc, idx) in member.contract_locations" :key="idx">{{ loc }}</li>
+                  </ul>
+                  <p v-else class="text-sm text-gray-500">
+                    Not in the contract export yet. This comes from Eitje contract data (contractvestiging), not the personeels list CSV.
+                  </p>
+                </div>
               </div>
             </div>
 
@@ -167,6 +176,45 @@
             </div>
           </div>
         </div>
+
+        <!-- Shifts / hours: where they actually worked (may be multiple locations & teams) -->
+        <div
+          v-if="member.hours_activity"
+          class="bg-white border border-gray-200 rounded-lg p-6 mb-6"
+        >
+          <h2 class="text-xl font-bold text-gray-900 mb-1">Activity from time registration</h2>
+          <p class="text-sm text-gray-500 mb-4">
+            Last 3 months (synced shifts): {{ formatIsoDate(member.hours_activity.range_start) }} – {{ formatIsoDate(member.hours_activity.range_end) }}
+          </p>
+          <div v-if="member.hours_activity.entries.length" class="overflow-x-auto">
+            <table class="w-full text-left text-sm">
+              <thead>
+                <tr class="border-b">
+                  <th class="pb-2 pr-4 font-medium">Location</th>
+                  <th class="pb-2 pr-4 font-medium">Team</th>
+                  <th class="pb-2 pr-4 font-medium text-right">Hours</th>
+                  <th class="pb-2 font-medium text-right">Records</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  v-for="(row, idx) in member.hours_activity.entries"
+                  :key="idx"
+                  class="border-b last:border-0"
+                >
+                  <td class="py-2 pr-4">{{ row.location_name }}</td>
+                  <td class="py-2 pr-4">{{ row.team_name }}</td>
+                  <td class="py-2 pr-4 text-right font-mono">{{ row.total_hours.toFixed(2) }}h</td>
+                  <td class="py-2 text-right">{{ row.record_count }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p v-else class="text-sm text-gray-500">
+            No time-registration rows in this window. Check Eitje sync, or that support ID matches Eitje user id for aggregation.
+          </p>
+        </div>
+
         <div class="bg-white border border-gray-200 rounded-lg p-6">
           <h2 class="text-2xl font-bold text-gray-900 mb-4">Connections</h2>
 
@@ -294,6 +342,12 @@ type MemberItem = {
   street?: string
   nmbrs_id?: string
   support_id?: string
+  contract_locations?: string[]
+  hours_activity?: {
+    range_start: string
+    range_end: string
+    entries: Array<{ location_name: string; team_name: string; total_hours: number; record_count: number }>
+  }
 }
 type ConnectionNote = { _id: string; slug?: string; title: string; content?: string; created_at?: string | null }
 type ConnectionTodo = { _id: string; text: string; checked: boolean; noteId: string; noteSlug?: string; noteTitle: string }
@@ -348,6 +402,18 @@ function formatDate(val: string | null | undefined) {
   }
 }
 
+/** YYYY-MM-DD from API → locale date */
+function formatIsoDate(val: string | null | undefined) {
+  if (!val) return ''
+  try {
+    const [y, m, d] = val.split('-').map(Number)
+    if (!y || !m || !d) return val
+    return new Date(y, m - 1, d).toLocaleDateString()
+  } catch {
+    return val ?? ''
+  }
+}
+
 const hasWorkerData = computed(() => {
   if (!member.value) return false
   return !!(
@@ -360,7 +426,10 @@ const hasWorkerData = computed(() => {
     member.value.birthday ||
     member.value.street ||
     member.value.postcode ||
-    member.value.city
+    member.value.city ||
+    (member.value.contract_locations && member.value.contract_locations.length > 0) ||
+    !!(member.value.support_id && member.value.support_id.trim()) ||
+    !!(member.value.nmbrs_id && member.value.nmbrs_id.trim())
   )
 })
 
@@ -440,7 +509,8 @@ async function saveMember() {
       },
     })
     if (res.success && res.data) {
-      memberData.value = { success: true, data: res.data }
+      const full = await $fetch<{ success: boolean; data: MemberItem }>(`/api/members/${id.value}`)
+      memberData.value = full.success && full.data ? full : { success: true, data: res.data }
       isEditing.value = false
     } else {
       saveError.value = res.error ?? 'Failed to update member'
