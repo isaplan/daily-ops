@@ -180,10 +180,15 @@
                 <span class="font-medium text-gray-800">planned</span> rooster, combined per place.
               </p>
             </div>
-            <p class="text-xs text-gray-500 sm:text-right">
-              Rolling {{ member.eitje_places.months_back }} months ·
-              {{ formatIsoDate(member.eitje_places.range_start) }} – {{ formatIsoDate(member.eitje_places.range_end) }}
-            </p>
+            <div class="text-xs text-gray-500 sm:text-right">
+              <p>
+                Rolling {{ member.eitje_places.months_back }} months ·
+                {{ formatIsoDate(member.eitje_places.range_start) }} – {{ formatIsoDate(member.eitje_places.range_end) }}
+              </p>
+              <p v-if="member.eitje_places.data_source === 'raw_fallback'" class="mt-1 text-amber-800/90">
+                Built from stored shift rows (daily totals had no match for this support ID / name).
+              </p>
+            </div>
           </div>
 
           <div
@@ -222,7 +227,8 @@
             </div>
           </div>
           <p v-else class="rounded-lg border border-dashed border-gray-200 bg-white/60 px-4 py-6 text-center text-sm text-gray-600">
-            No location/team pairs in aggregation for this window yet — after the next Eitje sync, places they clock or are planned on will show here.
+            No shifts in Eitje for this person in the last {{ member.eitje_places.months_back }} months (checked by support ID, unified user ids, and name).
+            If they do work in Eitje, confirm sync and that support ID {{ member.support_id || '—' }} matches their Eitje profile.
           </p>
         </div>
 
@@ -356,6 +362,7 @@ type MemberItem = {
     months_back: number
     range_start: string
     range_end: string
+    data_source?: 'aggregation' | 'raw_fallback' | 'none'
     merged: Array<{
       location_name: string
       team_name: string

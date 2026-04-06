@@ -46,7 +46,7 @@ export default defineEventHandler(async (event) => {
   const eitje_places = await fetchMemberEitjePlaces(db, {
     supportId: supportIdStr,
     userName: name,
-    monthsBack: 12,
+    monthsBack: 36,
   })
 
   const data = {
@@ -79,6 +79,7 @@ export default defineEventHandler(async (event) => {
       range_start: eitje_places.range_start,
       range_end: eitje_places.range_end,
       merged: eitje_places.merged,
+      data_source: eitje_places.source,
     },
   }
   return { success: true, data }

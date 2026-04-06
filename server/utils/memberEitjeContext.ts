@@ -1,6 +1,7 @@
 import type { Db } from 'mongodb'
+import { EITJE_HOURS_ADD_FIELDS } from './eitjeHours'
 
-/** Eitje aggregation may store userId as number or string (support ID). */
+/** Eitje aggregation may store userId as number or string (support ID is often different). */
 export function eitjeUserIdCandidates (supportId: string | undefined): unknown[] {
   if (!supportId?.trim()) return []
   const s = supportId.trim()
@@ -8,6 +9,87 @@ export function eitjeUserIdCandidates (supportId: string | undefined): unknown[]
   out.add(s)
   const n = Number(s)
   if (!Number.isNaN(n)) out.add(n)
+  return [...out]
+}
+
+function escapeRegex (s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function addId (out: Set<unknown>, v: unknown) {
+  if (v == null) return
+  if (typeof v === 'number' && !Number.isNaN(v)) {
+    out.add(v)
+    out.add(String(v))
+    return
+  }
+  if (typeof v === 'string') {
+    const t = v.trim()
+    if (!t) return
+    out.add(t)
+    const n = Number(t)
+    if (!Number.isNaN(n) && String(n) === t) out.add(n)
+    return
+  }
+  if (typeof v === 'object' && v && 'toString' in v) {
+    const t = String(v)
+    if (t && /^[0-9a-f]{24}$/i.test(t)) out.add(v)
+    else if (t) out.add(t)
+  }
+}
+
+/**
+ * Resolve every id Eitje might store as aggregation `userId` for this person.
+ * Support ID from CSV is often NOT the same as Eitje internal user id — use unified_user.
+ */
+export async function resolveEitjeAggregationUserCandidates (
+  db: Db,
+  supportId: string | undefined,
+  userName: string
+): Promise<unknown[]> {
+  const out = new Set<unknown>()
+  for (const x of eitjeUserIdCandidates(supportId)) addId(out, x)
+
+  const orClause: Record<string, unknown>[] = []
+  const sid = supportId?.trim()
+  if (sid) {
+    const n = Number(sid)
+    orClause.push({ support_id: sid })
+    orClause.push({ support_id: n })
+    if (!Number.isNaN(n)) {
+      orClause.push({ eitjeIds: n })
+      orClause.push({ allIdValues: n })
+    }
+  }
+  const name = userName.trim()
+  if (name) {
+    orClause.push({ canonicalName: name })
+    orClause.push({ primaryName: name })
+    orClause.push({ name: name })
+    orClause.push({
+      canonicalName: { $regex: `^\\s*${escapeRegex(name)}\\s*$`, $options: 'i' },
+    })
+  }
+
+  if (orClause.length > 0) {
+    const users = await db
+      .collection('unified_user')
+      .find({ $or: orClause })
+      .project({ eitjeIds: 1, allIdValues: 1, primaryId: 1, support_id: 1 })
+      .limit(40)
+      .toArray()
+
+    for (const u of users) {
+      const doc = u as Record<string, unknown>
+      const ej = doc.eitjeIds
+      if (Array.isArray(ej)) for (const x of ej) addId(out, x)
+      const av = doc.allIdValues
+      if (Array.isArray(av)) for (const x of av) addId(out, x)
+      addId(out, doc.primaryId)
+      addId(out, doc.support_id)
+    }
+  }
+
   return [...out]
 }
 
@@ -28,29 +110,44 @@ function dateRange (monthsBack: number): { range_start: string; range_end: strin
   }
 }
 
+function userMatchClause (userIdCandidates: unknown[], userName: string): Record<string, unknown> | null {
+  const orBranches: Record<string, unknown>[] = []
+  if (userIdCandidates.length > 0) {
+    orBranches.push({ userId: { $in: userIdCandidates } })
+  }
+  const name = userName.trim()
+  if (name) {
+    orBranches.push({ user_name: name })
+    orBranches.push({
+      user_name: { $regex: `^\\s*${escapeRegex(name)}\\s*$`, $options: 'i' },
+    })
+  }
+  if (orBranches.length === 0) return null
+  return { $or: orBranches }
+}
+
 /**
  * Sum hours per location + team from daily Eitje aggregation (worked or planned shifts).
  */
 export async function fetchAggregationActivityByLocationTeam (
   db: Db,
   collectionName: 'eitje_time_registration_aggregation' | 'eitje_planning_registration_aggregation',
-  options: { supportId?: string; userName: string; range: { range_start: string; range_end: string } }
+  options: {
+    userIdCandidates: unknown[]
+    userName: string
+    range: { range_start: string; range_end: string }
+  }
 ): Promise<HoursActivityEntry[]> {
   const { range_start, range_end } = options.range
-  const candidates = eitjeUserIdCandidates(options.supportId)
+  const userClause = userMatchClause(options.userIdCandidates, options.userName)
+  if (!userClause) return []
+
   const baseMatch: Record<string, unknown> = {
     period_type: 'day',
     period: { $gte: range_start, $lte: range_end },
     team_name: { $exists: true, $nin: [null, 'Unknown'] },
     location_name: { $exists: true, $nin: [null, 'Unknown'] },
-  }
-
-  if (candidates.length > 0) {
-    baseMatch.userId = { $in: candidates }
-  } else if (options.userName.trim()) {
-    baseMatch.user_name = options.userName.trim()
-  } else {
-    return []
+    ...userClause,
   }
 
   const pipeline: unknown[] = [
@@ -75,6 +172,161 @@ export async function fetchAggregationActivityByLocationTeam (
   ]
 
   const rows = await db.collection(collectionName).aggregate(pipeline).toArray() as HoursActivityEntry[]
+  return rows.map((r) => ({
+    location_name: r.location_name ?? 'Unknown',
+    team_name: r.team_name ?? 'Unknown',
+    total_hours: Number(r.total_hours ?? 0),
+    record_count: Number(r.record_count ?? 0),
+  }))
+}
+
+const unifiedTeamLookup = {
+  $lookup: {
+    from: 'unified_team',
+    let: { tid: '$teamId' },
+    pipeline: [
+      {
+        $match: {
+          $expr: {
+            $or: [
+              { $in: ['$$tid', { $ifNull: ['$eitjeIds', []] }] },
+              { $in: ['$$tid', { $ifNull: ['$allIdValues', []] }] },
+              { $eq: ['$primaryId', '$$tid'] },
+            ],
+          },
+        },
+      },
+      { $limit: 1 },
+      { $project: { primaryName: 1, canonicalName: 1 } },
+    ],
+    as: 'team',
+  },
+} as const
+
+/**
+ * When aggregation has no rows (stale pipeline, id mismatch), derive place + hours from eitje_raw_data.
+ */
+async function fetchRawPlacesByEndpoint (
+  db: Db,
+  endpoint: 'time_registration_shifts' | 'planning_shifts',
+  range: { range_start: string; range_end: string },
+  supportId: string | undefined,
+  userIdCandidates: unknown[]
+): Promise<HoursActivityEntry[]> {
+  const sid = supportId?.trim()
+  if (userIdCandidates.length === 0 && !sid) return []
+
+  const start = new Date(`${range.range_start}T00:00:00.000Z`)
+  const end = new Date(`${range.range_end}T23:59:59.999Z`)
+
+  const orCond: Record<string, unknown>[] = []
+  if (userIdCandidates.length > 0) {
+    orCond.push({ aggUid: { $in: userIdCandidates } })
+  }
+  if (sid) {
+    orCond.push({ aggSupportStr: sid })
+    const n = Number(sid)
+    if (!Number.isNaN(n)) orCond.push({ aggSupportStr: String(n) })
+  }
+
+  const pipeline: unknown[] = [
+    {
+      $match: {
+        endpoint,
+        date: { $gte: start, $lte: end },
+      },
+    },
+    {
+      $addFields: {
+        ...EITJE_HOURS_ADD_FIELDS,
+        aggUid: {
+          $ifNull: [
+            '$extracted.userId',
+            { $ifNull: ['$rawApiResponse.user_id', '$rawApiResponse.user.id'] },
+          ],
+        },
+        aggSupportStr: {
+          $toString: {
+            $ifNull: [
+              '$extracted.supportId',
+              {
+                $ifNull: [
+                  '$rawApiResponse.support_id',
+                  { $ifNull: ['$rawApiResponse.id', ''] },
+                ],
+              },
+            ],
+          },
+        },
+        teamId: {
+          $ifNull: [
+            '$extracted.teamId',
+            { $ifNull: ['$rawApiResponse.team_id', '$rawApiResponse.team.id'] },
+          ],
+        },
+        locName: {
+          $ifNull: [
+            '$extracted.locationName',
+            {
+              $ifNull: [
+                '$extracted.environmentName',
+                {
+                  $ifNull: [
+                    '$rawApiResponse.location_name',
+                    { $ifNull: ['$rawApiResponse.environment_name', ''] },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      },
+    },
+    { $match: { $or: orCond } },
+    unifiedTeamLookup,
+    {
+      $addFields: {
+        team_name: {
+          $ifNull: [
+            { $arrayElemAt: ['$team.canonicalName', 0] },
+            { $ifNull: [{ $arrayElemAt: ['$team.primaryName', 0] }, 'Unknown'] },
+          ],
+        },
+        location_name: {
+          $cond: [
+            { $and: [{ $ne: ['$locName', null] }, { $ne: [{ $toString: '$locName' }, ''] }] },
+            { $toString: '$locName' },
+            'Unknown',
+          ],
+        },
+      },
+    },
+    {
+      $match: {
+        team_name: { $nin: [null, '', 'Unknown'] },
+        location_name: { $nin: [null, '', 'Unknown'] },
+      },
+    },
+    {
+      $group: {
+        _id: { location_name: '$location_name', team_name: '$team_name' },
+        total_hours: { $sum: '$hours' },
+        record_count: { $sum: 1 },
+      },
+    },
+    { $sort: { total_hours: -1 } },
+    {
+      $project: {
+        _id: 0,
+        location_name: '$_id.location_name',
+        team_name: '$_id.team_name',
+        total_hours: 1,
+        record_count: 1,
+      },
+    },
+  ]
+
+  const rows = await db.collection('eitje_raw_data').aggregate(pipeline).toArray() as HoursActivityEntry[]
   return rows.map((r) => ({
     location_name: r.location_name ?? 'Unknown',
     team_name: r.team_name ?? 'Unknown',
@@ -137,6 +389,7 @@ export function mergeWorkedAndPlanned (
 
 /**
  * Worked + planned hours by location & team (Eitje aggregation), merged for one member.
+ * Falls back to eitje_raw_data when aggregation returns nothing (common when userId ≠ support_id).
  */
 export async function fetchMemberEitjePlaces (
   db: Db,
@@ -148,19 +401,47 @@ export async function fetchMemberEitjePlaces (
   worked: HoursActivityEntry[]
   planned: HoursActivityEntry[]
   merged: MergedPlaceRow[]
+  source: 'aggregation' | 'raw_fallback' | 'none'
 }> {
-  const monthsBack = options.monthsBack ?? 12
+  const monthsBack = options.monthsBack ?? 36
   const range = dateRange(monthsBack)
+  const userIdCandidates = await resolveEitjeAggregationUserCandidates(
+    db,
+    options.supportId,
+    options.userName
+  )
+
   const baseOpts = {
-    supportId: options.supportId,
+    userIdCandidates,
     userName: options.userName,
     range,
   }
 
-  const [worked, planned] = await Promise.all([
-    fetchAggregationActivityByLocationTeam(db, 'eitje_time_registration_aggregation', baseOpts),
-    fetchAggregationActivityByLocationTeam(db, 'eitje_planning_registration_aggregation', baseOpts),
-  ])
+  let worked = await fetchAggregationActivityByLocationTeam(
+    db,
+    'eitje_time_registration_aggregation',
+    baseOpts
+  )
+  let planned = await fetchAggregationActivityByLocationTeam(
+    db,
+    'eitje_planning_registration_aggregation',
+    baseOpts
+  )
+
+  let merged = mergeWorkedAndPlanned(worked, planned)
+  let source: 'aggregation' | 'raw_fallback' | 'none' =
+    merged.length > 0 ? 'aggregation' : 'none'
+
+  if (merged.length === 0) {
+    const [rw, rp] = await Promise.all([
+      fetchRawPlacesByEndpoint(db, 'time_registration_shifts', range, options.supportId, userIdCandidates),
+      fetchRawPlacesByEndpoint(db, 'planning_shifts', range, options.supportId, userIdCandidates),
+    ])
+    worked = rw
+    planned = rp
+    merged = mergeWorkedAndPlanned(worked, planned)
+    if (merged.length > 0) source = 'raw_fallback'
+  }
 
   return {
     months_back: monthsBack,
@@ -168,6 +449,7 @@ export async function fetchMemberEitjePlaces (
     range_end: range.range_end,
     worked,
     planned,
-    merged: mergeWorkedAndPlanned(worked, planned),
+    merged,
+    source,
   }
 }
