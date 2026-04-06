@@ -96,15 +96,6 @@
                     {{ formatDate(member.contract_end_date) }}
                   </span>
                 </div>
-                <div class="mt-3 border-t border-gray-100 pt-3">
-                  <p class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Contract location (Eitje)</p>
-                  <ul v-if="member.contract_locations?.length" class="list-disc list-inside space-y-1 text-gray-900">
-                    <li v-for="(loc, idx) in member.contract_locations" :key="idx">{{ loc }}</li>
-                  </ul>
-                  <p v-else class="text-sm text-gray-500">
-                    Not in the contract export yet. This comes from Eitje contract data (contractvestiging), not the personeels list CSV.
-                  </p>
-                </div>
               </div>
             </div>
 
@@ -176,41 +167,62 @@
           </div>
         </div>
 
-        <!-- Shifts / hours: where they actually worked (may be multiple locations & teams) -->
+        <!-- Eitje: every location + team this person appears on (worked + planned) -->
         <div
-          v-if="member.hours_activity"
-          class="bg-white border border-gray-200 rounded-lg p-6 mb-6"
+          v-if="member.eitje_places"
+          class="mb-6 overflow-hidden rounded-2xl border border-[hsl(45,25%,82%)] bg-gradient-to-br from-[hsl(45,20%,99%)] via-white to-[hsl(200,35%,98%)] p-6 shadow-sm"
         >
-          <h2 class="text-xl font-bold text-gray-900 mb-1">Activity from time registration</h2>
-          <p class="text-sm text-gray-500 mb-4">
-            Last 3 months (synced shifts): {{ formatIsoDate(member.hours_activity.range_start) }} – {{ formatIsoDate(member.hours_activity.range_end) }}
-          </p>
-          <div v-if="member.hours_activity.entries.length" class="overflow-x-auto">
-            <table class="w-full text-left text-sm">
-              <thead>
-                <tr class="border-b">
-                  <th class="pb-2 pr-4 font-medium">Location</th>
-                  <th class="pb-2 pr-4 font-medium">Team</th>
-                  <th class="pb-2 pr-4 font-medium text-right">Hours</th>
-                  <th class="pb-2 font-medium text-right">Records</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr
-                  v-for="(row, idx) in member.hours_activity.entries"
-                  :key="idx"
-                  class="border-b last:border-0"
-                >
-                  <td class="py-2 pr-4">{{ row.location_name }}</td>
-                  <td class="py-2 pr-4">{{ row.team_name }}</td>
-                  <td class="py-2 pr-4 text-right font-mono">{{ row.total_hours.toFixed(2) }}h</td>
-                  <td class="py-2 text-right">{{ row.record_count }}</td>
-                </tr>
-              </tbody>
-            </table>
+          <div class="mb-5 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h2 class="text-xl font-bold tracking-tight text-gray-900">Locations & teams</h2>
+              <p class="text-sm text-gray-600">
+                From synced Eitje data: <span class="font-medium text-gray-800">clocked</span> hours and
+                <span class="font-medium text-gray-800">planned</span> rooster, combined per place.
+              </p>
+            </div>
+            <p class="text-xs text-gray-500 sm:text-right">
+              Rolling {{ member.eitje_places.months_back }} months ·
+              {{ formatIsoDate(member.eitje_places.range_start) }} – {{ formatIsoDate(member.eitje_places.range_end) }}
+            </p>
           </div>
-          <p v-else class="text-sm text-gray-500">
-            No time-registration rows in this window. Check Eitje sync, or that support ID matches Eitje user id for aggregation.
+
+          <div
+            v-if="member.eitje_places.merged.length"
+            class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3"
+          >
+            <div
+              v-for="(row, idx) in member.eitje_places.merged"
+              :key="`${row.location_name}-${row.team_name}-${idx}`"
+              class="group relative rounded-xl border border-gray-200/80 bg-white/90 p-4 shadow-[0_1px_0_rgba(0,0,0,0.04)] backdrop-blur-sm transition hover:border-[hsl(45,30%,70%)] hover:shadow-md"
+            >
+              <div class="absolute right-3 top-3 size-2 rounded-full bg-[hsl(45,55%,55%)] opacity-60 group-hover:opacity-100" aria-hidden="true" />
+              <p class="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Location</p>
+              <p class="text-base font-semibold leading-snug text-gray-900">{{ row.location_name }}</p>
+              <p class="mt-3 text-[11px] font-semibold uppercase tracking-wider text-gray-400">Team</p>
+              <p class="text-sm font-medium text-gray-800">{{ row.team_name }}</p>
+              <div class="mt-4 flex flex-wrap gap-2">
+                <span
+                  class="inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-900 ring-1 ring-emerald-200/80"
+                  title="Time registration (clocked)"
+                >
+                  <span class="size-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
+                  Worked {{ row.worked_hours.toFixed(1) }}h
+                </span>
+                <span
+                  class="inline-flex items-center gap-1 rounded-lg bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-900 ring-1 ring-sky-200/80"
+                  title="Planning shifts"
+                >
+                  <span class="size-1.5 rounded-full bg-sky-500" aria-hidden="true" />
+                  Planned {{ row.planned_hours.toFixed(1) }}h
+                </span>
+              </div>
+              <p class="mt-3 text-[11px] text-gray-500">
+                {{ row.worked_records }} worked rows · {{ row.planned_records }} planned rows
+              </p>
+            </div>
+          </div>
+          <p v-else class="rounded-lg border border-dashed border-gray-200 bg-white/60 px-4 py-6 text-center text-sm text-gray-600">
+            No location/team pairs in aggregation for this window yet — after the next Eitje sync, places they clock or are planned on will show here.
           </p>
         </div>
 
@@ -340,11 +352,18 @@ type MemberItem = {
   street?: string
   nmbrs_id?: string
   support_id?: string
-  contract_locations?: string[]
-  hours_activity?: {
+  eitje_places?: {
+    months_back: number
     range_start: string
     range_end: string
-    entries: Array<{ location_name: string; team_name: string; total_hours: number; record_count: number }>
+    merged: Array<{
+      location_name: string
+      team_name: string
+      worked_hours: number
+      planned_hours: number
+      worked_records: number
+      planned_records: number
+    }>
   }
 }
 type ConnectionNote = { _id: string; slug?: string; title: string; content?: string; created_at?: string | null }
@@ -425,7 +444,6 @@ const hasWorkerData = computed(() => {
     member.value.street ||
     member.value.postcode ||
     member.value.city ||
-    (member.value.contract_locations && member.value.contract_locations.length > 0) ||
     !!(member.value.support_id && member.value.support_id.trim()) ||
     !!(member.value.nmbrs_id && member.value.nmbrs_id.trim())
   )

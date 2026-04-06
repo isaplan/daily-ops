@@ -1,6 +1,6 @@
 import { ObjectId } from 'mongodb'
 import { getDb } from '../../utils/db'
-import { fetchContractLocations, fetchHoursActivityByLocationTeam } from '../../utils/memberEitjeContext'
+import { fetchMemberEitjePlaces } from '../../utils/memberEitjeContext'
 
 export default defineEventHandler(async (event) => {
   const id = getRouterParam(event, 'id')
@@ -43,14 +43,11 @@ export default defineEventHandler(async (event) => {
   }
 
   const supportIdStr = typeof m.support_id === 'string' ? m.support_id : undefined
-  const [contract_locations, hours_activity] = await Promise.all([
-    fetchContractLocations(db, supportIdStr, name),
-    fetchHoursActivityByLocationTeam(db, {
-      supportId: supportIdStr,
-      userName: name,
-      monthsBack: 3,
-    }),
-  ])
+  const eitje_places = await fetchMemberEitjePlaces(db, {
+    supportId: supportIdStr,
+    userName: name,
+    monthsBack: 12,
+  })
 
   const data = {
     _id: String(member._id),
@@ -77,11 +74,11 @@ export default defineEventHandler(async (event) => {
     street: typeof m.street === 'string' ? m.street : undefined,
     nmbrs_id: typeof m.nmbrs_id === 'string' ? m.nmbrs_id : undefined,
     support_id: typeof m.support_id === 'string' ? m.support_id : undefined,
-    contract_locations,
-    hours_activity: {
-      range_start: hours_activity.range_start,
-      range_end: hours_activity.range_end,
-      entries: hours_activity.entries,
+    eitje_places: {
+      months_back: eitje_places.months_back,
+      range_start: eitje_places.range_start,
+      range_end: eitje_places.range_end,
+      merged: eitje_places.merged,
     },
   }
   return { success: true, data }
