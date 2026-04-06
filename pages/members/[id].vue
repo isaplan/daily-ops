@@ -1,6 +1,5 @@
 <template>
-  <div class="min-h-screen bg-gray-50 p-8">
-    <div class="max-w-4xl mx-auto">
+  <div class="max-w-4xl mx-auto w-full">
       <UButton variant="ghost" size="sm" class="mb-4 text-blue-600 hover:text-blue-800" to="/organisation">
         ← Back
       </UButton>
@@ -309,7 +308,6 @@
           </template>
         </div>
       </template>
-    </div>
   </div>
 </template>
 
