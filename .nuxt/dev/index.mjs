@@ -2471,16 +2471,16 @@ _wH6JrtIxmaSoA8lCPWFnE9z4lQeXW6H5z3l5aymEQw
 const assets = {
   "/index.mjs": {
     "type": "text/javascript; charset=utf-8",
-    "etag": "\"124bcf-l4xClbJDHwd8Fa7We6XvlGxBnzw\"",
-    "mtime": "2026-04-08T22:45:35.951Z",
-    "size": 1199055,
+    "etag": "\"124eac-qaIZuvEmrCuwO+b2QEAmQkLq2Qs\"",
+    "mtime": "2026-04-08T22:51:04.696Z",
+    "size": 1199788,
     "path": "index.mjs"
   },
   "/index.mjs.map": {
     "type": "application/json",
-    "etag": "\"49e9ee-GKbQDUIZ/hUDoIQy5kkvQG/c2EU\"",
-    "mtime": "2026-04-08T22:45:35.977Z",
-    "size": 4844014,
+    "etag": "\"49f5a4-osyJJUO1hMuqBVtn5FVDmVz49vM\"",
+    "mtime": "2026-04-08T22:51:04.735Z",
+    "size": 4847012,
     "path": "index.mjs.map"
   }
 };
@@ -30424,6 +30424,27 @@ async function rebuildEitjeTimeRegistrationAggregation(db, startDate, endDate) {
     },
     {
       $lookup: {
+        from: "members",
+        let: { uid: "$userId" },
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $or: [
+                  { $eq: ["$eitje_id", "$$uid"] },
+                  { $in: ["$$uid", { $ifNull: ["$eitje_ids", []] }] }
+                ]
+              }
+            }
+          },
+          { $limit: 1 },
+          { $project: { hourly_rate: 1 } }
+        ],
+        as: "memberDoc"
+      }
+    },
+    {
+      $lookup: {
         from: "unified_user",
         let: { uid: "$userId" },
         pipeline: [
@@ -30479,11 +30500,16 @@ async function rebuildEitjeTimeRegistrationAggregation(db, startDate, endDate) {
             }
           ]
         },
-        hourly_rate: { $arrayElemAt: ["$u.hourly_rate", 0] },
+        hourly_rate: {
+          $ifNull: [
+            { $arrayElemAt: ["$memberDoc.hourly_rate", 0] },
+            { $arrayElemAt: ["$u.hourly_rate", 0] }
+          ]
+        },
         cost: {
           $cond: [
-            { $and: [{ $ne: ["$hours", null] }, { $ne: [{ $arrayElemAt: ["$u.hourly_rate", 0] }, null] }] },
-            { $multiply: ["$hours", { $ifNull: [{ $arrayElemAt: ["$u.hourly_rate", 0] }, 0] }] },
+            { $and: [{ $ne: ["$hours", null] }, { $ne: [{ $ifNull: [{ $arrayElemAt: ["$memberDoc.hourly_rate", 0] }, { $arrayElemAt: ["$u.hourly_rate", 0] }] }, null] }] },
+            { $multiply: ["$hours", { $ifNull: [{ $arrayElemAt: ["$memberDoc.hourly_rate", 0] }, { $arrayElemAt: ["$u.hourly_rate", 0] }] }] },
             {
               $ifNull: [
                 { $divide: [{ $toDouble: "$extracted.amountInCents" }, 100] },

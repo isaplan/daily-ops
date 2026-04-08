@@ -122,6 +122,27 @@ export async function rebuildEitjeTimeRegistrationAggregation (
     },
     {
       $lookup: {
+        from: 'members',
+        let: { uid: '$userId' },
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $or: [
+                  { $eq: ['$eitje_id', '$$uid'] },
+                  { $in: ['$$uid', { $ifNull: ['$eitje_ids', []] }] }
+                ]
+              },
+            },
+          },
+          { $limit: 1 },
+          { $project: { hourly_rate: 1 } },
+        ],
+        as: 'memberDoc',
+      },
+    },
+    {
+      $lookup: {
         from: 'unified_user',
         let: { uid: '$userId' },
         pipeline: [
@@ -177,11 +198,16 @@ export async function rebuildEitjeTimeRegistrationAggregation (
             },
           ],
         },
-        hourly_rate: { $arrayElemAt: ['$u.hourly_rate', 0] },
+        hourly_rate: {
+          $ifNull: [
+            { $arrayElemAt: ['$memberDoc.hourly_rate', 0] },
+            { $arrayElemAt: ['$u.hourly_rate', 0] },
+          ]
+        },
         cost: {
           $cond: [
-            { $and: [{ $ne: ['$hours', null] }, { $ne: [{ $arrayElemAt: ['$u.hourly_rate', 0] }, null] }] },
-            { $multiply: ['$hours', { $ifNull: [{ $arrayElemAt: ['$u.hourly_rate', 0] }, 0] }] },
+            { $and: [{ $ne: ['$hours', null] }, { $ne: [{ $ifNull: [{ $arrayElemAt: ['$memberDoc.hourly_rate', 0] }, { $arrayElemAt: ['$u.hourly_rate', 0] }] }, null] }] },
+            { $multiply: ['$hours', { $ifNull: [{ $arrayElemAt: ['$memberDoc.hourly_rate', 0] }, { $arrayElemAt: ['$u.hourly_rate', 0] }] }] },
             {
               $ifNull: [
                 { $divide: [{ $toDouble: '$extracted.amountInCents' }, 100] },

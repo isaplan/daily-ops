@@ -174,10 +174,10 @@
         >
           <div class="mb-5 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <h2 class="text-xl font-bold tracking-tight text-gray-900">Hours by location &amp; team</h2>
+              <h2 class="text-xl font-bold tracking-tight text-gray-900">Hours by location</h2>
               <p class="text-sm text-gray-600">
                 From synced Eitje data: <span class="font-medium text-gray-800">clocked</span> hours and
-                <span class="font-medium text-gray-800">planned</span> rooster, combined per place.
+                <span class="font-medium text-gray-800">planned</span> rooster. One card per location; teams listed below.
               </p>
               <div
                 v-if="member.eitje_totals"
@@ -193,8 +193,8 @@
                 >
                   Total planned {{ member.eitje_totals.planned_hours.toFixed(1) }}h
                 </span>
-                <span v-if="member.eitje_totals.places_count" class="text-xs text-gray-500 self-center">
-                  {{ member.eitje_totals.places_count }} place(s) in range
+                <span v-if="eitjePlacesGroupedByLocation.length" class="text-xs text-gray-500 self-center">
+                  {{ eitjePlacesGroupedByLocation.length }} location(s) · {{ member.eitje_totals.places_count }} team row(s)
                 </span>
               </div>
             </div>
@@ -210,37 +210,60 @@
           </div>
 
           <div
-            v-if="member.eitje_places.merged.length"
-            class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3"
+            v-if="eitjePlacesGroupedByLocation.length"
+            class="grid gap-4 sm:grid-cols-2 xl:grid-cols-2"
           >
             <div
-              v-for="(row, idx) in member.eitje_places.merged"
-              :key="`${row.location_name}-${row.team_name}-${idx}`"
-              class="group relative rounded-xl border border-gray-200/80 bg-white/90 p-4 shadow-[0_1px_0_rgba(0,0,0,0.04)] backdrop-blur-sm transition hover:border-[hsl(45,30%,70%)] hover:shadow-md"
+              v-for="loc in eitjePlacesGroupedByLocation"
+              :key="loc.location_key"
+              class="group relative flex flex-col rounded-xl border border-gray-200/80 bg-white/90 p-4 shadow-[0_1px_0_rgba(0,0,0,0.04)] backdrop-blur-sm transition hover:border-[hsl(45,30%,70%)] hover:shadow-md"
             >
               <div class="absolute right-3 top-3 size-2 rounded-full bg-[hsl(45,55%,55%)] opacity-60 group-hover:opacity-100" aria-hidden="true" />
               <p class="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Location</p>
-              <p class="text-base font-semibold leading-snug text-gray-900">{{ row.location_name }}</p>
-              <p class="mt-3 text-[11px] font-semibold uppercase tracking-wider text-gray-400">Team</p>
-              <p class="text-sm font-medium text-gray-800">{{ row.team_name }}</p>
-              <div class="mt-4 flex flex-wrap gap-2">
+              <p class="text-base font-semibold leading-snug text-gray-900">{{ loc.location_name }}</p>
+              <div class="mt-3 flex flex-wrap gap-2 border-b border-gray-100 pb-3">
                 <span
                   class="inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-900 ring-1 ring-emerald-200/80"
-                  title="Time registration (clocked)"
+                  title="Sum of clocked hours at this location"
                 >
                   <span class="size-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
-                  Worked {{ row.worked_hours.toFixed(1) }}h
+                  Worked {{ loc.worked_total.toFixed(1) }}h
                 </span>
                 <span
                   class="inline-flex items-center gap-1 rounded-lg bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-900 ring-1 ring-sky-200/80"
-                  title="Planning shifts"
+                  title="Sum of planned hours at this location"
                 >
                   <span class="size-1.5 rounded-full bg-sky-500" aria-hidden="true" />
-                  Planned {{ row.planned_hours.toFixed(1) }}h
+                  Planned {{ loc.planned_total.toFixed(1) }}h
                 </span>
               </div>
-              <p class="mt-3 text-[11px] text-gray-500">
-                {{ row.worked_records }} worked rows · {{ row.planned_records }} planned rows
+              <p class="mt-3 text-[11px] font-semibold uppercase tracking-wider text-gray-400">Teams</p>
+              <ul class="mt-2 space-y-3">
+                <li
+                  v-for="(t, ti) in loc.teams"
+                  :key="`${loc.location_key}-team-${ti}`"
+                  class="rounded-lg bg-gray-50/80 px-3 py-2.5 ring-1 ring-gray-100"
+                >
+                  <p class="text-sm font-medium text-gray-900">{{ t.team_name }}</p>
+                  <div class="mt-2 flex flex-wrap gap-2">
+                    <span
+                      class="inline-flex items-center gap-1 rounded-md bg-emerald-50/90 px-2 py-0.5 text-[11px] font-semibold text-emerald-900"
+                    >
+                      Worked {{ t.worked_hours.toFixed(1) }}h
+                    </span>
+                    <span
+                      class="inline-flex items-center gap-1 rounded-md bg-sky-50/90 px-2 py-0.5 text-[11px] font-semibold text-sky-900"
+                    >
+                      Planned {{ t.planned_hours.toFixed(1) }}h
+                    </span>
+                  </div>
+                  <p class="mt-1.5 text-[10px] text-gray-500">
+                    {{ t.worked_records }} worked rows · {{ t.planned_records }} planned rows
+                  </p>
+                </li>
+              </ul>
+              <p class="mt-3 text-[10px] text-gray-400">
+                Location total: {{ loc.worked_records_total }} worked rows · {{ loc.planned_records_total }} planned rows
               </p>
             </div>
           </div>
@@ -421,6 +444,69 @@ const { data: memberData, pending, error: memberFetchError } = await useFetch<{ 
   { watch: [id] }
 )
 const member = computed(() => memberData.value?.data ?? null)
+
+type EitjeTeamInLoc = {
+  team_name: string
+  worked_hours: number
+  planned_hours: number
+  worked_records: number
+  planned_records: number
+}
+type EitjeLocationCard = {
+  location_key: string
+  location_name: string
+  teams: EitjeTeamInLoc[]
+  worked_total: number
+  planned_total: number
+  worked_records_total: number
+  planned_records_total: number
+}
+
+/** One card per location; teams aggregated from merged location+team rows. */
+const eitjePlacesGroupedByLocation = computed((): EitjeLocationCard[] => {
+  const merged = member.value?.eitje_places?.merged ?? []
+  const map = new Map<string, { location_name: string; teams: EitjeTeamInLoc[] }>()
+  for (const row of merged) {
+    const locName = (row.location_name ?? 'Unknown').trim() || 'Unknown'
+    const key = locName.toLowerCase()
+    let g = map.get(key)
+    if (!g) {
+      g = { location_name: locName, teams: [] }
+      map.set(key, g)
+    }
+    g.teams.push({
+      team_name: row.team_name ?? 'Unknown',
+      worked_hours: row.worked_hours,
+      planned_hours: row.planned_hours,
+      worked_records: row.worked_records,
+      planned_records: row.planned_records,
+    })
+  }
+  const out: EitjeLocationCard[] = []
+  for (const [location_key, g] of map) {
+    g.teams.sort((a, b) =>
+      a.team_name.localeCompare(b.team_name, undefined, { sensitivity: 'base' })
+    )
+    const worked_total = g.teams.reduce((s, t) => s + t.worked_hours, 0)
+    const planned_total = g.teams.reduce((s, t) => s + t.planned_hours, 0)
+    const worked_records_total = g.teams.reduce((s, t) => s + t.worked_records, 0)
+    const planned_records_total = g.teams.reduce((s, t) => s + t.planned_records, 0)
+    out.push({
+      location_key,
+      location_name: g.location_name,
+      teams: g.teams,
+      worked_total,
+      planned_total,
+      worked_records_total,
+      planned_records_total,
+    })
+  }
+  out.sort((a, b) =>
+    a.location_name.localeCompare(b.location_name, undefined, { sensitivity: 'base' })
+  )
+  return out
+})
+
 const memberError = computed(() => {
   if (member.value) return ''
   const e = memberFetchError.value
