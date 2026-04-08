@@ -2471,15 +2471,15 @@ _wH6JrtIxmaSoA8lCPWFnE9z4lQeXW6H5z3l5aymEQw
 const assets = {
   "/index.mjs": {
     "type": "text/javascript; charset=utf-8",
-    "etag": "\"124853-t/yvogEphGgmXkFpAhHKJ5KeZXk\"",
-    "mtime": "2026-04-08T22:08:34.391Z",
+    "etag": "\"124853-uUvv0FAWCZdisf7epkc8vqmuLek\"",
+    "mtime": "2026-04-08T22:08:37.329Z",
     "size": 1198163,
     "path": "index.mjs"
   },
   "/index.mjs.map": {
     "type": "application/json",
     "etag": "\"49dabe-2Hs7OYVfdbf0BYpfbCeGU1FwTTc\"",
-    "mtime": "2026-04-08T22:08:34.402Z",
+    "mtime": "2026-04-08T22:08:37.339Z",
     "size": 4840126,
     "path": "index.mjs.map"
   }
@@ -31947,6 +31947,19 @@ const hoursRowRecords_get = defineEventHandler(async (event) => {
       locationClauses.push({ locationId: locIdStr });
       if (eitjeIds.length) locationClauses.push({ environmentId: { $in: eitjeIds } });
       match.$and.push({ $or: locationClauses });
+    } else {
+      const locationNameParam = query.locationName;
+      if (locationNameParam && locationNameParam !== "Unknown") {
+        ;
+        match.$and.push({
+          $or: [
+            { "extracted.locationName": locationNameParam },
+            { "rawApiResponse.environment.name": locationNameParam },
+            { "rawApiResponse.environment_name": locationNameParam },
+            { "rawApiResponse.location_name": locationNameParam }
+          ]
+        });
+      }
     }
     const pipeline = [
       { $match: match },

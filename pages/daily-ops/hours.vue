@@ -290,10 +290,16 @@ async function fetchRowDetail (row: Record<string, unknown>) {
     const dateVal = row.date
     const dateStr = dateVal instanceof Date ? dateVal.toISOString().split('T')[0] : String(dateVal ?? '').slice(0, 10)
     const locId = row.location_id != null ? String(row.location_id) : ''
+    const locName = row.location_name != null ? String(row.location_name) : ''
     const params = new URLSearchParams()
     params.set('date', dateStr)
     // Only pass locationId if it looks like a valid ObjectId (24 hex chars) to avoid filtering issues with raw location IDs
-    if (locId && /^[a-f0-9]{24}$/.test(locId)) params.set('locationId', locId)
+    if (locId && /^[a-f0-9]{24}$/.test(locId)) {
+      params.set('locationId', locId)
+    } else if (locName && locName !== 'Unknown') {
+      // Fallback: pass location name as filter
+      params.set('locationName', locName)
+    }
     params.set('endpoint', filters.endpoint ?? 'time_registration_shifts')
     const res = await $fetch<{ success: boolean; data?: { id: string; support_id: string; worker_name: string; team_name: string; start: string; end: string; hours: number }[] }>(`/api/hours-row-records?${params}`)
     rowDetailRecords.value = res.success ? (res.data ?? []) : []
