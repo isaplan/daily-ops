@@ -2471,16 +2471,16 @@ _wH6JrtIxmaSoA8lCPWFnE9z4lQeXW6H5z3l5aymEQw
 const assets = {
   "/index.mjs": {
     "type": "text/javascript; charset=utf-8",
-    "etag": "\"124399-Huh4/ffgL8qlKGij5s5vN3r0rYk\"",
-    "mtime": "2026-04-08T21:40:07.619Z",
-    "size": 1196953,
+    "etag": "\"1242fd-g79sVyL8mDkCAWEUHEtI1YzTp2k\"",
+    "mtime": "2026-04-08T21:45:20.366Z",
+    "size": 1196797,
     "path": "index.mjs"
   },
   "/index.mjs.map": {
     "type": "application/json",
-    "etag": "\"49c68e-kuoMSjDeAhyUIyBP2lUIYAA9rm4\"",
-    "mtime": "2026-04-08T21:40:07.659Z",
-    "size": 4834958,
+    "etag": "\"49c9fb-SToHiqVYJruRJlyrn3oNA1RehJ4\"",
+    "mtime": "2026-04-08T21:45:20.377Z",
+    "size": 4835835,
     "path": "index.mjs.map"
   }
 };
@@ -30477,7 +30477,7 @@ async function rebuildEitjeTimeRegistrationAggregation(db, startDate, endDate) {
             { $arrayElemAt: ["$u.primaryName", 0] },
             {
               $ifNull: [
-                "$rawApiResponse.user_name",
+                "$rawApiResponse.user.name",
                 { $ifNull: ["$rawApiResponse.employee_name", "Unknown"] }
               ]
             }
@@ -30489,7 +30489,7 @@ async function rebuildEitjeTimeRegistrationAggregation(db, startDate, endDate) {
             {
               $ifNull: [
                 { $arrayElemAt: ["$t.primaryName", 0] },
-                { $ifNull: ["$rawApiResponse.team_name", "Unknown"] }
+                { $ifNull: ["$rawApiResponse.team.name", "Unknown"] }
               ]
             }
           ]
@@ -31002,7 +31002,7 @@ async function syncUnifiedMasterDataFromRaw(db) {
     let usersUpdated = 0;
     const envAgg = await db.collection("eitje_raw_data").aggregate([
       { $match: { endpoint: "environments" } },
-      { $group: { _id: "$rawApiResponse.id", name: { $first: "$rawApiResponse.name" } } },
+      { $group: { _id: "$extracted.id", name: { $first: "$extracted.name" } } },
       { $match: { _id: { $nin: [null, ""] } } }
     ]).toArray();
     for (const env of envAgg) {
@@ -31026,7 +31026,7 @@ async function syncUnifiedMasterDataFromRaw(db) {
     }
     const teamAgg = await db.collection("eitje_raw_data").aggregate([
       { $match: { endpoint: "teams" } },
-      { $group: { _id: "$rawApiResponse.id", name: { $first: "$rawApiResponse.name" } } },
+      { $group: { _id: "$extracted.id", name: { $first: "$extracted.name" } } },
       { $match: { _id: { $nin: [null, ""] } } }
     ]).toArray();
     for (const team of teamAgg) {
@@ -31050,10 +31050,16 @@ async function syncUnifiedMasterDataFromRaw(db) {
     }
     const userAgg = await db.collection("eitje_raw_data").aggregate([
       { $match: { endpoint: "users" } },
-      { $group: { _id: "$rawApiResponse.id", name: { $first: "$rawApiResponse.name" } } },
+      { $group: {
+        _id: "$extracted.id",
+        firstName: { $first: "$rawApiResponse.first_name" },
+        lastName: { $first: "$rawApiResponse.last_name" },
+        email: { $first: "$rawApiResponse.email" }
+      } },
       { $match: { _id: { $nin: [null, ""] } } }
     ]).toArray();
     for (const user of userAgg) {
+      const name = user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : user.email || String(user._id);
       const result = await db.collection("unified_user").updateOne(
         { eitjeIds: user._id },
         {
@@ -31063,8 +31069,8 @@ async function syncUnifiedMasterDataFromRaw(db) {
           },
           $set: { updatedAt: /* @__PURE__ */ new Date() },
           $setOnInsert: {
-            primaryName: user.name,
-            canonicalName: user.name,
+            primaryName: name,
+            canonicalName: name,
             createdAt: /* @__PURE__ */ new Date()
           }
         },
@@ -32013,7 +32019,12 @@ const hoursRowRecords_get = defineEventHandler(async (event) => {
           worker_name: {
             $ifNull: [
               { $arrayElemAt: ["$user.canonicalName", 0] },
-              { $ifNull: [{ $arrayElemAt: ["$user.primaryName", 0] }, "Unknown"] }
+              {
+                $ifNull: [
+                  { $arrayElemAt: ["$user.primaryName", 0] },
+                  { $ifNull: ["$rawApiResponse.user.name", "Unknown"] }
+                ]
+              }
             ]
           },
           team_name: {

@@ -561,81 +561,73 @@ async function syncUnifiedMasterDataFromRaw (db: Db): Promise<{ locationsUpdated
     let teamsUpdated = 0
     let usersUpdated = 0
 
-    // Extract all unique environments/locations
-    const envAgg = await db.collection('eitje_raw_data').aggregate([
-      { $match: { endpoint: 'environments' } },
-      { $group: { _id: '$rawApiResponse.id', name: { $first: '$rawApiResponse.name' } } },
-      { $match: { _id: { $nin: [null, ''] } } },
-    ]).toArray() as Array<{ _id: number | string; name: string }>
+    // Get all environment documents and extract IDs (no aggregation, just iterate)
+    const envDocs = await db.collection('eitje_raw_data').find({ endpoint: 'environments' }).toArray()
+    const uniqueEnvs = new Map<number | string, string>()
+    envDocs.forEach((doc: Record<string, unknown>) => {
+      const extracted = doc.extracted as Record<string, unknown>
+      const id = extracted?.id
+      const name = extracted?.name
+      if (id && name) uniqueEnvs.set(id, String(name))
+    })
 
-    for (const env of envAgg) {
+    for (const [id, name] of uniqueEnvs) {
       const result = await db.collection('unified_location').updateOne(
-        { eitjeIds: env._id },
+        { eitjeIds: id },
         {
-          $addToSet: {
-            eitjeIds: env._id,
-            allIdValues: env._id,
-          },
+          $addToSet: { eitjeIds: id, allIdValues: id },
           $set: { updatedAt: new Date() },
-          $setOnInsert: {
-            primaryName: env.name,
-            name: env.name,
-            createdAt: new Date(),
-          },
+          $setOnInsert: { primaryName: name, name, createdAt: new Date() },
         },
         { upsert: true }
       )
       locationsUpdated += result.upsertedCount + result.modifiedCount
     }
 
-    // Extract all unique teams
-    const teamAgg = await db.collection('eitje_raw_data').aggregate([
-      { $match: { endpoint: 'teams' } },
-      { $group: { _id: '$rawApiResponse.id', name: { $first: '$rawApiResponse.name' } } },
-      { $match: { _id: { $nin: [null, ''] } } },
-    ]).toArray() as Array<{ _id: number | string; name: string }>
+    // Get all team documents and extract IDs
+    const teamDocs = await db.collection('eitje_raw_data').find({ endpoint: 'teams' }).toArray()
+    const uniqueTeams = new Map<number | string, string>()
+    teamDocs.forEach((doc: Record<string, unknown>) => {
+      const extracted = doc.extracted as Record<string, unknown>
+      const id = extracted?.id
+      const name = extracted?.name
+      if (id && name) uniqueTeams.set(id, String(name))
+    })
 
-    for (const team of teamAgg) {
+    for (const [id, name] of uniqueTeams) {
       const result = await db.collection('unified_team').updateOne(
-        { eitjeIds: team._id },
+        { eitjeIds: id },
         {
-          $addToSet: {
-            eitjeIds: team._id,
-            allIdValues: team._id,
-          },
+          $addToSet: { eitjeIds: id, allIdValues: id },
           $set: { updatedAt: new Date() },
-          $setOnInsert: {
-            primaryName: team.name,
-            canonicalName: team.name,
-            createdAt: new Date(),
-          },
+          $setOnInsert: { primaryName: name, canonicalName: name, createdAt: new Date() },
         },
         { upsert: true }
       )
       teamsUpdated += result.upsertedCount + result.modifiedCount
     }
 
-    // Extract all unique users
-    const userAgg = await db.collection('eitje_raw_data').aggregate([
-      { $match: { endpoint: 'users' } },
-      { $group: { _id: '$rawApiResponse.id', name: { $first: '$rawApiResponse.name' } } },
-      { $match: { _id: { $nin: [null, ''] } } },
-    ]).toArray() as Array<{ _id: number | string; name: string }>
+    // Get all user documents and extract IDs
+    const userDocs = await db.collection('eitje_raw_data').find({ endpoint: 'users' }).toArray()
+    const uniqueUsers = new Map<number | string, string>()
+    userDocs.forEach((doc: Record<string, unknown>) => {
+      const extracted = doc.extracted as Record<string, unknown>
+      const id = extracted?.id
+      const raw = doc.rawApiResponse as Record<string, unknown>
+      const firstName = raw?.first_name ? String(raw.first_name) : ''
+      const lastName = raw?.last_name ? String(raw.last_name) : ''
+      const email = raw?.email ? String(raw.email) : ''
+      const name = (firstName && lastName) ? `${firstName} ${lastName}` : email || String(id)
+      if (id) uniqueUsers.set(id, name)
+    })
 
-    for (const user of userAgg) {
+    for (const [id, name] of uniqueUsers) {
       const result = await db.collection('unified_user').updateOne(
-        { eitjeIds: user._id },
+        { eitjeIds: id },
         {
-          $addToSet: {
-            eitjeIds: user._id,
-            allIdValues: user._id,
-          },
+          $addToSet: { eitjeIds: id, allIdValues: id },
           $set: { updatedAt: new Date() },
-          $setOnInsert: {
-            primaryName: user.name,
-            canonicalName: user.name,
-            createdAt: new Date(),
-          },
+          $setOnInsert: { primaryName: name, canonicalName: name, createdAt: new Date() },
         },
         { upsert: true }
       )
