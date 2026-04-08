@@ -2471,16 +2471,16 @@ _wH6JrtIxmaSoA8lCPWFnE9z4lQeXW6H5z3l5aymEQw
 const assets = {
   "/index.mjs": {
     "type": "text/javascript; charset=utf-8",
-    "etag": "\"124853-uUvv0FAWCZdisf7epkc8vqmuLek\"",
-    "mtime": "2026-04-08T22:08:37.329Z",
-    "size": 1198163,
+    "etag": "\"124bcf-l4xClbJDHwd8Fa7We6XvlGxBnzw\"",
+    "mtime": "2026-04-08T22:45:35.951Z",
+    "size": 1199055,
     "path": "index.mjs"
   },
   "/index.mjs.map": {
     "type": "application/json",
-    "etag": "\"49dabe-2Hs7OYVfdbf0BYpfbCeGU1FwTTc\"",
-    "mtime": "2026-04-08T22:08:37.339Z",
-    "size": 4840126,
+    "etag": "\"49e9ee-GKbQDUIZ/hUDoIQy5kkvQG/c2EU\"",
+    "mtime": "2026-04-08T22:45:35.977Z",
+    "size": 4844014,
     "path": "index.mjs.map"
   }
 };
@@ -30370,12 +30370,6 @@ async function rebuildEitjeTimeRegistrationAggregation(db, startDate, endDate) {
             "$rawApiResponse.environmentId",
             "$rawApiResponse.environment.id"
           ]
-        },
-        cost: {
-          $ifNull: [
-            { $divide: [{ $toDouble: "$extracted.amountInCents" }, 100] },
-            { $ifNull: [{ $divide: [{ $toDouble: "$rawApiResponse.amt_in_cents" }, 100] }, 0] }
-          ]
         }
       }
     },
@@ -30445,7 +30439,7 @@ async function rebuildEitjeTimeRegistrationAggregation(db, startDate, endDate) {
             }
           },
           { $limit: 1 },
-          { $project: { primaryName: 1 } }
+          { $project: { primaryName: 1, hourly_rate: 1 } }
         ],
         as: "u"
       }
@@ -30485,6 +30479,19 @@ async function rebuildEitjeTimeRegistrationAggregation(db, startDate, endDate) {
             }
           ]
         },
+        hourly_rate: { $arrayElemAt: ["$u.hourly_rate", 0] },
+        cost: {
+          $cond: [
+            { $and: [{ $ne: ["$hours", null] }, { $ne: [{ $arrayElemAt: ["$u.hourly_rate", 0] }, null] }] },
+            { $multiply: ["$hours", { $ifNull: [{ $arrayElemAt: ["$u.hourly_rate", 0] }, 0] }] },
+            {
+              $ifNull: [
+                { $divide: [{ $toDouble: "$extracted.amountInCents" }, 100] },
+                { $ifNull: [{ $divide: [{ $toDouble: "$rawApiResponse.amt_in_cents" }, 100] }, 0] }
+              ]
+            }
+          ]
+        },
         team_name: {
           $ifNull: [
             { $arrayElemAt: ["$t.canonicalName", 0] },
@@ -30509,6 +30516,7 @@ async function rebuildEitjeTimeRegistrationAggregation(db, startDate, endDate) {
         location_name: { $first: "$location_name" },
         user_name: { $first: "$user_name" },
         team_name: { $first: "$team_name" },
+        hourly_rate: { $first: "$hourly_rate" },
         total_hours: { $sum: "$hours" },
         total_cost: { $sum: "$cost" },
         record_count: { $sum: 1 }
@@ -30525,6 +30533,7 @@ async function rebuildEitjeTimeRegistrationAggregation(db, startDate, endDate) {
         user_name: 1,
         teamId: "$_id.teamId",
         team_name: 1,
+        hourly_rate: 1,
         total_hours: 1,
         total_cost: 1,
         record_count: 1

@@ -69,12 +69,6 @@ export async function rebuildEitjeTimeRegistrationAggregation (
             '$rawApiResponse.environment.id',
           ],
         },
-        cost: {
-          $ifNull: [
-            { $divide: [{ $toDouble: '$extracted.amountInCents' }, 100] },
-            { $ifNull: [{ $divide: [{ $toDouble: '$rawApiResponse.amt_in_cents' }, 100] }, 0] },
-          ],
-        },
       },
     },
     {
@@ -143,7 +137,7 @@ export async function rebuildEitjeTimeRegistrationAggregation (
             },
           },
           { $limit: 1 },
-          { $project: { primaryName: 1 } },
+          { $project: { primaryName: 1, hourly_rate: 1 } },
         ],
         as: 'u',
       },
@@ -183,6 +177,19 @@ export async function rebuildEitjeTimeRegistrationAggregation (
             },
           ],
         },
+        hourly_rate: { $arrayElemAt: ['$u.hourly_rate', 0] },
+        cost: {
+          $cond: [
+            { $and: [{ $ne: ['$hours', null] }, { $ne: [{ $arrayElemAt: ['$u.hourly_rate', 0] }, null] }] },
+            { $multiply: ['$hours', { $ifNull: [{ $arrayElemAt: ['$u.hourly_rate', 0] }, 0] }] },
+            {
+              $ifNull: [
+                { $divide: [{ $toDouble: '$extracted.amountInCents' }, 100] },
+                { $ifNull: [{ $divide: [{ $toDouble: '$rawApiResponse.amt_in_cents' }, 100] }, 0] },
+              ]
+            }
+          ],
+        },
         team_name: {
           $ifNull: [
             { $arrayElemAt: ['$t.canonicalName', 0] },
@@ -207,6 +214,7 @@ export async function rebuildEitjeTimeRegistrationAggregation (
         location_name: { $first: '$location_name' },
         user_name: { $first: '$user_name' },
         team_name: { $first: '$team_name' },
+        hourly_rate: { $first: '$hourly_rate' },
         total_hours: { $sum: '$hours' },
         total_cost: { $sum: '$cost' },
         record_count: { $sum: 1 },
@@ -223,6 +231,7 @@ export async function rebuildEitjeTimeRegistrationAggregation (
         user_name: 1,
         teamId: '$_id.teamId',
         team_name: 1,
+        hourly_rate: 1,
         total_hours: 1,
         total_cost: 1,
         record_count: 1,
