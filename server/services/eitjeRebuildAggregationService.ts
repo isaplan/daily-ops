@@ -66,6 +66,7 @@ export async function rebuildEitjeTimeRegistrationAggregation (
             '$extracted.environmentId',
             '$rawApiResponse.environment_id',
             '$rawApiResponse.environmentId',
+            '$rawApiResponse.environment.id',
           ],
         },
         cost: {
@@ -112,6 +113,7 @@ export async function rebuildEitjeTimeRegistrationAggregation (
               $ifNull: [
                 '$extracted.locationName',
                 { $ifNull: ['$rawApiResponse.location_name', '$rawApiResponse.environment_name'] },
+                { $ifNull: ['$rawApiResponse.environment.name', null] },
               ],
             },
           ],

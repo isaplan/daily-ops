@@ -2471,16 +2471,16 @@ _wH6JrtIxmaSoA8lCPWFnE9z4lQeXW6H5z3l5aymEQw
 const assets = {
   "/index.mjs": {
     "type": "text/javascript; charset=utf-8",
-    "etag": "\"124656-+ztQDJU2uL1lnoYfTA/VhMgB5WE\"",
-    "mtime": "2026-04-08T21:56:54.073Z",
-    "size": 1197654,
+    "etag": "\"1247c0-xKyS8ZvQYDDWK+ppAGX2yQ87yKo\"",
+    "mtime": "2026-04-08T22:08:28.420Z",
+    "size": 1198016,
     "path": "index.mjs"
   },
   "/index.mjs.map": {
     "type": "application/json",
-    "etag": "\"49d1e8-XypArSA4cYSP5ibgVVo/+O/P8ak\"",
-    "mtime": "2026-04-08T21:56:54.088Z",
-    "size": 4837864,
+    "etag": "\"49d80c-sGoNWT44Hcc5P3Er7BJ/g7yWXqU\"",
+    "mtime": "2026-04-08T22:08:28.458Z",
+    "size": 4839436,
     "path": "index.mjs.map"
   }
 };
@@ -30367,7 +30367,8 @@ async function rebuildEitjeTimeRegistrationAggregation(db, startDate, endDate) {
             "$environmentId",
             "$extracted.environmentId",
             "$rawApiResponse.environment_id",
-            "$rawApiResponse.environmentId"
+            "$rawApiResponse.environmentId",
+            "$rawApiResponse.environment.id"
           ]
         },
         cost: {
@@ -30413,7 +30414,8 @@ async function rebuildEitjeTimeRegistrationAggregation(db, startDate, endDate) {
             {
               $ifNull: [
                 "$extracted.locationName",
-                { $ifNull: ["$rawApiResponse.location_name", "$rawApiResponse.environment_name"] }
+                { $ifNull: ["$rawApiResponse.location_name", "$rawApiResponse.environment_name"] },
+                { $ifNull: ["$rawApiResponse.environment.name", null] }
               ]
             }
           ]
@@ -31677,7 +31679,10 @@ const hoursAggregated_get = defineEventHandler(async (event) => {
                           {
                             $ifNull: [
                               "$rawApiResponse.location_name",
-                              { $ifNull: ["$rawApiResponse.environment_name", "Unknown"] }
+                              { $ifNull: [
+                                "$rawApiResponse.environment_name",
+                                { $ifNull: ["$rawApiResponse.environment.name", "Unknown"] }
+                              ] }
                             ]
                           }
                         ]

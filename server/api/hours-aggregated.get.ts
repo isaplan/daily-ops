@@ -357,7 +357,10 @@ export default defineEventHandler(async (event) => {
                         {
                           $ifNull: [
                             '$rawApiResponse.location_name',
-                            { $ifNull: ['$rawApiResponse.environment_name', 'Unknown'] }
+                            { $ifNull: [
+                              '$rawApiResponse.environment_name',
+                              { $ifNull: ['$rawApiResponse.environment.name', 'Unknown'] }
+                            ] }
                           ]
                         }
                       ]
