@@ -175,7 +175,7 @@ export async function rebuildEitjeTimeRegistrationAggregation (
             { $arrayElemAt: ['$u.primaryName', 0] },
             {
               $ifNull: [
-                '$rawApiResponse.user_name',
+                '$rawApiResponse.user.name',
                 { $ifNull: ['$rawApiResponse.employee_name', 'Unknown'] },
               ],
             },
@@ -187,9 +187,9 @@ export async function rebuildEitjeTimeRegistrationAggregation (
             {
               $ifNull: [
                 { $arrayElemAt: ['$t.primaryName', 0] },
-                { $ifNull: ['$rawApiResponse.team_name', 'Unknown'] },
-              ],
-            },
+                { $ifNull: ['$rawApiResponse.team.name', 'Unknown'] }
+              ]
+            }
           ],
         },
       },

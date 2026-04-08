@@ -2471,16 +2471,16 @@ _wH6JrtIxmaSoA8lCPWFnE9z4lQeXW6H5z3l5aymEQw
 const assets = {
   "/index.mjs": {
     "type": "text/javascript; charset=utf-8",
-    "etag": "\"123828-GmX0rmt66GXrDIlmMppk2YHP0eE\"",
-    "mtime": "2026-04-08T21:39:56.543Z",
-    "size": 1194024,
+    "etag": "\"124399-Huh4/ffgL8qlKGij5s5vN3r0rYk\"",
+    "mtime": "2026-04-08T21:40:07.619Z",
+    "size": 1196953,
     "path": "index.mjs"
   },
   "/index.mjs.map": {
     "type": "application/json",
-    "etag": "\"4995f1-7LFKidTcJqSpSCsE+1Ewd9mhiHM\"",
-    "mtime": "2026-04-08T21:39:56.579Z",
-    "size": 4822513,
+    "etag": "\"49c68e-kuoMSjDeAhyUIyBP2lUIYAA9rm4\"",
+    "mtime": "2026-04-08T21:40:07.659Z",
+    "size": 4834958,
     "path": "index.mjs.map"
   }
 };
@@ -32019,7 +32019,12 @@ const hoursRowRecords_get = defineEventHandler(async (event) => {
           team_name: {
             $ifNull: [
               { $arrayElemAt: ["$team.canonicalName", 0] },
-              { $ifNull: [{ $arrayElemAt: ["$team.primaryName", 0] }, "Unknown"] }
+              {
+                $ifNull: [
+                  { $arrayElemAt: ["$team.primaryName", 0] },
+                  { $ifNull: ["$rawApiResponse.team.name", "Unknown"] }
+                ]
+              }
             ]
           },
           start: 1,
