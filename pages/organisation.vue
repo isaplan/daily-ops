@@ -172,6 +172,10 @@
             class="min-w-0 flex-1 hover:underline focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-1 rounded"
           >
             <span class="font-medium text-gray-900">{{ member.name }}</span>
+            <span
+              v-if="member.is_active === false"
+              class="ml-2 inline-flex rounded bg-gray-200 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-700"
+            >Inactive</span>
             <span class="ml-2 text-sm text-gray-500">{{ member.email }}</span>
             <span v-if="member.slack_username" class="ml-2 text-xs text-gray-400">@{{ member.slack_username }}</span>
           </NuxtLink>
@@ -195,7 +199,7 @@ definePageMeta({ layout: 'default' })
 
 type LocationItem = { _id: string; name: string; address?: string; city?: string; country?: string }
 type TeamItem = { _id: string; name: string; location_id?: string; description?: string }
-type MemberItem = { _id: string; name: string; email: string; slack_username?: string }
+type MemberItem = { _id: string; name: string; email: string; slack_username?: string; is_active?: boolean }
 
 const showLocationForm = ref(false)
 const showTeamForm = ref(false)

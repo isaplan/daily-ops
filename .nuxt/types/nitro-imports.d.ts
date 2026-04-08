@@ -44,12 +44,18 @@ declare global {
   const defineWebSocketHandler: typeof import('../../node_modules/.pnpm/h3@1.15.10/node_modules/h3').defineWebSocketHandler
   const deleteCookie: typeof import('../../node_modules/.pnpm/h3@1.15.10/node_modules/h3').deleteCookie
   const detectHeaderRow: typeof import('../../server/utils/parseMenuDump').detectHeaderRow
+  const documentToCredentialsApiShape: typeof import('../../server/utils/eitjeApiCredentials').documentToCredentialsApiShape
+  const documentToEitjeStoredCredentials: typeof import('../../server/utils/eitjeApiCredentials').documentToEitjeStoredCredentials
   const dynamicEventHandler: typeof import('../../node_modules/.pnpm/h3@1.15.10/node_modules/h3').dynamicEventHandler
+  const eitjeUserIdCandidates: typeof import('../../server/utils/memberEitjeContext').eitjeUserIdCandidates
   const eventHandler: typeof import('../../node_modules/.pnpm/h3@1.15.10/node_modules/h3').eventHandler
   const extractDumpRows: typeof import('../../server/utils/parseMenuDump').extractDumpRows
   const extractMentionSlug: typeof import('../../server/utils/noteMentions').extractMentionSlug
   const extractWijnkaartItems: typeof import('../../server/utils/parseMenuFile').extractWijnkaartItems
+  const fetchAggregationActivityByLocationTeam: typeof import('../../server/utils/memberEitjeContext').fetchAggregationActivityByLocationTeam
+  const fetchMemberEitjePlaces: typeof import('../../server/utils/memberEitjeContext').fetchMemberEitjePlaces
   const fetchWithEvent: typeof import('../../node_modules/.pnpm/h3@1.15.10/node_modules/h3').fetchWithEvent
+  const findEitjeCredentialDocument: typeof import('../../server/utils/eitjeApiCredentials').findEitjeCredentialDocument
   const fromNodeMiddleware: typeof import('../../node_modules/.pnpm/h3@1.15.10/node_modules/h3').fromNodeMiddleware
   const fromPlainHandler: typeof import('../../node_modules/.pnpm/h3@1.15.10/node_modules/h3').fromPlainHandler
   const fromWebHandler: typeof import('../../node_modules/.pnpm/h3@1.15.10/node_modules/h3').fromWebHandler
@@ -97,6 +103,7 @@ declare global {
   const isWebResponse: typeof import('../../node_modules/.pnpm/h3@1.15.10/node_modules/h3').isWebResponse
   const lazyEventHandler: typeof import('../../node_modules/.pnpm/h3@1.15.10/node_modules/h3').lazyEventHandler
   const mapWijnkaartRowToItem: typeof import('../../server/utils/parseMenuFile').mapWijnkaartRowToItem
+  const mergeWorkedAndPlanned: typeof import('../../server/utils/memberEitjeContext').mergeWorkedAndPlanned
   const nitroPlugin: typeof import('../../node_modules/.pnpm/nitropack@2.13.2/node_modules/nitropack/dist/runtime/internal/plugin').nitroPlugin
   const parseCookies: typeof import('../../node_modules/.pnpm/h3@1.15.10/node_modules/h3').parseCookies
   const parseCsvToRows: typeof import('../../server/utils/parseMenuFile').parseCsvToRows
@@ -113,6 +120,7 @@ declare global {
   const readValidatedBody: typeof import('../../node_modules/.pnpm/h3@1.15.10/node_modules/h3').readValidatedBody
   const removeResponseHeader: typeof import('../../node_modules/.pnpm/h3@1.15.10/node_modules/h3').removeResponseHeader
   const resolveDailyOpsPeriod: typeof import('../../server/utils/dailyOpsPeriod').resolveDailyOpsPeriod
+  const resolveEitjeAggregationUserCandidates: typeof import('../../server/utils/memberEitjeContext').resolveEitjeAggregationUserCandidates
   const resolveSlugsToUnifiedUserIds: typeof import('../../server/utils/noteMentions').resolveSlugsToUnifiedUserIds
   const rowToData: typeof import('../../server/utils/parseMenuDump').rowToData
   const runTask: typeof import('../../node_modules/.pnpm/nitropack@2.13.2/node_modules/nitropack/dist/runtime/internal/task').runTask
@@ -164,6 +172,9 @@ declare global {
   export type { UtcDayRange } from '../../server/utils/eitjeHours'
   import('../../server/utils/eitjeHours')
   // @ts-ignore
+  export type { HoursActivityEntry, MergedPlaceRow } from '../../server/utils/memberEitjeContext'
+  import('../../server/utils/memberEitjeContext')
+  // @ts-ignore
   export type { DumpRow } from '../../server/utils/parseMenuDump'
   import('../../server/utils/parseMenuDump')
   // @ts-ignore
@@ -189,7 +200,9 @@ export { buildAssetsURL as __buildAssetsURL, publicAssetsURL as __publicAssetsUR
 export { defineAppConfig } from '/Users/alviniomolina/Documents/GitHub/daily-ops/node_modules/.pnpm/@nuxt+nitro-server@4.4.2_@babel+core@7.29.0_db0@0.3.4_ioredis@5.10.1_magicast@0.5.2_nuxt@4.4._s5aro5qs5rljh2uuzc7klkl3py/node_modules/@nuxt/nitro-server/dist/runtime/utils/config';
 export { resolveDailyOpsPeriod } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/dailyOpsPeriod';
 export { getDb, getNotesCollection, getUnifiedUsersCollection, getMenuItemsCollection, getMenusCollection, getMenuVersionsCollection, connectToDatabase } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/db';
+export { findEitjeCredentialDocument, documentToEitjeStoredCredentials, documentToCredentialsApiShape } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/eitjeApiCredentials';
 export { EITJE_HOURS_ADD_FIELDS, getUtcDayRange } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/eitjeHours';
+export { eitjeUserIdCandidates, resolveEitjeAggregationUserCandidates, fetchAggregationActivityByLocationTeam, mergeWorkedAndPlanned, fetchMemberEitjePlaces } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/memberEitjeContext';
 export { activeNotesMatch, trashedNotesMatch } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/noteDeletedFilter';
 export { extractMentionSlug, collectMentionSlugsFromContent, resolveSlugsToUnifiedUserIds } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/noteMentions';
 export { detectHeaderRow, rowToData, productGroupFromFilename, extractDumpRows } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/parseMenuDump';

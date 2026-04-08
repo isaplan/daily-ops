@@ -211,10 +211,12 @@ async function fetchRawPlacesByEndpoint (
   endpoint: 'time_registration_shifts' | 'planning_shifts',
   range: { range_start: string; range_end: string },
   supportId: string | undefined,
-  userIdCandidates: unknown[]
+  userIdCandidates: unknown[],
+  userName: string
 ): Promise<HoursActivityEntry[]> {
   const sid = supportId?.trim()
-  if (userIdCandidates.length === 0 && !sid) return []
+  const uname = userName.trim()
+  if (userIdCandidates.length === 0 && !sid && !uname) return []
 
   const start = new Date(`${range.range_start}T00:00:00.000Z`)
   const end = new Date(`${range.range_end}T23:59:59.999Z`)
@@ -227,6 +229,16 @@ async function fetchRawPlacesByEndpoint (
     orCond.push({ aggSupportStr: sid })
     const n = Number(sid)
     if (!Number.isNaN(n)) orCond.push({ aggSupportStr: String(n) })
+  }
+  if (uname) {
+    orCond.push({ 'rawApiResponse.user.name': { $regex: `^\\s*${escapeRegex(uname)}\\s*$`, $options: 'i' } })
+    const words = uname.split(/\s+/).filter(Boolean)
+    if (words.length >= 2) {
+      const firstTwo = words.slice(0, 2).join(' ')
+      orCond.push({
+        'rawApiResponse.user.name': { $regex: `^\\s*${escapeRegex(firstTwo)}`, $options: 'i' },
+      })
+    }
   }
 
   const pipeline: unknown[] = [
@@ -434,8 +446,8 @@ export async function fetchMemberEitjePlaces (
 
   if (merged.length === 0) {
     const [rw, rp] = await Promise.all([
-      fetchRawPlacesByEndpoint(db, 'time_registration_shifts', range, options.supportId, userIdCandidates),
-      fetchRawPlacesByEndpoint(db, 'planning_shifts', range, options.supportId, userIdCandidates),
+      fetchRawPlacesByEndpoint(db, 'time_registration_shifts', range, options.supportId, userIdCandidates, options.userName),
+      fetchRawPlacesByEndpoint(db, 'planning_shifts', range, options.supportId, userIdCandidates, options.userName),
     ])
     worked = rw
     planned = rp

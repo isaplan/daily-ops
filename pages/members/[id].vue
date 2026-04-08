@@ -48,12 +48,12 @@
             <UFormField label="Email *"><UInput v-model="editForm.email" type="email" placeholder="Email" required /></UFormField>
             <UFormField label="Slack username"><UInput v-model="editForm.slack_username" placeholder="@username" /></UFormField>
             <UFormField label="Location">
-              <USelectMenu v-model="editForm.location_id" :items="locationOptions" value-attribute="value" class="w-full" @update:model-value="editForm.team_id = ''">
+              <USelectMenu v-model="editForm.location_id" :items="locationOptions" value-key="value" class="w-full" @update:model-value="editForm.team_id = ''">
                 <template #leading><UIcon name="i-lucide-map-pin" class="size-4 text-gray-500" /></template>
               </USelectMenu>
             </UFormField>
             <UFormField label="Team">
-              <USelectMenu v-model="editForm.team_id" :items="filteredTeamOptions" value-attribute="value" class="w-full">
+              <USelectMenu v-model="editForm.team_id" :items="filteredTeamOptions" value-key="value" class="w-full">
                 <template #leading><UIcon name="i-lucide-users" class="size-4 text-gray-500" /></template>
               </USelectMenu>
             </UFormField>
@@ -174,11 +174,29 @@
         >
           <div class="mb-5 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <h2 class="text-xl font-bold tracking-tight text-gray-900">Locations & teams</h2>
+              <h2 class="text-xl font-bold tracking-tight text-gray-900">Hours by location &amp; team</h2>
               <p class="text-sm text-gray-600">
                 From synced Eitje data: <span class="font-medium text-gray-800">clocked</span> hours and
                 <span class="font-medium text-gray-800">planned</span> rooster, combined per place.
               </p>
+              <div
+                v-if="member.eitje_totals"
+                class="mt-3 flex flex-wrap gap-2"
+              >
+                <span
+                  class="inline-flex items-center gap-1.5 rounded-lg bg-emerald-100/90 px-3 py-1.5 text-sm font-semibold text-emerald-950 ring-1 ring-emerald-300/60"
+                >
+                  Total worked {{ member.eitje_totals.worked_hours.toFixed(1) }}h
+                </span>
+                <span
+                  class="inline-flex items-center gap-1.5 rounded-lg bg-sky-100/90 px-3 py-1.5 text-sm font-semibold text-sky-950 ring-1 ring-sky-300/60"
+                >
+                  Total planned {{ member.eitje_totals.planned_hours.toFixed(1) }}h
+                </span>
+                <span v-if="member.eitje_totals.places_count" class="text-xs text-gray-500 self-center">
+                  {{ member.eitje_totals.places_count }} place(s) in range
+                </span>
+              </div>
             </div>
             <div class="text-xs text-gray-500 sm:text-right">
               <p>
@@ -372,6 +390,11 @@ type MemberItem = {
       planned_records: number
     }>
   }
+  eitje_totals?: {
+    worked_hours: number
+    planned_hours: number
+    places_count: number
+  }
 }
 type ConnectionNote = { _id: string; slug?: string; title: string; content?: string; created_at?: string | null }
 type ConnectionTodo = { _id: string; text: string; checked: boolean; noteId: string; noteSlug?: string; noteTitle: string }
@@ -445,6 +468,8 @@ const hasWorkerData = computed(() => {
     member.value.contract_start_date ||
     member.value.contract_end_date ||
     member.value.hourly_rate ||
+    typeof member.value.weekly_hours === 'number' ||
+    typeof member.value.monthly_hours === 'number' ||
     member.value.phone ||
     member.value.age ||
     member.value.birthday ||

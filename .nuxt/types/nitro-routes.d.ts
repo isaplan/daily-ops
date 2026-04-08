@@ -14,6 +14,9 @@ declare module "nitropack/types" {
     '/api/bork/v2/locations': {
       'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/bork/v2/locations.get').default>>>>
     }
+    '/api/bork/v2/run-scheduled': {
+      'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/bork/v2/run-scheduled.get').default>>>>
+    }
     '/api/bork/v2/sync': {
       'post': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/bork/v2/sync.post').default>>>>
     }
@@ -55,6 +58,9 @@ declare module "nitropack/types" {
     '/api/eitje/v2/cron': {
       'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/eitje/v2/cron.get').default>>>>
       'post': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/eitje/v2/cron.post').default>>>>
+    }
+    '/api/eitje/v2/run-scheduled': {
+      'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/eitje/v2/run-scheduled.get').default>>>>
     }
     '/api/eitje/v2/sync': {
       'post': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/eitje/v2/sync.post').default>>>>

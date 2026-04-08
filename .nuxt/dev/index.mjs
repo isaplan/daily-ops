@@ -1,11 +1,12 @@
 import process from 'node:process';globalThis._importMeta_={url:import.meta.url,env:process.env};import { tmpdir } from 'node:os';
 import { defineEventHandler, handleCacheHeaders, splitCookiesString, createEvent, fetchWithEvent, isEvent, eventHandler, setHeaders, sendRedirect, proxyRequest, getRequestHeader, setResponseHeaders, setResponseStatus, send, getRequestHeaders, setResponseHeader, appendResponseHeader, getRequestURL, getResponseHeader, removeResponseHeader, createError, getQuery as getQuery$1, readBody, getResponseStatus, createApp, createRouter as createRouter$1, toNodeListener, lazyEventHandler, getRouterParam, readMultipartFormData, getResponseStatusText } from 'file:///Users/alviniomolina/Documents/GitHub/daily-ops/node_modules/.pnpm/h3@1.15.10/node_modules/h3/dist/index.mjs';
-import { Server } from 'node:http';
+import { Server, request as request$1 } from 'node:http';
 import { resolve, dirname, join } from 'node:path';
-import nodeCrypto from 'node:crypto';
+import nodeCrypto, { createHash } from 'node:crypto';
 import { parentPort, threadId } from 'node:worker_threads';
 import { escapeHtml } from 'file:///Users/alviniomolina/Documents/GitHub/daily-ops/node_modules/.pnpm/@vue+shared@3.5.31/node_modules/@vue/shared/dist/shared.cjs.js';
 import { MongoClient, ObjectId } from 'file:///Users/alviniomolina/Documents/GitHub/daily-ops/node_modules/.pnpm/mongodb@7.1.1/node_modules/mongodb/lib/index.js';
+import { request } from 'node:https';
 import Papa from 'file:///Users/alviniomolina/Documents/GitHub/daily-ops/node_modules/.pnpm/papaparse@5.5.3/node_modules/papaparse/papaparse.js';
 import * as cpexcel from '/Users/alviniomolina/Documents/GitHub/daily-ops/node_modules/.pnpm/xlsx@0.18.5/node_modules/xlsx/dist/cpexcel.js';
 import * as node_fs from 'node:fs';
@@ -2467,7 +2468,22 @@ _6mjMj5Prei0HyOQYYTNP_Nj5eZQ5AM_dzHVHH9tgi_A,
 _wH6JrtIxmaSoA8lCPWFnE9z4lQeXW6H5z3l5aymEQw
 ];
 
-const assets = {};
+const assets = {
+  "/index.mjs": {
+    "type": "text/javascript; charset=utf-8",
+    "etag": "\"123828-GmX0rmt66GXrDIlmMppk2YHP0eE\"",
+    "mtime": "2026-04-08T21:39:56.543Z",
+    "size": 1194024,
+    "path": "index.mjs"
+  },
+  "/index.mjs.map": {
+    "type": "application/json",
+    "etag": "\"4995f1-7LFKidTcJqSpSCsE+1Ewd9mhiHM\"",
+    "mtime": "2026-04-08T21:39:56.579Z",
+    "size": 4822513,
+    "path": "index.mjs.map"
+  }
+};
 
 function readAsset (id) {
   const serverDir = dirname$1(fileURLToPath(globalThis._importMeta_.url));
@@ -3080,6 +3096,22 @@ function loadParentEnv() {
   }
 }
 loadParentEnv();
+function loadCwdMongoEnv() {
+  const root = resolve(process.cwd());
+  for (const file of [".env.local", ".env"]) {
+    const p = resolve(root, file);
+    if (!existsSync(p)) continue;
+    for (const line of readFileSync(p, "utf-8").split("\n")) {
+      const match = line.match(/^([^#=]+)=(.*)$/);
+      if (!match) continue;
+      const key = match[1].trim();
+      if (key !== "MONGODB_URI" && key !== "MONGODB_DB_NAME") continue;
+      let val = match[2].trim().replace(/^["']|["']$/g, "");
+      process.env[key] = val;
+    }
+  }
+}
+loadCwdMongoEnv();
 const uri = process.env.MONGODB_URI || "mongodb://localhost:27017";
 const dbName = process.env.MONGODB_DB_NAME || "daily-ops";
 let client = null;
@@ -3109,6 +3141,313 @@ async function getMenusCollection() {
 async function getMenuVersionsCollection() {
   const db = await getDb();
   return db.collection("menu_versions");
+}
+
+function normalizeEitjeBaseUrl(raw) {
+  const t = raw.trim();
+  const noTrail = t.replace(/\/$/, "");
+  if (!noTrail) return "https://open-api.eitje.app/open_api";
+  try {
+    const href = noTrail.includes("://") ? noTrail : `https://${noTrail}`;
+    const u = new URL(href);
+    const host = u.hostname.toLowerCase();
+    const pathNorm = (u.pathname || "").replace(/\/$/, "") || "";
+    if (host.includes("eitje.app") && pathNorm === "") {
+      return `${u.origin}/open_api`;
+    }
+  } catch {
+  }
+  return noTrail;
+}
+function basicAuth(user, pass) {
+  return `Basic ${Buffer.from(`${user}:${pass}`, "utf8").toString("base64")}`;
+}
+function legacyEitjeV2Headers(creds) {
+  return {
+    "Partner-Username": creds.partner_username,
+    "Partner-Password": creds.partner_password,
+    "Api-Username": creds.api_username,
+    "Api-Password": creds.api_password,
+    "Content-Type": "application/json",
+    Accept: "application/json"
+  };
+}
+async function eitjeFetchJson(creds, pathOrUrl, opts) {
+  var _a, _b;
+  const base = normalizeEitjeBaseUrl(creds.baseUrl).replace(/\/$/, "");
+  const path = pathOrUrl.startsWith("http") ? pathOrUrl : `${base}/${pathOrUrl.replace(/^\//, "")}`;
+  const url = new URL(path);
+  if (opts == null ? void 0 : opts.query) {
+    for (const [k, v] of Object.entries(opts.query)) {
+      if (v != null && v !== "") url.searchParams.set(k, v);
+    }
+  }
+  const hasPartnerValues = Boolean(((_a = creds.partner_username) == null ? void 0 : _a.trim()) && ((_b = creds.partner_password) == null ? void 0 : _b.trim()));
+  const useDualAuth = hasPartnerValues && creds.partnerCredentialsDistinct;
+  const dualHeaders = {
+    Authorization: basicAuth(creds.api_username, creds.api_password),
+    "X-OpenAPI-Partner-Username": creds.partner_username,
+    "X-OpenAPI-Partner-Password": creds.partner_password
+  };
+  const attempts = [
+    { label: "legacy_partner_api_headers", headers: legacyEitjeV2Headers(creds) }
+  ];
+  if (useDualAuth) {
+    attempts.push({ label: "api_basic_plus_partner_headers", headers: dualHeaders });
+  }
+  attempts.push({
+    label: "api_basic_only",
+    headers: {
+      Authorization: basicAuth(creds.api_username, creds.api_password),
+      Accept: "application/json"
+    }
+  });
+  if (useDualAuth) {
+    attempts.push({
+      label: "partner_basic_only",
+      headers: {
+        Authorization: basicAuth(creds.partner_username, creds.partner_password),
+        Accept: "application/json"
+      }
+    });
+  }
+  if (hasPartnerValues && !useDualAuth) {
+    attempts.push({ label: "api_basic_plus_partner_headers_imputed", headers: dualHeaders });
+  }
+  let last = {
+    ok: false,
+    status: 0,
+    data: null,
+    url: url.toString(),
+    authAttempt: "none"
+  };
+  for (const a of attempts) {
+    const res = await fetch(url.toString(), {
+      method: "GET",
+      headers: {
+        Accept: "application/json",
+        ...a.headers
+      }
+    });
+    const text = await res.text();
+    let data = text;
+    try {
+      data = text ? JSON.parse(text) : null;
+    } catch {
+    }
+    last = { ok: res.ok, status: res.status, data, url: url.toString(), authAttempt: a.label };
+    if (res.ok) return last;
+  }
+  return last;
+}
+
+function pickStr(...vals) {
+  for (const v of vals) {
+    if (typeof v === "string" && v.trim()) return v.trim();
+    if (typeof v === "number" && Number.isFinite(v)) return String(v);
+  }
+  return "";
+}
+function nested(row, ...keys) {
+  let cur = row;
+  for (const k of keys) {
+    if (!cur || typeof cur !== "object") return {};
+    cur = cur[k];
+  }
+  return cur && typeof cur === "object" ? cur : {};
+}
+function asObject(v) {
+  if (!v) return {};
+  if (typeof v === "string") {
+    try {
+      const p = JSON.parse(v);
+      return p && typeof p === "object" ? p : {};
+    } catch {
+      return {};
+    }
+  }
+  if (typeof v === "object") return v;
+  return {};
+}
+function mergedCredentialSources(row) {
+  return {
+    ...nested(row, "secrets"),
+    ...nested(row, "envConfig"),
+    ...nested(row, "config"),
+    ...nested(row, "credentials"),
+    ...asObject(row.additional_config),
+    ...asObject(row.additionalConfig)
+  };
+}
+const EITJE_PROVIDER_CLAUSE = {
+  $or: [
+    { provider: { $in: ["eitje", "Eitje", "eitje-open-api", "eitje_open_api", "EITJE"] } },
+    { type: "eitje" },
+    { source: "eitje" },
+    { integration: "eitje" }
+  ]
+};
+async function findEitjeCredentialDocument(db) {
+  const coll = db.collection("api_credentials");
+  const prefer = await coll.findOne(
+    { ...EITJE_PROVIDER_CLAUSE, $nor: [{ isActive: false }] },
+    { sort: { updatedAt: -1, createdAt: -1 } }
+  );
+  if (prefer) return prefer;
+  const any = await coll.findOne(
+    { ...EITJE_PROVIDER_CLAUSE },
+    { sort: { updatedAt: -1, createdAt: -1 } }
+  );
+  if (any) return any;
+  const byUrl = await coll.findOne(
+    {
+      provider: { $nin: ["bork", "Bork"] },
+      baseUrl: { $regex: /eitje\.app/i }
+    },
+    { sort: { updatedAt: -1, createdAt: -1 } }
+  );
+  if (byUrl) return byUrl;
+  const guessed = await coll.findOne(
+    {
+      provider: { $nin: ["bork", "Bork"] },
+      $or: [
+        { "additionalConfig.api_username": { $exists: true } },
+        { "additionalConfig.partner_username": { $exists: true } },
+        { "additional_config.api_username": { $exists: true } },
+        { api_username: { $exists: true } },
+        { partner_username: { $exists: true } }
+      ]
+    },
+    { sort: { updatedAt: -1, createdAt: -1 } }
+  );
+  return guessed;
+}
+function documentToEitjeStoredCredentials(row) {
+  const ac = mergedCredentialSources(row);
+  const api_username = pickStr(
+    ac.api_username,
+    ac.apiUsername,
+    ac.API_USERNAME,
+    ac.api_user,
+    ac.apiUser,
+    ac.venue_username,
+    ac.venueUsername,
+    ac.username,
+    ac.user,
+    row.api_username,
+    row.apiUsername,
+    row.api_user,
+    row.username
+  );
+  const api_password = pickStr(
+    ac.api_password,
+    ac.apiPassword,
+    ac.API_PASSWORD,
+    ac.api_pass,
+    ac.venue_password,
+    ac.venuePassword,
+    ac.password,
+    row.api_password,
+    row.apiPassword,
+    row.api_pass,
+    row.password
+  );
+  const partner_username = pickStr(
+    ac.partner_username,
+    ac.partnerUsername,
+    ac.PARTNER_USERNAME,
+    ac.partner_user,
+    ac.partnerUser,
+    row.partner_username,
+    row.partnerUsername
+  );
+  const partner_password = pickStr(
+    ac.partner_password,
+    ac.partnerPassword,
+    ac.PARTNER_PASSWORD,
+    ac.partner_pass,
+    row.partner_password,
+    row.partnerPassword
+  );
+  const hadRealPartnerInDb = Boolean(partner_username && partner_password);
+  const baseUrlRaw = pickStr(
+    typeof row.baseUrl === "string" ? row.baseUrl : "",
+    typeof ac.baseUrl === "string" ? ac.baseUrl : "",
+    typeof ac.base_url === "string" ? ac.base_url : ""
+  );
+  const baseUrl = normalizeEitjeBaseUrl(baseUrlRaw || "https://open-api.eitje.app/open_api");
+  if (!api_username || !api_password) return null;
+  let pu = partner_username;
+  let pp = partner_password;
+  if (!pu || !pp) {
+    pu = api_username;
+    pp = api_password;
+  }
+  return {
+    baseUrl,
+    partner_username: pu,
+    partner_password: pp,
+    api_username,
+    api_password,
+    partnerCredentialsDistinct: hadRealPartnerInDb
+  };
+}
+function documentToCredentialsApiShape(row) {
+  const ac = mergedCredentialSources(row);
+  const stored = documentToEitjeStoredCredentials(row);
+  const partner_username = pickStr(
+    ac.partner_username,
+    ac.partnerUsername,
+    ac.PARTNER_USERNAME,
+    ac.partner_user,
+    row.partner_username,
+    row.partnerUsername,
+    stored == null ? void 0 : stored.partner_username
+  );
+  const partner_password = pickStr(
+    ac.partner_password,
+    ac.partnerPassword,
+    ac.PARTNER_PASSWORD,
+    ac.partner_pass,
+    row.partner_password,
+    row.partnerPassword,
+    stored == null ? void 0 : stored.partner_password
+  );
+  const api_username = pickStr(
+    ac.api_username,
+    ac.apiUsername,
+    ac.api_user,
+    ac.venue_username,
+    row.api_username,
+    row.apiUsername,
+    stored == null ? void 0 : stored.api_username
+  );
+  const api_password = pickStr(
+    ac.api_password,
+    ac.apiPassword,
+    ac.api_pass,
+    ac.venue_password,
+    row.api_password,
+    row.apiPassword,
+    stored == null ? void 0 : stored.api_password
+  );
+  const baseUrl = normalizeEitjeBaseUrl(
+    pickStr(
+      typeof row.baseUrl === "string" ? row.baseUrl : "",
+      typeof ac.baseUrl === "string" ? ac.baseUrl : "",
+      typeof ac.base_url === "string" ? ac.base_url : "",
+      stored == null ? void 0 : stored.baseUrl
+    ) || "https://open-api.eitje.app/open_api"
+  );
+  return {
+    baseUrl,
+    additionalConfig: {
+      partner_username,
+      partner_password,
+      api_username,
+      api_password
+    }
+  };
 }
 
 const EITJE_HOURS_ADD_FIELDS = {
@@ -3165,6 +3504,381 @@ function getUtcDayRange(dateStr) {
   const dayStart = new Date(Date.UTC(y != null ? y : 0, (m != null ? m : 1) - 1, d != null ? d : 1, 0, 0, 0, 0));
   const dayEnd = new Date(Date.UTC(y != null ? y : 0, (m != null ? m : 1) - 1, d != null ? d : 1, 23, 59, 59, 999));
   return { dayStart, dayEnd };
+}
+
+function eitjeUserIdCandidates(supportId) {
+  if (!(supportId == null ? void 0 : supportId.trim())) return [];
+  const s = supportId.trim();
+  const out = /* @__PURE__ */ new Set();
+  out.add(s);
+  const n = Number(s);
+  if (!Number.isNaN(n)) out.add(n);
+  return [...out];
+}
+function escapeRegex(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+function addId(out, v) {
+  if (v == null) return;
+  if (typeof v === "number" && !Number.isNaN(v)) {
+    out.add(v);
+    out.add(String(v));
+    return;
+  }
+  if (typeof v === "string") {
+    const t = v.trim();
+    if (!t) return;
+    out.add(t);
+    const n = Number(t);
+    if (!Number.isNaN(n) && String(n) === t) out.add(n);
+    return;
+  }
+  if (typeof v === "object" && v && "toString" in v) {
+    const t = String(v);
+    if (t && /^[0-9a-f]{24}$/i.test(t)) out.add(v);
+    else if (t) out.add(t);
+  }
+}
+async function resolveEitjeAggregationUserCandidates(db, supportId, userName) {
+  const out = /* @__PURE__ */ new Set();
+  for (const x of eitjeUserIdCandidates(supportId)) addId(out, x);
+  const orClause = [];
+  const sid = supportId == null ? void 0 : supportId.trim();
+  if (sid) {
+    const n = Number(sid);
+    orClause.push({ support_id: sid });
+    orClause.push({ support_id: n });
+    if (!Number.isNaN(n)) {
+      orClause.push({ eitjeIds: n });
+      orClause.push({ allIdValues: n });
+    }
+  }
+  const name = userName.trim();
+  if (name) {
+    orClause.push({ canonicalName: name });
+    orClause.push({ primaryName: name });
+    orClause.push({ name });
+    orClause.push({
+      canonicalName: { $regex: `^\\s*${escapeRegex(name)}\\s*$`, $options: "i" }
+    });
+  }
+  if (orClause.length > 0) {
+    const users = await db.collection("unified_user").find({ $or: orClause }).project({ eitjeIds: 1, allIdValues: 1, primaryId: 1, support_id: 1 }).limit(40).toArray();
+    for (const u of users) {
+      const doc = u;
+      const ej = doc.eitjeIds;
+      if (Array.isArray(ej)) for (const x of ej) addId(out, x);
+      const av = doc.allIdValues;
+      if (Array.isArray(av)) for (const x of av) addId(out, x);
+      addId(out, doc.primaryId);
+      addId(out, doc.support_id);
+    }
+  }
+  return [...out];
+}
+function dateRange(monthsBack) {
+  var _a, _b;
+  const end = /* @__PURE__ */ new Date();
+  const start = /* @__PURE__ */ new Date();
+  start.setMonth(start.getMonth() - monthsBack);
+  return {
+    range_end: (_a = end.toISOString().split("T")[0]) != null ? _a : "",
+    range_start: (_b = start.toISOString().split("T")[0]) != null ? _b : ""
+  };
+}
+function userMatchClause(userIdCandidates, userName) {
+  const orBranches = [];
+  if (userIdCandidates.length > 0) {
+    orBranches.push({ userId: { $in: userIdCandidates } });
+  }
+  const name = userName.trim();
+  if (name) {
+    orBranches.push({ user_name: name });
+    orBranches.push({
+      user_name: { $regex: `^\\s*${escapeRegex(name)}\\s*$`, $options: "i" }
+    });
+  }
+  if (orBranches.length === 0) return null;
+  return { $or: orBranches };
+}
+async function fetchAggregationActivityByLocationTeam(db, collectionName, options) {
+  const { range_start, range_end } = options.range;
+  const userClause = userMatchClause(options.userIdCandidates, options.userName);
+  if (!userClause) return [];
+  const baseMatch = {
+    period_type: "day",
+    period: { $gte: range_start, $lte: range_end },
+    team_name: { $exists: true, $nin: [null, "Unknown"] },
+    location_name: { $exists: true, $nin: [null, "Unknown"] },
+    ...userClause
+  };
+  const pipeline = [
+    { $match: baseMatch },
+    {
+      $group: {
+        _id: { location_name: "$location_name", team_name: "$team_name" },
+        total_hours: { $sum: "$total_hours" },
+        record_count: { $sum: "$record_count" }
+      }
+    },
+    { $sort: { total_hours: -1 } },
+    {
+      $project: {
+        _id: 0,
+        location_name: "$_id.location_name",
+        team_name: "$_id.team_name",
+        total_hours: 1,
+        record_count: 1
+      }
+    }
+  ];
+  const rows = await db.collection(collectionName).aggregate(pipeline).toArray();
+  return rows.map((r) => {
+    var _a, _b, _c, _d;
+    return {
+      location_name: (_a = r.location_name) != null ? _a : "Unknown",
+      team_name: (_b = r.team_name) != null ? _b : "Unknown",
+      total_hours: Number((_c = r.total_hours) != null ? _c : 0),
+      record_count: Number((_d = r.record_count) != null ? _d : 0)
+    };
+  });
+}
+const unifiedTeamLookup = {
+  $lookup: {
+    from: "unified_team",
+    let: { tid: "$teamId" },
+    pipeline: [
+      {
+        $match: {
+          $expr: {
+            $or: [
+              { $in: ["$$tid", { $ifNull: ["$eitjeIds", []] }] },
+              { $in: ["$$tid", { $ifNull: ["$allIdValues", []] }] },
+              { $eq: ["$primaryId", "$$tid"] }
+            ]
+          }
+        }
+      },
+      { $limit: 1 },
+      { $project: { primaryName: 1, canonicalName: 1 } }
+    ],
+    as: "team"
+  }
+};
+async function fetchRawPlacesByEndpoint(db, endpoint, range, supportId, userIdCandidates, userName) {
+  const sid = supportId == null ? void 0 : supportId.trim();
+  const uname = userName.trim();
+  if (userIdCandidates.length === 0 && !sid && !uname) return [];
+  const start = /* @__PURE__ */ new Date(`${range.range_start}T00:00:00.000Z`);
+  const end = /* @__PURE__ */ new Date(`${range.range_end}T23:59:59.999Z`);
+  const orCond = [];
+  if (userIdCandidates.length > 0) {
+    orCond.push({ aggUid: { $in: userIdCandidates } });
+  }
+  if (sid) {
+    orCond.push({ aggSupportStr: sid });
+    const n = Number(sid);
+    if (!Number.isNaN(n)) orCond.push({ aggSupportStr: String(n) });
+  }
+  if (uname) {
+    orCond.push({ "rawApiResponse.user.name": { $regex: `^\\s*${escapeRegex(uname)}\\s*$`, $options: "i" } });
+    const words = uname.split(/\s+/).filter(Boolean);
+    if (words.length >= 2) {
+      const firstTwo = words.slice(0, 2).join(" ");
+      orCond.push({
+        "rawApiResponse.user.name": { $regex: `^\\s*${escapeRegex(firstTwo)}`, $options: "i" }
+      });
+    }
+  }
+  const pipeline = [
+    {
+      $match: {
+        endpoint,
+        date: { $gte: start, $lte: end }
+      }
+    },
+    {
+      $addFields: {
+        ...EITJE_HOURS_ADD_FIELDS,
+        aggUid: {
+          $ifNull: [
+            "$extracted.userId",
+            { $ifNull: ["$rawApiResponse.user_id", "$rawApiResponse.user.id"] }
+          ]
+        },
+        aggSupportStr: {
+          $toString: {
+            $ifNull: [
+              "$extracted.supportId",
+              {
+                $ifNull: [
+                  "$rawApiResponse.support_id",
+                  { $ifNull: ["$rawApiResponse.id", ""] }
+                ]
+              }
+            ]
+          }
+        },
+        teamId: {
+          $ifNull: [
+            "$extracted.teamId",
+            { $ifNull: ["$rawApiResponse.team_id", "$rawApiResponse.team.id"] }
+          ]
+        },
+        locName: {
+          $ifNull: [
+            "$extracted.locationName",
+            {
+              $ifNull: [
+                "$extracted.environmentName",
+                {
+                  $ifNull: [
+                    "$rawApiResponse.location_name",
+                    { $ifNull: ["$rawApiResponse.environment_name", ""] }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    { $match: { $or: orCond } },
+    unifiedTeamLookup,
+    {
+      $addFields: {
+        team_name: {
+          $ifNull: [
+            { $arrayElemAt: ["$team.canonicalName", 0] },
+            { $ifNull: [{ $arrayElemAt: ["$team.primaryName", 0] }, "Unknown"] }
+          ]
+        },
+        location_name: {
+          $cond: [
+            { $and: [{ $ne: ["$locName", null] }, { $ne: [{ $toString: "$locName" }, ""] }] },
+            { $toString: "$locName" },
+            "Unknown"
+          ]
+        }
+      }
+    },
+    {
+      $match: {
+        team_name: { $nin: [null, "", "Unknown"] },
+        location_name: { $nin: [null, "", "Unknown"] }
+      }
+    },
+    {
+      $group: {
+        _id: { location_name: "$location_name", team_name: "$team_name" },
+        total_hours: { $sum: "$hours" },
+        record_count: { $sum: 1 }
+      }
+    },
+    { $sort: { total_hours: -1 } },
+    {
+      $project: {
+        _id: 0,
+        location_name: "$_id.location_name",
+        team_name: "$_id.team_name",
+        total_hours: 1,
+        record_count: 1
+      }
+    }
+  ];
+  const rows = await db.collection("eitje_raw_data").aggregate(pipeline).toArray();
+  return rows.map((r) => {
+    var _a, _b, _c, _d;
+    return {
+      location_name: (_a = r.location_name) != null ? _a : "Unknown",
+      team_name: (_b = r.team_name) != null ? _b : "Unknown",
+      total_hours: Number((_c = r.total_hours) != null ? _c : 0),
+      record_count: Number((_d = r.record_count) != null ? _d : 0)
+    };
+  });
+}
+function placeKey(loc, team) {
+  return `${loc.trim().toLowerCase()}|||${team.trim().toLowerCase()}`;
+}
+function mergeWorkedAndPlanned(worked, planned) {
+  const map = /* @__PURE__ */ new Map();
+  for (const w of worked) {
+    const k = placeKey(w.location_name, w.team_name);
+    map.set(k, {
+      location_name: w.location_name,
+      team_name: w.team_name,
+      worked_hours: w.total_hours,
+      planned_hours: 0,
+      worked_records: w.record_count,
+      planned_records: 0
+    });
+  }
+  for (const p of planned) {
+    const k = placeKey(p.location_name, p.team_name);
+    const existing = map.get(k);
+    if (existing) {
+      existing.planned_hours = p.total_hours;
+      existing.planned_records = p.record_count;
+    } else {
+      map.set(k, {
+        location_name: p.location_name,
+        team_name: p.team_name,
+        worked_hours: 0,
+        planned_hours: p.total_hours,
+        worked_records: 0,
+        planned_records: p.record_count
+      });
+    }
+  }
+  return Array.from(map.values()).sort(
+    (a, b) => b.worked_hours + b.planned_hours - (a.worked_hours + a.planned_hours)
+  );
+}
+async function fetchMemberEitjePlaces(db, options) {
+  var _a;
+  const monthsBack = (_a = options.monthsBack) != null ? _a : 36;
+  const range = dateRange(monthsBack);
+  const userIdCandidates = await resolveEitjeAggregationUserCandidates(
+    db,
+    options.supportId,
+    options.userName
+  );
+  const baseOpts = {
+    userIdCandidates,
+    userName: options.userName,
+    range
+  };
+  let worked = await fetchAggregationActivityByLocationTeam(
+    db,
+    "eitje_time_registration_aggregation",
+    baseOpts
+  );
+  let planned = await fetchAggregationActivityByLocationTeam(
+    db,
+    "eitje_planning_registration_aggregation",
+    baseOpts
+  );
+  let merged = mergeWorkedAndPlanned(worked, planned);
+  let source = merged.length > 0 ? "aggregation" : "none";
+  if (merged.length === 0) {
+    const [rw, rp] = await Promise.all([
+      fetchRawPlacesByEndpoint(db, "time_registration_shifts", range, options.supportId, userIdCandidates, options.userName),
+      fetchRawPlacesByEndpoint(db, "planning_shifts", range, options.supportId, userIdCandidates, options.userName)
+    ]);
+    worked = rw;
+    planned = rp;
+    merged = mergeWorkedAndPlanned(worked, planned);
+    if (merged.length > 0) source = "raw_fallback";
+  }
+  return {
+    months_back: monthsBack,
+    range_start: range.range_start,
+    range_end: range.range_end,
+    worked,
+    planned,
+    merged,
+    source
+  };
 }
 
 function activeNotesMatch() {
@@ -27896,6 +28610,7 @@ const _lazy_Fk11Zg = () => Promise.resolve().then(function () { return credentia
 const _lazy_0fNa4b = () => Promise.resolve().then(function () { return cron_get$3; });
 const _lazy_56hgXw = () => Promise.resolve().then(function () { return cron_post$3; });
 const _lazy_VkZeTR = () => Promise.resolve().then(function () { return locations_get$1; });
+const _lazy_GrR807 = () => Promise.resolve().then(function () { return runScheduled_get$3; });
 const _lazy_2sV_oe = () => Promise.resolve().then(function () { return sync_post$3; });
 const _lazy_ir2wis = () => Promise.resolve().then(function () { return dataIntegrity_get$1; });
 const _lazy_fiyqpy = () => Promise.resolve().then(function () { return insights_get$1; });
@@ -27912,6 +28627,7 @@ const _lazy_G_ytS1 = () => Promise.resolve().then(function () { return credentia
 const _lazy_SfurXI = () => Promise.resolve().then(function () { return credentials_post$1; });
 const _lazy_nlLK9d = () => Promise.resolve().then(function () { return cron_get$1; });
 const _lazy_Px5JCt = () => Promise.resolve().then(function () { return cron_post$1; });
+const _lazy_xyNDOb = () => Promise.resolve().then(function () { return runScheduled_get$1; });
 const _lazy_TdH9ed = () => Promise.resolve().then(function () { return sync_post$1; });
 const _lazy_0GUNpg = () => Promise.resolve().then(function () { return hoursAggregated_get$1; });
 const _lazy_YbJ2l7 = () => Promise.resolve().then(function () { return hoursConsistencyCheck_get$1; });
@@ -27963,6 +28679,7 @@ const handlers = [
   { route: '/api/bork/v2/cron', handler: _lazy_0fNa4b, lazy: true, middleware: false, method: "get" },
   { route: '/api/bork/v2/cron', handler: _lazy_56hgXw, lazy: true, middleware: false, method: "post" },
   { route: '/api/bork/v2/locations', handler: _lazy_VkZeTR, lazy: true, middleware: false, method: "get" },
+  { route: '/api/bork/v2/run-scheduled', handler: _lazy_GrR807, lazy: true, middleware: false, method: "get" },
   { route: '/api/bork/v2/sync', handler: _lazy_2sV_oe, lazy: true, middleware: false, method: "post" },
   { route: '/api/cron/data-integrity', handler: _lazy_ir2wis, lazy: true, middleware: false, method: "get" },
   { route: '/api/daily-ops/insights', handler: _lazy_fiyqpy, lazy: true, middleware: false, method: "get" },
@@ -27979,6 +28696,7 @@ const handlers = [
   { route: '/api/eitje/v2/credentials', handler: _lazy_SfurXI, lazy: true, middleware: false, method: "post" },
   { route: '/api/eitje/v2/cron', handler: _lazy_nlLK9d, lazy: true, middleware: false, method: "get" },
   { route: '/api/eitje/v2/cron', handler: _lazy_Px5JCt, lazy: true, middleware: false, method: "post" },
+  { route: '/api/eitje/v2/run-scheduled', handler: _lazy_xyNDOb, lazy: true, middleware: false, method: "get" },
   { route: '/api/eitje/v2/sync', handler: _lazy_TdH9ed, lazy: true, middleware: false, method: "post" },
   { route: '/api/hours-aggregated', handler: _lazy_0GUNpg, lazy: true, middleware: false, method: "get" },
   { route: '/api/hours-consistency-check', handler: _lazy_YbJ2l7, lazy: true, middleware: false, method: "get" },
@@ -28299,7 +29017,7 @@ const styles$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
 const credentials_get$2 = defineEventHandler(async () => {
   var _a;
   const db = await getDb();
-  const creds = await db.collection("api_credentials").find({ provider: "bork" }).sort({ createdAt: -1 }).toArray();
+  const creds = await db.collection("api_credentials").find({ provider: { $in: ["bork", "Bork"] } }).sort({ createdAt: -1 }).toArray();
   const list = [];
   for (const c of creds) {
     const locationId = c.locationId instanceof ObjectId ? c.locationId : new ObjectId(String(c.locationId));
@@ -28397,6 +29115,7 @@ const credentials_post$3 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.define
 }, Symbol.toStringTag, { value: 'Module' }));
 
 const cron_get$2 = defineEventHandler(async (event) => {
+  var _a, _b, _c, _d;
   const jobType = getQuery$1(event).jobType || "daily-data";
   const db = await getDb();
   const row = await db.collection("integration_cron_jobs").findOne({ source: "bork", jobType });
@@ -28406,7 +29125,11 @@ const cron_get$2 = defineEventHandler(async (event) => {
       isActive: Boolean(row.isActive),
       lastRun: row.lastRun || null,
       lastRunUTC: row.lastRunUTC || null,
-      schedule: row.schedule || null
+      schedule: row.schedule || null,
+      lastSyncAt: (_a = row.lastSyncAt) != null ? _a : null,
+      lastSyncOk: (_b = row.lastSyncOk) != null ? _b : null,
+      lastSyncMessage: (_c = row.lastSyncMessage) != null ? _c : null,
+      lastSyncDetail: (_d = row.lastSyncDetail) != null ? _d : null
     } : null
   };
 });
@@ -28415,6 +29138,125 @@ const cron_get$3 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty
   __proto__: null,
   default: cron_get$2
 }, Symbol.toStringTag, { value: 'Module' }));
+
+function pathList(envKey, fallback) {
+  const raw = process.env[envKey] || fallback;
+  return raw.split(",").map((s) => s.trim()).filter(Boolean);
+}
+async function tryFetchGateway(baseUrl, apiKey, relPath) {
+  const base = baseUrl.replace(/\/$/, "");
+  const url = `${base}/${relPath.replace(/^\//, "")}`;
+  const headerAttempts = [
+    { "X-API-Key": apiKey, Accept: "application/json" },
+    { Authorization: `Bearer ${apiKey}`, Accept: "application/json" },
+    { ApiKey: apiKey, Accept: "application/json" },
+    { "App-Id": apiKey, Accept: "application/json" },
+    { "app-id": apiKey, Accept: "application/json" }
+  ];
+  let lastStatus = 0;
+  for (const headers of headerAttempts) {
+    const res = await fetch(url, { method: "GET", headers });
+    lastStatus = res.status;
+    const text = await res.text();
+    let data = text;
+    try {
+      data = text ? JSON.parse(text) : null;
+    } catch {
+    }
+    if (res.ok) return { ok: true, status: res.status, data };
+  }
+  return { ok: false, status: lastStatus, data: null };
+}
+async function syncLocationPaths(db, cred, endpointLabel, paths) {
+  const locationId = cred.locationId;
+  const lid = locationId != null ? String(locationId) : "unknown";
+  const apiKey = typeof cred.apiKey === "string" ? cred.apiKey : "";
+  const baseUrl = typeof cred.baseUrl === "string" ? cred.baseUrl : "";
+  if (!apiKey || !baseUrl) {
+    return { locationId: lid, ok: false, error: "missing baseUrl or apiKey on credential row" };
+  }
+  let lastStatus = 0;
+  for (const p of paths) {
+    const r = await tryFetchGateway(baseUrl, apiKey, p);
+    lastStatus = r.status;
+    if (!r.ok) continue;
+    const syncDedupKey = `${lid}:${endpointLabel}:${p}`;
+    const now = /* @__PURE__ */ new Date();
+    await db.collection("bork_raw_data").updateOne(
+      { syncDedupKey },
+      {
+        $set: {
+          endpoint: endpointLabel,
+          locationId: cred.locationId,
+          date: now,
+          rawApiResponse: r.data,
+          syncDedupKey,
+          updatedAt: now
+        },
+        $setOnInsert: { createdAt: now }
+      },
+      { upsert: true }
+    );
+    return { locationId: lid, ok: true, path: p };
+  }
+  return { locationId: lid, ok: false, error: `no path succeeded (last HTTP ${lastStatus || "\u2014"})` };
+}
+async function loadBorkCredentials(db) {
+  return db.collection("api_credentials").find({
+    provider: { $in: ["bork", "Bork"] },
+    $nor: [{ isActive: false }]
+  }).sort({ updatedAt: -1, createdAt: -1 }).toArray();
+}
+async function executeBorkJob(db, jobType) {
+  const creds = await loadBorkCredentials(db);
+  if (creds.length === 0) {
+    return {
+      ok: false,
+      jobType,
+      message: "No Bork rows in api_credentials (provider bork, with apiKey)."
+    };
+  }
+  const isMaster = jobType === "master-data";
+  const paths = isMaster ? pathList("BORK_MASTER_PATHS", "api/v1/product_groups,product_groups,v1/product_groups,api/status") : pathList("BORK_DAILY_PATHS", "api/v1/sales,sales,api/v1/transactions,api/status,health");
+  const endpointLabel = isMaster ? "bork_master" : "bork_daily";
+  const locations = [];
+  for (const c of creds) {
+    const r = await syncLocationPaths(db, c, endpointLabel, paths);
+    locations.push(r);
+  }
+  const okCount = locations.filter((x) => x.ok).length;
+  return {
+    ok: okCount > 0,
+    jobType,
+    message: okCount > 0 ? `Synced ${okCount}/${creds.length} location(s) into bork_raw_data` : `0/${creds.length} locations succeeded \u2014 check BORK_*_PATHS env or gateway URLs`,
+    locations
+  };
+}
+async function syncBorkSingleLocation(db, locationId, mode) {
+  var _a, _b;
+  const orLoc = [{ locationId }];
+  try {
+    orLoc.push({ locationId: new ObjectId(locationId) });
+  } catch {
+  }
+  const cred = await db.collection("api_credentials").findOne({
+    provider: { $in: ["bork", "Bork"] },
+    $or: orLoc,
+    $nor: [{ isActive: false }]
+  });
+  if (!cred) {
+    return { ok: false, jobType: mode, message: "No Bork credential for this locationId" };
+  }
+  const paths = mode === "master" ? pathList("BORK_MASTER_PATHS", "api/v1/product_groups,product_groups,api/status") : mode === "ping" ? pathList("BORK_PING_PATHS", "api/status,health,api/v1/status") : pathList("BORK_DAILY_PATHS", "api/v1/sales,sales,api/status,health");
+  const label = mode === "master" ? "bork_master" : mode === "ping" ? "bork_ping" : "bork_daily";
+  const r = await syncLocationPaths(db, cred, label, paths);
+  return {
+    ok: r.ok,
+    jobType: mode,
+    message: r.ok ? `OK via ${(_a = r.path) != null ? _a : "?"}` : (_b = r.error) != null ? _b : "failed",
+    locations: [r]
+  };
+}
 
 const cron_post$2 = defineEventHandler(async (event) => {
   const body = await readBody(event);
@@ -28455,7 +29297,21 @@ const cron_post$2 = defineEventHandler(async (event) => {
       },
       { upsert: true }
     );
-    return { success: true, message: "Run triggered" };
+    const syncResult = await executeBorkJob(db, body.jobType);
+    await db.collection("integration_cron_jobs").updateOne(query, {
+      $set: {
+        lastSyncAt: now.toISOString(),
+        lastSyncOk: syncResult.ok,
+        lastSyncMessage: syncResult.message,
+        lastSyncDetail: syncResult,
+        updatedAt: /* @__PURE__ */ new Date()
+      }
+    });
+    return {
+      success: syncResult.ok,
+      message: syncResult.message,
+      sync: syncResult
+    };
   }
   await db.collection("integration_cron_jobs").updateOne(
     query,
@@ -28503,12 +29359,65 @@ const locations_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.definePro
   default: locations_get
 }, Symbol.toStringTag, { value: 'Module' }));
 
+const runScheduled_get$2 = defineEventHandler(async (event) => {
+  var _a;
+  const secret = process.env.CRON_SECRET;
+  const q = getQuery$1(event);
+  if (!secret || String((_a = q.secret) != null ? _a : "") !== secret) {
+    throw createError({ statusCode: 401, statusMessage: "Unauthorized" });
+  }
+  const db = await getDb();
+  const jobs = await db.collection("integration_cron_jobs").find({ source: "bork", isActive: true }).toArray();
+  const results = [];
+  const now = /* @__PURE__ */ new Date();
+  for (const j of jobs) {
+    const jobType = typeof j.jobType === "string" ? j.jobType : "";
+    if (!jobType) continue;
+    await db.collection("integration_cron_jobs").updateOne(
+      { source: "bork", jobType },
+      { $set: { lastRun: now.toISOString(), lastRunUTC: now.toISOString(), updatedAt: now } }
+    );
+    const syncResult = await executeBorkJob(db, jobType);
+    results.push({ jobType, ...syncResult });
+    await db.collection("integration_cron_jobs").updateOne(
+      { source: "bork", jobType },
+      {
+        $set: {
+          lastSyncAt: now.toISOString(),
+          lastSyncOk: syncResult.ok,
+          lastSyncMessage: syncResult.message,
+          lastSyncDetail: syncResult,
+          updatedAt: /* @__PURE__ */ new Date()
+        }
+      }
+    );
+  }
+  return { success: true, ran: results.length, results };
+});
+
+const runScheduled_get$3 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+  __proto__: null,
+  default: runScheduled_get$2
+}, Symbol.toStringTag, { value: 'Module' }));
+
 const sync_post$2 = defineEventHandler(async (event) => {
   const body = await readBody(event);
+  const db = await getDb();
+  if (body == null ? void 0 : body.locationId) {
+    const mode = body.ping ? "ping" : body.endpoint === "master" || body.endpoint === "master-data" ? "master" : "daily";
+    const result2 = await syncBorkSingleLocation(db, body.locationId, mode);
+    return {
+      success: result2.ok,
+      message: result2.message,
+      sync: result2
+    };
+  }
+  const jobType = (body == null ? void 0 : body.endpoint) === "master" || (body == null ? void 0 : body.endpoint) === "master-data" ? "master-data" : (body == null ? void 0 : body.endpoint) === "historical-data" ? "historical-data" : "daily-data";
+  const result = await executeBorkJob(db, jobType);
   return {
-    success: true,
-    message: `Sync test successful for endpoint: ${(body == null ? void 0 : body.endpoint) || "unknown"}`,
-    locationId: (body == null ? void 0 : body.locationId) || null
+    success: result.ok,
+    message: result.message,
+    sync: result
   };
 });
 
@@ -29351,16 +30260,11 @@ const rawSample_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.definePro
 
 const credentials_get = defineEventHandler(async () => {
   const db = await getDb();
-  const row = await db.collection("api_credentials").findOne(
-    { provider: "eitje", isActive: true },
-    { sort: { createdAt: -1 } }
-  );
+  const row = await findEitjeCredentialDocument(db);
+  const credentials = row ? documentToCredentialsApiShape(row) : null;
   return {
     success: true,
-    credentials: row ? {
-      baseUrl: row.baseUrl || "https://open-api.eitje.app/open_api",
-      additionalConfig: row.additionalConfig || {}
-    } : null
+    credentials
   };
 });
 
@@ -29403,6 +30307,7 @@ const credentials_post$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.define
 }, Symbol.toStringTag, { value: 'Module' }));
 
 const cron_get = defineEventHandler(async (event) => {
+  var _a, _b, _c, _d;
   const jobType = getQuery$1(event).jobType || "daily-data";
   const db = await getDb();
   const row = await db.collection("integration_cron_jobs").findOne({ source: "eitje", jobType });
@@ -29412,7 +30317,11 @@ const cron_get = defineEventHandler(async (event) => {
       isActive: Boolean(row.isActive),
       lastRun: row.lastRun || null,
       lastRunUTC: row.lastRunUTC || null,
-      schedule: row.schedule || null
+      schedule: row.schedule || null,
+      lastSyncAt: (_a = row.lastSyncAt) != null ? _a : null,
+      lastSyncOk: (_b = row.lastSyncOk) != null ? _b : null,
+      lastSyncMessage: (_c = row.lastSyncMessage) != null ? _c : null,
+      lastSyncDetail: (_d = row.lastSyncDetail) != null ? _d : null
     } : null
   };
 });
@@ -29421,6 +30330,860 @@ const cron_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty
   __proto__: null,
   default: cron_get
 }, Symbol.toStringTag, { value: 'Module' }));
+
+function dayStartUtc(dateStr) {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  return new Date(Date.UTC(y != null ? y : 0, (m != null ? m : 1) - 1, d != null ? d : 1, 0, 0, 0, 0));
+}
+function dayEndUtc(dateStr) {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  return new Date(Date.UTC(y != null ? y : 0, (m != null ? m : 1) - 1, d != null ? d : 1, 23, 59, 59, 999));
+}
+async function rebuildEitjeTimeRegistrationAggregation(db, startDate, endDate) {
+  const collAgg = db.collection("eitje_time_registration_aggregation");
+  const del = await collAgg.deleteMany({
+    period_type: "day",
+    period: { $gte: startDate, $lte: endDate }
+  });
+  const startD = dayStartUtc(startDate);
+  const endD = dayEndUtc(endDate);
+  const pipeline = [
+    {
+      $match: {
+        endpoint: "time_registration_shifts",
+        date: { $gte: startD, $lte: endD }
+      }
+    },
+    {
+      $addFields: {
+        ...EITJE_HOURS_ADD_FIELDS,
+        period: {
+          $dateToString: { format: "%Y-%m-%d", date: "$date", timezone: "UTC" }
+        },
+        userId: { $ifNull: ["$extracted.userId", "$rawApiResponse.user_id"] },
+        teamId: { $ifNull: ["$extracted.teamId", "$rawApiResponse.team_id"] },
+        environmentId: {
+          $ifNull: [
+            "$environmentId",
+            "$extracted.environmentId",
+            "$rawApiResponse.environment_id",
+            "$rawApiResponse.environmentId"
+          ]
+        },
+        cost: {
+          $ifNull: [
+            { $divide: [{ $toDouble: "$extracted.amountInCents" }, 100] },
+            { $ifNull: [{ $divide: [{ $toDouble: "$rawApiResponse.amt_in_cents" }, 100] }, 0] }
+          ]
+        }
+      }
+    },
+    {
+      $lookup: {
+        from: "unified_location",
+        let: { eid: "$environmentId" },
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $and: [
+                  { $ne: ["$$eid", null] },
+                  { $in: ["$$eid", { $ifNull: ["$eitjeIds", []] }] }
+                ]
+              }
+            }
+          },
+          { $limit: 1 },
+          { $project: { primaryId: 1, primaryName: 1 } }
+        ],
+        as: "loc"
+      }
+    },
+    {
+      $addFields: {
+        locationId: {
+          $ifNull: [
+            { $arrayElemAt: ["$loc.primaryId", 0] },
+            { $toString: { $ifNull: ["$environmentId", "unknown"] } }
+          ]
+        },
+        location_name: {
+          $ifNull: [
+            { $arrayElemAt: ["$loc.primaryName", 0] },
+            {
+              $ifNull: [
+                "$extracted.locationName",
+                { $ifNull: ["$rawApiResponse.location_name", "$rawApiResponse.environment_name"] }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      $match: {
+        userId: { $nin: [null, ""] },
+        teamId: { $nin: [null, ""] }
+      }
+    },
+    {
+      $lookup: {
+        from: "unified_user",
+        let: { uid: "$userId" },
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $or: [
+                  { $in: ["$$uid", { $ifNull: ["$eitjeIds", []] }] },
+                  { $in: ["$$uid", { $ifNull: ["$allIdValues", []] }] },
+                  { $eq: ["$primaryId", "$$uid"] }
+                ]
+              }
+            }
+          },
+          { $limit: 1 },
+          { $project: { primaryName: 1 } }
+        ],
+        as: "u"
+      }
+    },
+    {
+      $lookup: {
+        from: "unified_team",
+        let: { tid: "$teamId" },
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $or: [
+                  { $in: ["$$tid", { $ifNull: ["$eitjeIds", []] }] },
+                  { $in: ["$$tid", { $ifNull: ["$allIdValues", []] }] },
+                  { $eq: ["$primaryId", "$$tid"] }
+                ]
+              }
+            }
+          },
+          { $limit: 1 },
+          { $project: { primaryName: 1, canonicalName: 1 } }
+        ],
+        as: "t"
+      }
+    },
+    {
+      $addFields: {
+        user_name: {
+          $ifNull: [
+            { $arrayElemAt: ["$u.primaryName", 0] },
+            {
+              $ifNull: [
+                "$rawApiResponse.user_name",
+                { $ifNull: ["$rawApiResponse.employee_name", "Unknown"] }
+              ]
+            }
+          ]
+        },
+        team_name: {
+          $ifNull: [
+            { $arrayElemAt: ["$t.canonicalName", 0] },
+            {
+              $ifNull: [
+                { $arrayElemAt: ["$t.primaryName", 0] },
+                { $ifNull: ["$rawApiResponse.team_name", "Unknown"] }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      $group: {
+        _id: {
+          period: "$period",
+          locationId: "$locationId",
+          userId: "$userId",
+          teamId: "$teamId"
+        },
+        location_name: { $first: "$location_name" },
+        user_name: { $first: "$user_name" },
+        team_name: { $first: "$team_name" },
+        total_hours: { $sum: "$hours" },
+        total_cost: { $sum: "$cost" },
+        record_count: { $sum: 1 }
+      }
+    },
+    {
+      $project: {
+        _id: 0,
+        period: "$_id.period",
+        period_type: "day",
+        locationId: "$_id.locationId",
+        location_name: 1,
+        userId: "$_id.userId",
+        user_name: 1,
+        teamId: "$_id.teamId",
+        team_name: 1,
+        total_hours: 1,
+        total_cost: 1,
+        record_count: 1
+      }
+    }
+  ];
+  const docs = await db.collection("eitje_raw_data").aggregate(pipeline).toArray();
+  if (docs.length > 0) {
+    await collAgg.insertMany(docs);
+  }
+  return { deletedPeriods: del.deletedCount, inserted: docs.length };
+}
+
+var _a;
+function envInt(name, fallback) {
+  const v = process.env[name];
+  if (!v) return fallback;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : fallback;
+}
+async function loadActiveEitjeCredentials(db) {
+  const row = await findEitjeCredentialDocument(db);
+  if (!row) return null;
+  return documentToEitjeStoredCredentials(row);
+}
+function eitjeCredentialsHintMessage() {
+  const dbn = process.env.MONGODB_DB_NAME || "daily-ops";
+  return `No usable Eitje row in api_credentials (database "${dbn}"). Open Settings \u2192 Eitje API \u2192 save all four fields, or align MONGODB_DB_NAME / MONGODB_URI in .env.local with the DB where you store credentials.`;
+}
+function extractRecords(data) {
+  if (Array.isArray(data)) return data;
+  if (data && typeof data === "object") {
+    const o = data;
+    for (const v of Object.values(o)) {
+      if (Array.isArray(v) && v.length > 0 && typeof v[0] === "object" && v[0] !== null) {
+        return v;
+      }
+    }
+  }
+  return [];
+}
+function nextPageUrl(data, currentUrl) {
+  var _a2, _b, _c;
+  if (!data || typeof data !== "object") return null;
+  const o = data;
+  const links = (_a2 = o.links) != null ? _a2 : o._links;
+  if (links && typeof links === "object") {
+    const l = links;
+    const n = (_b = l.next) != null ? _b : l.Next;
+    if (typeof n === "string" && n.startsWith("http")) return n;
+  }
+  const meta = o.meta;
+  if (meta && typeof meta === "object") {
+    const m = meta;
+    const n = (_c = m.next_page_url) != null ? _c : m.next;
+    if (typeof n === "string" && n.startsWith("http")) return n;
+  }
+  return null;
+}
+function stableDedupKey(endpoint, raw) {
+  var _a2, _b;
+  const id = (_b = (_a2 = raw.id) != null ? _a2 : raw.shift_id) != null ? _b : raw.uuid;
+  if (id != null && String(id).length > 0) return `${endpoint}:${String(id)}`;
+  const h = createHash("sha256").update(
+    JSON.stringify([
+      raw.user_id,
+      raw.userId,
+      raw.date,
+      raw.start,
+      raw.start_time,
+      raw.end,
+      raw.end_time,
+      raw.environment_id,
+      raw.environmentId
+    ])
+  ).digest("hex");
+  return `${endpoint}:h:${h.slice(0, 32)}`;
+}
+function toDate(v) {
+  if (v == null) return null;
+  if (v instanceof Date) return Number.isNaN(v.getTime()) ? null : v;
+  const d = new Date(String(v));
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+function num(v) {
+  if (v == null) return void 0;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : void 0;
+}
+function buildRawShiftDoc(raw, endpoint) {
+  var _a2, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v;
+  const start = (_c = (_b = (_a2 = raw.start) != null ? _a2 : raw.start_time) != null ? _b : raw.started_at) != null ? _c : raw.from;
+  const dateRaw = (_g = (_f = (_e = (_d = raw.date) != null ? _d : raw.work_date) != null ? _e : raw.day) != null ? _f : raw.worked_on) != null ? _g : typeof start === "string" ? start.slice(0, 10) : null;
+  let date = toDate(dateRaw);
+  if (!date && start != null) date = toDate(start);
+  if (!date) date = /* @__PURE__ */ new Date();
+  const userObj = raw.user && typeof raw.user === "object" ? raw.user : null;
+  const teamObj = raw.team && typeof raw.team === "object" ? raw.team : null;
+  const userId = (_i = (_h = raw.user_id) != null ? _h : raw.userId) != null ? _i : userObj == null ? void 0 : userObj.id;
+  const supportId = (_k = (_j = raw.support_id) != null ? _j : raw.supportId) != null ? _k : userObj == null ? void 0 : userObj.support_id;
+  const teamId = (_m = (_l = raw.team_id) != null ? _l : raw.teamId) != null ? _m : teamObj == null ? void 0 : teamObj.id;
+  const environmentId = (_p = (_o = (_n = num(raw.environment_id)) != null ? _n : num(raw.environmentId)) != null ? _o : num(raw.location_id)) != null ? _p : num(raw.venue_id);
+  const hoursPre = (_s = (_r = (_q = num(raw.hours)) != null ? _q : num(raw.hours_worked)) != null ? _r : num(raw.hoursWorked)) != null ? _s : void 0;
+  const extracted = {
+    userId,
+    supportId,
+    teamId,
+    environmentId,
+    locationName: (_t = raw.location_name) != null ? _t : raw.environment_name,
+    environmentName: (_u = raw.environment_name) != null ? _u : raw.location_name,
+    hours: hoursPre,
+    amountInCents: (_v = num(raw.amt_in_cents)) != null ? _v : num(raw.amount_in_cents)
+  };
+  const syncDedupKey = stableDedupKey(endpoint, raw);
+  const now = /* @__PURE__ */ new Date();
+  return {
+    endpoint,
+    date,
+    environmentId: environmentId != null ? environmentId : void 0,
+    extracted,
+    rawApiResponse: raw,
+    syncDedupKey,
+    updatedAt: now,
+    createdAt: now
+  };
+}
+function buildListEntityDoc(raw, endpoint) {
+  var _a2, _b, _c;
+  const id = (_b = (_a2 = raw.id) != null ? _a2 : raw.uuid) != null ? _b : raw.slug;
+  const syncDedupKey = id != null ? `${endpoint}:${String(id)}` : stableDedupKey(endpoint, raw);
+  const now = /* @__PURE__ */ new Date();
+  return {
+    endpoint,
+    date: now,
+    extracted: { id: raw.id, name: (_c = raw.name) != null ? _c : raw.title },
+    rawApiResponse: raw,
+    syncDedupKey,
+    updatedAt: now,
+    createdAt: now
+  };
+}
+async function fetchAllList(creds, path, query) {
+  const out = [];
+  let url = path;
+  let lastStatus = 0;
+  let lastError = "";
+  const maxPages = envInt("EITJE_SYNC_MAX_PAGES", 200);
+  for (let page = 0; page < maxPages && url; page++) {
+    const res = await eitjeFetchJson(creds, url, page === 0 ? { query } : void 0);
+    lastStatus = res.status;
+    if (!res.ok) {
+      lastError = typeof res.data === "string" ? res.data : JSON.stringify(res.data);
+      return { records: out, lastError, lastStatus };
+    }
+    const batch = extractRecords(res.data);
+    out.push(...batch);
+    const next = nextPageUrl(res.data, res.url);
+    url = next;
+    if (!next) break;
+  }
+  return { records: out, lastStatus };
+}
+const TR_PATH = (_a = process.env.EITJE_PATH_TIME_REGISTRATION_SHIFTS) != null ? _a : "time_registration_shifts";
+function splitDateRangeForEitje(startDate, endDate, maxDays) {
+  var _a2, _b;
+  const start = /* @__PURE__ */ new Date(`${startDate}T00:00:00.000Z`);
+  const end = /* @__PURE__ */ new Date(`${endDate}T00:00:00.000Z`);
+  const totalDays = Math.ceil((end.getTime() - start.getTime()) / (1e3 * 60 * 60 * 24));
+  if (totalDays <= maxDays) {
+    return [{ startDate, endDate }];
+  }
+  const chunks = [];
+  let currentStart = new Date(start);
+  while (currentStart < end) {
+    const currentEnd = new Date(currentStart);
+    currentEnd.setUTCDate(currentEnd.getUTCDate() + maxDays - 1);
+    if (currentEnd > end) {
+      currentEnd.setTime(end.getTime());
+    }
+    chunks.push({
+      startDate: (_a2 = currentStart.toISOString().split("T")[0]) != null ? _a2 : startDate,
+      endDate: (_b = currentEnd.toISOString().split("T")[0]) != null ? _b : endDate
+    });
+    currentStart = new Date(currentEnd);
+    currentStart.setUTCDate(currentStart.getUTCDate() + 1);
+  }
+  return chunks;
+}
+async function persistRawTimeRegistrationShifts(db, records) {
+  if (records.length === 0) return 0;
+  const coll = db.collection("eitje_raw_data");
+  let upserted = 0;
+  const chunk = 200;
+  for (let i = 0; i < records.length; i += chunk) {
+    const slice = records.slice(i, i + chunk);
+    const ops = slice.map((raw) => {
+      const doc = buildRawShiftDoc(raw, "time_registration_shifts");
+      return {
+        updateOne: {
+          filter: { endpoint: "time_registration_shifts", syncDedupKey: doc.syncDedupKey },
+          update: {
+            $set: {
+              endpoint: doc.endpoint,
+              date: doc.date,
+              environmentId: doc.environmentId,
+              extracted: doc.extracted,
+              rawApiResponse: doc.rawApiResponse,
+              updatedAt: doc.updatedAt
+            },
+            $setOnInsert: { createdAt: doc.createdAt }
+          },
+          upsert: true
+        }
+      };
+    });
+    const res = await coll.bulkWrite(ops, { ordered: false });
+    upserted += res.upsertedCount + res.modifiedCount;
+  }
+  return upserted;
+}
+async function syncTimeRegistrationShiftsWindow(db, creds, startDate, endDate) {
+  const tryLegacyGetWithBody = async () => {
+    const base = normalizeEitjeBaseUrl(creds.baseUrl).replace(/\/$/, "");
+    const rawUrl = `${base}/time_registration_shifts`;
+    const body = JSON.stringify({
+      filters: {
+        start_date: startDate,
+        end_date: endDate,
+        date_filter_type: "resource_date"
+      }
+    });
+    try {
+      const url = new URL(rawUrl);
+      const transport = url.protocol === "https:" ? request : request$1;
+      const headers = {
+        ...legacyEitjeV2Headers(creds),
+        "Content-Length": String(Buffer.byteLength(body, "utf8"))
+      };
+      const response = await new Promise((resolve, reject) => {
+        const req = transport(
+          url,
+          {
+            method: "GET",
+            headers,
+            timeout: 3e4
+          },
+          (res) => {
+            let text = "";
+            res.setEncoding("utf8");
+            res.on("data", (chunk) => {
+              text += chunk;
+            });
+            res.on("end", () => {
+              var _a2;
+              return resolve({ status: (_a2 = res.statusCode) != null ? _a2 : 0, text });
+            });
+          }
+        );
+        req.on("timeout", () => req.destroy(new Error("request timeout")));
+        req.on("error", reject);
+        req.write(body);
+        req.end();
+      });
+      let parsed = response.text;
+      try {
+        parsed = response.text ? JSON.parse(response.text) : null;
+      } catch {
+      }
+      if (response.status >= 200 && response.status < 300) {
+        return { records: extractRecords(parsed), lastStatus: response.status };
+      }
+      const err2 = typeof parsed === "string" ? parsed : JSON.stringify(parsed);
+      return { records: [], lastStatus: response.status, lastError: err2 };
+    } catch (e) {
+      return { records: [], lastStatus: 0, lastError: e instanceof Error ? e.message : String(e) };
+    }
+  };
+  const legacyBodyResult = await tryLegacyGetWithBody();
+  if (legacyBodyResult.records.length > 0) {
+    const upserted2 = await persistRawTimeRegistrationShifts(db, legacyBodyResult.records);
+    return { upserted: upserted2, fetched: legacyBodyResult.records.length };
+  }
+  const queryAttempts = [
+    { from: startDate, to: endDate },
+    { start_date: startDate, end_date: endDate },
+    { date_from: startDate, date_to: endDate }
+  ];
+  let records = [];
+  let err = "";
+  let status = 0;
+  const pathCandidates = [
+    TR_PATH,
+    `v1/${TR_PATH}`,
+    "time-registrations",
+    "time_registrations"
+  ];
+  outer: for (const path of pathCandidates) {
+    for (const q of queryAttempts) {
+      const r = await fetchAllList(creds, path, q);
+      status = r.lastStatus;
+      if (r.records.length > 0) {
+        records = r.records;
+        err = "";
+        break outer;
+      }
+      if (r.lastError) err = r.lastError;
+    }
+  }
+  if (records.length === 0 && err) {
+    const legacyErr = legacyBodyResult.lastError ? `; legacy-body: ${legacyBodyResult.lastError.slice(0, 200)}` : "";
+    return { upserted: 0, fetched: 0, error: `HTTP ${status}: ${err.slice(0, 400)}${legacyErr}` };
+  }
+  const upserted = await persistRawTimeRegistrationShifts(db, records);
+  return { upserted, fetched: records.length };
+}
+async function syncTimeRegistrationShifts(db, creds, startDate, endDate) {
+  const maxDays = envInt("EITJE_TIME_REGISTRATION_MAX_DAYS", 7);
+  const chunks = splitDateRangeForEitje(startDate, endDate, maxDays);
+  let upserted = 0;
+  let fetched = 0;
+  for (const ch of chunks) {
+    const r = await syncTimeRegistrationShiftsWindow(db, creds, ch.startDate, ch.endDate);
+    if (r.error) {
+      return {
+        upserted,
+        fetched,
+        error: `${r.error} (window ${ch.startDate}\u2013${ch.endDate})`
+      };
+    }
+    upserted += r.upserted;
+    fetched += r.fetched;
+  }
+  return { upserted, fetched };
+}
+async function syncListEndpoint(db, creds, endpoint, pathCandidates) {
+  let records = [];
+  let err = "";
+  let status = 0;
+  for (const path of pathCandidates) {
+    const r = await fetchAllList(creds, path, {});
+    status = r.lastStatus;
+    if (r.records.length > 0) {
+      records = r.records;
+      err = "";
+      break;
+    }
+    if (r.lastError) err = r.lastError;
+  }
+  if (records.length === 0) {
+    return { upserted: 0, fetched: 0, error: err ? `HTTP ${status}: ${err.slice(0, 200)}` : "empty response" };
+  }
+  const coll = db.collection("eitje_raw_data");
+  let upserted = 0;
+  const chunk = 200;
+  for (let i = 0; i < records.length; i += chunk) {
+    const slice = records.slice(i, i + chunk);
+    const ops = slice.map((raw) => {
+      const doc = buildListEntityDoc(raw, endpoint);
+      return {
+        updateOne: {
+          filter: { endpoint, syncDedupKey: doc.syncDedupKey },
+          update: {
+            $set: {
+              endpoint: doc.endpoint,
+              date: doc.date,
+              extracted: doc.extracted,
+              rawApiResponse: doc.rawApiResponse,
+              updatedAt: doc.updatedAt
+            },
+            $setOnInsert: { createdAt: doc.createdAt }
+          },
+          upsert: true
+        }
+      };
+    });
+    const res = await coll.bulkWrite(ops, { ordered: false });
+    upserted += res.upsertedCount + res.modifiedCount;
+  }
+  return { upserted, fetched: records.length };
+}
+function dateRangeDays(days) {
+  const end = /* @__PURE__ */ new Date();
+  const start = /* @__PURE__ */ new Date();
+  start.setUTCDate(start.getUTCDate() - days);
+  const fmt = (d) => {
+    var _a2;
+    return (_a2 = d.toISOString().split("T")[0]) != null ? _a2 : "";
+  };
+  return { start: fmt(start), end: fmt(end) };
+}
+async function pingEitjeApi(creds) {
+  var _a2;
+  const paths = ["environments", "v1/environments", "locations", "v1/locations"];
+  for (const p of paths) {
+    const res = await eitjeFetchJson(creds, p, {});
+    if (res.ok) {
+      const n = extractRecords(res.data).length;
+      return { ok: true, message: `OK (${p}${n ? `, ${n} rows` : ""})` };
+    }
+  }
+  const last = await eitjeFetchJson(creds, (_a2 = paths[0]) != null ? _a2 : "environments", {});
+  const msg = typeof last.data === "string" ? last.data : JSON.stringify(last.data);
+  const base = `HTTP ${last.status} ${msg.slice(0, 240)} (last auth: ${last.authAttempt})`;
+  if (msg.includes("not all required auth keys present")) {
+    return {
+      ok: false,
+      message: `${base} \u2014 Eitje returns this for missing and for rejected credentials. Confirm base URL (often .../open_api), Partner vs API username/password are the ones from Eitje Open API (not your web login), and re-save in Settings.`
+    };
+  }
+  return { ok: false, message: base };
+}
+async function executeEitjeJob(db, jobType) {
+  var _a2, _b;
+  const creds = await loadActiveEitjeCredentials(db);
+  if (!creds) {
+    return {
+      ok: false,
+      jobType,
+      message: eitjeCredentialsHintMessage()
+    };
+  }
+  if (jobType === "master-data") {
+    const endpoints = [
+      { name: "environments", paths: ["environments", "v1/environments", "locations"] },
+      { name: "teams", paths: ["teams", "v1/teams"] },
+      { name: "users", paths: ["users", "v1/users", "employees"] }
+    ];
+    const master = { endpoints: [] };
+    for (const e of endpoints) {
+      const r = await syncListEndpoint(db, creds, e.name, e.paths);
+      master.endpoints.push({ name: e.name, upserted: r.upserted, fetched: r.fetched, error: r.error });
+    }
+    const ok2 = master.endpoints.some((x) => x.fetched > 0);
+    if (ok2) {
+      try {
+        await syncUnifiedMasterDataFromRaw(db);
+      } catch (e) {
+        console.error("[syncUnifiedMasterDataFromRaw]", e);
+      }
+    }
+    return {
+      ok: ok2,
+      jobType,
+      message: ok2 ? "Master data sync finished" : "Master data sync returned no rows (check API paths / credentials)",
+      master
+    };
+  }
+  const dailyDays = envInt("EITJE_DAILY_SYNC_DAYS", 14);
+  const histDays = envInt("EITJE_HISTORICAL_SYNC_DAYS", 30);
+  const days = jobType === "historical-data" ? histDays : dailyDays;
+  const { start, end } = dateRangeDays(days);
+  const tr = await syncTimeRegistrationShifts(db, creds, start, end);
+  let agg;
+  try {
+    agg = await rebuildEitjeTimeRegistrationAggregation(db, start, end);
+    await syncUnifiedCollectionsFromRawData(db);
+  } catch (e) {
+    agg = {
+      deletedPeriods: 0,
+      inserted: 0,
+      error: e instanceof Error ? e.message : String(e)
+    };
+  }
+  const ok = !tr.error && (tr.fetched > 0 || tr.upserted > 0 || ((_a2 = agg == null ? void 0 : agg.inserted) != null ? _a2 : 0) > 0);
+  return {
+    ok,
+    jobType,
+    message: tr.error ? `Time registration: ${tr.error}` : `Synced ${tr.fetched} shifts (${tr.upserted} writes), aggregation +${(_b = agg == null ? void 0 : agg.inserted) != null ? _b : 0} rows`,
+    timeRegistration: tr,
+    aggregation: agg
+  };
+}
+async function syncUnifiedMasterDataFromRaw(db) {
+  try {
+    let locationsUpdated = 0;
+    let teamsUpdated = 0;
+    let usersUpdated = 0;
+    const envAgg = await db.collection("eitje_raw_data").aggregate([
+      { $match: { endpoint: "environments" } },
+      { $group: { _id: "$rawApiResponse.id", name: { $first: "$rawApiResponse.name" } } },
+      { $match: { _id: { $nin: [null, ""] } } }
+    ]).toArray();
+    for (const env of envAgg) {
+      const result = await db.collection("unified_location").updateOne(
+        { eitjeIds: env._id },
+        {
+          $addToSet: {
+            eitjeIds: env._id,
+            allIdValues: env._id
+          },
+          $set: { updatedAt: /* @__PURE__ */ new Date() },
+          $setOnInsert: {
+            primaryName: env.name,
+            name: env.name,
+            createdAt: /* @__PURE__ */ new Date()
+          }
+        },
+        { upsert: true }
+      );
+      locationsUpdated += result.upsertedCount + result.modifiedCount;
+    }
+    const teamAgg = await db.collection("eitje_raw_data").aggregate([
+      { $match: { endpoint: "teams" } },
+      { $group: { _id: "$rawApiResponse.id", name: { $first: "$rawApiResponse.name" } } },
+      { $match: { _id: { $nin: [null, ""] } } }
+    ]).toArray();
+    for (const team of teamAgg) {
+      const result = await db.collection("unified_team").updateOne(
+        { eitjeIds: team._id },
+        {
+          $addToSet: {
+            eitjeIds: team._id,
+            allIdValues: team._id
+          },
+          $set: { updatedAt: /* @__PURE__ */ new Date() },
+          $setOnInsert: {
+            primaryName: team.name,
+            canonicalName: team.name,
+            createdAt: /* @__PURE__ */ new Date()
+          }
+        },
+        { upsert: true }
+      );
+      teamsUpdated += result.upsertedCount + result.modifiedCount;
+    }
+    const userAgg = await db.collection("eitje_raw_data").aggregate([
+      { $match: { endpoint: "users" } },
+      { $group: { _id: "$rawApiResponse.id", name: { $first: "$rawApiResponse.name" } } },
+      { $match: { _id: { $nin: [null, ""] } } }
+    ]).toArray();
+    for (const user of userAgg) {
+      const result = await db.collection("unified_user").updateOne(
+        { eitjeIds: user._id },
+        {
+          $addToSet: {
+            eitjeIds: user._id,
+            allIdValues: user._id
+          },
+          $set: { updatedAt: /* @__PURE__ */ new Date() },
+          $setOnInsert: {
+            primaryName: user.name,
+            canonicalName: user.name,
+            createdAt: /* @__PURE__ */ new Date()
+          }
+        },
+        { upsert: true }
+      );
+      usersUpdated += result.upsertedCount + result.modifiedCount;
+    }
+    return { locationsUpdated, teamsUpdated, usersUpdated };
+  } catch (e) {
+    return {
+      locationsUpdated: 0,
+      teamsUpdated: 0,
+      usersUpdated: 0,
+      error: e instanceof Error ? e.message : String(e)
+    };
+  }
+}
+async function syncUnifiedCollectionsFromRawData(db) {
+  try {
+    let usersUpdated = 0;
+    let teamsUpdated = 0;
+    const userAgg = await db.collection("eitje_raw_data").aggregate([
+      { $match: { endpoint: "time_registration_shifts" } },
+      { $addFields: { userId: { $ifNull: ["$extracted.userId", "$rawApiResponse.user_id"] } } },
+      { $group: { _id: "$userId", userName: { $first: "$rawApiResponse.user.name" } } },
+      { $match: { _id: { $nin: [null, ""] } } }
+    ]).toArray();
+    for (const user of userAgg) {
+      const result = await db.collection("unified_user").updateOne(
+        { eitjeIds: user._id },
+        {
+          $addToSet: {
+            eitjeIds: user._id,
+            allIdValues: user._id
+          },
+          $set: { updatedAt: /* @__PURE__ */ new Date() },
+          $setOnInsert: {
+            primaryName: user.userName,
+            canonicalName: user.userName,
+            createdAt: /* @__PURE__ */ new Date()
+          }
+        },
+        { upsert: true }
+      );
+      usersUpdated += result.upsertedCount + result.modifiedCount;
+    }
+    const teamAgg = await db.collection("eitje_raw_data").aggregate([
+      { $match: { endpoint: "time_registration_shifts" } },
+      { $addFields: { teamId: { $ifNull: ["$extracted.teamId", "$rawApiResponse.team_id"] } } },
+      { $group: { _id: "$teamId", teamName: { $first: "$rawApiResponse.team.name" } } },
+      { $match: { _id: { $nin: [null, ""] } } }
+    ]).toArray();
+    for (const team of teamAgg) {
+      const result = await db.collection("unified_team").updateOne(
+        { eitjeIds: team._id },
+        {
+          $addToSet: {
+            eitjeIds: team._id,
+            allIdValues: team._id
+          },
+          $set: { updatedAt: /* @__PURE__ */ new Date() },
+          $setOnInsert: {
+            primaryName: team.teamName,
+            canonicalName: team.teamName,
+            createdAt: /* @__PURE__ */ new Date()
+          }
+        },
+        { upsert: true }
+      );
+      teamsUpdated += result.upsertedCount + result.modifiedCount;
+    }
+    return { usersUpdated, teamsUpdated };
+  } catch (e) {
+    return {
+      usersUpdated: 0,
+      teamsUpdated: 0,
+      error: e instanceof Error ? e.message : String(e)
+    };
+  }
+}
+async function syncEitjeByRequest(db, body) {
+  var _a2, _b, _c, _d, _e;
+  const creds = await loadActiveEitjeCredentials(db);
+  if (!creds) {
+    return { ok: false, jobType: "manual", message: eitjeCredentialsHintMessage() };
+  }
+  const ep = body.endpoint || "environments";
+  if (ep === "environments" || ep === "locations") {
+    const ping = await pingEitjeApi(creds);
+    return { ok: ping.ok, jobType: "manual", message: ping.message };
+  }
+  if (ep === "time_registration_shifts") {
+    const dr = dateRangeDays(envInt("EITJE_DAILY_SYNC_DAYS", 14));
+    const end = (_a2 = body.endDate) != null ? _a2 : dr.end;
+    const start = (_b = body.startDate) != null ? _b : dr.start;
+    const tr = await syncTimeRegistrationShifts(db, creds, start, end);
+    let agg;
+    try {
+      agg = await rebuildEitjeTimeRegistrationAggregation(db, start, end);
+      await syncUnifiedCollectionsFromRawData(db);
+    } catch (e) {
+      agg = { deletedPeriods: 0, inserted: 0, error: e instanceof Error ? e.message : String(e) };
+    }
+    return {
+      ok: !tr.error,
+      jobType: "manual",
+      message: (_d = tr.error) != null ? _d : `OK: ${tr.fetched} fetched, agg +${(_c = agg == null ? void 0 : agg.inserted) != null ? _c : 0}`,
+      timeRegistration: tr,
+      aggregation: agg
+    };
+  }
+  const r = await syncListEndpoint(db, creds, ep, [ep, `v1/${ep}`]);
+  return {
+    ok: !r.error && r.fetched > 0,
+    jobType: "manual",
+    message: (_e = r.error) != null ? _e : `OK: ${r.fetched} rows`,
+    master: { endpoints: [{ name: ep, ...r }] }
+  };
+}
 
 const cron_post = defineEventHandler(async (event) => {
   const body = await readBody(event);
@@ -29461,7 +31224,21 @@ const cron_post = defineEventHandler(async (event) => {
       },
       { upsert: true }
     );
-    return { success: true, message: "Run triggered" };
+    const syncResult = await executeEitjeJob(db, body.jobType);
+    await db.collection("integration_cron_jobs").updateOne(query, {
+      $set: {
+        lastSyncAt: now.toISOString(),
+        lastSyncOk: syncResult.ok,
+        lastSyncMessage: syncResult.message,
+        lastSyncDetail: syncResult,
+        updatedAt: /* @__PURE__ */ new Date()
+      }
+    });
+    return {
+      success: syncResult.ok,
+      message: syncResult.ok ? syncResult.message : syncResult.message,
+      sync: syncResult
+    };
   }
   await db.collection("integration_cron_jobs").updateOne(
     query,
@@ -29484,11 +31261,74 @@ const cron_post$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.definePropert
   default: cron_post
 }, Symbol.toStringTag, { value: 'Module' }));
 
+const runScheduled_get = defineEventHandler(async (event) => {
+  var _a;
+  const secret = process.env.CRON_SECRET;
+  const q = getQuery$1(event);
+  if (!secret || String((_a = q.secret) != null ? _a : "") !== secret) {
+    throw createError({ statusCode: 401, statusMessage: "Unauthorized" });
+  }
+  const db = await getDb();
+  const jobs = await db.collection("integration_cron_jobs").find({ source: "eitje", isActive: true }).toArray();
+  const results = [];
+  const now = /* @__PURE__ */ new Date();
+  for (const j of jobs) {
+    const jobType = typeof j.jobType === "string" ? j.jobType : "";
+    if (!jobType) continue;
+    await db.collection("integration_cron_jobs").updateOne(
+      { source: "eitje", jobType },
+      { $set: { lastRun: now.toISOString(), lastRunUTC: now.toISOString(), updatedAt: now } }
+    );
+    const syncResult = await executeEitjeJob(db, jobType);
+    results.push({ jobType, ...syncResult });
+    await db.collection("integration_cron_jobs").updateOne(
+      { source: "eitje", jobType },
+      {
+        $set: {
+          lastSyncAt: now.toISOString(),
+          lastSyncOk: syncResult.ok,
+          lastSyncMessage: syncResult.message,
+          lastSyncDetail: syncResult,
+          updatedAt: /* @__PURE__ */ new Date()
+        }
+      }
+    );
+  }
+  return { success: true, ran: results.length, results };
+});
+
+const runScheduled_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+  __proto__: null,
+  default: runScheduled_get
+}, Symbol.toStringTag, { value: 'Module' }));
+
 const sync_post = defineEventHandler(async (event) => {
+  var _a;
   const body = await readBody(event);
+  const db = await getDb();
+  const ep = (_a = body == null ? void 0 : body.endpoint) != null ? _a : "environments";
+  if (ep === "environments" || ep === "locations") {
+    const creds = await loadActiveEitjeCredentials(db);
+    if (!creds) {
+      return { success: false, error: eitjeCredentialsHintMessage() };
+    }
+    const ping = await pingEitjeApi(creds);
+    return {
+      success: ping.ok,
+      message: ping.message,
+      error: ping.ok ? void 0 : ping.message
+    };
+  }
+  const result = await syncEitjeByRequest(db, {
+    endpoint: ep,
+    startDate: body == null ? void 0 : body.startDate,
+    endDate: body == null ? void 0 : body.endDate
+  });
   return {
-    success: true,
-    message: `Sync test successful for endpoint: ${(body == null ? void 0 : body.endpoint) || "unknown"}`
+    success: result.ok,
+    message: result.message,
+    error: result.ok ? void 0 : result.message,
+    sync: result
   };
 });
 
@@ -29554,11 +31394,7 @@ const hoursAggregated_get = defineEventHandler(async (event) => {
         q.locationId = locationId;
       }
     }
-    let aggregation = [{ $match: {
-      ...q,
-      // CRITICAL: Exclude "Unknown" values - they indicate data quality issues
-      team_name: { $ne: "Unknown" }
-    } }];
+    let aggregation = [{ $match: q }];
     if (groupBy === "day") {
       aggregation.push({
         $group: {
@@ -30354,6 +32190,18 @@ const _id__get$4 = defineEventHandler(async (event) => {
     } catch {
     }
   }
+  const supportIdStr = typeof m.support_id === "string" ? m.support_id : void 0;
+  const eitje_places = await fetchMemberEitjePlaces(db, {
+    supportId: supportIdStr,
+    userName: name,
+    monthsBack: 36
+  });
+  const merged = eitje_places.merged;
+  const eitje_totals = {
+    worked_hours: merged.reduce((s, r) => s + r.worked_hours, 0),
+    planned_hours: merged.reduce((s, r) => s + r.planned_hours, 0),
+    places_count: merged.length
+  };
   const data = {
     _id: String(member._id),
     name: name || `Member ${String(member._id).slice(-6)}`,
@@ -30378,7 +32226,15 @@ const _id__get$4 = defineEventHandler(async (event) => {
     city: typeof m.city === "string" ? m.city : void 0,
     street: typeof m.street === "string" ? m.street : void 0,
     nmbrs_id: typeof m.nmbrs_id === "string" ? m.nmbrs_id : void 0,
-    support_id: typeof m.support_id === "string" ? m.support_id : void 0
+    support_id: typeof m.support_id === "string" ? m.support_id : void 0,
+    eitje_places: {
+      months_back: eitje_places.months_back,
+      range_start: eitje_places.range_start,
+      range_end: eitje_places.range_end,
+      merged: eitje_places.merged,
+      data_source: eitje_places.source
+    },
+    eitje_totals
   };
   return { success: true, data };
 });
@@ -30576,22 +32432,18 @@ const connections_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineP
 
 const index_get$c = defineEventHandler(async () => {
   const db = await getDb();
-  const members = await db.collection("members").find({
-    $or: [
-      { is_active: true },
-      { isActive: true },
-      { is_active: { $exists: false }, isActive: { $exists: false } }
-    ]
-  }).sort({ name: 1 }).toArray();
+  const members = await db.collection("members").find({}).sort({ name: 1 }).toArray();
   const data = members.map((m) => {
     var _a, _b, _c, _d, _e;
     const nameVal = (_e = (_d = (_c = (_b = (_a = m.name) != null ? _a : m.Name) != null ? _b : m.naam) != null ? _c : m.displayName) != null ? _d : m.full_name) != null ? _e : m.title;
     const name = typeof nameVal === "string" ? nameVal.trim() : "";
+    const isActive = m.is_active !== false && m.isActive !== false;
     return {
       _id: String(m._id),
       name: name || `Member ${String(m._id).slice(-6)}`,
       email: (typeof m.email === "string" ? m.email : "") || "",
-      slack_username: typeof m.slack_username === "string" ? m.slack_username : void 0
+      slack_username: typeof m.slack_username === "string" ? m.slack_username : void 0,
+      is_active: isActive
     };
   });
   return { success: true, data };

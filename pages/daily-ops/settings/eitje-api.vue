@@ -8,6 +8,14 @@
     </div>
 
     <div class="space-y-6">
+      <UAlert
+        v-if="connectionStatus !== 'idle' && activeTab === 'cron-jobs'"
+        class="mb-2"
+        :color="connectionStatus === 'success' ? 'green' : 'red'"
+        :title="connectionStatus === 'success' ? 'Sync result' : 'Sync failed'"
+        :description="connectionMessage"
+        :icon="connectionStatus === 'success' ? 'i-lucide-check-circle' : 'i-lucide-x-circle'"
+      />
       <div class="flex gap-2 border-b">
         <button
           :class="[
@@ -179,7 +187,10 @@
             <p v-if="dailyCronStatus?.lastRun" class="text-sm text-gray-600">
               Last run: {{ new Date(String(dailyCronStatus.lastRunUTC || dailyCronStatus.lastRun)).toLocaleString() }}
             </p>
-            <p v-else class="text-sm text-gray-600">
+            <p v-if="dailyCronStatus?.lastSyncMessage" class="text-xs text-gray-500 mt-1">
+              {{ dailyCronStatus.lastSyncOk ? 'Sync: ' : 'Last error: ' }}{{ dailyCronStatus.lastSyncMessage }}
+            </p>
+            <p v-if="!dailyCronStatus" class="text-sm text-gray-600">
               Cron job not configured yet. Toggle the switch to create it.
             </p>
             <UButton
@@ -240,7 +251,10 @@
             <p v-if="masterCronStatus?.lastRun" class="text-sm text-gray-600">
               Last run: {{ new Date(String(masterCronStatus.lastRunUTC || masterCronStatus.lastRun)).toLocaleString() }}
             </p>
-            <p v-else class="text-sm text-gray-600">
+            <p v-if="masterCronStatus?.lastSyncMessage" class="text-xs text-gray-500 mt-1">
+              {{ masterCronStatus.lastSyncOk ? 'Sync: ' : 'Last error: ' }}{{ masterCronStatus.lastSyncMessage }}
+            </p>
+            <p v-if="!masterCronStatus" class="text-sm text-gray-600">
               Cron job not configured yet. Toggle the switch to create it.
             </p>
             <UButton
@@ -309,7 +323,10 @@
             <p v-if="historicalCronStatus?.lastRun" class="text-sm text-gray-600">
               Last run: {{ new Date(String(historicalCronStatus.lastRunUTC || historicalCronStatus.lastRun)).toLocaleString() }}
             </p>
-            <p v-else class="text-sm text-gray-600">
+            <p v-if="historicalCronStatus?.lastSyncMessage" class="text-xs text-gray-500 mt-1">
+              {{ historicalCronStatus.lastSyncOk ? 'Sync: ' : 'Last error: ' }}{{ historicalCronStatus.lastSyncMessage }}
+            </p>
+            <p v-if="!historicalCronStatus" class="text-sm text-gray-600">
               Cron job not configured yet. Toggle the switch to create it.
             </p>
             <UButton
@@ -335,10 +352,22 @@ import { useHead } from '#imports'
 
 useHead({ title: 'Eitje API Settings' })
 
+type EitjeSyncDetail = {
+  ok?: boolean
+  message?: string
+  timeRegistration?: { upserted?: number; fetched?: number; error?: string }
+  aggregation?: { inserted?: number; deletedPeriods?: number; error?: string }
+  master?: { endpoints?: Array<{ name: string; fetched?: number; upserted?: number; error?: string }> }
+}
+
 type CronConfig = {
   isActive?: boolean
   lastRun?: string
   lastRunUTC?: string
+  lastSyncAt?: string | null
+  lastSyncOk?: boolean | null
+  lastSyncMessage?: string | null
+  lastSyncDetail?: EitjeSyncDetail | null
 }
 
 type CredentialsState = {
@@ -434,16 +463,16 @@ const testConnection = async () => {
   isTestingConnection.value = true
   connectionStatus.value = 'idle'
   try {
-    const response = await $fetch<{ success: boolean; error?: string }>('/api/eitje/v2/sync', {
+    const response = await $fetch<{ success: boolean; message?: string; error?: string }>('/api/eitje/v2/sync', {
       method: 'POST',
       body: { endpoint: 'environments' },
     })
     if (response.success) {
       connectionStatus.value = 'success'
-      connectionMessage.value = 'Connection successful!'
+      connectionMessage.value = response.message || 'Connection successful!'
     } else {
       connectionStatus.value = 'error'
-      connectionMessage.value = response.error || 'Connection failed'
+      connectionMessage.value = response.error || response.message || 'Connection failed'
     }
   } catch (error: unknown) {
     connectionStatus.value = 'error'
@@ -510,11 +539,32 @@ const handleCronToggle = async (jobType: string, enabled: boolean) => {
 const runNow = async (jobType: string) => {
   runningNowJob.value = jobType
   try {
-    await $fetch('/api/eitje/v2/cron', {
+    const response = await $fetch<{
+      success: boolean
+      message?: string
+      sync?: EitjeSyncDetail & { jobType?: string; master?: EitjeSyncDetail['master'] }
+    }>('/api/eitje/v2/cron', {
       method: 'POST',
       body: { action: 'run-now', jobType },
     })
     await loadCronStatus()
+    connectionStatus.value = response.success ? 'success' : 'error'
+    const detail = response.sync
+    const parts: string[] = [response.message || (response.success ? 'Sync completed' : 'Sync failed')]
+    if (detail?.timeRegistration) {
+      parts.push(
+        `Fetched ${detail.timeRegistration.fetched ?? 0}, upserted ${detail.timeRegistration.upserted ?? 0}`,
+      )
+    }
+    if (detail?.aggregation) {
+      parts.push(`Aggregation rows: ${detail.aggregation.inserted ?? 0}`)
+    }
+    if (detail?.master?.endpoints?.length) {
+      parts.push(
+        detail.master.endpoints.map((e) => `${e.name}: ${e.fetched ?? 0}`).join('; '),
+      )
+    }
+    connectionMessage.value = parts.join(' · ')
   } catch (error: unknown) {
     connectionStatus.value = 'error'
     connectionMessage.value = error instanceof Error ? error.message : 'Run now failed'

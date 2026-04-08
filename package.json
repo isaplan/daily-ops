@@ -10,6 +10,8 @@
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
     "copy:locations-teams": "node --experimental-strip-types scripts/copy-locations-teams-to-remote.ts",
+    "copy:unified-users": "node --experimental-strip-types scripts/copy-unified-users-to-remote.ts",
+    "migrate:credentials": "node --experimental-strip-types scripts/migrate-credentials-to-remote.ts",
     "start": "node .output/server/index.mjs"
   },
   "dependencies": {

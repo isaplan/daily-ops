@@ -101,15 +101,26 @@
         </li>
         <!-- Hours (collapsible) -->
         <li>
-          <button
+          <UTooltip v-if="collapsed" text="Hours" :popper="{ placement: 'right' }">
+            <UDropdownMenu :items="hoursDropdownItems" :popper="{ placement: 'right-start' }">
+              <button
+                type="button"
+                :class="navLinkClass(isHoursSection)"
+                class="w-full flex items-center"
+              >
+                <UIcon name="i-lucide-clock" class="size-5 shrink-0" />
+              </button>
+            </UDropdownMenu>
+          </UTooltip>
+          <button v-else
             type="button"
             :class="navLinkClass(isHoursSection)"
             class="w-full flex items-center"
             @click="isHoursOpen = !isHoursOpen"
           >
             <UIcon name="i-lucide-clock" class="size-4 shrink-0" />
-            <span v-if="!collapsed" class="flex-1 text-left">Hours</span>
-            <UIcon v-if="!collapsed" name="i-lucide-chevron-right" :class="['size-4 shrink-0 transition-transform', isHoursOpen && 'rotate-90']" />
+            <span class="flex-1 text-left">Hours</span>
+            <UIcon name="i-lucide-chevron-right" :class="['size-4 shrink-0 transition-transform', isHoursOpen && 'rotate-90']" />
           </button>
           <ul v-if="!collapsed && isHoursOpen" class="mt-1 ml-4 space-y-0.5 border-l border-gray-200 pl-3">
             <li><NuxtLink to="/daily-ops/hours" :class="navLinkClass(route.path === '/daily-ops/hours')">Day & Location</NuxtLink></li>
@@ -257,6 +268,22 @@ const envDropdownItems = computed(() => [
     label,
     onSelect: () => setActiveEnvironment(value),
   })),
+])
+
+const hoursDropdownItems = computed(() => [
+  [{
+    label: 'Day & Location',
+    to: '/daily-ops/hours',
+  }, {
+    label: 'By Day',
+    to: '/daily-ops/hours/by-day',
+  }, {
+    label: 'By Team',
+    to: '/daily-ops/hours/by-team',
+  }, {
+    label: 'By Location',
+    to: '/daily-ops/hours/by-location',
+  }],
 ])
 
 const isDashboard = computed(() => route.path === '/' || route.path === '')

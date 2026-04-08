@@ -62,11 +62,7 @@ export default defineEventHandler(async (event) => {
       }
     }
 
-    let aggregation: unknown[] = [{ $match: { 
-      ...q,
-      // CRITICAL: Exclude "Unknown" values - they indicate data quality issues
-      team_name: { $ne: 'Unknown' }
-    } }]
+    let aggregation: unknown[] = [{ $match: q }]
 
     if (groupBy === 'day') {
       aggregation.push({

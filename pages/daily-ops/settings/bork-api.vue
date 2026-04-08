@@ -8,6 +8,14 @@
     </div>
 
     <div class="space-y-6">
+      <UAlert
+        v-if="connectionStatus !== 'idle' && activeTab === 'cron-jobs'"
+        class="mb-2"
+        :color="connectionStatus === 'success' ? 'green' : 'red'"
+        :title="connectionStatus === 'success' ? 'Sync result' : 'Sync failed'"
+        :description="connectionMessage"
+        :icon="connectionStatus === 'success' ? 'i-lucide-check-circle' : 'i-lucide-x-circle'"
+      />
       <div class="flex gap-2 border-b">
         <button
           :class="[
@@ -205,7 +213,12 @@
             <p v-if="dailyCronStatus?.lastRun" class="text-sm text-gray-600">
               Last run: {{ new Date(String(dailyCronStatus.lastRunUTC || dailyCronStatus.lastRun)).toLocaleString() }}
             </p>
-            <p v-else class="text-sm text-gray-600">Cron job not configured yet. Toggle the switch to create it.</p>
+            <p v-if="dailyCronStatus?.lastSyncMessage" class="text-xs text-gray-500 mt-1">
+              {{ dailyCronStatus.lastSyncOk ? 'Sync: ' : 'Last error: ' }}{{ dailyCronStatus.lastSyncMessage }}
+            </p>
+            <p v-if="!dailyCronStatus" class="text-sm text-gray-600">
+              Cron job not configured yet. Toggle the switch to create it.
+            </p>
             <UButton
               color="gray"
               variant="ghost"
@@ -262,7 +275,12 @@
             <p v-if="masterCronStatus?.lastRun" class="text-sm text-gray-600">
               Last run: {{ new Date(String(masterCronStatus.lastRunUTC || masterCronStatus.lastRun)).toLocaleString() }}
             </p>
-            <p v-else class="text-sm text-gray-600">Cron job not configured yet. Toggle the switch to create it.</p>
+            <p v-if="masterCronStatus?.lastSyncMessage" class="text-xs text-gray-500 mt-1">
+              {{ masterCronStatus.lastSyncOk ? 'Sync: ' : 'Last error: ' }}{{ masterCronStatus.lastSyncMessage }}
+            </p>
+            <p v-if="!masterCronStatus" class="text-sm text-gray-600">
+              Cron job not configured yet. Toggle the switch to create it.
+            </p>
             <UButton
               color="gray"
               variant="ghost"
@@ -302,7 +320,12 @@
             <p v-if="historicalCronStatus?.lastRun" class="text-sm text-gray-600">
               Last run: {{ new Date(String(historicalCronStatus.lastRunUTC || historicalCronStatus.lastRun)).toLocaleString() }}
             </p>
-            <p v-else class="text-sm text-gray-600">Cron job not configured yet. Toggle the switch to create it.</p>
+            <p v-if="historicalCronStatus?.lastSyncMessage" class="text-xs text-gray-500 mt-1">
+              {{ historicalCronStatus.lastSyncOk ? 'Sync: ' : 'Last error: ' }}{{ historicalCronStatus.lastSyncMessage }}
+            </p>
+            <p v-if="!historicalCronStatus" class="text-sm text-gray-600">
+              Cron job not configured yet. Toggle the switch to create it.
+            </p>
             <UButton
               color="gray"
               variant="ghost"
@@ -339,10 +362,21 @@ type LocationItem = {
   name: string
 }
 
+type BorkSyncDetail = {
+  ok?: boolean
+  jobType?: string
+  message?: string
+  locations?: Array<{ locationId: string; ok: boolean; path?: string; error?: string }>
+}
+
 type CronConfig = {
   isActive?: boolean
   lastRun?: string
   lastRunUTC?: string
+  lastSyncAt?: string | null
+  lastSyncOk?: boolean | null
+  lastSyncMessage?: string | null
+  lastSyncDetail?: BorkSyncDetail | null
 }
 
 const activeTab = ref<string>('credentials')
@@ -367,6 +401,8 @@ const dailyCronStatus = ref<CronConfig | null>(null)
 const masterCronStatus = ref<CronConfig | null>(null)
 const historicalCronStatus = ref<CronConfig | null>(null)
 const runningNowJob = ref<string | null>(null)
+const connectionStatus = ref<'idle' | 'success' | 'error'>('idle')
+const connectionMessage = ref('')
 
 const locationOptions = computed(() => locations.value)
 
@@ -472,16 +508,15 @@ const saveCredential = async (c: CredentialItem) => {
 const testCredential = async (c: CredentialItem) => {
   testingId.value = c._id
   try {
-    const response = await $fetch<{ success: boolean }>('/api/bork/v2/master-sync', {
+    const response = await $fetch<{ success: boolean }>('/api/bork/v2/sync', {
       method: 'POST',
       body: {
         locationId: c.locationId,
-        endpoint: 'product_groups',
+        ping: true,
       },
     })
     testResult[c._id] = response.success ? 'success' : 'error'
-  } catch (error) {
-    console.error('Failed to test credential:', error)
+  } catch {
     testResult[c._id] = 'error'
   } finally {
     testingId.value = null
@@ -526,20 +561,34 @@ const handleCronToggle = async (jobType: string, enabled: boolean) => {
 
     await loadCronStatus()
   } catch (error: unknown) {
-    console.error('Cron action failed:', error)
+    connectionStatus.value = 'error'
+    connectionMessage.value = error instanceof Error ? error.message : 'Action failed'
   }
 }
 
 const runNow = async (jobType: string) => {
   runningNowJob.value = jobType
   try {
-    await $fetch('/api/bork/v2/cron', {
+    const response = await $fetch<{
+      success: boolean
+      message?: string
+      sync?: BorkSyncDetail
+    }>('/api/bork/v2/cron', {
       method: 'POST',
       body: { action: 'run-now', jobType },
     })
     await loadCronStatus()
+    connectionStatus.value = response.success ? 'success' : 'error'
+    const detail = response.sync
+    const parts: string[] = [response.message || (response.success ? 'Sync completed' : 'Sync failed')]
+    if (detail?.locations?.length) {
+      const ok = detail.locations.filter((l) => l.ok).length
+      parts.push(`${ok}/${detail.locations.length} location(s) OK`)
+    }
+    connectionMessage.value = parts.join(' · ')
   } catch (error: unknown) {
-    console.error('Run now failed:', error)
+    connectionStatus.value = 'error'
+    connectionMessage.value = error instanceof Error ? error.message : 'Run now failed'
   } finally {
     runningNowJob.value = null
   }

@@ -48,6 +48,12 @@ export default defineEventHandler(async (event) => {
     userName: name,
     monthsBack: 36,
   })
+  const merged = eitje_places.merged
+  const eitje_totals = {
+    worked_hours: merged.reduce((s, r) => s + r.worked_hours, 0),
+    planned_hours: merged.reduce((s, r) => s + r.planned_hours, 0),
+    places_count: merged.length,
+  }
 
   const data = {
     _id: String(member._id),
@@ -81,6 +87,7 @@ export default defineEventHandler(async (event) => {
       merged: eitje_places.merged,
       data_source: eitje_places.source,
     },
+    eitje_totals,
   }
   return { success: true, data }
 })

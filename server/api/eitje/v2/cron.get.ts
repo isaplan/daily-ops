@@ -13,6 +13,10 @@ export default defineEventHandler(async (event) => {
           lastRun: row.lastRun || null,
           lastRunUTC: row.lastRunUTC || null,
           schedule: row.schedule || null,
+          lastSyncAt: row.lastSyncAt ?? null,
+          lastSyncOk: row.lastSyncOk ?? null,
+          lastSyncMessage: row.lastSyncMessage ?? null,
+          lastSyncDetail: row.lastSyncDetail ?? null,
         }
       : null,
   }
