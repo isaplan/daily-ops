@@ -573,11 +573,16 @@ async function syncUnifiedMasterDataFromRaw (db: Db): Promise<{ locationsUpdated
 
     for (const [id, name] of uniqueEnvs) {
       const result = await db.collection('unified_location').updateOne(
-        { eitjeIds: id },
+        { $or: [{ eitjeIds: id }, { allIdValues: id }] },
         {
-          $addToSet: { eitjeIds: id, allIdValues: id },
-          $set: { updatedAt: new Date() },
-          $setOnInsert: { primaryName: name, name, createdAt: new Date() },
+          $set: {
+            eitjeIds: [id],
+            allIdValues: [id],
+            primaryName: name,
+            name,
+            updatedAt: new Date(),
+          },
+          $setOnInsert: { createdAt: new Date() },
         },
         { upsert: true }
       )
@@ -596,11 +601,16 @@ async function syncUnifiedMasterDataFromRaw (db: Db): Promise<{ locationsUpdated
 
     for (const [id, name] of uniqueTeams) {
       const result = await db.collection('unified_team').updateOne(
-        { eitjeIds: id },
+        { $or: [{ eitjeIds: id }, { allIdValues: id }] },
         {
-          $addToSet: { eitjeIds: id, allIdValues: id },
-          $set: { updatedAt: new Date() },
-          $setOnInsert: { primaryName: name, canonicalName: name, createdAt: new Date() },
+          $set: {
+            eitjeIds: [id],
+            allIdValues: [id],
+            primaryName: name,
+            canonicalName: name,
+            updatedAt: new Date(),
+          },
+          $setOnInsert: { createdAt: new Date() },
         },
         { upsert: true }
       )
@@ -623,11 +633,16 @@ async function syncUnifiedMasterDataFromRaw (db: Db): Promise<{ locationsUpdated
 
     for (const [id, name] of uniqueUsers) {
       const result = await db.collection('unified_user').updateOne(
-        { eitjeIds: id },
+        { $or: [{ eitjeIds: id }, { allIdValues: id }] },
         {
-          $addToSet: { eitjeIds: id, allIdValues: id },
-          $set: { updatedAt: new Date() },
-          $setOnInsert: { primaryName: name, canonicalName: name, createdAt: new Date() },
+          $set: {
+            eitjeIds: [id],
+            allIdValues: [id],
+            primaryName: name,
+            canonicalName: name,
+            updatedAt: new Date(),
+          },
+          $setOnInsert: { createdAt: new Date() },
         },
         { upsert: true }
       )

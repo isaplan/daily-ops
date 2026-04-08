@@ -2471,16 +2471,16 @@ _wH6JrtIxmaSoA8lCPWFnE9z4lQeXW6H5z3l5aymEQw
 const assets = {
   "/index.mjs": {
     "type": "text/javascript; charset=utf-8",
-    "etag": "\"1242fd-g79sVyL8mDkCAWEUHEtI1YzTp2k\"",
-    "mtime": "2026-04-08T21:45:20.366Z",
-    "size": 1196797,
+    "etag": "\"124656-+ztQDJU2uL1lnoYfTA/VhMgB5WE\"",
+    "mtime": "2026-04-08T21:56:54.073Z",
+    "size": 1197654,
     "path": "index.mjs"
   },
   "/index.mjs.map": {
     "type": "application/json",
-    "etag": "\"49c9fb-SToHiqVYJruRJlyrn3oNA1RehJ4\"",
-    "mtime": "2026-04-08T21:45:20.377Z",
-    "size": 4835835,
+    "etag": "\"49d1e8-XypArSA4cYSP5ibgVVo/+O/P8ak\"",
+    "mtime": "2026-04-08T21:56:54.088Z",
+    "size": 4837864,
     "path": "index.mjs.map"
   }
 };
@@ -31000,79 +31000,80 @@ async function syncUnifiedMasterDataFromRaw(db) {
     let locationsUpdated = 0;
     let teamsUpdated = 0;
     let usersUpdated = 0;
-    const envAgg = await db.collection("eitje_raw_data").aggregate([
-      { $match: { endpoint: "environments" } },
-      { $group: { _id: "$extracted.id", name: { $first: "$extracted.name" } } },
-      { $match: { _id: { $nin: [null, ""] } } }
-    ]).toArray();
-    for (const env of envAgg) {
+    const envDocs = await db.collection("eitje_raw_data").find({ endpoint: "environments" }).toArray();
+    const uniqueEnvs = /* @__PURE__ */ new Map();
+    envDocs.forEach((doc) => {
+      const extracted = doc.extracted;
+      const id = extracted == null ? void 0 : extracted.id;
+      const name = extracted == null ? void 0 : extracted.name;
+      if (id && name) uniqueEnvs.set(id, String(name));
+    });
+    for (const [id, name] of uniqueEnvs) {
       const result = await db.collection("unified_location").updateOne(
-        { eitjeIds: env._id },
+        { $or: [{ eitjeIds: id }, { allIdValues: id }] },
         {
-          $addToSet: {
-            eitjeIds: env._id,
-            allIdValues: env._id
+          $set: {
+            eitjeIds: [id],
+            allIdValues: [id],
+            primaryName: name,
+            name,
+            updatedAt: /* @__PURE__ */ new Date()
           },
-          $set: { updatedAt: /* @__PURE__ */ new Date() },
-          $setOnInsert: {
-            primaryName: env.name,
-            name: env.name,
-            createdAt: /* @__PURE__ */ new Date()
-          }
+          $setOnInsert: { createdAt: /* @__PURE__ */ new Date() }
         },
         { upsert: true }
       );
       locationsUpdated += result.upsertedCount + result.modifiedCount;
     }
-    const teamAgg = await db.collection("eitje_raw_data").aggregate([
-      { $match: { endpoint: "teams" } },
-      { $group: { _id: "$extracted.id", name: { $first: "$extracted.name" } } },
-      { $match: { _id: { $nin: [null, ""] } } }
-    ]).toArray();
-    for (const team of teamAgg) {
+    const teamDocs = await db.collection("eitje_raw_data").find({ endpoint: "teams" }).toArray();
+    const uniqueTeams = /* @__PURE__ */ new Map();
+    teamDocs.forEach((doc) => {
+      const extracted = doc.extracted;
+      const id = extracted == null ? void 0 : extracted.id;
+      const name = extracted == null ? void 0 : extracted.name;
+      if (id && name) uniqueTeams.set(id, String(name));
+    });
+    for (const [id, name] of uniqueTeams) {
       const result = await db.collection("unified_team").updateOne(
-        { eitjeIds: team._id },
+        { $or: [{ eitjeIds: id }, { allIdValues: id }] },
         {
-          $addToSet: {
-            eitjeIds: team._id,
-            allIdValues: team._id
+          $set: {
+            eitjeIds: [id],
+            allIdValues: [id],
+            primaryName: name,
+            canonicalName: name,
+            updatedAt: /* @__PURE__ */ new Date()
           },
-          $set: { updatedAt: /* @__PURE__ */ new Date() },
-          $setOnInsert: {
-            primaryName: team.name,
-            canonicalName: team.name,
-            createdAt: /* @__PURE__ */ new Date()
-          }
+          $setOnInsert: { createdAt: /* @__PURE__ */ new Date() }
         },
         { upsert: true }
       );
       teamsUpdated += result.upsertedCount + result.modifiedCount;
     }
-    const userAgg = await db.collection("eitje_raw_data").aggregate([
-      { $match: { endpoint: "users" } },
-      { $group: {
-        _id: "$extracted.id",
-        firstName: { $first: "$rawApiResponse.first_name" },
-        lastName: { $first: "$rawApiResponse.last_name" },
-        email: { $first: "$rawApiResponse.email" }
-      } },
-      { $match: { _id: { $nin: [null, ""] } } }
-    ]).toArray();
-    for (const user of userAgg) {
-      const name = user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : user.email || String(user._id);
+    const userDocs = await db.collection("eitje_raw_data").find({ endpoint: "users" }).toArray();
+    const uniqueUsers = /* @__PURE__ */ new Map();
+    userDocs.forEach((doc) => {
+      const extracted = doc.extracted;
+      const id = extracted == null ? void 0 : extracted.id;
+      const raw = doc.rawApiResponse;
+      const firstName = (raw == null ? void 0 : raw.first_name) ? String(raw.first_name) : "";
+      const lastName = (raw == null ? void 0 : raw.last_name) ? String(raw.last_name) : "";
+      const email = (raw == null ? void 0 : raw.email) ? String(raw.email) : "";
+      const name = firstName && lastName ? `${firstName} ${lastName}` : email || String(id);
+      if (id) uniqueUsers.set(id, name);
+    });
+    for (const [id, name] of uniqueUsers) {
       const result = await db.collection("unified_user").updateOne(
-        { eitjeIds: user._id },
+        { $or: [{ eitjeIds: id }, { allIdValues: id }] },
         {
-          $addToSet: {
-            eitjeIds: user._id,
-            allIdValues: user._id
-          },
-          $set: { updatedAt: /* @__PURE__ */ new Date() },
-          $setOnInsert: {
+          $set: {
+            eitjeIds: [id],
+            allIdValues: [id],
             primaryName: name,
             canonicalName: name,
-            createdAt: /* @__PURE__ */ new Date()
-          }
+            updatedAt: /* @__PURE__ */ new Date()
+          },
+          $setOnInsert: { createdAt: /* @__PURE__ */ new Date() }
         },
         { upsert: true }
       );
