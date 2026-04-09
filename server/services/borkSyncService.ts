@@ -1,9 +1,9 @@
 /**
  * @registry-id: borkSyncService
  * @created: 2026-04-06T12:00:00.000Z
- * @last-modified: 2026-04-05T18:00:00.000Z
+ * @last-modified: 2026-04-09T15:00:00.000Z
  * @description: Bork/Trivec gateway fetch + bork_raw_data upserts; drives Bork cron/sync
- * @last-fix: [2026-04-05] Ping mode paths (BORK_PING_PATHS); cron/sync API wiring
+ * @last-fix: [2026-04-09] Fixed API endpoint: use /ticket/day.json/{YYYYMMDD}?appid={apiKey} instead of /api/v1/sales
  *
  * @exports-to:
  * ✓ server/api/bork/v2/cron.post.ts
@@ -26,82 +26,127 @@ export type BorkSyncJobResult = {
   locations?: BorkLocationSyncResult[]
 }
 
-function pathList (envKey: string, fallback: string): string[] {
-  const raw = process.env[envKey] || fallback
-  return raw.split(',').map((s) => s.trim()).filter(Boolean)
+function getDateRangeForJobType (jobType: string): { days: number } {
+  if (jobType === 'historical-data') return { days: 30 }
+  return { days: 1 } // daily-data and master-data just get today
 }
 
-async function tryFetchGateway (
+async function tryFetchBorkTicketData (
   baseUrl: string,
   apiKey: string,
-  relPath: string
-): Promise<{ ok: boolean; status: number; data: unknown }> {
+  dateStr: string // YYYYMMDD format
+): Promise<{ ok: boolean; status: number; data: unknown; error?: string }> {
   const base = baseUrl.replace(/\/$/, '')
-  const url = `${base}/${relPath.replace(/^\//, '')}`
-  const headerAttempts: Record<string, string>[] = [
-    { 'X-API-Key': apiKey, Accept: 'application/json' },
-    { Authorization: `Bearer ${apiKey}`, Accept: 'application/json' },
-    { ApiKey: apiKey, Accept: 'application/json' },
-    { 'App-Id': apiKey, Accept: 'application/json' },
-    { 'app-id': apiKey, Accept: 'application/json' },
-  ]
-  let lastStatus = 0
-  for (const headers of headerAttempts) {
-    const res = await fetch(url, { method: 'GET', headers })
-    lastStatus = res.status
+  // Bork endpoint: {baseUrl}/ticket/day.json/{YYYYMMDD}?appid={apiKey}&IncOpen=True&IncInternal=True
+  const url = `${base}/ticket/day.json/${dateStr}?appid=${apiKey}&IncOpen=True&IncInternal=True`
+
+  try {
+    const res = await fetch(url, {
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+    })
+
     const text = await res.text()
     let data: unknown = text
     try {
       data = text ? (JSON.parse(text) as unknown) : null
     } catch {
-      // keep text
+      // keep as text
     }
+
     if (res.ok) return { ok: true, status: res.status, data }
+    return { ok: false, status: res.status, data: null, error: `HTTP ${res.status}` }
+  } catch (err) {
+    const error = err instanceof Error ? err.message : String(err)
+    return { ok: false, status: 0, data: null, error }
   }
-  return { ok: false, status: lastStatus, data: null }
 }
 
-async function syncLocationPaths (
+async function syncLocationDates (
   db: Db,
   cred: Document,
-  endpointLabel: string,
-  paths: string[]
+  jobType: string
 ): Promise<BorkLocationSyncResult> {
   const locationId = cred.locationId
   const lid = locationId != null ? String(locationId) : 'unknown'
   const apiKey = typeof cred.apiKey === 'string' ? cred.apiKey : ''
   const baseUrl = typeof cred.baseUrl === 'string' ? cred.baseUrl : ''
+
   if (!apiKey || !baseUrl) {
     return { locationId: lid, ok: false, error: 'missing baseUrl or apiKey on credential row' }
   }
 
-  let lastStatus = 0
-  for (const p of paths) {
-    const r = await tryFetchGateway(baseUrl, apiKey, p)
-    lastStatus = r.status
-    if (!r.ok) continue
+  // Determine date range to sync
+  const config = getDateRangeForJobType(jobType)
+  const now = new Date()
+  const dates: string[] = []
 
-    const syncDedupKey = `${lid}:${endpointLabel}:${p}`
-    const now = new Date()
+  for (let i = 0; i < config.days; i++) {
+    const d = new Date(now)
+    d.setDate(d.getDate() - i)
+    const year = d.getFullYear()
+    const month = String(d.getMonth() + 1).padStart(2, '0')
+    const day = String(d.getDate()).padStart(2, '0')
+    dates.push(`${year}${month}${day}`)
+  }
+
+  let lastError = ''
+  let successCount = 0
+
+  for (const dateStr of dates) {
+    const r = await tryFetchBorkTicketData(baseUrl, apiKey, dateStr)
+
+    if (!r.ok) {
+      lastError = r.error || `HTTP ${r.status || '?'}`
+      continue
+    }
+
+    // Extract array of records from response
+    let records: unknown[] = []
+    if (Array.isArray(r.data)) {
+      records = r.data
+    } else if (r.data && typeof r.data === 'object') {
+      const obj = r.data as Record<string, unknown>
+      for (const v of Object.values(obj)) {
+        if (Array.isArray(v)) {
+          records = v
+          break
+        }
+      }
+    }
+
+    if (records.length === 0) {
+      continue
+    }
+
+    // Upsert into bork_raw_data
+    const syncDedupKey = `${lid}:bork_daily:${dateStr}`
+    const upsertDate = new Date()
     await db.collection('bork_raw_data').updateOne(
       { syncDedupKey },
       {
         $set: {
-          endpoint: endpointLabel,
+          endpoint: 'bork_daily',
           locationId: cred.locationId,
-          date: now,
-          rawApiResponse: r.data,
+          date: upsertDate,
+          rawApiResponse: records,
           syncDedupKey,
-          updatedAt: now,
+          recordCount: records.length,
+          updatedAt: upsertDate,
         },
-        $setOnInsert: { createdAt: now },
+        $setOnInsert: { createdAt: upsertDate },
       },
       { upsert: true }
     )
-    return { locationId: lid, ok: true, path: p }
+
+    successCount++
   }
 
-  return { locationId: lid, ok: false, error: `no path succeeded (last HTTP ${lastStatus || '—'})` }
+  if (successCount > 0) {
+    return { locationId: lid, ok: true, path: `/ticket/day.json/{date}` }
+  }
+
+  return { locationId: lid, ok: false, error: lastError || 'no data returned for any date' }
 }
 
 /** Load Bork credentials: active or legacy rows without isActive:false */
@@ -126,16 +171,9 @@ export async function executeBorkJob (db: Db, jobType: string): Promise<BorkSync
     }
   }
 
-  const isMaster = jobType === 'master-data'
-  const paths = isMaster
-    ? pathList('BORK_MASTER_PATHS', 'api/v1/product_groups,product_groups,v1/product_groups,api/status')
-    : pathList('BORK_DAILY_PATHS', 'api/v1/sales,sales,api/v1/transactions,api/status,health')
-
-  const endpointLabel = isMaster ? 'bork_master' : 'bork_daily'
-
   const locations: BorkLocationSyncResult[] = []
   for (const c of creds) {
-    const r = await syncLocationPaths(db, c, endpointLabel, paths)
+    const r = await syncLocationDates(db, c, jobType)
     locations.push(r)
   }
 
@@ -145,7 +183,7 @@ export async function executeBorkJob (db: Db, jobType: string): Promise<BorkSync
     jobType,
     message: okCount > 0
       ? `Synced ${okCount}/${creds.length} location(s) into bork_raw_data`
-      : `0/${creds.length} locations succeeded — check BORK_*_PATHS env or gateway URLs`,
+      : `0/${creds.length} locations succeeded — check Bork API credentials and network access`,
     locations,
   }
 }
@@ -169,14 +207,8 @@ export async function syncBorkSingleLocation (
   if (!cred) {
     return { ok: false, jobType: mode, message: 'No Bork credential for this locationId' }
   }
-  const paths =
-    mode === 'master'
-      ? pathList('BORK_MASTER_PATHS', 'api/v1/product_groups,product_groups,api/status')
-      : mode === 'ping'
-        ? pathList('BORK_PING_PATHS', 'api/status,health,api/v1/status')
-        : pathList('BORK_DAILY_PATHS', 'api/v1/sales,sales,api/status,health')
-  const label = mode === 'master' ? 'bork_master' : mode === 'ping' ? 'bork_ping' : 'bork_daily'
-  const r = await syncLocationPaths(db, cred, label, paths)
+
+  const r = await syncLocationDates(db, cred, mode === 'ping' ? 'daily-data' : mode === 'master' ? 'master-data' : 'daily-data')
   return {
     ok: r.ok,
     jobType: mode,
