@@ -2,8 +2,8 @@ declare global {
   const EITJE_HOURS_ADD_FIELDS: typeof import('../../server/utils/eitjeHours').EITJE_HOURS_ADD_FIELDS
   const H3Error: typeof import('../../node_modules/.pnpm/h3@1.15.10/node_modules/h3').H3Error
   const H3Event: typeof import('../../node_modules/.pnpm/h3@1.15.10/node_modules/h3').H3Event
-  const __buildAssetsURL: typeof import('../../node_modules/.pnpm/@nuxt+nitro-server@4.4.2_@babel+core@7.29.0_db0@0.3.4_ioredis@5.10.1_magicast@0.5.2_nuxt@4.4._s5aro5qs5rljh2uuzc7klkl3py/node_modules/@nuxt/nitro-server/dist/runtime/utils/paths').buildAssetsURL
-  const __publicAssetsURL: typeof import('../../node_modules/.pnpm/@nuxt+nitro-server@4.4.2_@babel+core@7.29.0_db0@0.3.4_ioredis@5.10.1_magicast@0.5.2_nuxt@4.4._s5aro5qs5rljh2uuzc7klkl3py/node_modules/@nuxt/nitro-server/dist/runtime/utils/paths').publicAssetsURL
+  const __buildAssetsURL: typeof import('../../node_modules/.pnpm/@nuxt+nitro-server@4.4.2_@babel+core@7.29.0_db0@0.3.4_ioredis@5.10.1_magicast@0.5.2_nux_4ef35676041ca6aeac96e97cd57aa3e3/node_modules/@nuxt/nitro-server/dist/runtime/utils/paths').buildAssetsURL
+  const __publicAssetsURL: typeof import('../../node_modules/.pnpm/@nuxt+nitro-server@4.4.2_@babel+core@7.29.0_db0@0.3.4_ioredis@5.10.1_magicast@0.5.2_nux_4ef35676041ca6aeac96e97cd57aa3e3/node_modules/@nuxt/nitro-server/dist/runtime/utils/paths').publicAssetsURL
   const activeNotesMatch: typeof import('../../server/utils/noteDeletedFilter').activeNotesMatch
   const appendCorsHeaders: typeof import('../../node_modules/.pnpm/h3@1.15.10/node_modules/h3').appendCorsHeaders
   const appendCorsPreflightHeaders: typeof import('../../node_modules/.pnpm/h3@1.15.10/node_modules/h3').appendCorsPreflightHeaders
@@ -26,7 +26,7 @@ declare global {
   const createEventStream: typeof import('../../node_modules/.pnpm/h3@1.15.10/node_modules/h3').createEventStream
   const createRouter: typeof import('../../node_modules/.pnpm/h3@1.15.10/node_modules/h3').createRouter
   const defaultContentType: typeof import('../../node_modules/.pnpm/h3@1.15.10/node_modules/h3').defaultContentType
-  const defineAppConfig: typeof import('../../node_modules/.pnpm/@nuxt+nitro-server@4.4.2_@babel+core@7.29.0_db0@0.3.4_ioredis@5.10.1_magicast@0.5.2_nuxt@4.4._s5aro5qs5rljh2uuzc7klkl3py/node_modules/@nuxt/nitro-server/dist/runtime/utils/config').defineAppConfig
+  const defineAppConfig: typeof import('../../node_modules/.pnpm/@nuxt+nitro-server@4.4.2_@babel+core@7.29.0_db0@0.3.4_ioredis@5.10.1_magicast@0.5.2_nux_4ef35676041ca6aeac96e97cd57aa3e3/node_modules/@nuxt/nitro-server/dist/runtime/utils/config').defineAppConfig
   const defineCachedEventHandler: typeof import('../../node_modules/.pnpm/nitropack@2.13.2/node_modules/nitropack/dist/runtime/internal/cache').defineCachedEventHandler
   const defineCachedFunction: typeof import('../../node_modules/.pnpm/nitropack@2.13.2/node_modules/nitropack/dist/runtime/internal/cache').defineCachedFunction
   const defineEventHandler: typeof import('../../node_modules/.pnpm/h3@1.15.10/node_modules/h3').defineEventHandler
@@ -196,8 +196,8 @@ export { getRouteRules } from 'nitropack/runtime/internal/route-rules';
 export { useEvent } from 'nitropack/runtime/internal/context';
 export { defineTask, runTask } from 'nitropack/runtime/internal/task';
 export { defineNitroErrorHandler } from 'nitropack/runtime/internal/error/utils';
-export { buildAssetsURL as __buildAssetsURL, publicAssetsURL as __publicAssetsURL } from '/Users/alviniomolina/Documents/GitHub/daily-ops/node_modules/.pnpm/@nuxt+nitro-server@4.4.2_@babel+core@7.29.0_db0@0.3.4_ioredis@5.10.1_magicast@0.5.2_nuxt@4.4._s5aro5qs5rljh2uuzc7klkl3py/node_modules/@nuxt/nitro-server/dist/runtime/utils/paths';
-export { defineAppConfig } from '/Users/alviniomolina/Documents/GitHub/daily-ops/node_modules/.pnpm/@nuxt+nitro-server@4.4.2_@babel+core@7.29.0_db0@0.3.4_ioredis@5.10.1_magicast@0.5.2_nuxt@4.4._s5aro5qs5rljh2uuzc7klkl3py/node_modules/@nuxt/nitro-server/dist/runtime/utils/config';
+export { buildAssetsURL as __buildAssetsURL, publicAssetsURL as __publicAssetsURL } from '/Users/alviniomolina/Documents/GitHub/daily-ops/node_modules/.pnpm/@nuxt+nitro-server@4.4.2_@babel+core@7.29.0_db0@0.3.4_ioredis@5.10.1_magicast@0.5.2_nux_4ef35676041ca6aeac96e97cd57aa3e3/node_modules/@nuxt/nitro-server/dist/runtime/utils/paths';
+export { defineAppConfig } from '/Users/alviniomolina/Documents/GitHub/daily-ops/node_modules/.pnpm/@nuxt+nitro-server@4.4.2_@babel+core@7.29.0_db0@0.3.4_ioredis@5.10.1_magicast@0.5.2_nux_4ef35676041ca6aeac96e97cd57aa3e3/node_modules/@nuxt/nitro-server/dist/runtime/utils/config';
 export { resolveDailyOpsPeriod } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/dailyOpsPeriod';
 export { getDb, getNotesCollection, getUnifiedUsersCollection, getMenuItemsCollection, getMenusCollection, getMenuVersionsCollection, connectToDatabase } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/db';
 export { findEitjeCredentialDocument, documentToEitjeStoredCredentials, documentToCredentialsApiShape } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/eitjeApiCredentials';

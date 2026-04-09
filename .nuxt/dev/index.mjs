@@ -35,7 +35,7 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import { stringify, uneval } from 'file:///Users/alviniomolina/Documents/GitHub/daily-ops/node_modules/.pnpm/devalue@5.6.4/node_modules/devalue/index.js';
 import { captureRawStackTrace, parseRawStackTrace } from 'file:///Users/alviniomolina/Documents/GitHub/daily-ops/node_modules/.pnpm/errx@0.1.0/node_modules/errx/dist/index.js';
 import { isVNode, isRef, toValue } from 'file:///Users/alviniomolina/Documents/GitHub/daily-ops/node_modules/.pnpm/vue@3.5.31_typescript@5.9.3/node_modules/vue/index.mjs';
-import _wH6JrtIxmaSoA8lCPWFnE9z4lQeXW6H5z3l5aymEQw from 'file:///Users/alviniomolina/Documents/GitHub/daily-ops/node_modules/.pnpm/@nuxt+vite-builder@4.4.2_@babel+plugin-syntax-jsx@7.28.6_@babel+core@7.29.0__lightningcss@1.3_6cegxylarfldtm7vyaaemiacsq/node_modules/@nuxt/vite-builder/dist/fix-stacktrace.mjs';
+import _wH6JrtIxmaSoA8lCPWFnE9z4lQeXW6H5z3l5aymEQw from 'file:///Users/alviniomolina/Documents/GitHub/daily-ops/node_modules/.pnpm/@nuxt+vite-builder@4.4.2_@babel+plugin-syntax-jsx@7.28.6_@babel+core@7.29.0__lightningc_58fba7861b5dde8b1fabfac15ef15baf/node_modules/@nuxt/vite-builder/dist/fix-stacktrace.mjs';
 import { fileURLToPath } from 'node:url';
 import { dirname as dirname$1, resolve as resolve$1, basename } from 'file:///Users/alviniomolina/Documents/GitHub/daily-ops/node_modules/.pnpm/pathe@2.0.3/node_modules/pathe/dist/index.mjs';
 import { createHead as createHead$1, propsToString, renderSSRHead } from 'file:///Users/alviniomolina/Documents/GitHub/daily-ops/node_modules/.pnpm/unhead@2.1.12/node_modules/unhead/dist/server.mjs';
@@ -2389,7 +2389,7 @@ const asyncContext = getContext("nuxt-dev", {
 	asyncContext: true,
 	AsyncLocalStorage
 });
-const _6mjMj5Prei0HyOQYYTNP_Nj5eZQ5AM_dzHVHH9tgi_A = (nitroApp) => {
+const _ApuVGNieO4gVDZSW_C0BELLT6l8jIXBnJLpKn5iU = (nitroApp) => {
 	const handler = nitroApp.h3App.handler;
 	nitroApp.h3App.handler = (event) => {
 		return asyncContext.callAsync({
@@ -2464,26 +2464,11 @@ function onConsoleLog(callback) {
 
 const plugins = [
   _aNthCX_1GoAue1JJHL6NOjfe8Uble0aXb_2xYrfKMM0,
-_6mjMj5Prei0HyOQYYTNP_Nj5eZQ5AM_dzHVHH9tgi_A,
+_ApuVGNieO4gVDZSW_C0BELLT6l8jIXBnJLpKn5iU,
 _wH6JrtIxmaSoA8lCPWFnE9z4lQeXW6H5z3l5aymEQw
 ];
 
-const assets = {
-  "/index.mjs": {
-    "type": "text/javascript; charset=utf-8",
-    "etag": "\"124eac-qaIZuvEmrCuwO+b2QEAmQkLq2Qs\"",
-    "mtime": "2026-04-08T22:51:04.696Z",
-    "size": 1199788,
-    "path": "index.mjs"
-  },
-  "/index.mjs.map": {
-    "type": "application/json",
-    "etag": "\"49f5a4-osyJJUO1hMuqBVtn5FVDmVz49vM\"",
-    "mtime": "2026-04-08T22:51:04.735Z",
-    "size": 4847012,
-    "path": "index.mjs.map"
-  }
-};
+const assets = {};
 
 function readAsset (id) {
   const serverDir = dirname$1(fileURLToPath(globalThis._importMeta_.url));
@@ -28547,7 +28532,7 @@ async function parseMenuFileToRows(buffer, filename) {
 
 const warnOnceSet = /* @__PURE__ */ new Set();
 const DEFAULT_ENDPOINT = "https://api.iconify.design";
-const _qf9LOB = defineCachedEventHandler(async (event) => {
+const _DOsdnx = defineCachedEventHandler(async (event) => {
   const url = getRequestURL(event);
   if (!url)
     return createError({ status: 400, message: "Invalid icon request" });
@@ -28618,6 +28603,7 @@ const _lazy_ddvbvh = () => Promise.resolve().then(function () { return overview_
 const _lazy_b9OPGV = () => Promise.resolve().then(function () { return productivity_get$1; });
 const _lazy_PkLaTv = () => Promise.resolve().then(function () { return products_get$1; });
 const _lazy_JmL3hN = () => Promise.resolve().then(function () { return revenue_get$1; });
+const _lazy_xkC3wT = () => Promise.resolve().then(function () { return sales_get$1; });
 const _lazy_6ws9ek = () => Promise.resolve().then(function () { return workload_get$1; });
 const _lazy_vALsC_ = () => Promise.resolve().then(function () { return run_get$1; });
 const _lazy_4juWGc = () => Promise.resolve().then(function () { return fieldMapping_get$1; });
@@ -28663,6 +28649,7 @@ const _lazy_W7TMy2 = () => Promise.resolve().then(function () { return share_pos
 const _lazy_cTKOaU = () => Promise.resolve().then(function () { return _todoId__put$1; });
 const _lazy_aPaNV5 = () => Promise.resolve().then(function () { return index_get$9; });
 const _lazy_GiLNIi = () => Promise.resolve().then(function () { return index_post$3; });
+const _lazy_MxW0tk = () => Promise.resolve().then(function () { return salesAggregated_get$1; });
 const _lazy_Mwgp_z = () => Promise.resolve().then(function () { return index_get$7; });
 const _lazy_l24SXQ = () => Promise.resolve().then(function () { return _id__delete$1; });
 const _lazy_s6toDC = () => Promise.resolve().then(function () { return index_get$5; });
@@ -28670,7 +28657,7 @@ const _lazy_225H4_ = () => Promise.resolve().then(function () { return index_pos
 const _lazy_jRvml4 = () => Promise.resolve().then(function () { return index_get$3; });
 const _lazy_90ItQx = () => Promise.resolve().then(function () { return active_get$1; });
 const _lazy_ILK1q4 = () => Promise.resolve().then(function () { return index_get$1; });
-const _lazy_moRcsu = () => Promise.resolve().then(function () { return renderer; });
+const _lazy_JxEXup = () => Promise.resolve().then(function () { return renderer; });
 
 const handlers = [
   { route: '', handler: _h4lKws, lazy: false, middleware: true, method: undefined },
@@ -28687,6 +28674,7 @@ const handlers = [
   { route: '/api/daily-ops/productivity', handler: _lazy_b9OPGV, lazy: true, middleware: false, method: "get" },
   { route: '/api/daily-ops/products', handler: _lazy_PkLaTv, lazy: true, middleware: false, method: "get" },
   { route: '/api/daily-ops/revenue', handler: _lazy_JmL3hN, lazy: true, middleware: false, method: "get" },
+  { route: '/api/daily-ops/sales', handler: _lazy_xkC3wT, lazy: true, middleware: false, method: "get" },
   { route: '/api/daily-ops/workload', handler: _lazy_6ws9ek, lazy: true, middleware: false, method: "get" },
   { route: '/api/data-integrity/run', handler: _lazy_vALsC_, lazy: true, middleware: false, method: "get" },
   { route: '/api/data-sources/:datasource/field-mapping', handler: _lazy_4juWGc, lazy: true, middleware: false, method: "get" },
@@ -28732,6 +28720,7 @@ const handlers = [
   { route: '/api/notes/:id/todos/:todoId', handler: _lazy_cTKOaU, lazy: true, middleware: false, method: "put" },
   { route: '/api/notes', handler: _lazy_aPaNV5, lazy: true, middleware: false, method: "get" },
   { route: '/api/notes', handler: _lazy_GiLNIi, lazy: true, middleware: false, method: "post" },
+  { route: '/api/sales-aggregated', handler: _lazy_MxW0tk, lazy: true, middleware: false, method: "get" },
   { route: '/api/tags', handler: _lazy_Mwgp_z, lazy: true, middleware: false, method: "get" },
   { route: '/api/teams/:id', handler: _lazy_l24SXQ, lazy: true, middleware: false, method: "delete" },
   { route: '/api/teams', handler: _lazy_s6toDC, lazy: true, middleware: false, method: "get" },
@@ -28739,11 +28728,11 @@ const handlers = [
   { route: '/api/unified-users', handler: _lazy_jRvml4, lazy: true, middleware: false, method: "get" },
   { route: '/api/workers/active', handler: _lazy_90ItQx, lazy: true, middleware: false, method: "get" },
   { route: '/api/workers', handler: _lazy_ILK1q4, lazy: true, middleware: false, method: "get" },
-  { route: '/__nuxt_error', handler: _lazy_moRcsu, lazy: true, middleware: false, method: undefined },
+  { route: '/__nuxt_error', handler: _lazy_JxEXup, lazy: true, middleware: false, method: undefined },
   { route: '/__nuxt_island/**', handler: handler$1, lazy: false, middleware: false, method: undefined },
-  { route: '/api/_nuxt_icon/:collection', handler: _qf9LOB, lazy: false, middleware: false, method: undefined },
-  { route: '/_fonts/**', handler: _lazy_moRcsu, lazy: true, middleware: false, method: undefined },
-  { route: '/**', handler: _lazy_moRcsu, lazy: true, middleware: false, method: undefined }
+  { route: '/api/_nuxt_icon/:collection', handler: _DOsdnx, lazy: false, middleware: false, method: undefined },
+  { route: '/_fonts/**', handler: _lazy_JxEXup, lazy: true, middleware: false, method: undefined },
+  { route: '/**', handler: _lazy_JxEXup, lazy: true, middleware: false, method: undefined }
 ];
 
 function createNitroApp() {
@@ -30074,6 +30063,28 @@ const revenue_get = defineEventHandler((event) => {
 const revenue_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
   __proto__: null,
   default: revenue_get
+}, Symbol.toStringTag, { value: 'Module' }));
+
+const sales_get = defineEventHandler((event) => {
+  const q = getQuery$1(event);
+  const period = typeof q.period === "string" ? q.period : "today";
+  const anchor = typeof q.anchor === "string" ? q.anchor : void 0;
+  const range = resolveDailyOpsPeriod(period, anchor);
+  return {
+    range: {
+      period: range.period,
+      startDate: range.startDate,
+      endDate: range.endDate
+    },
+    section: "sales",
+    title: "Sales",
+    message: "Dedicated sales aggregates by member, location, and product. Wire to aggregation when ready."
+  };
+});
+
+const sales_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+  __proto__: null,
+  default: sales_get
 }, Symbol.toStringTag, { value: 'Module' }));
 
 const workload_get = defineEventHandler((event) => {
@@ -33561,6 +33572,138 @@ const index_post$2 = defineEventHandler(async (event) => {
 const index_post$3 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
   __proto__: null,
   default: index_post$2
+}, Symbol.toStringTag, { value: 'Module' }));
+
+const salesAggregated_get = defineEventHandler(async (event) => {
+  try {
+    const db = await getDb();
+    const query = getQuery$1(event);
+    const startDate = query.startDate;
+    const endDate = query.endDate;
+    const locationId = query.locationId;
+    const groupBy = query.groupBy || "date";
+    const sortBy = query.sortBy || "date";
+    const sortOrder = query.sortOrder || "desc";
+    const q = {};
+    if (startDate || endDate) {
+      q.date = {};
+      if (startDate) q.date.$gte = startDate;
+      if (endDate) q.date.$lte = endDate;
+    } else {
+      const thirtyDaysAgo = /* @__PURE__ */ new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      q.date = { $gte: thirtyDaysAgo.toISOString().split("T")[0] };
+    }
+    if (locationId && locationId !== "all") {
+      try {
+        q.location_id = new ObjectId(locationId);
+      } catch {
+        q.location_id = locationId;
+      }
+    }
+    let aggregation = [{ $match: q }];
+    if (groupBy === "date") {
+      aggregation.push({
+        $group: {
+          _id: "$date",
+          total_revenue: { $sum: { $toDouble: "$revenue" } },
+          total_quantity: { $sum: { $toDouble: "$quantity" } },
+          record_count: { $sum: 1 },
+          location_count: { $addToSet: "$location_id" }
+        }
+      });
+      aggregation.push({
+        $project: {
+          _id: 0,
+          date: "$_id",
+          total_revenue: { $round: ["$total_revenue", 2] },
+          total_quantity: { $round: ["$total_quantity", 2] },
+          record_count: 1,
+          location_count: { $size: { $filter: { input: "$location_count", as: "l", cond: { $ne: ["$$l", null] } } } }
+        }
+      });
+    } else if (groupBy === "location") {
+      aggregation.push({
+        $group: {
+          _id: { location_id: "$location_id", location_name: "$location_name" },
+          total_revenue: { $sum: { $toDouble: "$revenue" } },
+          total_quantity: { $sum: { $toDouble: "$quantity" } },
+          record_count: { $sum: 1 },
+          product_count: { $addToSet: "$product_name" }
+        }
+      });
+      aggregation.push({
+        $project: {
+          _id: 0,
+          location_id: "$_id.location_id",
+          location_name: { $ifNull: ["$_id.location_name", "Unknown"] },
+          total_revenue: { $round: ["$total_revenue", 2] },
+          total_quantity: { $round: ["$total_quantity", 2] },
+          record_count: 1,
+          product_count: { $size: { $filter: { input: "$product_count", as: "p", cond: { $ne: ["$$p", null] } } } }
+        }
+      });
+    } else if (groupBy === "product") {
+      aggregation.push({
+        $group: {
+          _id: { product_id: "$product_id", product_name: "$product_name" },
+          total_revenue: { $sum: { $toDouble: "$revenue" } },
+          total_quantity: { $sum: { $toDouble: "$quantity" } },
+          record_count: { $sum: 1 },
+          location_count: { $addToSet: "$location_id" }
+        }
+      });
+      aggregation.push({
+        $project: {
+          _id: 0,
+          product_id: "$_id.product_id",
+          product_name: { $ifNull: ["$_id.product_name", "Unknown"] },
+          total_revenue: { $round: ["$total_revenue", 2] },
+          total_quantity: { $round: ["$total_quantity", 2] },
+          record_count: 1,
+          location_count: { $size: { $filter: { input: "$location_count", as: "l", cond: { $ne: ["$$l", null] } } } }
+        }
+      });
+    } else {
+      aggregation.push({
+        $group: {
+          _id: { date: "$date", location_id: "$location_id", location_name: "$location_name" },
+          total_revenue: { $sum: { $toDouble: "$revenue" } },
+          total_quantity: { $sum: { $toDouble: "$quantity" } },
+          record_count: { $sum: 1 }
+        }
+      });
+      aggregation.push({
+        $project: {
+          _id: 0,
+          date: "$_id.date",
+          location_id: "$_id.location_id",
+          location_name: { $ifNull: ["$_id.location_name", "Unknown"] },
+          total_revenue: { $round: ["$total_revenue", 2] },
+          total_quantity: { $round: ["$total_quantity", 2] },
+          record_count: 1
+        }
+      });
+    }
+    const sortField = sortBy === "location" || sortBy === "location_name" ? "location_name" : sortBy === "product_name" ? "product_name" : sortBy === "total_revenue" ? "total_revenue" : sortBy === "total_quantity" ? "total_quantity" : "date";
+    const sortDirection = sortOrder === "asc" ? 1 : -1;
+    aggregation.push({ $sort: { [sortField]: sortDirection } });
+    const results = await db.collection("test-bork-sales-unified").aggregate(aggregation).toArray();
+    let locations = [];
+    if (groupBy !== "location") {
+      const locs = await db.collection("locations").find({}).sort({ name: 1 }).toArray();
+      locations = locs.map((l) => ({ _id: String(l._id), name: l.name }));
+    }
+    return { success: true, data: results, summary: { total_records: results.length, group_by: groupBy }, locations };
+  } catch (error) {
+    console.error("[sales-aggregated]", error);
+    throw createError({ statusCode: 500, message: "Failed to fetch sales data" });
+  }
+});
+
+const salesAggregated_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+  __proto__: null,
+  default: salesAggregated_get
 }, Symbol.toStringTag, { value: 'Module' }));
 
 const index_get$6 = defineEventHandler(async () => {

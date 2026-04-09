@@ -38,6 +38,9 @@ declare module "nitropack/types" {
     '/api/daily-ops/revenue': {
       'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/daily-ops/revenue.get').default>>>>
     }
+    '/api/daily-ops/sales': {
+      'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/daily-ops/sales.get').default>>>>
+    }
     '/api/daily-ops/workload': {
       'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/daily-ops/workload.get').default>>>>
     }
@@ -145,6 +148,9 @@ declare module "nitropack/types" {
       'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/notes/index.get').default>>>>
       'post': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/notes/index.post').default>>>>
     }
+    '/api/sales-aggregated': {
+      'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/sales-aggregated.get').default>>>>
+    }
     '/api/tags': {
       'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/tags/index.get').default>>>>
     }
@@ -165,13 +171,13 @@ declare module "nitropack/types" {
       'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/workers/index.get').default>>>>
     }
     '/__nuxt_error': {
-      'default': Simplify<Serialize<Awaited<ReturnType<typeof import('../../node_modules/.pnpm/@nuxt+nitro-server@4.4.2_@babel+core@7.29.0_db0@0.3.4_ioredis@5.10.1_magicast@0.5.2_nuxt@4.4._s5aro5qs5rljh2uuzc7klkl3py/node_modules/@nuxt/nitro-server/dist/runtime/handlers/renderer').default>>>>
+      'default': Simplify<Serialize<Awaited<ReturnType<typeof import('../../node_modules/.pnpm/@nuxt+nitro-server@4.4.2_@babel+core@7.29.0_db0@0.3.4_ioredis@5.10.1_magicast@0.5.2_nux_4ef35676041ca6aeac96e97cd57aa3e3/node_modules/@nuxt/nitro-server/dist/runtime/handlers/renderer').default>>>>
     }
     '/__nuxt_island/**': {
       'default': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/#internal/nuxt/island-renderer').default>>>>
     }
     '/api/_nuxt_icon/:collection': {
-      'default': Simplify<Serialize<Awaited<ReturnType<typeof import('../../node_modules/.pnpm/@nuxt+icon@2.2.1_magicast@0.5.2_vite@7.3.1_jiti@2.6.1_lightningcss@1.32.0_terser@5.46.1_yaml@_ms2gynvhjlgmdys4oxtkt4ausa/node_modules/@nuxt/icon/dist/runtime/server/api').default>>>>
+      'default': Simplify<Serialize<Awaited<ReturnType<typeof import('../../node_modules/.pnpm/@nuxt+icon@2.2.1_magicast@0.5.2_vite@7.3.1_jiti@2.6.1_lightningcss@1.32.0_terser@5.46.1_4abecf752c96ef90061202239c0fe9f1/node_modules/@nuxt/icon/dist/runtime/server/api').default>>>>
     }
   }
 }

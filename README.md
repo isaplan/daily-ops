@@ -1,75 +1,84 @@
-# Nuxt Minimal Starter
+# Daily Ops
 
-Look at the [Nuxt documentation](https://nuxt.com/docs/getting-started/introduction) to learn more.
+Nuxt 4 application for daily operations management with Bork/Eitje integrations, notes, and data synchronization.
 
-## Setup
+## Quick Start
 
-Make sure to install dependencies:
-
+Install dependencies:
 ```bash
-# npm
-npm install
-
-# pnpm
 pnpm install
-
-# yarn
-yarn install
-
-# bun
-bun install
 ```
 
-## Development Server
-
-Start the development server on `http://localhost:3000`:
-
+Start development server on `http://localhost:8080`:
 ```bash
-# npm
-npm run dev
-
-# pnpm
 pnpm dev
+```
 
-# yarn
-yarn dev
+For a clean rebuild:
+```bash
+pnpm dev:clean
+```
 
-# bun
-bun run dev
+## Key Features
+
+- **Daily Ops Dashboard** - Overview, insights, productivity, revenue
+- **Sales Analytics** - By day, location, and product
+- **Bork Integration** - Sync sales and master data from Bork APIs
+- **Eitje Integration** - Sync hours and data from Eitje APIs
+- **Notes Management** - Create, share, and organize notes
+- **Workers & Teams** - Manage team members and assignments
+
+## Important: Cron Job Scheduler
+
+The Bork and Eitje cron jobs require an **external scheduler** to run automatically. See [CRON_SCHEDULER_SETUP.md](./CRON_SCHEDULER_SETUP.md) for setup instructions.
+
+**TL;DR**: You must set up one of:
+- Vercel Cron (if deployed to Vercel)
+- GitHub Actions
+- External cron service (cron-job.org, EasyCron, etc.)
+
+Without a scheduler, cron jobs don't run automatically. You can still trigger them manually via the UI "Run Now" button.
+
+## Environment Variables
+
+Create `.env.local`:
+```
+PORT=8080
+MONGODB_URI=mongodb+srv://...
+MONGODB_DB_NAME=daily-ops-db
+NEXTAUTH_URL=http://localhost:8080
+NEXTAUTH_SECRET=your-secret-key
+CRON_SECRET=your-cron-secret-for-external-scheduling
 ```
 
 ## Production
 
-Build the application for production:
-
+Build for production:
 ```bash
-# npm
-npm run build
-
-# pnpm
 pnpm build
-
-# yarn
-yarn build
-
-# bun
-bun run build
-```
-
-Locally preview production build:
-
-```bash
-# npm
-npm run preview
-
-# pnpm
 pnpm preview
-
-# yarn
-yarn preview
-
-# bun
-bun run preview
 ```
 
-Check out the [deployment documentation](https://nuxt.com/docs/getting-started/deployment) for more information.
+## Deployment
+
+- **Vercel**: Recommended. Includes Vercel Cron support.
+- **Other Platforms**: Use GitHub Actions or external cron service for scheduling.
+
+## Troubleshooting
+
+### Cron Jobs Not Running?
+- Check [CRON_SCHEDULER_SETUP.md](./CRON_SCHEDULER_SETUP.md)
+- Ensure CRON_SECRET is set in production
+- Verify external scheduler is configured and calling the endpoint
+
+### Database Connection Issues?
+- Check MONGODB_URI is correct
+- If using MongoDB Atlas, verify IP whitelist
+- For local dev, ensure MongoDB is running or SSH tunnel is active
+
+### API Credentials Not Working?
+- Test credentials in the UI (click "Test" button)
+- Check Bork/Eitje base URLs are correct
+- Verify API keys are current and have appropriate permissions
+
+
