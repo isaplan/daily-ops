@@ -2471,16 +2471,16 @@ _wH6JrtIxmaSoA8lCPWFnE9z4lQeXW6H5z3l5aymEQw
 const assets = {
   "/index.mjs": {
     "type": "text/javascript; charset=utf-8",
-    "etag": "\"12938e-LD3VphjG4nG2uE/2aaqvqD1sLkg\"",
-    "mtime": "2026-04-09T23:10:02.002Z",
-    "size": 1217422,
+    "etag": "\"1293bf-9YwOlwCCRX+NOOpyTeMOJAihgpQ\"",
+    "mtime": "2026-04-10T09:49:07.159Z",
+    "size": 1217471,
     "path": "index.mjs"
   },
   "/index.mjs.map": {
     "type": "application/json",
-    "etag": "\"4b0a95-sUJ6zzsU2asNOauOGT3tdQzSxao\"",
-    "mtime": "2026-04-09T23:10:02.087Z",
-    "size": 4917909,
+    "etag": "\"4b0a85-NgNKiQQnD3Jks9CMw4U7T3+MA+4\"",
+    "mtime": "2026-04-10T09:49:07.180Z",
+    "size": 4917893,
     "path": "index.mjs.map"
   }
 };
@@ -29169,9 +29169,7 @@ async function rebuildBorkSalesAggregation(db, startDate, endDate, cronTime = /*
   const [endYear, endMonth, endDay] = endDate.split("-").map(Number);
   const startBorkDate = startYear * 1e4 + startMonth * 100 + startDay;
   const endBorkDate = endYear * 1e4 + endMonth * 100 + endDay;
-  const rawDocs = await db.collection("bork_raw_data").find({
-    "rawApiResponse.0.Orders.0.Date": { $gte: startBorkDate, $lte: endBorkDate }
-  }).toArray();
+  const rawDocs = await db.collection("bork_raw_data").find({}).toArray();
   if (rawDocs.length === 0) {
     return result;
   }
@@ -29185,10 +29183,6 @@ async function rebuildBorkSalesAggregation(db, startDate, endDate, cronTime = /*
     const tickets = Array.isArray(rawDoc.rawApiResponse) ? rawDoc.rawApiResponse : [rawDoc.rawApiResponse];
     for (const ticket of tickets) {
       if (!ticket || typeof ticket !== "object") continue;
-      const ticketDate = String(ticket.ActualDate || ticket.Date || "").padStart(8, "0");
-      if (!ticketDate || ticketDate === "00000000") continue;
-      const dateStr = borkDateToISO(parseInt(ticketDate, 10));
-      const hour = extractHour(ticket.Time);
       const tableNumber = ticket.TableName || "Unknown";
       const workerId = ticket.UserKey || ticket.UserId || "Unknown";
       const workerName = ticket.UserName || "Unknown";
@@ -29196,6 +29190,11 @@ async function rebuildBorkSalesAggregation(db, startDate, endDate, cronTime = /*
       const orders = Array.isArray(ticket.Orders) ? ticket.Orders : [];
       for (const order of orders) {
         if (!order || typeof order !== "object") continue;
+        const orderDate = String(order.Date || order.ActualDate || "").padStart(8, "0");
+        if (!orderDate || orderDate === "00000000") continue;
+        const orderBorkDate = parseInt(orderDate, 10);
+        if (orderBorkDate < startBorkDate || orderBorkDate > endBorkDate) continue;
+        const dateStr = borkDateToISO(orderBorkDate);
         const lines = Array.isArray(order.Lines) ? order.Lines : [];
         for (const line of lines) {
           if (!line || typeof line !== "object") continue;
@@ -29204,6 +29203,7 @@ async function rebuildBorkSalesAggregation(db, startDate, endDate, cronTime = /*
           const totalPrice = price * qty;
           const productName = line.ProductName || "Unknown";
           const productKey = line.ProductKey || "unknown";
+          const hour = extractHour(ticket.Time);
           const cronKey = `${locationId}:${dateStr}`;
           if (!byCronMap.has(cronKey)) {
             byCronMap.set(cronKey, {
@@ -29358,8 +29358,13 @@ async function rebuildBorkSalesAggregation(db, startDate, endDate, cronTime = /*
     await db.collection("bork_products_master").updateOne(
       { productId: prodDoc.productId },
       {
-        $set: prodDoc,
-        $addToSet: { locationIds: { $each: prodDoc.locationIds } }
+        $set: {
+          productId: prodDoc.productId,
+          productName: prodDoc.productName,
+          updatedAt: prodDoc.updatedAt
+        },
+        $addToSet: { locationIds: { $each: prodDoc.locationIds } },
+        $setOnInsert: { createdAt: prodDoc.createdAt }
       },
       { upsert: true }
     );

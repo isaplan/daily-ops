@@ -62,12 +62,11 @@ export async function rebuildBorkSalesAggregation(
   const startBorkDate = startYear * 10000 + startMonth * 100 + startDay
   const endBorkDate = endYear * 10000 + endMonth * 100 + endDay
 
-  // Fetch raw data for date range
+  // Fetch ALL raw data (we'll filter by date in the processing loop)
+  // The MongoDB query above only checks first order, but we need all orders in range
   const rawDocs = await db
     .collection('bork_raw_data')
-    .find({
-      'rawApiResponse.0.Orders.0.Date': { $gte: startBorkDate, $lte: endBorkDate },
-    })
+    .find({})
     .toArray()
 
   if (rawDocs.length === 0) {
@@ -88,11 +87,6 @@ export async function rebuildBorkSalesAggregation(
     for (const ticket of tickets) {
       if (!ticket || typeof ticket !== 'object') continue
 
-      const ticketDate = String(ticket.ActualDate || ticket.Date || '').padStart(8, '0')
-      if (!ticketDate || ticketDate === '00000000') continue
-
-      const dateStr = borkDateToISO(parseInt(ticketDate, 10))
-      const hour = extractHour(ticket.Time as string)
       const tableNumber = ticket.TableName || 'Unknown'
       const workerId = ticket.UserKey || ticket.UserId || 'Unknown'
       const workerName = ticket.UserName || 'Unknown'
@@ -104,6 +98,15 @@ export async function rebuildBorkSalesAggregation(
       for (const order of orders) {
         if (!order || typeof order !== 'object') continue
 
+        // Check order date against range
+        const orderDate = String(order.Date || order.ActualDate || '').padStart(8, '0')
+        if (!orderDate || orderDate === '00000000') continue
+
+        const orderBorkDate = parseInt(orderDate, 10)
+        if (orderBorkDate < startBorkDate || orderBorkDate > endBorkDate) continue
+
+        const dateStr = borkDateToISO(orderBorkDate)
+
         const lines = Array.isArray(order.Lines) ? order.Lines : []
 
         for (const line of lines) {
@@ -114,6 +117,9 @@ export async function rebuildBorkSalesAggregation(
           const totalPrice = price * qty
           const productName = line.ProductName || 'Unknown'
           const productKey = line.ProductKey || 'unknown'
+
+          // Extract hour from ticket time (not order time)
+          const hour = extractHour(ticket.Time as string)
 
           // BY CRON: aggregate by location + date
           const cronKey = `${locationId}:${dateStr}`
@@ -291,8 +297,13 @@ export async function rebuildBorkSalesAggregation(
     await db.collection('bork_products_master').updateOne(
       { productId: prodDoc.productId },
       {
-        $set: prodDoc,
+        $set: {
+          productId: prodDoc.productId,
+          productName: prodDoc.productName,
+          updatedAt: prodDoc.updatedAt,
+        },
         $addToSet: { locationIds: { $each: prodDoc.locationIds } },
+        $setOnInsert: { createdAt: prodDoc.createdAt },
       },
       { upsert: true }
     )
