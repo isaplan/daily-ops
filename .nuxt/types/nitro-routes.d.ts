@@ -54,6 +54,9 @@ declare module "nitropack/types" {
     '/api/data-sources/:datasource/raw-sample': {
       'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/data-sources/[datasource]/raw-sample.get').default>>>>
     }
+    '/api/debug/bork-raw-sample': {
+      'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/debug/bork-raw-sample.get').default>>>>
+    }
     '/api/eitje/v2/credentials': {
       'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/eitje/v2/credentials.get').default>>>>
       'post': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/eitje/v2/credentials.post').default>>>>

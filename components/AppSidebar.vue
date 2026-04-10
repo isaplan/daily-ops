@@ -129,7 +129,36 @@
             <li><NuxtLink to="/daily-ops/hours/by-location" :class="navLinkClass(route.path === '/daily-ops/hours/by-location')">By Location</NuxtLink></li>
           </ul>
         </li>
-        <!-- Inbox (collapsible) -->
+        <!-- Sales (collapsible) -->
+        <li>
+          <UTooltip v-if="collapsed" text="Sales" :popper="{ placement: 'right' }">
+            <UDropdownMenu :items="salesDropdownItems" :popper="{ placement: 'right-start' }">
+              <button
+                type="button"
+                :class="navLinkClass(isSalesSection)"
+                class="w-full flex items-center"
+              >
+                <UIcon name="i-lucide-shopping-cart" class="size-5 shrink-0" />
+              </button>
+            </UDropdownMenu>
+          </UTooltip>
+          <button v-else
+            type="button"
+            :class="navLinkClass(isSalesSection)"
+            class="w-full flex items-center"
+            @click="isSalesOpen = !isSalesOpen"
+          >
+            <UIcon name="i-lucide-shopping-cart" class="size-4 shrink-0" />
+            <span class="flex-1 text-left">Sales</span>
+            <UIcon name="i-lucide-chevron-right" :class="['size-4 shrink-0 transition-transform', isSalesOpen && 'rotate-90']" />
+          </button>
+          <ul v-if="!collapsed && isSalesOpen" class="mt-1 ml-4 space-y-0.5 border-l border-gray-200 pl-3">
+            <li><NuxtLink to="/daily-ops/sales" :class="navLinkClass(route.path === '/daily-ops/sales')">Day & Location</NuxtLink></li>
+            <li><NuxtLink to="/daily-ops/sales/by-day" :class="navLinkClass(route.path === '/daily-ops/sales/by-day')">By Day</NuxtLink></li>
+            <li><NuxtLink to="/daily-ops/sales/by-location" :class="navLinkClass(route.path === '/daily-ops/sales/by-location')">By Location</NuxtLink></li>
+            <li><NuxtLink to="/daily-ops/sales/by-product" :class="navLinkClass(route.path === '/daily-ops/sales/by-product')">By Product</NuxtLink></li>
+          </ul>
+        </li>
         <li>
           <button
             type="button"
@@ -286,6 +315,22 @@ const hoursDropdownItems = computed(() => [
   }],
 ])
 
+const salesDropdownItems = computed(() => [
+  [{
+    label: 'Day & Location',
+    to: '/daily-ops/sales',
+  }, {
+    label: 'By Day',
+    to: '/daily-ops/sales/by-day',
+  }, {
+    label: 'By Location',
+    to: '/daily-ops/sales/by-location',
+  }, {
+    label: 'By Product',
+    to: '/daily-ops/sales/by-product',
+  }],
+])
+
 const isDashboard = computed(() => route.path === '/' || route.path === '')
 const isAllNotes = computed(() => route.path === '/notes/all')
 const isTodos = computed(() => route.path === '/notes/todos')
@@ -295,6 +340,7 @@ const isOrganisation = computed(() => route.path === '/organisation')
 
 // Daily Ops nav state
 const isHoursOpen = ref(false)
+const isSalesOpen = ref(false)
 const isInboxOpen = ref(false)
 const isDailyOpsDashboard = computed(() => {
   const p = route.path.replace(/\/$/, '') || '/'
@@ -319,6 +365,7 @@ const isWorkersPage = computed(() => route.path === '/daily-ops/workers' || rout
 const isEitjeApi = computed(() => route.path === '/daily-ops/settings/eitje-api')
 const isBorkApi = computed(() => route.path === '/daily-ops/settings/bork-api')
 const isHoursSection = computed(() => route.path.startsWith('/daily-ops/hours'))
+const isSalesSection = computed(() => route.path.startsWith('/daily-ops/sales'))
 const isInboxSection = computed(() => route.path.startsWith('/daily-ops/inbox'))
 const isInboxEitje = computed(() => route.path === '/daily-ops/inbox/eitje' || route.path.startsWith('/daily-ops/inbox/eitje/'))
 const isInboxBork = computed(() => route.path === '/daily-ops/inbox/bork' || route.path.startsWith('/daily-ops/inbox/bork/'))
@@ -327,6 +374,7 @@ const isInboxOther = computed(() => route.path === '/daily-ops/inbox/other' || r
 
 watch(() => route.path, (path) => {
   if (path.startsWith('/daily-ops/hours')) isHoursOpen.value = true
+  if (path.startsWith('/daily-ops/sales')) isSalesOpen.value = true
   if (path.startsWith('/daily-ops/inbox')) isInboxOpen.value = true
 }, { immediate: true })
 

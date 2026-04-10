@@ -2,15 +2,17 @@
  * @registry-id: borkSyncService
  * @created: 2026-04-06T12:00:00.000Z
  * @last-modified: 2026-04-09T15:00:00.000Z
- * @description: Bork/Trivec gateway fetch + bork_raw_data upserts; drives Bork cron/sync
- * @last-fix: [2026-04-09] Fixed API endpoint: use /ticket/day.json/{YYYYMMDD}?appid={apiKey} instead of /api/v1/sales
+ * @description: Bork/Trivec gateway fetch + bork_raw_data upserts; drives Bork cron/sync; calls borkRebuildAggregationService after sync
+ * @last-fix: [2026-04-09] Integrated aggregation trigger on daily-data sync completion
  *
  * @exports-to:
  * ✓ server/api/bork/v2/cron.post.ts
  * ✓ server/api/bork/v2/sync.post.ts
+ * ✓ server/services/borkRebuildAggregationService.ts
  */
 
 import { ObjectId, type Db, type Document } from 'mongodb'
+import { rebuildBorkSalesAggregation } from './borkRebuildAggregationService'
 
 export type BorkLocationSyncResult = {
   locationId: string
@@ -178,12 +180,31 @@ export async function executeBorkJob (db: Db, jobType: string): Promise<BorkSync
   }
 
   const okCount = locations.filter((x) => x.ok).length
+  const syncOk = okCount > 0
+  const message = syncOk
+    ? `Synced ${okCount}/${creds.length} location(s) into bork_raw_data`
+    : `0/${creds.length} locations succeeded — check Bork API credentials and network access`
+
+  // After sync completes, trigger aggregation for daily data
+  let aggregationResult: Partial<{ byCron: number; byHour: number; byTable: number; byWorker: number }> = {}
+  if (syncOk && jobType === 'daily-data') {
+    try {
+      const today = new Date().toISOString().split('T')[0]
+      aggregationResult = await rebuildBorkSalesAggregation(db, today, today)
+    } catch (e) {
+      console.error('[borkSyncService] Aggregation error:', e)
+      // Don't fail the sync if aggregation fails
+    }
+  }
+
+  const finalMessage = aggregationResult.byCron 
+    ? `${message}; Aggregated: ${aggregationResult.byCron} cron snapshots, ${aggregationResult.byHour} hours, ${aggregationResult.byTable} tables, ${aggregationResult.byWorker} workers`
+    : message
+
   return {
-    ok: okCount > 0,
+    ok: syncOk,
     jobType,
-    message: okCount > 0
-      ? `Synced ${okCount}/${creds.length} location(s) into bork_raw_data`
-      : `0/${creds.length} locations succeeded — check Bork API credentials and network access`,
+    message: finalMessage,
     locations,
   }
 }
