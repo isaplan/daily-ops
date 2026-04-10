@@ -87,7 +87,6 @@ export async function rebuildBorkSalesAggregation(
     for (const ticket of tickets) {
       if (!ticket || typeof ticket !== 'object') continue
 
-      const tableNumber = ticket.TableName || 'Unknown'
       const workerId = ticket.UserKey || ticket.UserId || 'Unknown'
       const workerName = ticket.UserName || 'Unknown'
       const locationName = ticket.CenterName || 'Unknown'
@@ -106,6 +105,9 @@ export async function rebuildBorkSalesAggregation(
         if (orderBorkDate < startBorkDate || orderBorkDate > endBorkDate) continue
 
         const dateStr = borkDateToISO(orderBorkDate)
+        
+        // Table number is at order level, not ticket level
+        const tableNumber = String(order.TableNr || ticket.TableName || 'Unknown')
 
         const lines = Array.isArray(order.Lines) ? order.Lines : []
 

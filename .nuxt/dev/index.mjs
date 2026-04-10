@@ -2471,16 +2471,16 @@ _wH6JrtIxmaSoA8lCPWFnE9z4lQeXW6H5z3l5aymEQw
 const assets = {
   "/index.mjs": {
     "type": "text/javascript; charset=utf-8",
-    "etag": "\"1293bf-9YwOlwCCRX+NOOpyTeMOJAihgpQ\"",
-    "mtime": "2026-04-10T09:49:07.159Z",
-    "size": 1217471,
+    "etag": "\"129476-nBQ6ecagfca2HH+JaVlhZJ8MCpg\"",
+    "mtime": "2026-04-10T09:50:09.148Z",
+    "size": 1217654,
     "path": "index.mjs"
   },
   "/index.mjs.map": {
     "type": "application/json",
-    "etag": "\"4b0a85-NgNKiQQnD3Jks9CMw4U7T3+MA+4\"",
-    "mtime": "2026-04-10T09:49:07.180Z",
-    "size": 4917893,
+    "etag": "\"4b0d7c-rbJW6E6DiIS0V/f2zKJ2Sq7cuTs\"",
+    "mtime": "2026-04-10T09:50:09.191Z",
+    "size": 4918652,
     "path": "index.mjs.map"
   }
 };
@@ -29183,7 +29183,6 @@ async function rebuildBorkSalesAggregation(db, startDate, endDate, cronTime = /*
     const tickets = Array.isArray(rawDoc.rawApiResponse) ? rawDoc.rawApiResponse : [rawDoc.rawApiResponse];
     for (const ticket of tickets) {
       if (!ticket || typeof ticket !== "object") continue;
-      const tableNumber = ticket.TableName || "Unknown";
       const workerId = ticket.UserKey || ticket.UserId || "Unknown";
       const workerName = ticket.UserName || "Unknown";
       const locationName = ticket.CenterName || "Unknown";
@@ -29195,6 +29194,7 @@ async function rebuildBorkSalesAggregation(db, startDate, endDate, cronTime = /*
         const orderBorkDate = parseInt(orderDate, 10);
         if (orderBorkDate < startBorkDate || orderBorkDate > endBorkDate) continue;
         const dateStr = borkDateToISO(orderBorkDate);
+        const tableNumber = String(order.TableNr || ticket.TableName || "Unknown");
         const lines = Array.isArray(order.Lines) ? order.Lines : [];
         for (const line of lines) {
           if (!line || typeof line !== "object") continue;
