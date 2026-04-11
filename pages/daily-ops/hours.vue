@@ -22,16 +22,16 @@
             :items="endpointOptions"
             value-attribute="value"
             class="w-full"
-            @update:model-value="fetchHours"
+            @update:model-value="() => fetchHours(true)"
           />
         </div>
         <div class="space-y-2">
           <label class="text-sm font-medium">Start Date</label>
-          <UInput v-model="filters.startDate" type="date" @update:model-value="fetchHours" />
+          <UInput v-model="filters.startDate" type="date" @update:model-value="() => fetchHours(true)" />
         </div>
         <div class="space-y-2">
           <label class="text-sm font-medium">End Date</label>
-          <UInput v-model="filters.endDate" type="date" @update:model-value="fetchHours" />
+          <UInput v-model="filters.endDate" type="date" @update:model-value="() => fetchHours(true)" />
         </div>
         <div class="space-y-2">
           <label class="text-sm font-medium">Location</label>
@@ -40,7 +40,7 @@
             :items="locationOptions"
             value-attribute="value"
             class="w-full"
-            @update:model-value="fetchHours"
+            @update:model-value="() => fetchHours(true)"
           />
         </div>
         <div class="space-y-2">
@@ -50,7 +50,7 @@
             :items="sortByOptions"
             value-attribute="value"
             class="w-full"
-            @update:model-value="fetchHours"
+            @update:model-value="() => fetchHours(true)"
           />
         </div>
       </div>
@@ -62,14 +62,14 @@
             :items="[{ label: 'Descending', value: 'desc' }, { label: 'Ascending', value: 'asc' }]"
             value-attribute="value"
             class="w-36"
-            @update:model-value="fetchHours"
+            @update:model-value="() => fetchHours(true)"
           />
         </div>
         <UButton variant="outline" class="mt-6" @click="resetFilters">Reset Filters</UButton>
       </div>
     </UCard>
 
-    <div v-if="hoursData.length > 0" class="grid gap-4 md:grid-cols-3">
+    <div v-if="paginationTotal > 0" class="grid gap-4 md:grid-cols-3">
       <UCard>
         <template #header>
           <span class="text-sm font-medium">Total Hours</span>
@@ -94,7 +94,7 @@
       <template #header>
         <h2 class="font-semibold">Hours by Day and Location</h2>
         <p class="text-sm text-gray-500">
-          {{ loading ? 'Loading...' : `${hoursData.length} record(s) found` }}
+          {{ loading ? 'Loading...' : `${paginationTotal} record(s) total · ${hoursData.length} on this page` }}
         </p>
       </template>
       <div v-if="loading" class="py-8 text-center text-gray-500">Loading hours data...</div>
@@ -185,6 +185,9 @@
             </tbody>
           </table>
         </div>
+        <div v-if="paginationTotal > pageSize" class="mt-6 flex justify-center">
+          <UPagination :page="page" :total="paginationTotal" :items-per-page="pageSize" @update:page="onPageChange" />
+        </div>
         <p v-if="hoursData.length === 0 && !loading" class="mt-4 text-center text-sm text-gray-500">
           Hours data is synced from the Eitje API. Configure Settings → Eitje API and run sync to populate.
         </p>
@@ -238,9 +241,7 @@ const sortByOptions = [
   { label: 'Total Hours', value: 'total_hours' },
 ]
 
-const today = new Date()
-const defaultStart = '2025-01-01'
-const defaultEnd = today.toISOString().split('T')[0]
+const { startDate: defaultStart, endDate: defaultEnd } = getLast30DaysRange()
 
 const filters = reactive({
   startDate: defaultStart,
@@ -255,6 +256,10 @@ const hoursData = ref<Record<string, unknown>[]>([])
 const locations = ref<{ _id: string; name: string }[]>([])
 const loading = ref(true)
 const error = ref<string | null>(null)
+const page = ref(1)
+const pageSize = 50
+const paginationTotal = ref(0)
+const rangeTotals = ref({ total_hours: 0, total_cost: 0, record_count: 0 })
 const expandedRow = ref<number | null>(null)
 const rowDetailRecords = ref<{ id: string; support_id: string; worker_name: string; team_name: string; start: string; end: string; hours: number }[]>([])
 const rowDetailLoading = ref(false)
@@ -271,10 +276,10 @@ const locationOptions = computed(() => [
   ...locations.value.map((l) => ({ label: l.name, value: l._id })),
 ])
 
-const totalHours = computed(() => hoursData.value.reduce((s, r) => s + Number(r.total_hours ?? 0), 0))
+const totalHours = computed(() => rangeTotals.value.total_hours)
 const rowDetailSumHours = computed(() => rowDetailRecords.value.reduce((s, r) => s + Number(r.hours ?? 0), 0))
-const totalCost = computed(() => hoursData.value.reduce((s, r) => s + Number(r.total_cost ?? 0), 0))
-const totalRecords = computed(() => hoursData.value.reduce((s, r) => s + Number(r.record_count ?? 0), 0))
+const totalCost = computed(() => rangeTotals.value.total_cost)
+const totalRecords = computed(() => Math.round(rangeTotals.value.record_count))
 
 function formatDate (d: unknown) {
   if (!d) return '-'
@@ -320,9 +325,11 @@ watch(expandedRow, (idx) => {
   if (row) fetchRowDetail(row)
 })
 
-async function fetchHours () {
+async function fetchHours (resetPage = false) {
+  if (resetPage) page.value = 1
   loading.value = true
   error.value = null
+  expandedRow.value = null
   try {
     const params = new URLSearchParams()
     if (filters.startDate) params.set('startDate', filters.startDate)
@@ -332,11 +339,24 @@ async function fetchHours () {
     params.set('groupBy', 'date_location')
     params.set('sortBy', filters.sortBy)
     params.set('sortOrder', filters.sortOrder)
-    const res = await $fetch<{ success: boolean; data?: Record<string, unknown>[]; locations?: { _id: string; name: string }[] }>(`/api/hours-aggregated?${params}`)
+    params.set('page', String(page.value))
+    params.set('pageSize', String(pageSize))
+    const res = await $fetch<{
+      success: boolean
+      data?: Record<string, unknown>[]
+      locations?: { _id: string; name: string }[]
+      pagination?: { totalCount: number }
+      totals?: { total_hours: number; total_cost: number; record_count: number }
+    }>(`/api/hours-aggregated?${params}`)
     if (res.success) {
       hoursData.value = res.data ?? []
       locations.value = res.locations ?? []
-      expandedRow.value = null
+      paginationTotal.value = res.pagination?.totalCount ?? hoursData.value.length
+      rangeTotals.value = {
+        total_hours: res.totals?.total_hours ?? 0,
+        total_cost: res.totals?.total_cost ?? 0,
+        record_count: res.totals?.record_count ?? 0,
+      }
     }
   } catch (e: unknown) {
     error.value = e instanceof Error ? e.message : 'Failed to fetch hours data'
@@ -346,14 +366,20 @@ async function fetchHours () {
   }
 }
 
+function onPageChange (p: number) {
+  page.value = p
+  void fetchHours(false)
+}
+
 function resetFilters () {
-  filters.startDate = defaultStart
-  filters.endDate = defaultEnd
+  const r = getLast30DaysRange()
+  filters.startDate = r.startDate
+  filters.endDate = r.endDate
   filters.locationId = 'all'
   filters.endpoint = 'time_registration_shifts'
   filters.sortBy = 'date'
   filters.sortOrder = 'desc'
-  fetchHours()
+  void fetchHours(true)
 }
 
 async function runConsistencyCheck () {
@@ -378,5 +404,7 @@ async function runConsistencyCheck () {
   }
 }
 
-onMounted(() => fetchHours())
+onMounted(() => {
+  void fetchHours(true)
+})
 </script>

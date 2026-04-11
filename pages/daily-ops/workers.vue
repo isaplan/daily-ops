@@ -21,7 +21,7 @@
             :items="sourceOptions"
             value-attribute="value"
             class="w-full"
-            @update:model-value="fetchHours"
+            @update:model-value="() => fetchHours(true)"
           />
         </div>
         <div v-if="filters.source === 'synced'" class="space-y-2">
@@ -31,7 +31,7 @@
             :items="workerScopeOptions"
             value-attribute="value"
             class="w-full"
-            @update:model-value="fetchHours"
+            @update:model-value="() => fetchHours(true)"
           />
         </div>
         <template v-if="filters.source === 'synced'">
@@ -42,7 +42,7 @@
               :items="endpointOptions"
               value-attribute="value"
               class="w-full"
-              @update:model-value="fetchHours"
+              @update:model-value="() => fetchHours(true)"
             />
           </div>
           <div class="space-y-2">
@@ -51,7 +51,7 @@
               v-model="filters.startDate"
               type="date"
               :disabled="filters.workerScope === 'active_3m'"
-              @update:model-value="fetchHours"
+              @update:model-value="() => fetchHours(true)"
             />
           </div>
           <div class="space-y-2">
@@ -60,7 +60,7 @@
               v-model="filters.endDate"
               type="date"
               :disabled="filters.workerScope === 'active_3m'"
-              @update:model-value="fetchHours"
+              @update:model-value="() => fetchHours(true)"
             />
           </div>
         </template>
@@ -73,7 +73,7 @@
             :items="sortByOptions"
             value-attribute="value"
             class="w-[200px]"
-            @update:model-value="fetchHours"
+            @update:model-value="() => fetchHours(true)"
           />
         </div>
         <div class="space-y-2">
@@ -83,7 +83,7 @@
             :items="sortOrderOptions"
             value-attribute="value"
             class="w-[140px]"
-            @update:model-value="fetchHours"
+            @update:model-value="() => fetchHours(true)"
           />
         </div>
         <UButton variant="outline" @click="resetFilters">Reset</UButton>
@@ -93,7 +93,7 @@
       </p>
     </UCard>
 
-    <div v-if="hoursData.length > 0" class="grid gap-4 md:grid-cols-3">
+    <div v-if="paginationTotal > 0" class="grid gap-4 md:grid-cols-3">
       <UCard>
         <template #header>
           <span class="text-sm font-medium">Total Hours</span>
@@ -108,9 +108,9 @@
       </UCard>
       <UCard>
         <template #header>
-          <span class="text-sm font-medium">Total Workers</span>
+          <span class="text-sm font-medium">Workers (range)</span>
         </template>
-        <p class="text-2xl font-bold">{{ hoursData.length }}</p>
+        <p class="text-2xl font-bold">{{ paginationTotal }}</p>
       </UCard>
     </div>
 
@@ -118,7 +118,7 @@
       <template #header>
         <h2 class="font-semibold">Workers</h2>
         <p class="text-sm text-gray-500">
-          {{ loading ? 'Loading...' : `${hoursData.length} worker(s) found` }}
+          {{ loading ? 'Loading...' : filters.source === 'contracts' ? `${hoursData.length} worker(s)` : `${paginationTotal} worker(s) total · ${hoursData.length} on this page` }}
         </p>
       </template>
       <div v-if="loading" class="py-8 text-center text-gray-500">
@@ -204,6 +204,9 @@
           </tbody>
         </table>
       </div>
+      <div v-if="paginationTotal > pageSize" class="mt-6 flex justify-center">
+        <UPagination :page="page" :total="paginationTotal" :items-per-page="pageSize" @update:page="onPageChange" />
+      </div>
       <p v-if="hoursData.length === 0 && !loading" class="mt-4 text-center text-sm text-gray-500">
         Hours data is synced from the Eitje API.
       </p>
@@ -237,13 +240,11 @@ const sortOrderOptions = [
   { label: 'Ascending', value: 'asc' },
 ]
 
-const today = new Date()
-const defaultStart = '2025-01-01'
-const defaultEnd = today.toISOString().split('T')[0]
+const { startDate: rangeDefaultStart, endDate: rangeDefaultEnd } = getLast30DaysRange()
 
 const filters = reactive({
-  startDate: defaultStart,
-  endDate: defaultEnd,
+  startDate: rangeDefaultStart,
+  endDate: rangeDefaultEnd,
   endpoint: 'time_registration_shifts',
   source: 'synced' as 'synced' | 'contracts',
   workerScope: 'active_3m' as 'active_3m' | 'all',
@@ -256,9 +257,13 @@ const loading = ref(true)
 const error = ref<string | null>(null)
 const expandedWorkers = ref(new Set<number>())
 const workerTeamBreakdown = ref<Record<number, any[]>>({})
+const page = ref(1)
+const pageSize = 50
+const paginationTotal = ref(0)
+const rangeTotals = ref({ total_hours: 0, total_cost: 0, record_count: 0 })
 
-const totalHours = computed(() => hoursData.value.reduce((s, r) => s + Number(r.total_hours ?? 0), 0))
-const totalCost = computed(() => hoursData.value.reduce((s, r) => s + Number(r.total_cost ?? 0), 0))
+const totalHours = computed(() => rangeTotals.value.total_hours)
+const totalCost = computed(() => rangeTotals.value.total_cost)
 
 function getThreeMonthsAgoDate (): string {
   const d = new Date()
@@ -266,43 +271,74 @@ function getThreeMonthsAgoDate (): string {
   return d.toISOString().split('T')[0] || ''
 }
 
-async function fetchHours () {
+async function fetchHours (resetPage = false) {
+  if (resetPage) page.value = 1
   loading.value = true
   error.value = null
+  expandedWorkers.value = new Set()
+  workerTeamBreakdown.value = {}
   try {
     const params = new URLSearchParams()
     if (filters.source === 'synced') {
+      const endToday = new Date().toISOString().split('T')[0]
       const start = filters.workerScope === 'active_3m' ? getThreeMonthsAgoDate() : filters.startDate
-      const end = filters.workerScope === 'active_3m' ? defaultEnd : filters.endDate
+      const end = filters.workerScope === 'active_3m' ? endToday : filters.endDate
       if (start) params.set('startDate', start)
       if (end) params.set('endDate', end)
       params.set('endpoint', filters.endpoint)
+      params.set('page', String(page.value))
+      params.set('pageSize', String(pageSize))
     } else {
       params.set('source', 'contracts')
+      params.set('page', String(page.value))
+      params.set('pageSize', String(pageSize))
     }
     params.set('groupBy', 'worker')
     params.set('sortBy', filters.sortBy)
     params.set('sortOrder', filters.sortOrder)
 
-    const res = await $fetch<{ success: boolean; data?: Record<string, unknown>[] }>(`/api/hours-aggregated?${params}`)
-    hoursData.value = res.success ? (res.data ?? []) : []
+    const res = await $fetch<{
+      success: boolean
+      data?: Record<string, unknown>[]
+      pagination?: { totalCount: number }
+      totals?: { total_hours: number; total_cost: number; record_count: number }
+    }>(`/api/hours-aggregated?${params}`)
+    if (res.success) {
+      hoursData.value = res.data ?? []
+      paginationTotal.value = res.pagination?.totalCount ?? hoursData.value.length
+      rangeTotals.value = {
+        total_hours: res.totals?.total_hours ?? 0,
+        total_cost: res.totals?.total_cost ?? 0,
+        record_count: res.totals?.record_count ?? 0,
+      }
+    } else {
+      hoursData.value = []
+      paginationTotal.value = 0
+    }
   } catch (e: unknown) {
     error.value = e instanceof Error ? e.message : 'Failed to fetch'
     hoursData.value = []
+    paginationTotal.value = 0
   } finally {
     loading.value = false
   }
 }
 
+function onPageChange (p: number) {
+  page.value = p
+  void fetchHours(false)
+}
+
 function resetFilters () {
-  filters.startDate = defaultStart
-  filters.endDate = defaultEnd
+  const r = getLast30DaysRange()
+  filters.startDate = r.startDate
+  filters.endDate = r.endDate
   filters.endpoint = 'time_registration_shifts'
   filters.source = 'synced'
   filters.workerScope = 'active_3m'
   filters.sortBy = 'total_hours'
   filters.sortOrder = 'desc'
-  fetchHours()
+  void fetchHours(true)
 }
 
 async function toggleWorkerExpanded (idx: number) {
@@ -323,29 +359,32 @@ async function fetchWorkerTeamBreakdown (idx: number) {
     // Query aggregation collection for this worker's breakdown by location and team
     const params = new URLSearchParams()
     if (filters.source === 'synced') {
+      const endToday = new Date().toISOString().split('T')[0]
       const start = filters.workerScope === 'active_3m' ? getThreeMonthsAgoDate() : filters.startDate
-      const end = filters.workerScope === 'active_3m' ? defaultEnd : filters.endDate
+      const end = filters.workerScope === 'active_3m' ? endToday : filters.endDate
       if (start) params.set('startDate', start)
       if (end) params.set('endDate', end)
       params.set('endpoint', filters.endpoint)
     } else {
       params.set('source', 'contracts')
     }
-    // groupBy=worker_location_team will show per-location, per-team breakdown
     params.set('groupBy', 'worker_location_team')
     params.set('workerId', String(row.worker_id ?? ''))
     params.set('sortBy', 'total_hours')
     params.set('sortOrder', 'desc')
+    params.set('page', '1')
+    params.set('pageSize', '500')
 
     const res = await $fetch<{ success: boolean; data?: Record<string, unknown>[] }>(`/api/hours-aggregated?${params}`)
     const breakdown = res.success ? (res.data ?? []) : []
     
     workerTeamBreakdown.value[idx] = breakdown
-  } catch (e: unknown) {
-    console.error('Failed to fetch team breakdown:', e)
+  } catch {
     workerTeamBreakdown.value[idx] = []
   }
 }
 
-onMounted(() => fetchHours())
+onMounted(() => {
+  void fetchHours(true)
+})
 </script>

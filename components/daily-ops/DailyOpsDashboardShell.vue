@@ -17,18 +17,19 @@
         />
       </div>
       <div class="inline-flex w-full max-w-max flex-wrap items-center gap-1 rounded-md border-2 border-gray-900 bg-white p-1">
-        <UButton
+        <NuxtLink
           v-for="opt in periodOptions"
           :key="opt.id"
-          size="sm"
-          :variant="period === opt.id ? 'solid' : 'ghost'"
-          :color="period === opt.id ? 'neutral' : 'neutral'"
-          class="rounded px-3 py-1.5 text-sm font-semibold"
-          :class="period === opt.id ? 'bg-gray-900 text-white hover:bg-gray-900' : 'text-gray-700 hover:bg-gray-100'"
-          @click="setPeriod(opt.id)"
+          :to="{ path: route.path, query: { ...route.query, period: opt.id } }"
+          replace
+          prefetch
+          class="rounded px-3 py-1.5 text-sm font-semibold no-underline transition-colors"
+          :class="period === opt.id
+            ? 'bg-gray-900 text-white'
+            : 'text-gray-700 hover:bg-gray-100'"
         >
           {{ opt.label }}
-        </UButton>
+        </NuxtLink>
       </div>
     </div>
 
@@ -57,12 +58,13 @@ import type { DailyOpsPeriodId } from '~/types/daily-ops-dashboard'
 
 type LocationRow = { _id: string; name: string }
 
+const route = useRoute()
+
 const {
   period,
   locationId,
   dashboardQuery,
   activeNav,
-  setPeriod,
   setLocation,
 } = useDailyOpsDashboardRoute()
 

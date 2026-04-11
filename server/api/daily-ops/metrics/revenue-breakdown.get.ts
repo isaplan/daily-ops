@@ -1,38 +1,27 @@
-import { getDb } from '../../utils/db'
+import { getDb } from '../../../utils/db'
 import {
-  VAT_DISCLAIMER,
   computeMostProfitableHour,
-  fetchBorkRevenueTotals,
-  fetchEitjeLaborTotals,
   fetchHourlyRevenueForRange,
   fetchLaborByDate,
   fetchRevenueByCategoryFromRaw,
   fetchRevenueByDate,
   fetchRevenueByTimePeriod,
   parseDailyOpsMetricsQuery,
-} from '../../utils/dailyOpsDashboardMetrics'
-import type { DailyOpsOverviewDto } from '~/types/daily-ops-dashboard'
+} from '../../../utils/dailyOpsDashboardMetrics'
+import type { DailyOpsRevenueBreakdownDto } from '~/types/daily-ops-dashboard'
 
-/** @deprecated Prefer /api/daily-ops/metrics/* for smaller, parallel responses. */
-export default defineEventHandler(async (event): Promise<DailyOpsOverviewDto> => {
+export default defineEventHandler(async (event): Promise<DailyOpsRevenueBreakdownDto> => {
   setResponseHeader(event, 'Cache-Control', 'private, max-age=30, stale-while-revalidate=120')
   const ctx = parseDailyOpsMetricsQuery(getQuery(event) as Record<string, unknown>)
   const db = await getDb()
 
-  const [rev, lab, cat, tp, hourRows, revenueByDate, laborByDate] = await Promise.all([
-    fetchBorkRevenueTotals(db, ctx),
-    fetchEitjeLaborTotals(db, ctx),
+  const [cat, tp, hourRows, revenueByDate, laborByDate] = await Promise.all([
     fetchRevenueByCategoryFromRaw(db, ctx),
     fetchRevenueByTimePeriod(db, ctx),
     fetchHourlyRevenueForRange(db, ctx),
     fetchRevenueByDate(db, ctx),
     fetchLaborByDate(db, ctx),
   ])
-
-  const totalRevenue = rev.totalRevenue
-  const totalLaborCost = lab.totalLaborCost
-  const profit = totalRevenue - totalLaborCost
-  const profitMarginPct = totalRevenue > 0 ? (profit / totalRevenue) * 100 : 0
 
   const best = computeMostProfitableHour(hourRows, revenueByDate, laborByDate)
 
@@ -41,7 +30,7 @@ export default defineEventHandler(async (event): Promise<DailyOpsOverviewDto> =>
     { key: 'food', label: 'Food', amount: Math.round(cat.food * 100) / 100 },
   ]
 
-  const revenueByTimePeriod = [
+  const revenueByTimePeriod: { key: string; label: string; amount: number }[] = [
     { key: 'lunch', label: 'Lunch', amount: Math.round(tp.lunch * 100) / 100 },
     { key: 'pre_drinks', label: 'Pre Drinks', amount: Math.round(tp.pre_drinks * 100) / 100 },
     { key: 'dinner', label: 'Dinner', amount: Math.round(tp.dinner * 100) / 100 },
@@ -61,12 +50,6 @@ export default defineEventHandler(async (event): Promise<DailyOpsOverviewDto> =>
       startDate: ctx.startDate,
       endDate: ctx.endDate,
     },
-    summary: {
-      totalRevenue: Math.round(totalRevenue * 100) / 100,
-      totalLaborCost: Math.round(totalLaborCost * 100) / 100,
-      profit: Math.round(profit * 100) / 100,
-      profitMarginPct: Math.round(profitMarginPct * 10) / 10,
-    },
     revenueByCategory,
     revenueByTimePeriod,
     mostProfitableHour: {
@@ -76,6 +59,5 @@ export default defineEventHandler(async (event): Promise<DailyOpsOverviewDto> =>
       laborCost: Math.round(best.laborCost * 100) / 100,
       profit: Math.round(best.profit * 100) / 100,
     },
-    vatDisclaimer: VAT_DISCLAIMER,
   }
 })

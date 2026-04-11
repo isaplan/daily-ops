@@ -153,10 +153,12 @@
             <UIcon name="i-lucide-chevron-right" :class="['size-4 shrink-0 transition-transform', isSalesOpen && 'rotate-90']" />
           </button>
           <ul v-if="!collapsed && isSalesOpen" class="mt-1 ml-4 space-y-0.5 border-l border-gray-200 pl-3">
-            <li><NuxtLink to="/daily-ops/sales" :class="navLinkClass(route.path === '/daily-ops/sales')">Day & Location</NuxtLink></li>
-            <li><NuxtLink to="/daily-ops/sales/by-day" :class="navLinkClass(route.path === '/daily-ops/sales/by-day')">By Day</NuxtLink></li>
-            <li><NuxtLink to="/daily-ops/sales/by-location" :class="navLinkClass(route.path === '/daily-ops/sales/by-location')">By Location</NuxtLink></li>
+            <li><NuxtLink to="/daily-ops/sales" :class="navLinkClass(route.path === '/daily-ops/sales')">Overview</NuxtLink></li>
+            <li><NuxtLink to="/daily-ops/sales/by-hour" :class="navLinkClass(route.path === '/daily-ops/sales/by-hour')">By Hour</NuxtLink></li>
+            <li><NuxtLink to="/daily-ops/sales/by-table" :class="navLinkClass(route.path === '/daily-ops/sales/by-table')">By Table</NuxtLink></li>
+            <li><NuxtLink to="/daily-ops/sales/by-worker" :class="navLinkClass(route.path === '/daily-ops/sales/by-worker')">By Worker</NuxtLink></li>
             <li><NuxtLink to="/daily-ops/sales/by-product" :class="navLinkClass(route.path === '/daily-ops/sales/by-product')">By Product</NuxtLink></li>
+            <li><NuxtLink to="/daily-ops/sales/by-guest-account" :class="navLinkClass(route.path === '/daily-ops/sales/by-guest-account')">By Guest Account</NuxtLink></li>
           </ul>
         </li>
         <li>
@@ -317,17 +319,23 @@ const hoursDropdownItems = computed(() => [
 
 const salesDropdownItems = computed(() => [
   [{
-    label: 'Day & Location',
+    label: 'Overview',
     to: '/daily-ops/sales',
   }, {
-    label: 'By Day',
-    to: '/daily-ops/sales/by-day',
+    label: 'By Hour',
+    to: '/daily-ops/sales/by-hour',
   }, {
-    label: 'By Location',
-    to: '/daily-ops/sales/by-location',
+    label: 'By Table',
+    to: '/daily-ops/sales/by-table',
+  }, {
+    label: 'By Worker',
+    to: '/daily-ops/sales/by-worker',
   }, {
     label: 'By Product',
     to: '/daily-ops/sales/by-product',
+  }, {
+    label: 'By Guest Account',
+    to: '/daily-ops/sales/by-guest-account',
   }],
 ])
 

@@ -1,9 +1,9 @@
 /**
  * @registry-id: eitjeSyncService
  * @created: 2026-04-05T12:00:00.000Z
- * @last-modified: 2026-04-08T12:00:00.000Z
+ * @last-modified: 2026-04-12T12:00:00.000Z
  * @description: Fetches Eitje Open API resources and upserts eitje_raw_data; drives cron/sync handlers
- * @last-fix: [2026-04-08] Time registration: chunk by Eitje max days (legacy v2-cron-manager); hist default 30d
+ * @last-fix: [2026-04-12] Optional EITJE_BACKFILL_CHUNK_DELAY_MS between time-registration API windows
  *
  * @exports-to:
  * ✓ server/api/eitje/v2/cron.post.ts
@@ -376,6 +376,8 @@ async function syncTimeRegistrationShiftsWindow (
   return { upserted, fetched: records.length }
 }
 
+const sleepMs = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
+
 async function syncTimeRegistrationShifts (
   db: Db,
   creds: EitjeStoredCredentials,
@@ -383,10 +385,13 @@ async function syncTimeRegistrationShifts (
   endDate: string
 ): Promise<{ upserted: number; fetched: number; error?: string }> {
   const maxDays = envInt('EITJE_TIME_REGISTRATION_MAX_DAYS', 7)
+  const chunkDelayMs = envInt('EITJE_BACKFILL_CHUNK_DELAY_MS', 0)
   const chunks = splitDateRangeForEitje(startDate, endDate, maxDays)
   let upserted = 0
   let fetched = 0
+  let i = 0
   for (const ch of chunks) {
+    i++
     const r = await syncTimeRegistrationShiftsWindow(db, creds, ch.startDate, ch.endDate)
     if (r.error) {
       return {
@@ -397,6 +402,7 @@ async function syncTimeRegistrationShifts (
     }
     upserted += r.upserted
     fetched += r.fetched
+    if (chunkDelayMs > 0 && i < chunks.length) await sleepMs(chunkDelayMs)
   }
   return { upserted, fetched }
 }

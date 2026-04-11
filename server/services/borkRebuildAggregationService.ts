@@ -16,6 +16,7 @@ export type RebuildBorkAggResult = {
   byHour: number
   byTable: number
   byWorker: number
+  byGuestAccount: number
   productsMaster: number
 }
 
@@ -53,6 +54,7 @@ export async function rebuildBorkSalesAggregation(
     byHour: 0,
     byTable: 0,
     byWorker: 0,
+    byGuestAccount: 0,
     productsMaster: 0,
   }
 
@@ -62,8 +64,14 @@ export async function rebuildBorkSalesAggregation(
   const startBorkDate = startYear * 10000 + startMonth * 100 + startDay
   const endBorkDate = endYear * 10000 + endMonth * 100 + endDay
 
+  // Load mapping tables for unified IDs
+  const locMappings = await db.collection('bork_unified_location_mapping').find({}).toArray()
+  const userMappings = await db.collection('bork_unified_user_mapping').find({}).toArray()
+
+  const locMap = new Map(locMappings.map(l => [String(l.borkLocationId), { unifiedId: l.unifiedLocationId, name: l.unifiedLocationName }]))
+  const userMap = new Map(userMappings.map(u => [u.borkUserId || u.borkUserName, { unifiedId: u.unifiedUserId, name: u.unifiedUserName }]))
+
   // Fetch ALL raw data (we'll filter by date in the processing loop)
-  // The MongoDB query above only checks first order, but we need all orders in range
   const rawDocs = await db
     .collection('bork_raw_data')
     .find({})
@@ -78,18 +86,29 @@ export async function rebuildBorkSalesAggregation(
   const byHourMap = new Map<string, Document>()
   const byTableMap = new Map<string, Document>()
   const byWorkerMap = new Map<string, Document>()
+  const byGuestAccountMap = new Map<string, Document>()
   const productsMasterMap = new Map<string, Document>()
 
   for (const rawDoc of rawDocs) {
-    const locationId = rawDoc.locationId
+    const borkLocationId = rawDoc.locationId
+    const locMapping = locMap.get(String(borkLocationId))
+    
+    if (!locMapping) {
+      console.warn(`No unified location mapping for Bork location ${borkLocationId}`)
+      continue
+    }
+
+    const unifiedLocationId = locMapping.unifiedId
+    const unifiedLocationName = locMapping.name
     const tickets = Array.isArray(rawDoc.rawApiResponse) ? rawDoc.rawApiResponse : [rawDoc.rawApiResponse]
 
     for (const ticket of tickets) {
       if (!ticket || typeof ticket !== 'object') continue
 
-      const workerId = ticket.UserKey || ticket.UserId || 'Unknown'
-      const workerName = ticket.UserName || 'Unknown'
-      const locationName = ticket.CenterName || 'Unknown'
+      const borkWorkerName = ticket.UserName || 'Unknown'
+      const userMapping = userMap.get(borkWorkerName) || userMap.get(ticket.UserId)
+      const unifiedWorkerId = userMapping?.unifiedId || 'unknown'
+      const unifiedWorkerName = userMapping?.name || borkWorkerName
 
       // Process Orders and Lines
       const orders = Array.isArray(ticket.Orders) ? ticket.Orders : []
@@ -107,7 +126,10 @@ export async function rebuildBorkSalesAggregation(
         const dateStr = borkDateToISO(orderBorkDate)
         
         // Table number is at order level, not ticket level
-        const tableNumber = String(order.TableNr || ticket.TableName || 'Unknown')
+        // ONLY aggregate orders WITH table numbers into bork_sales_by_table
+        // Null/empty = guest accounts - skip from table aggregation
+        const tableNumber = String(order.TableNr || '').trim()
+        const hasTable = tableNumber.length > 0
 
         const lines = Array.isArray(order.Lines) ? order.Lines : []
 
@@ -123,13 +145,13 @@ export async function rebuildBorkSalesAggregation(
           // Extract hour from ticket time (not order time)
           const hour = extractHour(ticket.Time as string)
 
-          // BY CRON: aggregate by location + date
-          const cronKey = `${locationId}:${dateStr}`
+          // BY CRON: aggregate by unified location + date (ALL orders)
+          const cronKey = `${unifiedLocationId}:${dateStr}`
           if (!byCronMap.has(cronKey)) {
             byCronMap.set(cronKey, {
               cronTime,
-              locationId,
-              locationName,
+              locationId: unifiedLocationId,
+              locationName: unifiedLocationName,
               date: dateStr,
               total_revenue: 0,
               total_quantity: 0,
@@ -141,14 +163,14 @@ export async function rebuildBorkSalesAggregation(
           cronEntry.total_quantity = (cronEntry.total_quantity as number) + qty
           cronEntry.record_count = (cronEntry.record_count as number) + 1
 
-          // BY HOUR: aggregate by location + date + hour
-          const hourKey = `${locationId}:${dateStr}:${hour}`
+          // BY HOUR: aggregate by unified location + date + hour (ALL orders)
+          const hourKey = `${unifiedLocationId}:${dateStr}:${hour}`
           if (!byHourMap.has(hourKey)) {
             byHourMap.set(hourKey, {
               date: dateStr,
               hour,
-              locationId,
-              locationName,
+              locationId: unifiedLocationId,
+              locationName: unifiedLocationName,
               total_revenue: 0,
               total_quantity: 0,
               record_count: 0,
@@ -173,46 +195,48 @@ export async function rebuildBorkSalesAggregation(
           prod.revenue += totalPrice
           prod.quantity += qty
 
-          // BY TABLE: aggregate by location + date + hour + table
-          const tableKey = `${locationId}:${dateStr}:${hour}:${tableNumber}`
-          if (!byTableMap.has(tableKey)) {
-            byTableMap.set(tableKey, {
-              date: dateStr,
-              hour,
-              locationId,
-              locationName,
-              tableNumber,
-              total_revenue: 0,
-              total_quantity: 0,
-              products: new Map<string, { productId: string; productName: string; revenue: number; quantity: number }>(),
-            })
-          }
-          const tableEntry = byTableMap.get(tableKey)!
-          tableEntry.total_revenue = (tableEntry.total_revenue as number) + totalPrice
-          tableEntry.total_quantity = (tableEntry.total_quantity as number) + qty
+          // BY TABLE: ONLY if order has table number (skip guest accounts)
+          if (hasTable) {
+            const tableKey = `${unifiedLocationId}:${dateStr}:${hour}:${tableNumber}`
+            if (!byTableMap.has(tableKey)) {
+              byTableMap.set(tableKey, {
+                date: dateStr,
+                hour,
+                locationId: unifiedLocationId,
+                locationName: unifiedLocationName,
+                tableNumber,
+                total_revenue: 0,
+                total_quantity: 0,
+                products: new Map<string, { productId: string; productName: string; revenue: number; quantity: number }>(),
+              })
+            }
+            const tableEntry = byTableMap.get(tableKey)!
+            tableEntry.total_revenue = (tableEntry.total_revenue as number) + totalPrice
+            tableEntry.total_quantity = (tableEntry.total_quantity as number) + qty
 
-          if (!tableEntry.products.has(productKey)) {
-            tableEntry.products.set(productKey, {
-              productId: productKey,
-              productName,
-              revenue: 0,
-              quantity: 0,
-            })
+            if (!tableEntry.products.has(productKey)) {
+              tableEntry.products.set(productKey, {
+                productId: productKey,
+                productName,
+                revenue: 0,
+                quantity: 0,
+              })
+            }
+            const tableProd = tableEntry.products.get(productKey)!
+            tableProd.revenue += totalPrice
+            tableProd.quantity += qty
           }
-          const tableProd = tableEntry.products.get(productKey)!
-          tableProd.revenue += totalPrice
-          tableProd.quantity += qty
 
-          // BY WORKER: aggregate by location + date + hour + worker
-          const workerKey = `${locationId}:${dateStr}:${hour}:${workerId}`
+          // BY WORKER: aggregate by unified location + date + hour + worker
+          const workerKey = `${unifiedLocationId}:${dateStr}:${hour}:${unifiedWorkerId}`
           if (!byWorkerMap.has(workerKey)) {
             byWorkerMap.set(workerKey, {
               date: dateStr,
               hour,
-              locationId,
-              locationName,
-              workerId,
-              workerName,
+              locationId: unifiedLocationId,
+              locationName: unifiedLocationName,
+              workerId: unifiedWorkerId,
+              workerName: unifiedWorkerName,
               total_revenue: 0,
               total_quantity: 0,
               record_count: 0,
@@ -236,7 +260,42 @@ export async function rebuildBorkSalesAggregation(
           workerProd.revenue += totalPrice
           workerProd.quantity += qty
 
-          // PRODUCTS MASTER: track unique products
+          // BY GUEST ACCOUNT: ONLY if order has NO table (guest/on-factuur)
+          if (!hasTable) {
+            const guestAccountName = ticket.AccountName || 'Unknown Account'
+            const guestKey = `${unifiedLocationId}:${dateStr}:${hour}:${guestAccountName}`
+            if (!byGuestAccountMap.has(guestKey)) {
+              byGuestAccountMap.set(guestKey, {
+                date: dateStr,
+                hour,
+                locationId: unifiedLocationId,
+                locationName: unifiedLocationName,
+                accountName: guestAccountName,
+                workerId: unifiedWorkerId,
+                workerName: unifiedWorkerName,
+                total_revenue: 0,
+                total_quantity: 0,
+                products: new Map<string, { productId: string; productName: string; revenue: number; quantity: number }>(),
+              })
+            }
+            const guestEntry = byGuestAccountMap.get(guestKey)!
+            guestEntry.total_revenue = (guestEntry.total_revenue as number) + totalPrice
+            guestEntry.total_quantity = (guestEntry.total_quantity as number) + qty
+
+            if (!guestEntry.products.has(productKey)) {
+              guestEntry.products.set(productKey, {
+                productId: productKey,
+                productName,
+                revenue: 0,
+                quantity: 0,
+              })
+            }
+            const guestProd = guestEntry.products.get(productKey)!
+            guestProd.revenue += totalPrice
+            guestProd.quantity += qty
+          }
+
+          // PRODUCTS MASTER: track unique products with unified location
           if (!productsMasterMap.has(productKey)) {
             productsMasterMap.set(productKey, {
               productId: productKey,
@@ -247,7 +306,7 @@ export async function rebuildBorkSalesAggregation(
             })
           }
           const prodMaster = productsMasterMap.get(productKey)!
-          prodMaster.locationIds.add(String(locationId))
+          prodMaster.locationIds.add(String(unifiedLocationId))
           prodMaster.updatedAt = new Date()
         }
       }
@@ -265,6 +324,10 @@ export async function rebuildBorkSalesAggregation(
     products: Array.from(doc.products.values()),
   }))
   const workerDocs = Array.from(byWorkerMap.values()).map((doc) => ({
+    ...doc,
+    products: Array.from(doc.products.values()),
+  }))
+  const guestAccountDocs = Array.from(byGuestAccountMap.values()).map((doc) => ({
     ...doc,
     products: Array.from(doc.products.values()),
   }))
@@ -292,6 +355,11 @@ export async function rebuildBorkSalesAggregation(
   if (workerDocs.length > 0) {
     await db.collection('bork_sales_by_worker').insertMany(workerDocs)
     result.byWorker = workerDocs.length
+  }
+
+  if (guestAccountDocs.length > 0) {
+    await db.collection('bork_sales_by_guest_account').insertMany(guestAccountDocs)
+    result.byGuestAccount = guestAccountDocs.length
   }
 
   // Upsert products (merge with existing)
