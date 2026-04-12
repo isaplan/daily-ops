@@ -1,5 +1,7 @@
 <template>
-  <svg ref="svgRef" :width="width" :height="height" class="overflow-visible"></svg>
+  <div class="w-full flex justify-center">
+    <svg ref="svgRef" :width="width" :height="height" class="overflow-visible max-w-full h-auto" preserveAspectRatio="xMidYMid meet"></svg>
+  </div>
 </template>
 
 <script setup lang="ts">

@@ -107,29 +107,31 @@
         </div>
 
         <div class="grid min-w-0 gap-6 lg:grid-cols-2">
-        <div class="grid grid-cols-2 gap-8 min-w-0">
-          <div class="min-w-0 text-center">
-            <h3 class="mb-4 text-lg font-semibold text-gray-900">Revenue by Category</h3>
-            <p class="mb-3 text-xs text-gray-500">Drinks vs food uses product-name keywords on Bork lines.</p>
-            <D3PieChartV2
-              :data="revenue?.revenueByCategory && revenue.revenueByCategory.length > 0 ? revenue.revenueByCategory.map(r => ({ label: r.label, value: r.amount })) : undefined"
-              :width="300"
-              :height="280"
-              :colors="categoryChartColors"
-              :selected-period="period"
-            />
-          </div>
+        <div class="w-11/12 md:w-10/12 mx-auto">
+          <div class="grid grid-cols-2 gap-8 min-w-0">
+            <div class="min-w-0 text-center flex flex-col items-center">
+              <h3 class="mb-4 text-lg font-semibold text-gray-900">Revenue by Category</h3>
+              <p class="mb-3 text-xs text-gray-500">Drinks vs food uses product-name keywords on Bork lines.</p>
+              <D3PieChartV2
+                :data="revenue?.revenueByCategory && revenue.revenueByCategory.length > 0 ? revenue.revenueByCategory.map(r => ({ label: r.label, value: r.amount })) : undefined"
+                :width="300"
+                :height="280"
+                :colors="categoryChartColors"
+                :selected-period="period"
+              />
+            </div>
 
-          <div class="min-w-0 text-center">
-            <h3 class="mb-4 text-lg font-semibold text-gray-900">Revenue by Time Period</h3>
-            <p class="mb-3 text-xs text-gray-500">Daily breakdown of revenue.</p>
-            <D3PieChartV2
-              :data="revenue?.revenueByTimePeriod && revenue.revenueByTimePeriod.length > 0 ? revenue.revenueByTimePeriod.map(r => ({ label: r.label, value: r.amount })) : undefined"
-              :width="300"
-              :height="280"
-              :colors="timePeriodChartColors"
-              :selected-period="period"
-            />
+            <div class="min-w-0 text-center flex flex-col items-center">
+              <h3 class="mb-4 text-lg font-semibold text-gray-900">Revenue by Time Period</h3>
+              <p class="mb-3 text-xs text-gray-500">Daily breakdown of revenue.</p>
+              <D3PieChartV2
+                :data="revenue?.revenueByTimePeriod && revenue.revenueByTimePeriod.length > 0 ? revenue.revenueByTimePeriod.map(r => ({ label: r.label, value: r.amount })) : undefined"
+                :width="300"
+                :height="280"
+                :colors="timePeriodChartColors"
+                :selected-period="period"
+              />
+            </div>
           </div>
         </div>
         </div>
