@@ -1,13 +1,14 @@
 <template>
-  <div>
-    <svg v-if="data && data.length > 0" ref="svgRef" :width="width" :height="height" class="overflow-visible"></svg>
-    <div v-else class="rounded-lg p-6 flex items-center justify-center" :style="{ height: `${height}px`, width: `${width}px`, border: '2px solid #111827' }">
-      <div class="text-center">
-        <p class="text-gray-500 text-base font-medium">No Data Available</p>
-        <p class="text-gray-400 text-sm mt-2">{{ selectedPeriod }}</p>
-      </div>
-    </div>
-  </div>
+  <svg v-if="data && data.length > 0" ref="svgRef" :width="width" :height="height" class="overflow-visible"></svg>
+  <svg v-else ref="svgRef" :width="width" :height="height" class="overflow-visible">
+    <circle :cx="width / 2" :cy="height / 2" :r="(Math.min(width, height) / 2 - 35)" fill="white" stroke="#111827" stroke-width="2" />
+    <text :x="width / 2" :y="height / 2 - 20" text-anchor="middle" class="font-medium text-gray-500">
+      No Data Available
+    </text>
+    <text :x="width / 2" :y="height / 2 + 10" text-anchor="middle" class="text-sm text-gray-400">
+      {{ selectedPeriod }}
+    </text>
+  </svg>
 </template>
 
 <script setup lang="ts">
