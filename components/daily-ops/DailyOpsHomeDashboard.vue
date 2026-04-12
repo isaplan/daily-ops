@@ -48,10 +48,12 @@
         <div class="min-w-0">
           <h3 class="mb-3 text-sm font-semibold text-gray-700">Teams</h3>
           <div class="grid min-w-0 gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <UCard
+            <button
               v-for="team in teamsSummary"
               :key="team.teamName"
-              class="border-2 border-gray-900 !bg-white ring-0 shadow-none"
+              type="button"
+              class="border-2 border-gray-900 !bg-white ring-0 shadow-none rounded-lg p-4 text-left transition-all hover:bg-gray-50 hover:shadow-md active:scale-95"
+              @click="selectTeam(team.teamName)"
             >
               <p class="text-sm font-medium text-gray-500">{{ team.teamName }}</p>
               <p class="mt-2 text-2xl font-semibold text-gray-900">{{ team.workerCount }}</p>
@@ -65,7 +67,7 @@
                   <span class="font-semibold text-gray-900">{{ team.pctOfTotalCost.toFixed(1) }}%</span>
                 </div>
               </div>
-            </UCard>
+            </button>
           </div>
         </div>
 
@@ -73,10 +75,12 @@
         <div class="min-w-0">
           <h3 class="mb-3 text-sm font-semibold text-gray-700">Contracts</h3>
           <div class="grid min-w-0 gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <UCard
+            <button
               v-for="contract in contractsSummary"
               :key="contract.contractType"
-              class="border-2 border-gray-900 !bg-white ring-0 shadow-none"
+              type="button"
+              class="border-2 border-gray-900 !bg-white ring-0 shadow-none rounded-lg p-4 text-left transition-all hover:bg-gray-50 hover:shadow-md active:scale-95"
+              @click="selectContract(contract.contractType)"
             >
               <p class="text-sm font-medium text-gray-500">{{ contract.contractType || 'None' }}</p>
               <p class="mt-2 text-2xl font-semibold text-gray-900">{{ contract.workerCount }}</p>
@@ -90,7 +94,7 @@
                   <span class="font-semibold text-gray-900">{{ contract.pctOfTotalCost.toFixed(1) }}%</span>
                 </div>
               </div>
-            </UCard>
+            </button>
           </div>
         </div>
 
@@ -100,7 +104,11 @@
               <h2 class="text-lg font-semibold text-gray-900">Revenue by Category</h2>
             </template>
             <p class="mb-3 text-xs text-gray-500">Drinks vs food uses product-name keywords on Bork lines (see data notes below).</p>
+            <div v-if="!revenue.revenueByCategory || revenue.revenueByCategory.length === 0" class="flex items-center justify-center h-64 text-gray-400">
+              <p>No revenue data available</p>
+            </div>
             <D3PieChart
+              v-else
               :data="revenue.revenueByCategory.map(r => ({ label: r.label, value: r.amount }))"
               :width="350"
               :height="280"
@@ -112,7 +120,11 @@
             <template #header>
               <h2 class="text-lg font-semibold text-gray-900">Revenue by Time Period</h2>
             </template>
+            <div v-if="!revenue.revenueByTimePeriod || revenue.revenueByTimePeriod.length === 0" class="flex items-center justify-center h-64 text-gray-400">
+              <p>No revenue data available</p>
+            </div>
             <D3PieChart
+              v-else
               :data="revenue.revenueByTimePeriod.map(r => ({ label: r.label, value: r.amount }))"
               :width="350"
               :height="280"
@@ -798,6 +810,15 @@
         </UButton>
       </div>
     </div>
+
+    <!-- Worker Details Drawer -->
+    <WorkerDetailsDrawer
+      :is-open="isDrawerOpen"
+      :selected-team="selectedTeam"
+      :selected-contract="selectedContract"
+      :workers-data="filteredWorkers"
+      @close="closeDrawer"
+    />
   </DailyOpsDashboardShell>
 </template>
 
@@ -812,6 +833,7 @@ import type {
 import { formatDayHoursSharePlain, getDayHoursShareParts } from '~/utils/dailyOpsHoursShare'
 import D3PieChart from '~/components/charts/D3PieChart.vue'
 import DashboardDayHoursShare from '~/components/daily-ops/DashboardDayHoursShare.vue'
+import WorkerDetailsDrawer from '~/components/daily-ops/WorkerDetailsDrawer.vue'
 
 const categoryChartColors = ['#0a0a0a', '#242424', '#3d3d3d', '#575757', '#737373', '#b8b8b8']
 const timePeriodChartColors = ['#1a1a1a', '#2a2a2a', '#3a3a3a', '#4a4a4a']
@@ -961,7 +983,7 @@ const contractsSummary = computed(() => {
     if (!byContract.has(key)) byContract.set(key, { workerCount: 0, totalCost: 0 })
     const agg = byContract.get(key)!
     agg.workerCount = Math.max(agg.workerCount, contract.workerCount ?? 0)
-    agg.totalCost += contract.cost ?? 0
+    agg.totalCost += contract.totalCost ?? 0
   }
   
   const aggregated = Array.from(byContract.entries()).map(([contractType, data]) => ({
@@ -1477,4 +1499,83 @@ const formatContractBelowHoursLine = (contractType: string, date: string): strin
   return `${row.workerCount} staff · ${formatEur(row.totalCost)}`
 }
 
+type DrawerWorkerRow = {
+  locationName: string
+  teamName: string
+  totalHours: number
+  totalCost: number
+  laborCostPctOfRevenue: number | null
+  workerCount: number
+}
+
+const selectedTeam = ref<string | null>(null)
+const selectedContract = ref<string | null>(null)
+
+const isDrawerOpen = computed(() => selectedTeam.value !== null || selectedContract.value !== null)
+
+const filteredWorkers = computed((): DrawerWorkerRow[] => {
+  const raw = labor.value?.workersByTeamLocationByDay ?? []
+
+  if (selectedTeam.value) {
+    return raw
+      .filter((r) => r.teamName === selectedTeam.value)
+      .map((r) => ({
+        locationName: r.locationName,
+        teamName: r.teamName,
+        totalHours: r.totalHours,
+        totalCost: r.totalCost,
+        laborCostPctOfRevenue: r.laborCostPctOfRevenue,
+        workerCount: r.workerCount,
+      }))
+      .sort((a, b) => `${a.locationName}${a.teamName}`.localeCompare(`${b.locationName}${b.teamName}`))
+  }
+
+  if (selectedContract.value) {
+    const contractRows = labor.value?.contractTypeByDay ?? []
+    const targetContract = selectedContract.value === 'None' ? '' : selectedContract.value
+    const filteredByContract = contractRows.filter((r) => (r.contractType || '') === targetContract)
+    
+    if (filteredByContract.length === 0) return []
+
+    const aggregated = new Map<string, DrawerWorkerRow>()
+    for (const row of raw) {
+      const key = `${row.locationName}|${row.teamName}`
+      if (!aggregated.has(key)) {
+        aggregated.set(key, {
+          locationName: row.locationName,
+          teamName: row.teamName,
+          totalHours: 0,
+          totalCost: 0,
+          laborCostPctOfRevenue: null,
+          workerCount: 0,
+        })
+      }
+      const agg = aggregated.get(key)!
+      agg.totalHours += row.totalHours
+      agg.totalCost += row.totalCost
+      agg.workerCount += row.workerCount
+    }
+    
+    return Array.from(aggregated.values()).sort((a, b) =>
+      `${a.locationName}${a.teamName}`.localeCompare(`${b.locationName}${b.teamName}`)
+    )
+  }
+
+  return []
+})
+
+const selectTeam = (teamName: string): void => {
+  selectedTeam.value = teamName
+  selectedContract.value = null
+}
+
+const selectContract = (contractType: string): void => {
+  selectedContract.value = contractType
+  selectedTeam.value = null
+}
+
+const closeDrawer = (): void => {
+  selectedTeam.value = null
+  selectedContract.value = null
+}
 </script>

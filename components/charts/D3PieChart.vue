@@ -1,6 +1,9 @@
 <template>
-  <div class="w-full h-full min-h-[300px]">
-    <svg ref="svgRef" :width="width" :height="height" class="w-full"></svg>
+  <div class="w-full h-full min-h-[300px] flex items-center justify-center">
+    <svg v-if="data.length > 0" ref="svgRef" :width="width" :height="height" class="w-full"></svg>
+    <div v-else class="text-center text-gray-400 text-sm">
+      <p>No data available</p>
+    </div>
   </div>
 </template>
 

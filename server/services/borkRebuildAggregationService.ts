@@ -1,9 +1,9 @@
 /**
  * @registry-id: borkRebuildAggregationService
  * @created: 2026-04-09T00:00:00.000Z
- * @last-modified: 2026-04-13T12:00:00.000Z
+ * @last-modified: 2026-04-13T14:00:00.000Z
  * @description: Rebuilds Bork sales aggregations from bork_raw_data; creates by-hour, by-table, by-worker, by-cron snapshots
- * @last-fix: [2026-04-13] Only read endpoint bork_daily (exclude master/catalog raw rows from aggregation)
+ * @last-fix: [2026-04-13] Stream bork_daily cursor (avoid OOM from toArray on large backfills)
  *
  * @exports-to:
  * ✓ server/services/borkSyncService.ts
@@ -71,15 +71,11 @@ export async function rebuildBorkSalesAggregation(
   const locMap = new Map(locMappings.map(l => [String(l.borkLocationId), { unifiedId: l.unifiedLocationId, name: l.unifiedLocationName }]))
   const userMap = new Map(userMappings.map(u => [u.borkUserId || u.borkUserName, { unifiedId: u.unifiedUserId, name: u.unifiedUserName }]))
 
-  // Ticket-day sync only (master/catalog JSON lives in same collection with other endpoints)
-  const rawDocs = await db
+  // Ticket-day sync only — stream one doc at a time (full toArray() OOMs on multi-year backfills)
+  const cursor = db
     .collection('bork_raw_data')
     .find({ endpoint: 'bork_daily' })
-    .toArray()
-
-  if (rawDocs.length === 0) {
-    return result
-  }
+    .batchSize(32)
 
   // Aggregate data by cron, hour, table, worker
   const byCronMap = new Map<string, Document>()
@@ -89,7 +85,8 @@ export async function rebuildBorkSalesAggregation(
   const byGuestAccountMap = new Map<string, Document>()
   const productsMasterMap = new Map<string, Document>()
 
-  for (const rawDoc of rawDocs) {
+  try {
+    for await (const rawDoc of cursor) {
     const borkLocationId = rawDoc.locationId
     const locMapping = locMap.get(String(borkLocationId))
     
@@ -311,6 +308,9 @@ export async function rebuildBorkSalesAggregation(
         }
       }
     }
+    }
+  } finally {
+    await cursor.close()
   }
 
   // Convert Maps to arrays and insert into database

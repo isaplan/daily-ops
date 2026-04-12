@@ -12,7 +12,7 @@
     "copy:locations-teams": "node --experimental-strip-types scripts/copy-locations-teams-to-remote.ts",
     "copy:unified-users": "node --experimental-strip-types scripts/copy-unified-users-to-remote.ts",
     "migrate:credentials": "node --experimental-strip-types scripts/migrate-credentials-to-remote.ts",
-    "bork:backfill": "node --experimental-strip-types scripts/bork-full-raw-backfill.ts",
+    "bork:backfill": "NODE_OPTIONS='--max-old-space-size=8192' node --experimental-strip-types scripts/bork-full-raw-backfill.ts",
     "eitje:backfill": "npx --yes tsx scripts/eitje-full-raw-backfill.ts",
     "start": "node .output/server/index.mjs"
   },
