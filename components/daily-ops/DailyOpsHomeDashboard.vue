@@ -113,8 +113,9 @@
             <D3PieChartV2
               :data="revenue.revenueByCategory && revenue.revenueByCategory.length > 0 ? revenue.revenueByCategory.map(r => ({ label: r.label, value: r.amount })) : undefined"
               :width="400"
-              :height="320"
+              :height="300"
               :colors="categoryChartColors"
+              :selected-period="pageHeadingSuffix"
             />
           </div>
 
@@ -123,8 +124,9 @@
             <D3PieChartV2
               :data="revenue.revenueByTimePeriod && revenue.revenueByTimePeriod.length > 0 ? revenue.revenueByTimePeriod.map(r => ({ label: r.label, value: r.amount })) : undefined"
               :width="400"
-              :height="320"
+              :height="300"
               :colors="timePeriodChartColors"
+              :selected-period="pageHeadingSuffix"
             />
           </div>
         </div>

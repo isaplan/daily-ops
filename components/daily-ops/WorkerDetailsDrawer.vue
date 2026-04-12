@@ -15,8 +15,8 @@
         <!-- Drawer Panel -->
         <div class="pointer-events-none absolute inset-x-0 bottom-0 flex max-h-[90vh] flex-col">
           <div
-            class="pointer-events-auto flex flex-col overflow-hidden rounded-t-2xl border-t-2 border-gray-900 bg-white shadow-2xl"
-            :style="{ maxHeight: 'min(90vh, calc(100vh - 2rem))' }"
+            class="pointer-events-auto flex flex-col overflow-hidden rounded-t-2xl border-t-2 border-gray-900 bg-white shadow-2xl w-full"
+            :style="{ maxHeight: 'min(90vh, calc(100vh - 2rem))', maxWidth: '100%' }"
           >
             <!-- Header -->
             <div class="flex shrink-0 items-center justify-between border-b border-gray-100 px-4 py-4 md:px-16">
@@ -34,34 +34,34 @@
             </div>
 
             <!-- Content -->
-            <div class="min-w-0 flex-1 overflow-y-auto px-4 md:px-16">
+            <div class="min-w-0 flex-1 overflow-y-auto overflow-x-auto px-4 md:px-16">
               <div v-if="props.workersData.length === 0" class="py-8 text-center">
                 <p class="text-sm text-gray-500">No workers found</p>
               </div>
 
-              <div v-else class="overflow-x-auto">
-                <table class="w-max min-w-full border-separate border-spacing-0 text-left text-sm">
+              <div v-else class="">
+                <table class="border-separate border-spacing-0 text-left text-sm">
                   <thead class="sticky top-0 bg-white">
                     <tr class="border-b border-gray-200">
-                      <th class="px-3 py-3 text-xs font-semibold uppercase tracking-wide text-gray-600">
+                      <th class="px-2 py-2 text-xs font-semibold uppercase tracking-wide text-gray-600 whitespace-nowrap">
                         Date
                       </th>
-                      <th class="px-3 py-3 text-xs font-semibold uppercase tracking-wide text-gray-600">
+                      <th class="px-2 py-2 text-xs font-semibold uppercase tracking-wide text-gray-600 whitespace-nowrap">
                         Location
                       </th>
-                      <th class="px-3 py-3 text-xs font-semibold uppercase tracking-wide text-gray-600">
+                      <th class="px-2 py-2 text-xs font-semibold uppercase tracking-wide text-gray-600 whitespace-nowrap">
                         Team
                       </th>
-                      <th class="px-3 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-600">
+                      <th class="px-2 py-2 text-right text-xs font-semibold uppercase tracking-wide text-gray-600 whitespace-nowrap">
                         Workers
                       </th>
-                      <th class="px-3 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-600">
+                      <th class="px-2 py-2 text-right text-xs font-semibold uppercase tracking-wide text-gray-600 whitespace-nowrap">
                         Hours
                       </th>
-                      <th class="px-3 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-600">
+                      <th class="px-2 py-2 text-right text-xs font-semibold uppercase tracking-wide text-gray-600 whitespace-nowrap">
                         Cost
                       </th>
-                      <th class="px-3 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-600">
+                      <th class="px-2 py-2 text-right text-xs font-semibold uppercase tracking-wide text-gray-600 whitespace-nowrap">
                         % Rev.
                       </th>
                     </tr>
@@ -72,25 +72,25 @@
                       :key="`worker-${idx}`"
                       class="hover:bg-gray-50 transition-colors"
                     >
-                      <td class="px-3 py-3 font-medium text-gray-900 whitespace-nowrap">
+                      <td class="px-2 py-2 font-medium text-gray-900 whitespace-nowrap text-xs">
                         {{ formatDateWithDay(row.date) }}
                       </td>
-                      <td class="px-3 py-3 text-gray-700">
+                      <td class="px-2 py-2 text-gray-700 whitespace-nowrap text-xs">
                         {{ row.locationName }}
                       </td>
-                      <td class="px-3 py-3 font-medium text-gray-900">
+                      <td class="px-2 py-2 font-medium text-gray-900 whitespace-nowrap text-xs">
                         {{ row.teamName }}
                       </td>
-                      <td class="px-3 py-3 text-right text-gray-900">
+                      <td class="px-2 py-2 text-right text-gray-900 whitespace-nowrap text-xs">
                         {{ row.workerCount }}
                       </td>
-                      <td class="px-3 py-3 text-right text-gray-900 tabular-nums">
-                        {{ row.totalHours.toFixed(1) }} h
+                      <td class="px-2 py-2 text-right text-gray-900 tabular-nums whitespace-nowrap text-xs">
+                        {{ row.totalHours.toFixed(1) }}h
                       </td>
-                      <td class="px-3 py-3 text-right text-gray-900 tabular-nums">
+                      <td class="px-2 py-2 text-right text-gray-900 tabular-nums whitespace-nowrap text-xs">
                         {{ formatEur(row.totalCost) }}
                       </td>
-                      <td class="px-3 py-3 text-right text-gray-900 tabular-nums">
+                      <td class="px-2 py-2 text-right text-gray-900 tabular-nums whitespace-nowrap text-xs">
                         {{ formatLaborPct(row.laborCostPctOfRevenue) }}
                       </td>
                     </tr>

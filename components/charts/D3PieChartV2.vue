@@ -1,15 +1,17 @@
 <template>
-  <div class="w-full min-h-[320px] border-2 border-dashed border-gray-300 rounded-lg p-4 flex items-center justify-center">
-    <div v-if="!data || data.length === 0" class="text-center">
-      <p class="text-gray-400 text-sm">No revenue data available</p>
-      <p class="text-xs text-gray-300 mt-2">{{ debugInfo }}</p>
+  <div class="w-full bg-white rounded-lg p-6" :style="{ minHeight: `${height + 100}px` }">
+    <div v-if="!data || data.length === 0" class="w-full flex items-center justify-center" :style="{ height: `${height}px` }">
+      <div class="text-center">
+        <p class="text-gray-500 text-lg font-medium">No Data Available</p>
+        <p class="text-gray-400 text-sm mt-2">{{ selectedPeriod }}</p>
+      </div>
     </div>
-    <svg v-else ref="svgRef" :width="width" :height="height" class="w-full h-auto"></svg>
+    <svg v-else ref="svgRef" :width="width" :height="height" class="w-full"></svg>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch, computed } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import * as d3 from 'd3'
 
 interface DataPoint {
@@ -23,36 +25,25 @@ const props = withDefaults(
     width?: number
     height?: number
     colors?: string[]
-    innerRadius?: number
+    selectedPeriod?: string
   }>(),
   {
     width: 400,
     height: 300,
-    colors: () => ['#0a0a0a', '#242424', '#3d3d3d', '#575757', '#737373', '#b8b8b8', '#c9c9c9', '#d6d6d6'],
-    innerRadius: 0,
+    colors: () => ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f'],
+    selectedPeriod: 'Selected Period',
   }
 )
 
 const svgRef = ref<SVGSVGElement | null>(null)
 
-const debugInfo = computed(() => {
-  if (!props.data) return 'data is undefined'
-  if (!Array.isArray(props.data)) return 'data is not an array'
-  return `${props.data.length} items: ${props.data.map(d => `${d.label}=${d.value}`).join(', ')}`
-})
-
 const createChart = () => {
-  if (!svgRef.value || !props.data || props.data.length === 0) {
-    console.log('D3PieChartV2: Skipping chart creation', { data: props.data })
-    return
-  }
-
-  console.log('D3PieChartV2: Creating chart with', props.data.length, 'items')
+  if (!svgRef.value || !props.data || props.data.length === 0) return
 
   const svg = d3.select(svgRef.value)
   svg.selectAll('*').remove()
 
-  const radius = Math.min(props.width, props.height) / 2 - 20
+  const radius = Math.min(props.width, props.height) / 2 - 40
 
   const g = svg
     .append('g')
@@ -61,7 +52,7 @@ const createChart = () => {
   const pie = d3.pie<DataPoint>().value((d) => d.value)
   const arc = d3
     .arc<d3.PieArcDatum<DataPoint>>()
-    .innerRadius(props.innerRadius)
+    .innerRadius(0)
     .outerRadius(radius)
 
   const arcs = g
@@ -71,14 +62,8 @@ const createChart = () => {
     .append('path')
     .attr('d', arc)
     .attr('fill', (d, i) => props.colors[i % props.colors.length])
-    .attr('stroke', 'none')
-    .attr('class', 'transition-opacity hover:opacity-75 cursor-pointer')
-    .on('mouseover', function () {
-      d3.select(this).attr('opacity', 0.75)
-    })
-    .on('mouseout', function () {
-      d3.select(this).attr('opacity', 1)
-    })
+    .attr('stroke', 'white')
+    .attr('stroke-width', 2)
 
   arcs
     .append('title')
@@ -86,8 +71,8 @@ const createChart = () => {
 
   const labelArc = d3
     .arc<d3.PieArcDatum<DataPoint>>()
-    .innerRadius(radius * 0.6)
-    .outerRadius(radius * 0.6)
+    .innerRadius(radius * 0.65)
+    .outerRadius(radius * 0.65)
 
   g.selectAll('.label')
     .data(pie(props.data))
@@ -96,53 +81,21 @@ const createChart = () => {
     .attr('transform', (d) => `translate(${labelArc.centroid(d)})`)
     .attr('text-anchor', 'middle')
     .attr('dy', '0.35em')
-    .attr('class', 'text-[11px] font-bold fill-white pointer-events-none')
+    .attr('class', 'font-bold text-sm fill-white pointer-events-none')
     .text((d) => {
       const total = props.data!.reduce((sum, item) => sum + item.value, 0)
       const pct = ((d.data.value / total) * 100).toFixed(0)
       return `${pct}%`
     })
-
-  // Add legend
-  const legend = svg
-    .append('g')
-    .attr('transform', `translate(20, ${props.height - 80})`)
-
-  const legendItems = pie(props.data)
-  legendItems.forEach((d, i) => {
-    const row = i
-    const col = i % 2
-
-    const legendItem = legend
-      .append('g')
-      .attr('transform', `translate(${col * 200}, ${row * 20})`)
-
-    legendItem
-      .append('rect')
-      .attr('width', 12)
-      .attr('height', 12)
-      .attr('fill', props.colors[i % props.colors.length])
-
-    legendItem
-      .append('text')
-      .attr('x', 18)
-      .attr('y', 10)
-      .attr('class', 'text-xs fill-gray-700')
-      .text(d.data.label.substring(0, 20))
-  })
-
-  console.log('D3PieChartV2: Chart created successfully')
 }
 
 onMounted(() => {
-  console.log('D3PieChartV2: Component mounted', { data: props.data })
   createChart()
 })
 
 watch(
   () => props.data,
   () => {
-    console.log('D3PieChartV2: Data changed', { data: props.data })
     createChart()
   },
   { deep: true }
