@@ -107,28 +107,31 @@
         </div>
 
         <div class="grid min-w-0 gap-6 lg:grid-cols-2">
+        <div class="grid grid-cols-2 gap-8 min-w-0">
           <div class="min-w-0">
             <h3 class="mb-4 text-lg font-semibold text-gray-900">Revenue by Category</h3>
-            <p class="mb-3 text-xs text-gray-500">Drinks vs food uses product-name keywords on Bork lines (see data notes below).</p>
+            <p class="mb-3 text-xs text-gray-500">Drinks vs food uses product-name keywords on Bork lines.</p>
             <D3PieChartV2
               :data="revenue.revenueByCategory && revenue.revenueByCategory.length > 0 ? revenue.revenueByCategory.map(r => ({ label: r.label, value: r.amount })) : undefined"
-              :width="400"
-              :height="300"
+              :width="300"
+              :height="280"
               :colors="categoryChartColors"
-              :selected-period="pageHeadingSuffix"
+              :selected-period="period"
             />
           </div>
 
           <div class="min-w-0">
             <h3 class="mb-4 text-lg font-semibold text-gray-900">Revenue by Time Period</h3>
+            <p class="mb-3 text-xs text-gray-500">Daily breakdown of revenue.</p>
             <D3PieChartV2
               :data="revenue.revenueByTimePeriod && revenue.revenueByTimePeriod.length > 0 ? revenue.revenueByTimePeriod.map(r => ({ label: r.label, value: r.amount })) : undefined"
-              :width="400"
-              :height="300"
+              :width="300"
+              :height="280"
               :colors="timePeriodChartColors"
-              :selected-period="pageHeadingSuffix"
+              :selected-period="period"
             />
           </div>
+        </div>
         </div>
 
         <UCard class="border-2 border-gray-900 !bg-white ring-0 shadow-none">
