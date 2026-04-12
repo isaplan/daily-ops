@@ -1,7 +1,8 @@
 <template>
-  <div class="w-full h-full min-h-[300px] flex items-center justify-center">
-    <div v-if="!data || data.length === 0" class="text-center text-gray-400 text-sm">
-      <p>No data available</p>
+  <div class="w-full min-h-[320px] border-2 border-dashed border-gray-300 rounded-lg p-4 flex items-center justify-center">
+    <div v-if="!data || data.length === 0" class="text-center">
+      <p class="text-gray-400 text-sm">No revenue data available</p>
+      <p class="text-xs text-gray-300 mt-2">{{ debugInfo }}</p>
     </div>
     <svg v-else ref="svgRef" :width="width" :height="height" class="w-full h-auto"></svg>
   </div>
@@ -34,8 +35,19 @@ const props = withDefaults(
 
 const svgRef = ref<SVGSVGElement | null>(null)
 
+const debugInfo = computed(() => {
+  if (!props.data) return 'data is undefined'
+  if (!Array.isArray(props.data)) return 'data is not an array'
+  return `${props.data.length} items: ${props.data.map(d => `${d.label}=${d.value}`).join(', ')}`
+})
+
 const createChart = () => {
-  if (!svgRef.value || !props.data || props.data.length === 0) return
+  if (!svgRef.value || !props.data || props.data.length === 0) {
+    console.log('D3PieChartV2: Skipping chart creation', { data: props.data })
+    return
+  }
+
+  console.log('D3PieChartV2: Creating chart with', props.data.length, 'items')
 
   const svg = d3.select(svgRef.value)
   svg.selectAll('*').remove()
@@ -118,13 +130,21 @@ const createChart = () => {
       .attr('class', 'text-xs fill-gray-700')
       .text(d.data.label.substring(0, 20))
   })
+
+  console.log('D3PieChartV2: Chart created successfully')
 }
 
 onMounted(() => {
+  console.log('D3PieChartV2: Component mounted', { data: props.data })
   createChart()
 })
 
-watch(() => props.data, () => {
-  createChart()
-}, { deep: true })
+watch(
+  () => props.data,
+  () => {
+    console.log('D3PieChartV2: Data changed', { data: props.data })
+    createChart()
+  },
+  { deep: true }
+)
 </script>
