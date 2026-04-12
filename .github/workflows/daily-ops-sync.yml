@@ -1,0 +1,91 @@
+name: Daily Ops - Bork & Eitje Sync & Aggregation
+
+on:
+  schedule:
+    # Bork: 8, 15, 18, 20, 22, 00 UTC
+    - cron: '0 8,15,18,20,22,0 * * *'
+  
+  # Allow manual trigger
+  workflow_dispatch:
+
+jobs:
+  sync-and-aggregate:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      # ========================================
+      # BORK SYNC
+      # ========================================
+      - name: Bork - Fetch new tickets from API
+        run: |
+          echo "🔄 Starting Bork sync..."
+          curl -X POST "https://${{ secrets.DO_APP_DOMAIN }}/api/bork/v2/cron.post" \
+            -H "Content-Type: application/json" \
+            -d '{"action":"run-now","jobType":"daily-data"}' \
+            -w "\nStatus: %{http_code}\n" \
+            --connect-timeout 30 \
+            --max-time 900
+        env:
+          DO_APP_DOMAIN: ${{ secrets.DO_APP_DOMAIN }}
+        continue-on-error: false
+      
+      - name: Wait for Bork sync to complete
+        run: sleep 600
+      
+      # ========================================
+      # BORK AGGREGATION
+      # ========================================
+      - name: Bork - Aggregate today's data
+        run: |
+          echo "📊 Starting Bork aggregation..."
+          curl -X GET "https://${{ secrets.DO_APP_DOMAIN }}/api/bork/v2/aggregation.get" \
+            -w "\nStatus: %{http_code}\n" \
+            --connect-timeout 30 \
+            --max-time 600
+        env:
+          DO_APP_DOMAIN: ${{ secrets.DO_APP_DOMAIN }}
+        continue-on-error: false
+      
+      # ========================================
+      # EITJE SYNC
+      # ========================================
+      - name: Eitje - Fetch new time registrations from API
+        run: |
+          echo "🔄 Starting Eitje sync..."
+          curl -X POST "https://${{ secrets.DO_APP_DOMAIN }}/api/eitje/v2/cron.post" \
+            -H "Content-Type: application/json" \
+            -d '{"action":"run-now","jobType":"daily-data"}' \
+            -w "\nStatus: %{http_code}\n" \
+            --connect-timeout 30 \
+            --max-time 600
+        env:
+          DO_APP_DOMAIN: ${{ secrets.DO_APP_DOMAIN }}
+        continue-on-error: false
+      
+      - name: Wait for Eitje sync to complete
+        run: sleep 300
+      
+      # ========================================
+      # EITJE AGGREGATION
+      # ========================================
+      - name: Eitje - Aggregate today's data
+        run: |
+          echo "📊 Starting Eitje aggregation..."
+          curl -X GET "https://${{ secrets.DO_APP_DOMAIN }}/api/eitje/v2/aggregation.get" \
+            -w "\nStatus: %{http_code}\n" \
+            --connect-timeout 30 \
+            --max-time 300
+        env:
+          DO_APP_DOMAIN: ${{ secrets.DO_APP_DOMAIN }}
+        continue-on-error: false
+      
+      # ========================================
+      # COMPLETION
+      # ========================================
+      - name: ✅ Sync & Aggregation Complete
+        run: |
+          echo "✅ Bork & Eitje sync + aggregation finished!"
+          echo "📈 Dashboard data updated with latest information"
