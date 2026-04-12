@@ -1,9 +1,13 @@
 <template>
-  <div v-if="!data || data.length === 0" class="text-center py-12">
-    <p class="text-gray-500 text-lg font-medium">No Data Available</p>
-    <p class="text-gray-400 text-sm mt-2">{{ selectedPeriod }}</p>
+  <div>
+    <svg v-if="data && data.length > 0" ref="svgRef" :width="width" :height="height" class="border-2 border-gray-900 rounded-lg"></svg>
+    <div v-else class="border-2 border-gray-900 rounded-lg p-6 flex items-center justify-center" :style="{ height: `${height}px`, width: `${width}px` }">
+      <div class="text-center">
+        <p class="text-gray-500 text-base font-medium">No Data Available</p>
+        <p class="text-gray-400 text-sm mt-2">{{ selectedPeriod }}</p>
+      </div>
+    </div>
   </div>
-  <svg v-else ref="svgRef" :width="width" :height="height" class="w-full"></svg>
 </template>
 
 <script setup lang="ts">
