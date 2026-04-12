@@ -49,6 +49,13 @@ const createChart = () => {
     .append('g')
     .attr('transform', `translate(${props.width / 2},${props.height / 2})`)
 
+  // Add white background circle
+  g.append('circle')
+    .attr('r', radius + 5)
+    .attr('fill', 'white')
+    .attr('stroke', '#e5e7eb')
+    .attr('stroke-width', 1)
+
   const pie = d3.pie<DataPoint>().value((d) => d.value)
   const arc = d3
     .arc<d3.PieArcDatum<DataPoint>>()
@@ -81,7 +88,7 @@ const createChart = () => {
     .attr('transform', (d) => `translate(${labelArc.centroid(d)})`)
     .attr('text-anchor', 'middle')
     .attr('dy', '0.35em')
-    .attr('class', 'font-bold text-sm fill-white pointer-events-none')
+    .attr('class', 'font-bold text-sm fill-gray-900 pointer-events-none')
     .text((d) => {
       const total = props.data!.reduce((sum, item) => sum + item.value, 0)
       const pct = ((d.data.value / total) * 100).toFixed(0)
