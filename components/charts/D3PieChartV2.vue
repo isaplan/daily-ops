@@ -49,7 +49,7 @@ const createChart = () => {
     .attr('stroke-width', 2)
 
   // If no data, show message
-  if (!props.data || props.data.length === 0) {
+  if (!props.data || props.data.length === 0 || !props.data.some(d => d.value > 0)) {
     g.append('text')
       .attr('x', 0)
       .attr('y', -10)
