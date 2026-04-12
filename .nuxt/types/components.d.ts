@@ -27,8 +27,14 @@ interface _GlobalComponents {
   ProjectOutlinerNodeRow: typeof import("../../components/ProjectOutlinerNodeRow.vue")['default']
   RichTextEditor: typeof import("../../components/RichTextEditor.vue")['default']
   WeeklyNoteEditor: typeof import("../../components/WeeklyNoteEditor.vue")['default']
+  ChartsD3PieChart: typeof import("../../components/charts/D3PieChart.vue")['default']
+  ChartsD3PieChartV2: typeof import("../../components/charts/D3PieChartV2.vue")['default']
+  ChartsD3StackedBarChart: typeof import("../../components/charts/D3StackedBarChart.vue")['default']
   DailyOpsDashboardShell: typeof import("../../components/daily-ops/DailyOpsDashboardShell.vue")['default']
+  DailyOpsHomeDashboard: typeof import("../../components/daily-ops/DailyOpsHomeDashboard.vue")['default']
   DailyOpsSectionPage: typeof import("../../components/daily-ops/DailyOpsSectionPage.vue")['default']
+  DailyOpsDashboardDayHoursShare: typeof import("../../components/daily-ops/DashboardDayHoursShare.vue")['default']
+  DailyOpsWorkerDetailsDrawer: typeof import("../../components/daily-ops/WorkerDetailsDrawer.vue")['default']
   SettingsCredentialInput: typeof import("../../components/settings/CredentialInput.vue")['default']
   SettingsCronJobToggle: typeof import("../../components/settings/CronJobToggle.vue")['default']
   SettingsDataFieldMapper: typeof import("../../components/settings/DataFieldMapper.vue")['default']
@@ -194,8 +200,14 @@ interface _GlobalComponents {
   LazyProjectOutlinerNodeRow: LazyComponent<typeof import("../../components/ProjectOutlinerNodeRow.vue")['default']>
   LazyRichTextEditor: LazyComponent<typeof import("../../components/RichTextEditor.vue")['default']>
   LazyWeeklyNoteEditor: LazyComponent<typeof import("../../components/WeeklyNoteEditor.vue")['default']>
+  LazyChartsD3PieChart: LazyComponent<typeof import("../../components/charts/D3PieChart.vue")['default']>
+  LazyChartsD3PieChartV2: LazyComponent<typeof import("../../components/charts/D3PieChartV2.vue")['default']>
+  LazyChartsD3StackedBarChart: LazyComponent<typeof import("../../components/charts/D3StackedBarChart.vue")['default']>
   LazyDailyOpsDashboardShell: LazyComponent<typeof import("../../components/daily-ops/DailyOpsDashboardShell.vue")['default']>
+  LazyDailyOpsHomeDashboard: LazyComponent<typeof import("../../components/daily-ops/DailyOpsHomeDashboard.vue")['default']>
   LazyDailyOpsSectionPage: LazyComponent<typeof import("../../components/daily-ops/DailyOpsSectionPage.vue")['default']>
+  LazyDailyOpsDashboardDayHoursShare: LazyComponent<typeof import("../../components/daily-ops/DashboardDayHoursShare.vue")['default']>
+  LazyDailyOpsWorkerDetailsDrawer: LazyComponent<typeof import("../../components/daily-ops/WorkerDetailsDrawer.vue")['default']>
   LazySettingsCredentialInput: LazyComponent<typeof import("../../components/settings/CredentialInput.vue")['default']>
   LazySettingsCronJobToggle: LazyComponent<typeof import("../../components/settings/CronJobToggle.vue")['default']>
   LazySettingsDataFieldMapper: LazyComponent<typeof import("../../components/settings/DataFieldMapper.vue")['default']>

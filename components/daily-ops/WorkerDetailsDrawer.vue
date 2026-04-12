@@ -19,7 +19,7 @@
             :style="{ maxHeight: 'min(90vh, calc(100vh - 2rem))' }"
           >
             <!-- Header -->
-            <div class="flex shrink-0 items-center justify-between border-b border-gray-100 px-6 py-4">
+            <div class="flex shrink-0 items-center justify-between border-b border-gray-100 px-4 py-4 md:px-16">
               <h2 class="text-lg font-semibold text-gray-900">
                 {{ title }}
               </h2>
@@ -34,8 +34,8 @@
             </div>
 
             <!-- Content -->
-            <div class="min-w-0 flex-1 overflow-y-auto">
-              <div v-if="props.workersData.length === 0" class="px-6 py-8 text-center">
+            <div class="min-w-0 flex-1 overflow-y-auto px-4 md:px-16">
+              <div v-if="props.workersData.length === 0" class="py-8 text-center">
                 <p class="text-sm text-gray-500">No workers found</p>
               </div>
 
@@ -43,48 +43,54 @@
                 <table class="w-max min-w-full border-separate border-spacing-0 text-left text-sm">
                   <thead class="sticky top-0 bg-white">
                     <tr class="border-b border-gray-200">
-                      <th class="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-600">
-                        Team
+                      <th class="px-3 py-3 text-xs font-semibold uppercase tracking-wide text-gray-600">
+                        Date
                       </th>
-                      <th class="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-600">
+                      <th class="px-3 py-3 text-xs font-semibold uppercase tracking-wide text-gray-600">
                         Location
                       </th>
-                      <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-600">
+                      <th class="px-3 py-3 text-xs font-semibold uppercase tracking-wide text-gray-600">
+                        Team
+                      </th>
+                      <th class="px-3 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-600">
                         Workers
                       </th>
-                      <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-600">
+                      <th class="px-3 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-600">
                         Hours
                       </th>
-                      <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-600">
+                      <th class="px-3 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-600">
                         Cost
                       </th>
-                      <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-600">
+                      <th class="px-3 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-600">
                         % Rev.
                       </th>
                     </tr>
                   </thead>
                   <tbody class="divide-y divide-gray-100">
                     <tr
-                      v-for="(row, idx) in props.workersData"
+                      v-for="(row, idx) in workersByDate"
                       :key="`worker-${idx}`"
                       class="hover:bg-gray-50 transition-colors"
                     >
-                      <td class="px-4 py-3 font-medium text-gray-900">
-                        {{ row.teamName }}
+                      <td class="px-3 py-3 font-medium text-gray-900 whitespace-nowrap">
+                        {{ formatDateWithDay(row.date) }}
                       </td>
-                      <td class="px-4 py-3 text-gray-700">
+                      <td class="px-3 py-3 text-gray-700">
                         {{ row.locationName }}
                       </td>
-                      <td class="px-4 py-3 text-right text-gray-900">
+                      <td class="px-3 py-3 font-medium text-gray-900">
+                        {{ row.teamName }}
+                      </td>
+                      <td class="px-3 py-3 text-right text-gray-900">
                         {{ row.workerCount }}
                       </td>
-                      <td class="px-4 py-3 text-right text-gray-900 tabular-nums">
+                      <td class="px-3 py-3 text-right text-gray-900 tabular-nums">
                         {{ row.totalHours.toFixed(1) }} h
                       </td>
-                      <td class="px-4 py-3 text-right text-gray-900 tabular-nums">
+                      <td class="px-3 py-3 text-right text-gray-900 tabular-nums">
                         {{ formatEur(row.totalCost) }}
                       </td>
-                      <td class="px-4 py-3 text-right text-gray-900 tabular-nums">
+                      <td class="px-3 py-3 text-right text-gray-900 tabular-nums">
                         {{ formatLaborPct(row.laborCostPctOfRevenue) }}
                       </td>
                     </tr>
@@ -93,8 +99,8 @@
               </div>
             </div>
 
-            <!-- Footer Summary (optional) -->
-            <div v-if="props.workersData.length > 0" class="shrink-0 border-t border-gray-100 bg-gray-50 px-6 py-4">
+            <!-- Footer Summary -->
+            <div v-if="props.workersData.length > 0" class="shrink-0 border-t border-gray-100 bg-gray-50 px-4 py-4 md:px-16">
               <div class="grid grid-cols-4 gap-4 text-sm">
                 <div>
                   <p class="text-xs font-medium uppercase tracking-wide text-gray-500">Total Workers</p>
@@ -125,6 +131,7 @@
 
 <script setup lang="ts">
 type WorkerRow = {
+  date: string
   locationName: string
   teamName: string
   totalHours: number
@@ -162,6 +169,25 @@ const formatLaborPct = (pct: number | null): string => {
   if (pct == null || !Number.isFinite(pct)) return '—'
   return `${pct.toFixed(1)}%`
 }
+
+const formatDateWithDay = (dateStr: string): string => {
+  try {
+    const d = new Date(`${dateStr}T12:00:00.000Z`)
+    const weekday = new Intl.DateTimeFormat('en-US', { weekday: 'short', timeZone: 'UTC' }).format(d)
+    const dayMonth = new Intl.DateTimeFormat('en-US', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }).format(d)
+    return `${weekday}, ${dayMonth}`
+  } catch {
+    return dateStr
+  }
+}
+
+const workersByDate = computed(() => {
+  return props.workersData.sort((a, b) => {
+    const dateCmp = a.date.localeCompare(b.date)
+    if (dateCmp !== 0) return dateCmp
+    return `${a.locationName}${a.teamName}`.localeCompare(`${b.locationName}${b.teamName}`)
+  })
+})
 
 const onEnter = (el: Element): void => {
   const elem = el as HTMLElement

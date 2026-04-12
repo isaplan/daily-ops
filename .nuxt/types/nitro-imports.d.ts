@@ -2,6 +2,7 @@ declare global {
   const EITJE_HOURS_ADD_FIELDS: typeof import('../../server/utils/eitjeHours').EITJE_HOURS_ADD_FIELDS
   const H3Error: typeof import('../../node_modules/.pnpm/h3@1.15.10/node_modules/h3').H3Error
   const H3Event: typeof import('../../node_modules/.pnpm/h3@1.15.10/node_modules/h3').H3Event
+  const VAT_DISCLAIMER: typeof import('../../server/utils/dailyOpsDashboardMetrics').VAT_DISCLAIMER
   const __buildAssetsURL: typeof import('../../node_modules/.pnpm/@nuxt+nitro-server@4.4.2_@babel+core@7.29.0_db0@0.3.4_ioredis@5.10.1_magicast@0.5.2_nux_4ef35676041ca6aeac96e97cd57aa3e3/node_modules/@nuxt/nitro-server/dist/runtime/utils/paths').buildAssetsURL
   const __publicAssetsURL: typeof import('../../node_modules/.pnpm/@nuxt+nitro-server@4.4.2_@babel+core@7.29.0_db0@0.3.4_ioredis@5.10.1_magicast@0.5.2_nux_4ef35676041ca6aeac96e97cd57aa3e3/node_modules/@nuxt/nitro-server/dist/runtime/utils/paths').publicAssetsURL
   const activeNotesMatch: typeof import('../../server/utils/noteDeletedFilter').activeNotesMatch
@@ -11,13 +12,17 @@ declare global {
   const appendHeaders: typeof import('../../node_modules/.pnpm/h3@1.15.10/node_modules/h3').appendHeaders
   const appendResponseHeader: typeof import('../../node_modules/.pnpm/h3@1.15.10/node_modules/h3').appendResponseHeader
   const appendResponseHeaders: typeof import('../../node_modules/.pnpm/h3@1.15.10/node_modules/h3').appendResponseHeaders
+  const assembleDailyOpsLaborMetricsDto: typeof import('../../server/utils/dailyOpsDashboardMetrics').assembleDailyOpsLaborMetricsDto
   const assertMethod: typeof import('../../node_modules/.pnpm/h3@1.15.10/node_modules/h3').assertMethod
+  const buildDailyOpsRevenueBreakdownDto: typeof import('../../server/utils/dailyOpsDashboardMetrics').buildDailyOpsRevenueBreakdownDto
+  const buildDailyOpsSummaryDto: typeof import('../../server/utils/dailyOpsDashboardMetrics').buildDailyOpsSummaryDto
   const cachedEventHandler: typeof import('../../node_modules/.pnpm/nitropack@2.13.2/node_modules/nitropack/dist/runtime/internal/cache').cachedEventHandler
   const cachedFunction: typeof import('../../node_modules/.pnpm/nitropack@2.13.2/node_modules/nitropack/dist/runtime/internal/cache').cachedFunction
   const callNodeListener: typeof import('../../node_modules/.pnpm/h3@1.15.10/node_modules/h3').callNodeListener
   const clearResponseHeaders: typeof import('../../node_modules/.pnpm/h3@1.15.10/node_modules/h3').clearResponseHeaders
   const clearSession: typeof import('../../node_modules/.pnpm/h3@1.15.10/node_modules/h3').clearSession
   const collectMentionSlugsFromContent: typeof import('../../server/utils/noteMentions').collectMentionSlugsFromContent
+  const computeMostProfitableHour: typeof import('../../server/utils/dailyOpsDashboardMetrics').computeMostProfitableHour
   const connectToDatabase: typeof import('../../server/utils/db').connectToDatabase
   const createApp: typeof import('../../node_modules/.pnpm/h3@1.15.10/node_modules/h3').createApp
   const createAppEventHandler: typeof import('../../node_modules/.pnpm/h3@1.15.10/node_modules/h3').createAppEventHandler
@@ -48,13 +53,30 @@ declare global {
   const documentToEitjeStoredCredentials: typeof import('../../server/utils/eitjeApiCredentials').documentToEitjeStoredCredentials
   const dynamicEventHandler: typeof import('../../node_modules/.pnpm/h3@1.15.10/node_modules/h3').dynamicEventHandler
   const eitjeUserIdCandidates: typeof import('../../server/utils/memberEitjeContext').eitjeUserIdCandidates
+  const enumerateUtcDatesInclusive: typeof import('../../server/utils/dailyOpsDashboardMetrics').enumerateUtcDatesInclusive
   const eventHandler: typeof import('../../node_modules/.pnpm/h3@1.15.10/node_modules/h3').eventHandler
   const extractDumpRows: typeof import('../../server/utils/parseMenuDump').extractDumpRows
   const extractMentionSlug: typeof import('../../server/utils/noteMentions').extractMentionSlug
   const extractWijnkaartItems: typeof import('../../server/utils/parseMenuFile').extractWijnkaartItems
   const fetchAggregationActivityByLocationTeam: typeof import('../../server/utils/memberEitjeContext').fetchAggregationActivityByLocationTeam
+  const fetchBorkHourAggregatesBundle: typeof import('../../server/utils/dailyOpsDashboardMetrics').fetchBorkHourAggregatesBundle
+  const fetchBorkRevenueTotals: typeof import('../../server/utils/dailyOpsDashboardMetrics').fetchBorkRevenueTotals
+  const fetchEitjeLaborTotals: typeof import('../../server/utils/dailyOpsDashboardMetrics').fetchEitjeLaborTotals
+  const fetchHourlyRevenueForRange: typeof import('../../server/utils/dailyOpsDashboardMetrics').fetchHourlyRevenueForRange
+  const fetchHoursCostByContractType: typeof import('../../server/utils/dailyOpsDashboardMetrics').fetchHoursCostByContractType
+  const fetchHoursCostByContractTypeByDay: typeof import('../../server/utils/dailyOpsDashboardMetrics').fetchHoursCostByContractTypeByDay
+  const fetchLaborByDate: typeof import('../../server/utils/dailyOpsDashboardMetrics').fetchLaborByDate
+  const fetchLaborMetricsPipelineInput: typeof import('../../server/utils/dailyOpsDashboardMetrics').fetchLaborMetricsPipelineInput
+  const fetchLaborProductivityByLocationDay: typeof import('../../server/utils/dailyOpsDashboardMetrics').fetchLaborProductivityByLocationDay
   const fetchMemberEitjePlaces: typeof import('../../server/utils/memberEitjeContext').fetchMemberEitjePlaces
+  const fetchRevenueByCategoryFromHourAggregates: typeof import('../../server/utils/dailyOpsDashboardMetrics').fetchRevenueByCategoryFromHourAggregates
+  const fetchRevenueByCategoryFromRaw: typeof import('../../server/utils/dailyOpsDashboardMetrics').fetchRevenueByCategoryFromRaw
+  const fetchRevenueByDate: typeof import('../../server/utils/dailyOpsDashboardMetrics').fetchRevenueByDate
+  const fetchRevenueByDateAndLocation: typeof import('../../server/utils/dailyOpsDashboardMetrics').fetchRevenueByDateAndLocation
+  const fetchRevenueByTimePeriod: typeof import('../../server/utils/dailyOpsDashboardMetrics').fetchRevenueByTimePeriod
   const fetchWithEvent: typeof import('../../node_modules/.pnpm/h3@1.15.10/node_modules/h3').fetchWithEvent
+  const fetchWorkersByTeamLocation: typeof import('../../server/utils/dailyOpsDashboardMetrics').fetchWorkersByTeamLocation
+  const fetchWorkersByTeamLocationByDay: typeof import('../../server/utils/dailyOpsDashboardMetrics').fetchWorkersByTeamLocationByDay
   const findEitjeCredentialDocument: typeof import('../../server/utils/eitjeApiCredentials').findEitjeCredentialDocument
   const fromNodeMiddleware: typeof import('../../node_modules/.pnpm/h3@1.15.10/node_modules/h3').fromNodeMiddleware
   const fromPlainHandler: typeof import('../../node_modules/.pnpm/h3@1.15.10/node_modules/h3').fromPlainHandler
@@ -93,6 +115,7 @@ declare global {
   const getValidatedRouterParams: typeof import('../../node_modules/.pnpm/h3@1.15.10/node_modules/h3').getValidatedRouterParams
   const handleCacheHeaders: typeof import('../../node_modules/.pnpm/h3@1.15.10/node_modules/h3').handleCacheHeaders
   const handleCors: typeof import('../../node_modules/.pnpm/h3@1.15.10/node_modules/h3').handleCors
+  const inventoryCollections: typeof import('../../server/utils/dailyOpsDashboardMetrics').inventoryCollections
   const isCorsOriginAllowed: typeof import('../../node_modules/.pnpm/h3@1.15.10/node_modules/h3').isCorsOriginAllowed
   const isError: typeof import('../../node_modules/.pnpm/h3@1.15.10/node_modules/h3').isError
   const isEvent: typeof import('../../node_modules/.pnpm/h3@1.15.10/node_modules/h3').isEvent
@@ -102,12 +125,15 @@ declare global {
   const isStream: typeof import('../../node_modules/.pnpm/h3@1.15.10/node_modules/h3').isStream
   const isWebResponse: typeof import('../../node_modules/.pnpm/h3@1.15.10/node_modules/h3').isWebResponse
   const lazyEventHandler: typeof import('../../node_modules/.pnpm/h3@1.15.10/node_modules/h3').lazyEventHandler
+  const locationDayKey: typeof import('../../server/utils/dailyOpsDashboardMetrics').locationDayKey
   const mapWijnkaartRowToItem: typeof import('../../server/utils/parseMenuFile').mapWijnkaartRowToItem
   const mergeWorkedAndPlanned: typeof import('../../server/utils/memberEitjeContext').mergeWorkedAndPlanned
   const nitroPlugin: typeof import('../../node_modules/.pnpm/nitropack@2.13.2/node_modules/nitropack/dist/runtime/internal/plugin').nitroPlugin
   const parseCookies: typeof import('../../node_modules/.pnpm/h3@1.15.10/node_modules/h3').parseCookies
   const parseCsvToRows: typeof import('../../server/utils/parseMenuFile').parseCsvToRows
+  const parseDailyOpsMetricsQuery: typeof import('../../server/utils/dailyOpsDashboardMetrics').parseDailyOpsMetricsQuery
   const parseExcelToRows: typeof import('../../server/utils/parseMenuFile').parseExcelToRows
+  const parseLocationDayKey: typeof import('../../server/utils/dailyOpsDashboardMetrics').parseLocationDayKey
   const parseMenuFileToRows: typeof import('../../server/utils/parseMenuFile').parseMenuFileToRows
   const parsePdfToRows: typeof import('../../server/utils/parsePdf').parsePdfToRows
   const productGroupFromFilename: typeof import('../../server/utils/parseMenuDump').productGroupFromFilename
@@ -119,9 +145,10 @@ declare global {
   const readRawBody: typeof import('../../node_modules/.pnpm/h3@1.15.10/node_modules/h3').readRawBody
   const readValidatedBody: typeof import('../../node_modules/.pnpm/h3@1.15.10/node_modules/h3').readValidatedBody
   const removeResponseHeader: typeof import('../../node_modules/.pnpm/h3@1.15.10/node_modules/h3').removeResponseHeader
-  const resolveDailyOpsPeriod: typeof import('../../server/utils/dailyOpsPeriod').resolveDailyOpsPeriod
   const resolveEitjeAggregationUserCandidates: typeof import('../../server/utils/memberEitjeContext').resolveEitjeAggregationUserCandidates
   const resolveSlugsToUnifiedUserIds: typeof import('../../server/utils/noteMentions').resolveSlugsToUnifiedUserIds
+  const resolveUnifiedLocationToEitjeId: typeof import('../../server/utils/dailyOpsDashboardMetrics').resolveUnifiedLocationToEitjeId
+  const revenueByTimePeriodFromHourTotals: typeof import('../../server/utils/dailyOpsDashboardMetrics').revenueByTimePeriodFromHourTotals
   const rowToData: typeof import('../../server/utils/parseMenuDump').rowToData
   const runTask: typeof import('../../node_modules/.pnpm/nitropack@2.13.2/node_modules/nitropack/dist/runtime/internal/task').runTask
   const sanitizeStatusCode: typeof import('../../node_modules/.pnpm/h3@1.15.10/node_modules/h3').sanitizeStatusCode
@@ -166,8 +193,8 @@ declare global {
   export type { EventHandler, EventHandlerRequest, EventHandlerResponse, EventHandlerObject, H3EventContext } from '../../node_modules/.pnpm/h3@1.15.10/node_modules/h3'
   import('../../node_modules/.pnpm/h3@1.15.10/node_modules/h3')
   // @ts-ignore
-  export type { DailyOpsDateRange } from '../../server/utils/dailyOpsPeriod'
-  import('../../server/utils/dailyOpsPeriod')
+  export type { DailyOpsMetricsContext, BorkHourAggregatesBundle, ContractTypeDayRow, WorkersTeamLocationDayRow, LaborMetricsPipelineInput } from '../../server/utils/dailyOpsDashboardMetrics'
+  import('../../server/utils/dailyOpsDashboardMetrics')
   // @ts-ignore
   export type { UtcDayRange } from '../../server/utils/eitjeHours'
   import('../../server/utils/eitjeHours')
@@ -198,7 +225,7 @@ export { defineTask, runTask } from 'nitropack/runtime/internal/task';
 export { defineNitroErrorHandler } from 'nitropack/runtime/internal/error/utils';
 export { buildAssetsURL as __buildAssetsURL, publicAssetsURL as __publicAssetsURL } from '/Users/alviniomolina/Documents/GitHub/daily-ops/node_modules/.pnpm/@nuxt+nitro-server@4.4.2_@babel+core@7.29.0_db0@0.3.4_ioredis@5.10.1_magicast@0.5.2_nux_4ef35676041ca6aeac96e97cd57aa3e3/node_modules/@nuxt/nitro-server/dist/runtime/utils/paths';
 export { defineAppConfig } from '/Users/alviniomolina/Documents/GitHub/daily-ops/node_modules/.pnpm/@nuxt+nitro-server@4.4.2_@babel+core@7.29.0_db0@0.3.4_ioredis@5.10.1_magicast@0.5.2_nux_4ef35676041ca6aeac96e97cd57aa3e3/node_modules/@nuxt/nitro-server/dist/runtime/utils/config';
-export { resolveDailyOpsPeriod } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/dailyOpsPeriod';
+export { parseDailyOpsMetricsQuery, resolveUnifiedLocationToEitjeId, enumerateUtcDatesInclusive, fetchBorkRevenueTotals, fetchEitjeLaborTotals, fetchRevenueByCategoryFromHourAggregates, fetchRevenueByCategoryFromRaw, fetchBorkHourAggregatesBundle, revenueByTimePeriodFromHourTotals, fetchRevenueByTimePeriod, fetchHourlyRevenueForRange, fetchRevenueByDate, locationDayKey, parseLocationDayKey, fetchRevenueByDateAndLocation, fetchLaborByDate, fetchHoursCostByContractTypeByDay, computeMostProfitableHour, fetchWorkersByTeamLocation, fetchWorkersByTeamLocationByDay, fetchHoursCostByContractType, fetchLaborProductivityByLocationDay, inventoryCollections, fetchLaborMetricsPipelineInput, assembleDailyOpsLaborMetricsDto, buildDailyOpsSummaryDto, buildDailyOpsRevenueBreakdownDto, VAT_DISCLAIMER } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/dailyOpsDashboardMetrics';
 export { getDb, getNotesCollection, getUnifiedUsersCollection, getMenuItemsCollection, getMenusCollection, getMenuVersionsCollection, connectToDatabase } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/db';
 export { findEitjeCredentialDocument, documentToEitjeStoredCredentials, documentToCredentialsApiShape } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/eitjeApiCredentials';
 export { EITJE_HOURS_ADD_FIELDS, getUtcDayRange } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/eitjeHours';

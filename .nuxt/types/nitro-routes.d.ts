@@ -26,6 +26,21 @@ declare module "nitropack/types" {
     '/api/daily-ops/insights': {
       'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/daily-ops/insights.get').default>>>>
     }
+    '/api/daily-ops/locations': {
+      'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/daily-ops/locations.get').default>>>>
+    }
+    '/api/daily-ops/metrics/bundle': {
+      'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/daily-ops/metrics/bundle.get').default>>>>
+    }
+    '/api/daily-ops/metrics/labor': {
+      'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/daily-ops/metrics/labor.get').default>>>>
+    }
+    '/api/daily-ops/metrics/revenue-breakdown': {
+      'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/daily-ops/metrics/revenue-breakdown.get').default>>>>
+    }
+    '/api/daily-ops/metrics/summary': {
+      'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/daily-ops/metrics/summary.get').default>>>>
+    }
     '/api/daily-ops/overview': {
       'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/daily-ops/overview.get').default>>>>
     }
@@ -150,6 +165,9 @@ declare module "nitropack/types" {
     '/api/notes': {
       'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/notes/index.get').default>>>>
       'post': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/notes/index.post').default>>>>
+    }
+    '/api/sales-aggregated-products': {
+      'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/sales-aggregated-products.get').default>>>>
     }
     '/api/sales-aggregated': {
       'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/sales-aggregated.get').default>>>>

@@ -31,12 +31,16 @@ export { requestIdleCallback, cancelIdleCallback } from '#app/compat/idle-callba
 export { setInterval } from '#app/compat/interval';
 export { definePageMeta, PageMeta } from '#app/composables/pages';
 export { defineLazyHydrationComponent } from '#app/composables/lazy-hydration';
+export { getLastNDaysRange, getLast30DaysRange } from '../composables/reportingRange';
 export { useDailyOpsDashboardRoute, DailyOpsNavKey } from '../composables/useDailyOpsDashboardRoute';
 export { useDashboardEurFormat } from '../composables/useDashboardEurFormat';
 export { useEnvironment } from '../composables/useEnvironment';
 export { useMentionTagSuggestions, MentionMemberItem, MentionTagItem } from '../composables/useMentionTagSuggestions';
 export { useMenuRowCalculation, parseProductNumber, getCostPerItemFromProduct, getBatchFromProduct, getItemsFromProduct, getSupplierFromProduct, getCostPerItemByBatchType, getCostPer1Cl, MenuRowCalculationInput, MenuRowCalculationResult } from '../composables/useMenuRowCalculation';
+export { useSalesRowProducts, SalesProductLine, SalesRowDetailState } from '../composables/useSalesRowProducts';
 export { useSidebar } from '../composables/useSidebar';
+export { getDayHoursShareParts, formatDayHoursSharePlain, DayHoursShareParts } from '../utils/dailyOpsHoursShare';
+export { resolveDailyOpsPeriod, DailyOpsDateRange } from '../utils/dailyOpsPeriod';
 export { useColorMode } from '../node_modules/.pnpm/@nuxt+ui@4.6.0_@tiptap+extensions@3.21.0_@tiptap+core@3.21.0_@tiptap+pm@3.21.0__@tiptap_0031915eeee23c7bd8bdaceb369561a1/node_modules/@nuxt/ui/dist/runtime/composables/color-mode/useColorMode';
 export { defineLocale, extendLocale } from '../node_modules/.pnpm/@nuxt+ui@4.6.0_@tiptap+extensions@3.21.0_@tiptap+core@3.21.0_@tiptap+pm@3.21.0__@tiptap_0031915eeee23c7bd8bdaceb369561a1/node_modules/@nuxt/ui/dist/runtime/composables/defineLocale';
 export { defineShortcuts, extractShortcuts } from '../node_modules/.pnpm/@nuxt+ui@4.6.0_@tiptap+extensions@3.21.0_@tiptap+core@3.21.0_@tiptap+pm@3.21.0__@tiptap_0031915eeee23c7bd8bdaceb369561a1/node_modules/@nuxt/ui/dist/runtime/composables/defineShortcuts';

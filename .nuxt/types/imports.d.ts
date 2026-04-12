@@ -31,6 +31,7 @@ declare global {
   const effectScope: typeof import('vue').effectScope
   const extendLocale: typeof import('../../node_modules/.pnpm/@nuxt+ui@4.6.0_@tiptap+extensions@3.21.0_@tiptap+core@3.21.0_@tiptap+pm@3.21.0__@tiptap_0031915eeee23c7bd8bdaceb369561a1/node_modules/@nuxt/ui/dist/runtime/composables/defineLocale').extendLocale
   const extractShortcuts: typeof import('../../node_modules/.pnpm/@nuxt+ui@4.6.0_@tiptap+extensions@3.21.0_@tiptap+core@3.21.0_@tiptap+pm@3.21.0__@tiptap_0031915eeee23c7bd8bdaceb369561a1/node_modules/@nuxt/ui/dist/runtime/composables/defineShortcuts').extractShortcuts
+  const formatDayHoursSharePlain: typeof import('../../utils/dailyOpsHoursShare').formatDayHoursSharePlain
   const getAppManifest: typeof import('../../node_modules/.pnpm/nuxt@4.4.2_@babel+core@7.29.0_@babel+plugin-syntax-jsx@7.28.6_@babel+core@7.29.0__@emna_17b042fbec102db6cfc876b0c60ffb5d/node_modules/nuxt/dist/app/composables/manifest').getAppManifest
   const getBatchFromProduct: typeof import('../../composables/useMenuRowCalculation').getBatchFromProduct
   const getCostPer1Cl: typeof import('../../composables/useMenuRowCalculation').getCostPer1Cl
@@ -38,7 +39,10 @@ declare global {
   const getCostPerItemFromProduct: typeof import('../../composables/useMenuRowCalculation').getCostPerItemFromProduct
   const getCurrentInstance: typeof import('vue').getCurrentInstance
   const getCurrentScope: typeof import('vue').getCurrentScope
+  const getDayHoursShareParts: typeof import('../../utils/dailyOpsHoursShare').getDayHoursShareParts
   const getItemsFromProduct: typeof import('../../composables/useMenuRowCalculation').getItemsFromProduct
+  const getLast30DaysRange: typeof import('../../composables/reportingRange').getLast30DaysRange
+  const getLastNDaysRange: typeof import('../../composables/reportingRange').getLastNDaysRange
   const getRouteRules: typeof import('../../node_modules/.pnpm/nuxt@4.4.2_@babel+core@7.29.0_@babel+plugin-syntax-jsx@7.28.6_@babel+core@7.29.0__@emna_17b042fbec102db6cfc876b0c60ffb5d/node_modules/nuxt/dist/app/composables/manifest').getRouteRules
   const getSupplierFromProduct: typeof import('../../composables/useMenuRowCalculation').getSupplierFromProduct
   const h: typeof import('vue').h
@@ -92,6 +96,7 @@ declare global {
   const reloadNuxtApp: typeof import('../../node_modules/.pnpm/nuxt@4.4.2_@babel+core@7.29.0_@babel+plugin-syntax-jsx@7.28.6_@babel+core@7.29.0__@emna_17b042fbec102db6cfc876b0c60ffb5d/node_modules/nuxt/dist/app/composables/chunk').reloadNuxtApp
   const requestIdleCallback: typeof import('../../node_modules/.pnpm/nuxt@4.4.2_@babel+core@7.29.0_@babel+plugin-syntax-jsx@7.28.6_@babel+core@7.29.0__@emna_17b042fbec102db6cfc876b0c60ffb5d/node_modules/nuxt/dist/app/compat/idle-callback').requestIdleCallback
   const resolveComponent: typeof import('vue').resolveComponent
+  const resolveDailyOpsPeriod: typeof import('../../utils/dailyOpsPeriod').resolveDailyOpsPeriod
   const setInterval: typeof import('../../node_modules/.pnpm/nuxt@4.4.2_@babel+core@7.29.0_@babel+plugin-syntax-jsx@7.28.6_@babel+core@7.29.0__@emna_17b042fbec102db6cfc876b0c60ffb5d/node_modules/nuxt/dist/app/compat/interval').setInterval
   const setPageLayout: typeof import('../../node_modules/.pnpm/nuxt@4.4.2_@babel+core@7.29.0_@babel+plugin-syntax-jsx@7.28.6_@babel+core@7.29.0__@emna_17b042fbec102db6cfc876b0c60ffb5d/node_modules/nuxt/dist/app/composables/router').setPageLayout
   const setResponseStatus: typeof import('../../node_modules/.pnpm/nuxt@4.4.2_@babel+core@7.29.0_@babel+plugin-syntax-jsx@7.28.6_@babel+core@7.29.0__@emna_17b042fbec102db6cfc876b0c60ffb5d/node_modules/nuxt/dist/app/composables/ssr').setResponseStatus
@@ -152,6 +157,7 @@ declare global {
   const useRouter: typeof import('../../node_modules/.pnpm/nuxt@4.4.2_@babel+core@7.29.0_@babel+plugin-syntax-jsx@7.28.6_@babel+core@7.29.0__@emna_17b042fbec102db6cfc876b0c60ffb5d/node_modules/nuxt/dist/app/composables/router').useRouter
   const useRuntimeConfig: typeof import('../../node_modules/.pnpm/nuxt@4.4.2_@babel+core@7.29.0_@babel+plugin-syntax-jsx@7.28.6_@babel+core@7.29.0__@emna_17b042fbec102db6cfc876b0c60ffb5d/node_modules/nuxt/dist/app/nuxt').useRuntimeConfig
   const useRuntimeHook: typeof import('../../node_modules/.pnpm/nuxt@4.4.2_@babel+core@7.29.0_@babel+plugin-syntax-jsx@7.28.6_@babel+core@7.29.0__@emna_17b042fbec102db6cfc876b0c60ffb5d/node_modules/nuxt/dist/app/composables/runtime-hook').useRuntimeHook
+  const useSalesRowProducts: typeof import('../../composables/useSalesRowProducts').useSalesRowProducts
   const useScript: typeof import('../../node_modules/.pnpm/nuxt@4.4.2_@babel+core@7.29.0_@babel+plugin-syntax-jsx@7.28.6_@babel+core@7.29.0__@emna_17b042fbec102db6cfc876b0c60ffb5d/node_modules/nuxt/dist/app/composables/script-stubs').useScript
   const useScriptClarity: typeof import('../../node_modules/.pnpm/nuxt@4.4.2_@babel+core@7.29.0_@babel+plugin-syntax-jsx@7.28.6_@babel+core@7.29.0__@emna_17b042fbec102db6cfc876b0c60ffb5d/node_modules/nuxt/dist/app/composables/script-stubs').useScriptClarity
   const useScriptCloudflareWebAnalytics: typeof import('../../node_modules/.pnpm/nuxt@4.4.2_@babel+core@7.29.0_@babel+plugin-syntax-jsx@7.28.6_@babel+core@7.29.0__@emna_17b042fbec102db6cfc876b0c60ffb5d/node_modules/nuxt/dist/app/composables/script-stubs').useScriptCloudflareWebAnalytics
@@ -223,6 +229,15 @@ declare global {
   // @ts-ignore
   export type { MenuRowCalculationInput, MenuRowCalculationResult } from '../../composables/useMenuRowCalculation'
   import('../../composables/useMenuRowCalculation')
+  // @ts-ignore
+  export type { SalesProductLine, SalesRowDetailState } from '../../composables/useSalesRowProducts'
+  import('../../composables/useSalesRowProducts')
+  // @ts-ignore
+  export type { DayHoursShareParts } from '../../utils/dailyOpsHoursShare'
+  import('../../utils/dailyOpsHoursShare')
+  // @ts-ignore
+  export type { DailyOpsDateRange } from '../../utils/dailyOpsPeriod'
+  import('../../utils/dailyOpsPeriod')
 }
 // for vue template auto import
 import { UnwrapRef } from 'vue'
@@ -258,6 +273,7 @@ declare module 'vue' {
     readonly effectScope: UnwrapRef<typeof import('vue')['effectScope']>
     readonly extendLocale: UnwrapRef<typeof import('../../node_modules/.pnpm/@nuxt+ui@4.6.0_@tiptap+extensions@3.21.0_@tiptap+core@3.21.0_@tiptap+pm@3.21.0__@tiptap_0031915eeee23c7bd8bdaceb369561a1/node_modules/@nuxt/ui/dist/runtime/composables/defineLocale')['extendLocale']>
     readonly extractShortcuts: UnwrapRef<typeof import('../../node_modules/.pnpm/@nuxt+ui@4.6.0_@tiptap+extensions@3.21.0_@tiptap+core@3.21.0_@tiptap+pm@3.21.0__@tiptap_0031915eeee23c7bd8bdaceb369561a1/node_modules/@nuxt/ui/dist/runtime/composables/defineShortcuts')['extractShortcuts']>
+    readonly formatDayHoursSharePlain: UnwrapRef<typeof import('../../utils/dailyOpsHoursShare')['formatDayHoursSharePlain']>
     readonly getAppManifest: UnwrapRef<typeof import('../../node_modules/.pnpm/nuxt@4.4.2_@babel+core@7.29.0_@babel+plugin-syntax-jsx@7.28.6_@babel+core@7.29.0__@emna_17b042fbec102db6cfc876b0c60ffb5d/node_modules/nuxt/dist/app/composables/manifest')['getAppManifest']>
     readonly getBatchFromProduct: UnwrapRef<typeof import('../../composables/useMenuRowCalculation')['getBatchFromProduct']>
     readonly getCostPer1Cl: UnwrapRef<typeof import('../../composables/useMenuRowCalculation')['getCostPer1Cl']>
@@ -265,7 +281,10 @@ declare module 'vue' {
     readonly getCostPerItemFromProduct: UnwrapRef<typeof import('../../composables/useMenuRowCalculation')['getCostPerItemFromProduct']>
     readonly getCurrentInstance: UnwrapRef<typeof import('vue')['getCurrentInstance']>
     readonly getCurrentScope: UnwrapRef<typeof import('vue')['getCurrentScope']>
+    readonly getDayHoursShareParts: UnwrapRef<typeof import('../../utils/dailyOpsHoursShare')['getDayHoursShareParts']>
     readonly getItemsFromProduct: UnwrapRef<typeof import('../../composables/useMenuRowCalculation')['getItemsFromProduct']>
+    readonly getLast30DaysRange: UnwrapRef<typeof import('../../composables/reportingRange')['getLast30DaysRange']>
+    readonly getLastNDaysRange: UnwrapRef<typeof import('../../composables/reportingRange')['getLastNDaysRange']>
     readonly getRouteRules: UnwrapRef<typeof import('../../node_modules/.pnpm/nuxt@4.4.2_@babel+core@7.29.0_@babel+plugin-syntax-jsx@7.28.6_@babel+core@7.29.0__@emna_17b042fbec102db6cfc876b0c60ffb5d/node_modules/nuxt/dist/app/composables/manifest')['getRouteRules']>
     readonly getSupplierFromProduct: UnwrapRef<typeof import('../../composables/useMenuRowCalculation')['getSupplierFromProduct']>
     readonly h: UnwrapRef<typeof import('vue')['h']>
@@ -319,6 +338,7 @@ declare module 'vue' {
     readonly reloadNuxtApp: UnwrapRef<typeof import('../../node_modules/.pnpm/nuxt@4.4.2_@babel+core@7.29.0_@babel+plugin-syntax-jsx@7.28.6_@babel+core@7.29.0__@emna_17b042fbec102db6cfc876b0c60ffb5d/node_modules/nuxt/dist/app/composables/chunk')['reloadNuxtApp']>
     readonly requestIdleCallback: UnwrapRef<typeof import('../../node_modules/.pnpm/nuxt@4.4.2_@babel+core@7.29.0_@babel+plugin-syntax-jsx@7.28.6_@babel+core@7.29.0__@emna_17b042fbec102db6cfc876b0c60ffb5d/node_modules/nuxt/dist/app/compat/idle-callback')['requestIdleCallback']>
     readonly resolveComponent: UnwrapRef<typeof import('vue')['resolveComponent']>
+    readonly resolveDailyOpsPeriod: UnwrapRef<typeof import('../../utils/dailyOpsPeriod')['resolveDailyOpsPeriod']>
     readonly setInterval: UnwrapRef<typeof import('../../node_modules/.pnpm/nuxt@4.4.2_@babel+core@7.29.0_@babel+plugin-syntax-jsx@7.28.6_@babel+core@7.29.0__@emna_17b042fbec102db6cfc876b0c60ffb5d/node_modules/nuxt/dist/app/compat/interval')['setInterval']>
     readonly setPageLayout: UnwrapRef<typeof import('../../node_modules/.pnpm/nuxt@4.4.2_@babel+core@7.29.0_@babel+plugin-syntax-jsx@7.28.6_@babel+core@7.29.0__@emna_17b042fbec102db6cfc876b0c60ffb5d/node_modules/nuxt/dist/app/composables/router')['setPageLayout']>
     readonly setResponseStatus: UnwrapRef<typeof import('../../node_modules/.pnpm/nuxt@4.4.2_@babel+core@7.29.0_@babel+plugin-syntax-jsx@7.28.6_@babel+core@7.29.0__@emna_17b042fbec102db6cfc876b0c60ffb5d/node_modules/nuxt/dist/app/composables/ssr')['setResponseStatus']>
@@ -379,6 +399,7 @@ declare module 'vue' {
     readonly useRouter: UnwrapRef<typeof import('../../node_modules/.pnpm/nuxt@4.4.2_@babel+core@7.29.0_@babel+plugin-syntax-jsx@7.28.6_@babel+core@7.29.0__@emna_17b042fbec102db6cfc876b0c60ffb5d/node_modules/nuxt/dist/app/composables/router')['useRouter']>
     readonly useRuntimeConfig: UnwrapRef<typeof import('../../node_modules/.pnpm/nuxt@4.4.2_@babel+core@7.29.0_@babel+plugin-syntax-jsx@7.28.6_@babel+core@7.29.0__@emna_17b042fbec102db6cfc876b0c60ffb5d/node_modules/nuxt/dist/app/nuxt')['useRuntimeConfig']>
     readonly useRuntimeHook: UnwrapRef<typeof import('../../node_modules/.pnpm/nuxt@4.4.2_@babel+core@7.29.0_@babel+plugin-syntax-jsx@7.28.6_@babel+core@7.29.0__@emna_17b042fbec102db6cfc876b0c60ffb5d/node_modules/nuxt/dist/app/composables/runtime-hook')['useRuntimeHook']>
+    readonly useSalesRowProducts: UnwrapRef<typeof import('../../composables/useSalesRowProducts')['useSalesRowProducts']>
     readonly useScript: UnwrapRef<typeof import('../../node_modules/.pnpm/nuxt@4.4.2_@babel+core@7.29.0_@babel+plugin-syntax-jsx@7.28.6_@babel+core@7.29.0__@emna_17b042fbec102db6cfc876b0c60ffb5d/node_modules/nuxt/dist/app/composables/script-stubs')['useScript']>
     readonly useScriptClarity: UnwrapRef<typeof import('../../node_modules/.pnpm/nuxt@4.4.2_@babel+core@7.29.0_@babel+plugin-syntax-jsx@7.28.6_@babel+core@7.29.0__@emna_17b042fbec102db6cfc876b0c60ffb5d/node_modules/nuxt/dist/app/composables/script-stubs')['useScriptClarity']>
     readonly useScriptCloudflareWebAnalytics: UnwrapRef<typeof import('../../node_modules/.pnpm/nuxt@4.4.2_@babel+core@7.29.0_@babel+plugin-syntax-jsx@7.28.6_@babel+core@7.29.0__@emna_17b042fbec102db6cfc876b0c60ffb5d/node_modules/nuxt/dist/app/composables/script-stubs')['useScriptCloudflareWebAnalytics']>

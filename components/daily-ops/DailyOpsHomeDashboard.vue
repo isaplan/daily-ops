@@ -59,12 +59,16 @@
               <p class="mt-2 text-2xl font-semibold text-gray-900">{{ team.workerCount }}</p>
               <div class="mt-3 space-y-1 border-t border-gray-100 pt-3">
                 <div class="flex justify-between text-xs">
+                  <span class="text-gray-600">Hours</span>
+                  <span class="font-semibold text-gray-900">{{ team.totalHours.toFixed(1) }}</span>
+                </div>
+                <div class="flex justify-between text-xs">
                   <span class="text-gray-600">Cost</span>
                   <span class="font-semibold text-gray-900">{{ formatEur(team.totalCost) }}</span>
                 </div>
                 <div class="flex justify-between text-xs">
-                  <span class="text-gray-600">% of Labor</span>
-                  <span class="font-semibold text-gray-900">{{ team.pctOfTotalCost.toFixed(1) }}%</span>
+                  <span class="text-gray-600">% of Labor Hours</span>
+                  <span class="font-semibold text-gray-900">{{ team.pctOfTotalHours.toFixed(1) }}%</span>
                 </div>
               </div>
             </button>
@@ -86,12 +90,16 @@
               <p class="mt-2 text-2xl font-semibold text-gray-900">{{ contract.workerCount }}</p>
               <div class="mt-3 space-y-1 border-t border-gray-100 pt-3">
                 <div class="flex justify-between text-xs">
+                  <span class="text-gray-600">Hours</span>
+                  <span class="font-semibold text-gray-900">{{ contract.totalHours.toFixed(1) }}</span>
+                </div>
+                <div class="flex justify-between text-xs">
                   <span class="text-gray-600">Cost</span>
                   <span class="font-semibold text-gray-900">{{ formatEur(contract.totalCost) }}</span>
                 </div>
                 <div class="flex justify-between text-xs">
-                  <span class="text-gray-600">% of Labor</span>
-                  <span class="font-semibold text-gray-900">{{ contract.pctOfTotalCost.toFixed(1) }}%</span>
+                  <span class="text-gray-600">% of Labor Hours</span>
+                  <span class="font-semibold text-gray-900">{{ contract.pctOfTotalHours.toFixed(1) }}%</span>
                 </div>
               </div>
             </button>
@@ -99,38 +107,26 @@
         </div>
 
         <div class="grid min-w-0 gap-6 lg:grid-cols-2">
-          <UCard class="border-2 border-gray-900 !bg-white ring-0 shadow-none">
-            <template #header>
-              <h2 class="text-lg font-semibold text-gray-900">Revenue by Category</h2>
-            </template>
+          <div class="min-w-0">
+            <h3 class="mb-4 text-lg font-semibold text-gray-900">Revenue by Category</h3>
             <p class="mb-3 text-xs text-gray-500">Drinks vs food uses product-name keywords on Bork lines (see data notes below).</p>
-            <div v-if="!revenue.revenueByCategory || revenue.revenueByCategory.length === 0" class="flex items-center justify-center h-64 text-gray-400">
-              <p>No revenue data available</p>
-            </div>
-            <D3PieChart
-              v-else
-              :data="revenue.revenueByCategory.map(r => ({ label: r.label, value: r.amount }))"
-              :width="350"
-              :height="280"
+            <D3PieChartV2
+              :data="revenue.revenueByCategory && revenue.revenueByCategory.length > 0 ? revenue.revenueByCategory.map(r => ({ label: r.label, value: r.amount })) : undefined"
+              :width="400"
+              :height="320"
               :colors="categoryChartColors"
             />
-          </UCard>
+          </div>
 
-          <UCard class="border-2 border-gray-900 !bg-white ring-0 shadow-none">
-            <template #header>
-              <h2 class="text-lg font-semibold text-gray-900">Revenue by Time Period</h2>
-            </template>
-            <div v-if="!revenue.revenueByTimePeriod || revenue.revenueByTimePeriod.length === 0" class="flex items-center justify-center h-64 text-gray-400">
-              <p>No revenue data available</p>
-            </div>
-            <D3PieChart
-              v-else
-              :data="revenue.revenueByTimePeriod.map(r => ({ label: r.label, value: r.amount }))"
-              :width="350"
-              :height="280"
+          <div class="min-w-0">
+            <h3 class="mb-4 text-lg font-semibold text-gray-900">Revenue by Time Period</h3>
+            <D3PieChartV2
+              :data="revenue.revenueByTimePeriod && revenue.revenueByTimePeriod.length > 0 ? revenue.revenueByTimePeriod.map(r => ({ label: r.label, value: r.amount })) : undefined"
+              :width="400"
+              :height="320"
               :colors="timePeriodChartColors"
             />
-          </UCard>
+          </div>
         </div>
 
         <UCard class="border-2 border-gray-900 !bg-white ring-0 shadow-none">
@@ -832,6 +828,7 @@ import type {
 } from '~/types/daily-ops-dashboard'
 import { formatDayHoursSharePlain, getDayHoursShareParts } from '~/utils/dailyOpsHoursShare'
 import D3PieChart from '~/components/charts/D3PieChart.vue'
+import D3PieChartV2 from '~/components/charts/D3PieChartV2.vue'
 import DashboardDayHoursShare from '~/components/daily-ops/DashboardDayHoursShare.vue'
 import WorkerDetailsDrawer from '~/components/daily-ops/WorkerDetailsDrawer.vue'
 
@@ -946,28 +943,33 @@ const teamsSummary = computed(() => {
   const teams = labor.value?.workersByTeamLocation ?? []
   
   // Aggregate by team name (same team across dates = one card)
-  const byTeam = new Map<string, { workerCount: number; totalCost: number }>()
+  const byTeam = new Map<string, { workerCount: number; totalCost: number; totalHours: number }>()
   for (const team of teams) {
     const key = team.teamName
-    if (!byTeam.has(key)) byTeam.set(key, { workerCount: 0, totalCost: 0 })
+    if (!byTeam.has(key)) byTeam.set(key, { workerCount: 0, totalCost: 0, totalHours: 0 })
     const agg = byTeam.get(key)!
     agg.workerCount = Math.max(agg.workerCount, team.workerCount)
     agg.totalCost += team.totalCost
+    agg.totalHours += team.totalHours
   }
   
   const aggregated = Array.from(byTeam.entries()).map(([teamName, data]) => ({
     teamName,
     workerCount: data.workerCount,
     totalCost: data.totalCost,
+    totalHours: data.totalHours,
   }))
   
   const totalCost = aggregated.reduce((sum, t) => sum + t.totalCost, 0)
+  const totalHours = aggregated.reduce((sum, t) => sum + t.totalHours, 0)
   return aggregated
     .map((team) => ({
       teamName: team.teamName,
       workerCount: team.workerCount,
       totalCost: team.totalCost,
+      totalHours: team.totalHours,
       pctOfTotalCost: totalCost > 0 ? (team.totalCost / totalCost) * 100 : 0,
+      pctOfTotalHours: totalHours > 0 ? (team.totalHours / totalHours) * 100 : 0,
     }))
     .sort((a, b) => a.teamName.localeCompare(b.teamName))
 })
@@ -977,28 +979,33 @@ const contractsSummary = computed(() => {
   
   // When locationId is set, API already filters. When undefined, API returns combined.
   // Just display as-is, deduplicating by contractType for cleaner presentation
-  const byContract = new Map<string | null, { workerCount: number; totalCost: number }>()
+  const byContract = new Map<string | null, { workerCount: number; totalCost: number; totalHours: number }>()
   for (const contract of contracts) {
     const key = contract.contractType ?? null
-    if (!byContract.has(key)) byContract.set(key, { workerCount: 0, totalCost: 0 })
+    if (!byContract.has(key)) byContract.set(key, { workerCount: 0, totalCost: 0, totalHours: 0 })
     const agg = byContract.get(key)!
     agg.workerCount = Math.max(agg.workerCount, contract.workerCount ?? 0)
     agg.totalCost += contract.totalCost ?? 0
+    agg.totalHours += contract.totalHours ?? 0
   }
   
   const aggregated = Array.from(byContract.entries()).map(([contractType, data]) => ({
     contractType: contractType ?? '',
     workerCount: data.workerCount,
     cost: data.totalCost,
+    hours: data.totalHours,
   }))
   
   const totalCost = aggregated.reduce((sum, c) => sum + c.cost, 0)
+  const totalHours = aggregated.reduce((sum, c) => sum + c.hours, 0)
   return aggregated
     .map((contract) => ({
       contractType: contract.contractType,
       workerCount: contract.workerCount,
       totalCost: contract.cost,
+      totalHours: contract.hours,
       pctOfTotalCost: totalCost > 0 ? (contract.cost / totalCost) * 100 : 0,
+      pctOfTotalHours: totalHours > 0 ? (contract.hours / totalHours) * 100 : 0,
     }))
     .sort((a, b) => (a.contractType || 'ZZZ').localeCompare(b.contractType || 'ZZZ'))
 })
@@ -1500,6 +1507,7 @@ const formatContractBelowHoursLine = (contractType: string, date: string): strin
 }
 
 type DrawerWorkerRow = {
+  date: string
   locationName: string
   teamName: string
   totalHours: number
@@ -1520,6 +1528,7 @@ const filteredWorkers = computed((): DrawerWorkerRow[] => {
     return raw
       .filter((r) => r.teamName === selectedTeam.value)
       .map((r) => ({
+        date: r.date,
         locationName: r.locationName,
         teamName: r.teamName,
         totalHours: r.totalHours,
@@ -1527,7 +1536,11 @@ const filteredWorkers = computed((): DrawerWorkerRow[] => {
         laborCostPctOfRevenue: r.laborCostPctOfRevenue,
         workerCount: r.workerCount,
       }))
-      .sort((a, b) => `${a.locationName}${a.teamName}`.localeCompare(`${b.locationName}${b.teamName}`))
+      .sort((a, b) => {
+        const dateCmp = a.date.localeCompare(b.date)
+        if (dateCmp !== 0) return dateCmp
+        return `${a.locationName}${a.teamName}`.localeCompare(`${b.locationName}${b.teamName}`)
+      })
   }
 
   if (selectedContract.value) {
@@ -1539,9 +1552,10 @@ const filteredWorkers = computed((): DrawerWorkerRow[] => {
 
     const aggregated = new Map<string, DrawerWorkerRow>()
     for (const row of raw) {
-      const key = `${row.locationName}|${row.teamName}`
+      const key = `${row.date}|${row.locationName}|${row.teamName}`
       if (!aggregated.has(key)) {
         aggregated.set(key, {
+          date: row.date,
           locationName: row.locationName,
           teamName: row.teamName,
           totalHours: 0,
@@ -1556,9 +1570,11 @@ const filteredWorkers = computed((): DrawerWorkerRow[] => {
       agg.workerCount += row.workerCount
     }
     
-    return Array.from(aggregated.values()).sort((a, b) =>
-      `${a.locationName}${a.teamName}`.localeCompare(`${b.locationName}${b.teamName}`)
-    )
+    return Array.from(aggregated.values()).sort((a, b) => {
+      const dateCmp = a.date.localeCompare(b.date)
+      if (dateCmp !== 0) return dateCmp
+      return `${a.locationName}${a.teamName}`.localeCompare(`${b.locationName}${b.teamName}`)
+    })
   }
 
   return []

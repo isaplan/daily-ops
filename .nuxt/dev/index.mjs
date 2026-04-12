@@ -5,7 +5,7 @@ import { resolve, dirname, join } from 'node:path';
 import nodeCrypto, { createHash } from 'node:crypto';
 import { parentPort, threadId } from 'node:worker_threads';
 import { escapeHtml } from 'file:///Users/alviniomolina/Documents/GitHub/daily-ops/node_modules/.pnpm/@vue+shared@3.5.31/node_modules/@vue/shared/dist/shared.cjs.js';
-import { MongoClient, ObjectId } from 'file:///Users/alviniomolina/Documents/GitHub/daily-ops/node_modules/.pnpm/mongodb@7.1.1/node_modules/mongodb/lib/index.js';
+import { ObjectId, MongoClient } from 'file:///Users/alviniomolina/Documents/GitHub/daily-ops/node_modules/.pnpm/mongodb@7.1.1/node_modules/mongodb/lib/index.js';
 import { request } from 'node:https';
 import Papa from 'file:///Users/alviniomolina/Documents/GitHub/daily-ops/node_modules/.pnpm/papaparse@5.5.3/node_modules/papaparse/papaparse.js';
 import * as cpexcel from '/Users/alviniomolina/Documents/GitHub/daily-ops/node_modules/.pnpm/xlsx@0.18.5/node_modules/xlsx/dist/cpexcel.js';
@@ -2468,22 +2468,7 @@ _ApuVGNieO4gVDZSW_C0BELLT6l8jIXBnJLpKn5iU,
 _wH6JrtIxmaSoA8lCPWFnE9z4lQeXW6H5z3l5aymEQw
 ];
 
-const assets = {
-  "/index.mjs": {
-    "type": "text/javascript; charset=utf-8",
-    "etag": "\"129476-nBQ6ecagfca2HH+JaVlhZJ8MCpg\"",
-    "mtime": "2026-04-10T09:50:09.148Z",
-    "size": 1217654,
-    "path": "index.mjs"
-  },
-  "/index.mjs.map": {
-    "type": "application/json",
-    "etag": "\"4b0d7c-rbJW6E6DiIS0V/f2zKJ2Sq7cuTs\"",
-    "mtime": "2026-04-10T09:50:09.191Z",
-    "size": 4918652,
-    "path": "index.mjs.map"
-  }
-};
+const assets = {};
 
 function readAsset (id) {
   const serverDir = dirname$1(fileURLToPath(globalThis._importMeta_.url));
@@ -3075,6 +3060,781 @@ function resolveDailyOpsPeriod(raw, anchor) {
   const lastStart = addDaysUtc(thisStart, -7);
   const lastEnd = addDaysUtc(thisStart, -1);
   return { period, startDate: utcYmd(lastStart), endDate: utcYmd(lastEnd) };
+}
+
+const VAT_DISCLAIMER = "All revenue values shown are excluding VAT (ex VAT)";
+const DRINK_NAME_PATTERN = /wine|wijn|beer|bier|gint|gin |vodka|whisk|whiskey|rum|cocktail|cola|sprite|fanta|coffee|koffie|thee|tea|sap|juice|fris|prosecco|champagne|cider|tonic|latte|cappuccino|espresso|pils|stelz|borrel|aperol|campari|martini|soda|limonade/i;
+function parseDailyOpsMetricsQuery(q) {
+  const periodRaw = typeof q.period === "string" ? q.period : "today";
+  const anchor = typeof q.anchor === "string" ? q.anchor : void 0;
+  const range = resolveDailyOpsPeriod(periodRaw, anchor);
+  const locRaw = typeof q.location === "string" ? q.location : void 0;
+  let locationId;
+  if (locRaw && locRaw !== "all") {
+    try {
+      locationId = new ObjectId(locRaw);
+    } catch {
+      locationId = locRaw;
+    }
+  }
+  return {
+    period: range.period,
+    startDate: range.startDate,
+    endDate: range.endDate,
+    locationId
+  };
+}
+function enumerateUtcDatesInclusive(start, end) {
+  const out = [];
+  const [ys, ms, ds] = start.split("-").map(Number);
+  const [ye, me, de] = end.split("-").map(Number);
+  let y = ys != null ? ys : 0;
+  let m = ms != null ? ms : 1;
+  let d = ds != null ? ds : 1;
+  const endT = new Date(Date.UTC(ye != null ? ye : 0, (me != null ? me : 1) - 1, de != null ? de : 1)).getTime();
+  let cur = new Date(Date.UTC(y, m - 1, d)).getTime();
+  while (cur <= endT) {
+    const dt = new Date(cur);
+    const p = (n) => String(n).padStart(2, "0");
+    out.push(`${dt.getUTCFullYear()}-${p(dt.getUTCMonth() + 1)}-${p(dt.getUTCDate())}`);
+    cur += 864e5;
+  }
+  return out;
+}
+function timePeriodKey(hour) {
+  if (hour >= 11 && hour <= 14) return "lunch";
+  if (hour >= 15 && hour <= 16) return "pre_drinks";
+  if (hour >= 17 && hour <= 21) return "dinner";
+  if (hour >= 22 || hour <= 3) return "after_drinks";
+  return "other";
+}
+function borkCronMatch(ctx) {
+  const q = {
+    date: { $gte: ctx.startDate, $lte: ctx.endDate }
+  };
+  if (ctx.locationId !== void 0) q.locationId = ctx.locationId;
+  return q;
+}
+function eitjeAggMatch(ctx) {
+  const q = {
+    period_type: "day",
+    period: { $gte: ctx.startDate, $lte: ctx.endDate }
+  };
+  if (ctx.locationId !== void 0) q.locationId = ctx.locationId;
+  return q;
+}
+async function fetchRevenueByCategoryFromHourAggregates(db, ctx) {
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k;
+  const match = borkCronMatch(ctx);
+  const [facetRow] = await db.collection("bork_sales_by_hour").aggregate([
+    { $match: match },
+    {
+      $facet: {
+        categoryFromLines: [
+          { $unwind: { path: "$products", preserveNullAndEmptyArrays: false } },
+          {
+            $addFields: {
+              productName: { $ifNull: ["$products.productName", ""] },
+              lineValue: { $toDouble: { $ifNull: ["$products.revenue", 0] } }
+            }
+          },
+          {
+            $addFields: {
+              bucket: {
+                $cond: {
+                  if: { $regexMatch: { input: "$productName", regex: DRINK_NAME_PATTERN } },
+                  then: "drinks",
+                  else: "food"
+                }
+              }
+            }
+          },
+          { $group: { _id: "$bucket", amount: { $sum: "$lineValue" } } }
+        ],
+        hourRevenueTotal: [
+          { $group: { _id: null, total: { $sum: { $ifNull: ["$total_revenue", 0] } } } }
+        ],
+        productLinesTotal: [
+          { $unwind: { path: "$products", preserveNullAndEmptyArrays: false } },
+          {
+            $group: {
+              _id: null,
+              total: { $sum: { $toDouble: { $ifNull: ["$products.revenue", 0] } } }
+            }
+          }
+        ]
+      }
+    }
+  ]).toArray();
+  const byCat = (_a = facetRow == null ? void 0 : facetRow.categoryFromLines) != null ? _a : [];
+  let drinks = (_c = (_b = byCat.find((x) => x._id === "drinks")) == null ? void 0 : _b.amount) != null ? _c : 0;
+  let food = (_e = (_d = byCat.find((x) => x._id === "food")) == null ? void 0 : _d.amount) != null ? _e : 0;
+  const hourGrand = (_h = (_g = (_f = facetRow == null ? void 0 : facetRow.hourRevenueTotal) == null ? void 0 : _f[0]) == null ? void 0 : _g.total) != null ? _h : 0;
+  const lineGrand = (_k = (_j = (_i = facetRow == null ? void 0 : facetRow.productLinesTotal) == null ? void 0 : _i[0]) == null ? void 0 : _j.total) != null ? _k : 0;
+  const gap = Math.max(0, hourGrand - lineGrand);
+  food += gap;
+  return { drinks, food };
+}
+async function fetchBorkHourAggregatesBundle(db, ctx) {
+  var _a, _b;
+  const [row] = await db.collection("bork_sales_by_hour").aggregate([
+    { $match: borkCronMatch(ctx) },
+    {
+      $facet: {
+        byHourOnly: [
+          {
+            $group: {
+              _id: "$hour",
+              amount: { $sum: { $ifNull: ["$total_revenue", 0] } }
+            }
+          }
+        ],
+        byDayHour: [
+          {
+            $group: {
+              _id: { d: "$date", h: "$hour" },
+              revenue: { $sum: { $ifNull: ["$total_revenue", 0] } }
+            }
+          }
+        ]
+      }
+    }
+  ]).toArray();
+  return {
+    byHourOnly: (_a = row == null ? void 0 : row.byHourOnly) != null ? _a : [],
+    byDayHour: (_b = row == null ? void 0 : row.byDayHour) != null ? _b : []
+  };
+}
+function revenueByTimePeriodFromHourTotals(rows) {
+  const sums = {
+    lunch: 0,
+    pre_drinks: 0,
+    dinner: 0,
+    after_drinks: 0,
+    other: 0
+  };
+  for (const r of rows) {
+    const k = timePeriodKey(Number(r._id));
+    sums[k] += r.amount;
+  }
+  return sums;
+}
+async function fetchRevenueByDate(db, ctx) {
+  const rows = await db.collection("bork_sales_by_cron").aggregate([
+    { $match: borkCronMatch(ctx) },
+    { $group: { _id: "$date", revenue: { $sum: { $ifNull: ["$total_revenue", 0] } } } }
+  ]).toArray();
+  return new Map(rows.map((r) => [r._id, r.revenue]));
+}
+const LOC_DAY_KEY_SEP = "";
+function locationDayKey(date, locationId) {
+  return `${date}${LOC_DAY_KEY_SEP}${String(locationId)}`;
+}
+function parseLocationDayKey(key) {
+  const i = key.indexOf(LOC_DAY_KEY_SEP);
+  if (i <= 0) return { date: key, locationId: "" };
+  return { date: key.slice(0, i), locationId: key.slice(i + LOC_DAY_KEY_SEP.length) };
+}
+async function fetchRevenueByDateAndLocation(db, ctx) {
+  const rows = await db.collection("bork_sales_by_cron").aggregate([
+    { $match: borkCronMatch(ctx) },
+    {
+      $group: {
+        _id: { date: "$date", locationId: "$locationId" },
+        revenue: { $sum: { $ifNull: ["$total_revenue", 0] } }
+      }
+    }
+  ]).toArray();
+  const map = /* @__PURE__ */ new Map();
+  for (const r of rows) {
+    const lid = r._id.locationId != null ? String(r._id.locationId) : "unknown";
+    map.set(locationDayKey(r._id.date, lid), r.revenue);
+  }
+  return map;
+}
+async function fetchLaborByDate(db, ctx) {
+  const rows = await db.collection("eitje_time_registration_aggregation").aggregate([
+    { $match: eitjeAggMatch(ctx) },
+    {
+      $group: {
+        _id: "$period",
+        laborCost: { $sum: { $ifNull: ["$total_cost", 0] } },
+        hours: { $sum: { $ifNull: ["$total_hours", 0] } },
+        workerIds: { $addToSet: "$userId" }
+      }
+    },
+    {
+      $project: {
+        _id: 1,
+        laborCost: 1,
+        hours: 1,
+        distinctWorkerCount: {
+          $size: {
+            $filter: { input: "$workerIds", as: "w", cond: { $ne: ["$$w", null] } }
+          }
+        }
+      }
+    }
+  ]).toArray();
+  return new Map(
+    rows.map((r) => [
+      r._id,
+      { laborCost: r.laborCost, hours: r.hours, distinctWorkerCount: r.distinctWorkerCount }
+    ])
+  );
+}
+async function fetchHoursCostByContractTypeByDay(db, ctx) {
+  return await db.collection("eitje_time_registration_aggregation").aggregate([
+    { $match: eitjeAggMatch(ctx) },
+    {
+      $lookup: {
+        from: "members",
+        let: { uid: { $toString: "$userId" } },
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $or: [
+                  { $eq: [{ $toString: "$eitje_id" }, "$$uid"] },
+                  {
+                    $gt: [
+                      {
+                        $size: {
+                          $filter: {
+                            input: { $ifNull: ["$eitje_ids", []] },
+                            as: "x",
+                            cond: { $eq: [{ $toString: "$$x" }, "$$uid"] }
+                          }
+                        }
+                      },
+                      0
+                    ]
+                  }
+                ]
+              }
+            }
+          },
+          { $limit: 1 },
+          { $project: { contract_type: 1 } }
+        ],
+        as: "_m"
+      }
+    },
+    {
+      $addFields: {
+        contractType: {
+          $ifNull: [{ $arrayElemAt: ["$_m.contract_type", 0] }, "-"]
+        }
+      }
+    },
+    {
+      $group: {
+        _id: { period: "$period", contractType: "$contractType" },
+        workerIds: { $addToSet: "$userId" },
+        total_hours: { $sum: { $ifNull: ["$total_hours", 0] } },
+        total_cost: { $sum: { $ifNull: ["$total_cost", 0] } }
+      }
+    },
+    {
+      $project: {
+        _id: 0,
+        date: "$_id.period",
+        contractType: "$_id.contractType",
+        workerCount: {
+          $size: {
+            $filter: { input: "$workerIds", as: "w", cond: { $ne: ["$$w", null] } }
+          }
+        },
+        totalHours: { $round: ["$total_hours", 2] },
+        totalCost: { $round: ["$total_cost", 2] }
+      }
+    },
+    { $sort: { contractType: 1, date: 1 } }
+  ]).toArray();
+}
+function computeMostProfitableHour(hourRows, revenueByDate, laborByDate) {
+  var _a, _b, _c;
+  let best = {
+    hourLabel: "\u2014",
+    date: "",
+    hour: 0,
+    revenue: 0,
+    laborCost: 0,
+    profit: 0
+  };
+  for (const row of hourRows) {
+    const day = row._id.d;
+    const h = row._id.h;
+    const rev = row.revenue;
+    const dayRev = (_a = revenueByDate.get(day)) != null ? _a : 0;
+    const dayLab = (_c = (_b = laborByDate.get(day)) == null ? void 0 : _b.laborCost) != null ? _c : 0;
+    const alloc = dayRev > 0 ? dayLab * (rev / dayRev) : 0;
+    const profit = rev - alloc;
+    if (profit > best.profit) {
+      best = {
+        hourLabel: `${day} ${String(h).padStart(2, "0")}:00`,
+        date: day,
+        hour: h,
+        revenue: rev,
+        laborCost: alloc,
+        profit
+      };
+    }
+  }
+  return best;
+}
+async function fetchWorkersByTeamLocation(db, ctx) {
+  return await db.collection("eitje_time_registration_aggregation").aggregate([
+    { $match: eitjeAggMatch(ctx) },
+    {
+      $group: {
+        _id: {
+          locationId: "$locationId",
+          location_name: "$location_name",
+          teamId: "$teamId",
+          team_name: "$team_name"
+        },
+        workerIds: { $addToSet: "$userId" },
+        total_hours: { $sum: { $ifNull: ["$total_hours", 0] } },
+        total_cost: { $sum: { $ifNull: ["$total_cost", 0] } }
+      }
+    },
+    {
+      $project: {
+        _id: 0,
+        locationId: { $toString: "$_id.locationId" },
+        locationName: { $ifNull: ["$_id.location_name", ""] },
+        teamId: { $toString: "$_id.teamId" },
+        teamName: { $ifNull: ["$_id.team_name", ""] },
+        workerCount: {
+          $size: {
+            $filter: { input: "$workerIds", as: "w", cond: { $ne: ["$$w", null] } }
+          }
+        },
+        totalHours: { $round: ["$total_hours", 2] },
+        totalCost: { $round: ["$total_cost", 2] }
+      }
+    },
+    { $sort: { locationName: 1, teamName: 1 } }
+  ]).toArray();
+}
+async function fetchWorkersByTeamLocationByDay(db, ctx) {
+  return await db.collection("eitje_time_registration_aggregation").aggregate([
+    { $match: eitjeAggMatch(ctx) },
+    {
+      $group: {
+        _id: {
+          period: "$period",
+          locationId: "$locationId",
+          location_name: "$location_name",
+          teamId: "$teamId",
+          team_name: "$team_name"
+        },
+        workerIds: { $addToSet: "$userId" },
+        total_hours: { $sum: { $ifNull: ["$total_hours", 0] } },
+        total_cost: { $sum: { $ifNull: ["$total_cost", 0] } }
+      }
+    },
+    {
+      $project: {
+        _id: 0,
+        date: "$_id.period",
+        locationId: { $toString: "$_id.locationId" },
+        locationName: { $ifNull: ["$_id.location_name", ""] },
+        teamId: { $toString: "$_id.teamId" },
+        teamName: { $ifNull: ["$_id.team_name", ""] },
+        workerCount: {
+          $size: {
+            $filter: { input: "$workerIds", as: "w", cond: { $ne: ["$$w", null] } }
+          }
+        },
+        totalHours: { $round: ["$total_hours", 2] },
+        totalCost: { $round: ["$total_cost", 2] }
+      }
+    },
+    { $sort: { locationName: 1, teamName: 1, date: 1 } }
+  ]).toArray();
+}
+async function fetchHoursCostByContractType(db, ctx) {
+  return await db.collection("eitje_time_registration_aggregation").aggregate([
+    { $match: eitjeAggMatch(ctx) },
+    {
+      $group: {
+        _id: { userId: "$userId" },
+        total_hours: { $sum: { $ifNull: ["$total_hours", 0] } },
+        total_cost: { $sum: { $ifNull: ["$total_cost", 0] } }
+      }
+    },
+    {
+      $lookup: {
+        from: "members",
+        let: { uid: { $toString: "$_id.userId" } },
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $or: [
+                  { $eq: [{ $toString: "$eitje_id" }, "$$uid"] },
+                  {
+                    $gt: [
+                      {
+                        $size: {
+                          $filter: {
+                            input: { $ifNull: ["$eitje_ids", []] },
+                            as: "x",
+                            cond: { $eq: [{ $toString: "$$x" }, "$$uid"] }
+                          }
+                        }
+                      },
+                      0
+                    ]
+                  }
+                ]
+              }
+            }
+          },
+          { $limit: 1 },
+          { $project: { contract_type: 1 } }
+        ],
+        as: "_m"
+      }
+    },
+    {
+      $addFields: {
+        contractType: {
+          $ifNull: [{ $arrayElemAt: ["$_m.contract_type", 0] }, "-"]
+        }
+      }
+    },
+    {
+      $group: {
+        _id: "$contractType",
+        totalHours: { $sum: "$total_hours" },
+        totalCost: { $sum: "$total_cost" }
+      }
+    },
+    {
+      $project: {
+        _id: 0,
+        contractType: { $ifNull: ["$_id", "-"] },
+        totalHours: { $round: ["$totalHours", 2] },
+        totalCost: { $round: ["$totalCost", 2] }
+      }
+    },
+    { $sort: { totalCost: -1 } }
+  ]).toArray();
+}
+async function fetchLaborProductivityByLocationDay(db, ctx) {
+  var _a, _b;
+  const revRows = await db.collection("bork_sales_by_cron").aggregate([
+    { $match: borkCronMatch(ctx) },
+    {
+      $group: {
+        _id: { date: "$date", locationId: "$locationId", locationName: "$locationName" },
+        revenue: { $sum: { $ifNull: ["$total_revenue", 0] } }
+      }
+    }
+  ]).toArray();
+  const labRows = await db.collection("eitje_time_registration_aggregation").aggregate([
+    { $match: eitjeAggMatch(ctx) },
+    {
+      $group: {
+        _id: { period: "$period", locationId: "$locationId", location_name: "$location_name" },
+        hours: { $sum: { $ifNull: ["$total_hours", 0] } },
+        laborCost: { $sum: { $ifNull: ["$total_cost", 0] } }
+      }
+    }
+  ]).toArray();
+  const byLoc = /* @__PURE__ */ new Map();
+  const locKey = (id) => id != null ? String(id) : "unknown";
+  for (const r of revRows) {
+    const lk = locKey(r._id.locationId);
+    if (!byLoc.has(lk)) {
+      byLoc.set(lk, { name: (_a = r._id.locationName) != null ? _a : lk, days: [] });
+    }
+    const entry = byLoc.get(lk);
+    if (r._id.locationName) entry.name = r._id.locationName;
+    let d = entry.days.find((x) => x.date === r._id.date);
+    if (!d) {
+      d = { date: r._id.date, revenuePerLaborHour: 0, revenue: 0, hours: 0 };
+      entry.days.push(d);
+    }
+    d.revenue += r.revenue;
+  }
+  for (const r of labRows) {
+    const lk = locKey(r._id.locationId);
+    if (!byLoc.has(lk)) {
+      byLoc.set(lk, { name: (_b = r._id.location_name) != null ? _b : lk, days: [] });
+    }
+    const entry = byLoc.get(lk);
+    if (r._id.location_name) entry.name = r._id.location_name;
+    let d = entry.days.find((x) => x.date === r._id.period);
+    if (!d) {
+      d = { date: r._id.period, revenuePerLaborHour: 0, revenue: 0, hours: 0 };
+      entry.days.push(d);
+    }
+    d.hours += r.hours;
+  }
+  const out = [];
+  for (const [lid, { name, days }] of byLoc) {
+    const scored = days.map((d) => ({
+      date: d.date,
+      revenue: d.revenue,
+      hours: d.hours,
+      revenuePerLaborHour: d.hours > 0 ? d.revenue / d.hours : d.revenue > 0 ? Number.POSITIVE_INFINITY : 0
+    })).filter((d) => d.hours > 0 || d.revenue > 0);
+    const finite = scored.filter((d) => d.hours > 0 && Number.isFinite(d.revenuePerLaborHour));
+    let highest = null;
+    let lowest = null;
+    for (const d of finite) {
+      if (!highest || d.revenuePerLaborHour > highest.revenuePerLaborHour) highest = d;
+      if (!lowest || d.revenuePerLaborHour < lowest.revenuePerLaborHour) lowest = d;
+    }
+    out.push({
+      locationId: lid,
+      locationName: name,
+      highest: highest ? {
+        date: highest.date,
+        revenuePerLaborHour: Math.round(highest.revenuePerLaborHour * 100) / 100,
+        revenue: Math.round(highest.revenue * 100) / 100,
+        hours: Math.round(highest.hours * 100) / 100
+      } : null,
+      lowest: lowest ? {
+        date: lowest.date,
+        revenuePerLaborHour: Math.round(lowest.revenuePerLaborHour * 100) / 100,
+        revenue: Math.round(lowest.revenue * 100) / 100,
+        hours: Math.round(lowest.hours * 100) / 100
+      } : null
+    });
+  }
+  out.sort((a, b) => a.locationName.localeCompare(b.locationName));
+  return out;
+}
+async function inventoryCollections(db, ctx) {
+  const notes = [];
+  const cron = await db.collection("bork_sales_by_cron").countDocuments(borkCronMatch(ctx), { limit: 1 });
+  const hours = await db.collection("bork_sales_by_hour").countDocuments(borkCronMatch(ctx), { limit: 1 });
+  const eitje = await db.collection("eitje_time_registration_aggregation").countDocuments(eitjeAggMatch(ctx), { limit: 1 });
+  if (cron === 0) notes.push("No rows in bork_sales_by_cron for this range \u2014 run Bork sync/rebuild aggregations.");
+  if (hours === 0) notes.push("No rows in bork_sales_by_hour for this range.");
+  if (eitje === 0) notes.push("No rows in eitje_time_registration_aggregation for this range \u2014 rebuild Eitje aggregation.");
+  notes.push("Food vs drinks uses a name-pattern heuristic on `bork_sales_by_hour.products` (from Bork rebuild); tune DRINK_NAME_PATTERN as needed.");
+  notes.push("Hour-level labor cost uses daily labor prorated by that day\u2019s hourly revenue share.");
+  if (ctx.locationId === void 0) {
+    notes.push("All locations: labor productivity min/max merges revenue and hours only when both exist for the same location/day.");
+  }
+  return {
+    hasBorkCronData: cron > 0,
+    hasBorkHourData: hours > 0,
+    hasEitjeAggData: eitje > 0,
+    notes
+  };
+}
+async function fetchLaborMetricsPipelineInput(db, ctx) {
+  const [
+    workersByTeamLocation,
+    workersByTeamLocationByDayRaw,
+    hoursCostByContractType,
+    contractTypeByDay,
+    productivityByLocationDay,
+    inventory,
+    revMap,
+    revByDateLocation,
+    labMap
+  ] = await Promise.all([
+    fetchWorkersByTeamLocation(db, ctx),
+    fetchWorkersByTeamLocationByDay(db, ctx),
+    fetchHoursCostByContractType(db, ctx),
+    fetchHoursCostByContractTypeByDay(db, ctx),
+    fetchLaborProductivityByLocationDay(db, ctx),
+    inventoryCollections(db, ctx),
+    fetchRevenueByDate(db, ctx),
+    fetchRevenueByDateAndLocation(db, ctx),
+    fetchLaborByDate(db, ctx)
+  ]);
+  return {
+    workersByTeamLocation,
+    workersByTeamLocationByDayRaw,
+    hoursCostByContractType,
+    contractTypeByDay,
+    productivityByLocationDay,
+    inventory,
+    revMap,
+    revByDateLocation,
+    labMap
+  };
+}
+function assembleDailyOpsLaborMetricsDto(ctx, input) {
+  var _a;
+  const {
+    workersByTeamLocation,
+    workersByTeamLocationByDayRaw,
+    hoursCostByContractType,
+    contractTypeByDay,
+    productivityByLocationDay,
+    inventory,
+    revMap,
+    revByDateLocation,
+    labMap
+  } = input;
+  const locDayAgg = /* @__PURE__ */ new Map();
+  for (const row of workersByTeamLocationByDayRaw) {
+    const k = locationDayKey(row.date, row.locationId);
+    let a = locDayAgg.get(k);
+    if (!a) {
+      a = { hours: 0, cost: 0 };
+      locDayAgg.set(k, a);
+    }
+    a.hours += row.totalHours;
+    a.cost += row.totalCost;
+  }
+  const workersByTeamLocationByDay = workersByTeamLocationByDayRaw.map((row) => {
+    var _a2, _b;
+    const k = locationDayKey(row.date, row.locationId);
+    const rev = (_a2 = revByDateLocation.get(k)) != null ? _a2 : 0;
+    const agg = (_b = locDayAgg.get(k)) != null ? _b : { hours: 0};
+    let attributedRev = 0;
+    if (rev > 0 && agg.hours > 0) {
+      attributedRev = rev * (row.totalHours / agg.hours);
+    }
+    const laborCostPctOfRevenue = attributedRev > 0 ? Math.round(row.totalCost / attributedRev * 100 * 10) / 10 : null;
+    return {
+      ...row,
+      laborCostPctOfRevenue
+    };
+  });
+  const locationLaborPctByDay = [];
+  for (const [k, agg] of locDayAgg) {
+    const { date, locationId } = parseLocationDayKey(k);
+    const rev = (_a = revByDateLocation.get(k)) != null ? _a : 0;
+    const laborCostPctOfRevenue = rev > 0 ? Math.round(agg.cost / rev * 100 * 10) / 10 : null;
+    locationLaborPctByDay.push({ date, locationId, laborCostPctOfRevenue });
+  }
+  locationLaborPctByDay.sort(
+    (a, b) => a.locationId.localeCompare(b.locationId) || a.date.localeCompare(b.date)
+  );
+  const days = enumerateUtcDatesInclusive(ctx.startDate, ctx.endDate);
+  let sumRev = 0;
+  let sumLab = 0;
+  let sumHours = 0;
+  const daily = days.map((date) => {
+    var _a2, _b, _c, _d;
+    const revenue = (_a2 = revMap.get(date)) != null ? _a2 : 0;
+    const lab = labMap.get(date);
+    const laborCost = (_b = lab == null ? void 0 : lab.laborCost) != null ? _b : 0;
+    const hours = (_c = lab == null ? void 0 : lab.hours) != null ? _c : 0;
+    const distinctWorkerCount = (_d = lab == null ? void 0 : lab.distinctWorkerCount) != null ? _d : 0;
+    sumRev += revenue;
+    sumLab += laborCost;
+    sumHours += hours;
+    const laborCostPctOfRevenue = revenue > 0 ? laborCost / revenue * 100 : null;
+    const revenuePerLaborHour = hours > 0 ? revenue / hours : null;
+    return {
+      date,
+      revenue: Math.round(revenue * 100) / 100,
+      laborCost: Math.round(laborCost * 100) / 100,
+      hours: Math.round(hours * 100) / 100,
+      distinctWorkerCount,
+      laborCostPctOfRevenue: laborCostPctOfRevenue != null ? Math.round(laborCostPctOfRevenue * 10) / 10 : null,
+      revenuePerLaborHour: revenuePerLaborHour != null ? Math.round(revenuePerLaborHour * 100) / 100 : null
+    };
+  });
+  const periodRollup = {
+    revenue: Math.round(sumRev * 100) / 100,
+    laborCost: Math.round(sumLab * 100) / 100,
+    hours: Math.round(sumHours * 100) / 100,
+    laborCostPctOfRevenue: sumRev > 0 ? Math.round(sumLab / sumRev * 100 * 10) / 10 : null,
+    revenuePerLaborHour: sumHours > 0 ? Math.round(sumRev / sumHours * 100) / 100 : null
+  };
+  return {
+    range: {
+      period: ctx.period,
+      startDate: ctx.startDate,
+      endDate: ctx.endDate
+    },
+    inventory: {
+      hasBorkCronData: inventory.hasBorkCronData,
+      hasBorkHourData: inventory.hasBorkHourData,
+      hasEitjeAggData: inventory.hasEitjeAggData,
+      notes: inventory.notes
+    },
+    workersByTeamLocation,
+    workersByTeamLocationByDay,
+    locationLaborPctByDay,
+    hoursCostByContractType,
+    contractTypeByDay,
+    daily,
+    periodRollup,
+    productivityByLocationDay
+  };
+}
+function buildDailyOpsSummaryDto(ctx, revMap, labMap) {
+  let totalRevenue = 0;
+  for (const v of revMap.values()) totalRevenue += v;
+  let totalLaborCost = 0;
+  let totalLaborHours = 0;
+  for (const v of labMap.values()) {
+    totalLaborCost += v.laborCost;
+    totalLaborHours += v.hours;
+  }
+  const profit = totalRevenue - totalLaborCost;
+  const profitMarginPct = totalRevenue > 0 ? profit / totalRevenue * 100 : 0;
+  const revenuePerLaborHour = totalLaborHours > 0 ? totalRevenue / totalLaborHours : null;
+  const laborCostPctOfRevenue = totalRevenue > 0 ? totalLaborCost / totalRevenue * 100 : null;
+  return {
+    range: {
+      period: ctx.period,
+      startDate: ctx.startDate,
+      endDate: ctx.endDate
+    },
+    summary: {
+      totalRevenue: Math.round(totalRevenue * 100) / 100,
+      totalLaborCost: Math.round(totalLaborCost * 100) / 100,
+      totalLaborHours: Math.round(totalLaborHours * 100) / 100,
+      profit: Math.round(profit * 100) / 100,
+      profitMarginPct: Math.round(profitMarginPct * 10) / 10,
+      revenuePerLaborHour: revenuePerLaborHour != null ? Math.round(revenuePerLaborHour * 100) / 100 : null,
+      laborCostPctOfRevenue: laborCostPctOfRevenue != null ? Math.round(laborCostPctOfRevenue * 10) / 10 : null
+    },
+    vatDisclaimer: VAT_DISCLAIMER
+  };
+}
+function buildDailyOpsRevenueBreakdownDto(ctx, cat, hourBundle, revMap, labMap) {
+  const tp = revenueByTimePeriodFromHourTotals(hourBundle.byHourOnly);
+  const best = computeMostProfitableHour(hourBundle.byDayHour, revMap, labMap);
+  const revenueByCategory = [
+    { key: "drinks", label: "Drinks", amount: Math.round(cat.drinks * 100) / 100 },
+    { key: "food", label: "Food", amount: Math.round(cat.food * 100) / 100 }
+  ];
+  const revenueByTimePeriod = [
+    { key: "lunch", label: "Lunch", amount: Math.round(tp.lunch * 100) / 100 },
+    { key: "pre_drinks", label: "Pre Drinks", amount: Math.round(tp.pre_drinks * 100) / 100 },
+    { key: "dinner", label: "Dinner", amount: Math.round(tp.dinner * 100) / 100 },
+    { key: "after_drinks", label: "After Drinks", amount: Math.round(tp.after_drinks * 100) / 100 }
+  ];
+  if (tp.other > 0) {
+    revenueByTimePeriod.push({
+      key: "other",
+      label: "Other hours",
+      amount: Math.round(tp.other * 100) / 100
+    });
+  }
+  return {
+    range: {
+      period: ctx.period,
+      startDate: ctx.startDate,
+      endDate: ctx.endDate
+    },
+    revenueByCategory,
+    revenueByTimePeriod,
+    mostProfitableHour: {
+      hourLabel: best.hourLabel,
+      date: best.date,
+      revenue: Math.round(best.revenue * 100) / 100,
+      laborCost: Math.round(best.laborCost * 100) / 100,
+      profit: Math.round(best.profit * 100) / 100
+    }
+  };
 }
 
 function loadParentEnv() {
@@ -28609,11 +29369,16 @@ const _lazy_rpoMxL = () => Promise.resolve().then(function () { return credentia
 const _lazy_Fk11Zg = () => Promise.resolve().then(function () { return credentials_post$3; });
 const _lazy_0fNa4b = () => Promise.resolve().then(function () { return cron_get$3; });
 const _lazy_56hgXw = () => Promise.resolve().then(function () { return cron_post$3; });
-const _lazy_VkZeTR = () => Promise.resolve().then(function () { return locations_get$1; });
+const _lazy_VkZeTR = () => Promise.resolve().then(function () { return locations_get$3; });
 const _lazy_GrR807 = () => Promise.resolve().then(function () { return runScheduled_get$3; });
 const _lazy_2sV_oe = () => Promise.resolve().then(function () { return sync_post$3; });
 const _lazy_ir2wis = () => Promise.resolve().then(function () { return dataIntegrity_get$1; });
 const _lazy_fiyqpy = () => Promise.resolve().then(function () { return insights_get$1; });
+const _lazy_gJJ0yZ = () => Promise.resolve().then(function () { return locations_get$1; });
+const _lazy_7ki8Q4 = () => Promise.resolve().then(function () { return bundle_get$1; });
+const _lazy_GI_DGY = () => Promise.resolve().then(function () { return labor_get$1; });
+const _lazy_Bpe9Sc = () => Promise.resolve().then(function () { return revenueBreakdown_get$1; });
+const _lazy_3d9XzO = () => Promise.resolve().then(function () { return summary_get$1; });
 const _lazy_ddvbvh = () => Promise.resolve().then(function () { return overview_get$1; });
 const _lazy_b9OPGV = () => Promise.resolve().then(function () { return productivity_get$1; });
 const _lazy_PkLaTv = () => Promise.resolve().then(function () { return products_get$1; });
@@ -28665,6 +29430,7 @@ const _lazy_W7TMy2 = () => Promise.resolve().then(function () { return share_pos
 const _lazy_cTKOaU = () => Promise.resolve().then(function () { return _todoId__put$1; });
 const _lazy_aPaNV5 = () => Promise.resolve().then(function () { return index_get$9; });
 const _lazy_GiLNIi = () => Promise.resolve().then(function () { return index_post$3; });
+const _lazy_8bAYYr = () => Promise.resolve().then(function () { return salesAggregatedProducts_get$1; });
 const _lazy_MxW0tk = () => Promise.resolve().then(function () { return salesAggregated_get$1; });
 const _lazy_Mwgp_z = () => Promise.resolve().then(function () { return index_get$7; });
 const _lazy_l24SXQ = () => Promise.resolve().then(function () { return _id__delete$1; });
@@ -28686,6 +29452,11 @@ const handlers = [
   { route: '/api/bork/v2/sync', handler: _lazy_2sV_oe, lazy: true, middleware: false, method: "post" },
   { route: '/api/cron/data-integrity', handler: _lazy_ir2wis, lazy: true, middleware: false, method: "get" },
   { route: '/api/daily-ops/insights', handler: _lazy_fiyqpy, lazy: true, middleware: false, method: "get" },
+  { route: '/api/daily-ops/locations', handler: _lazy_gJJ0yZ, lazy: true, middleware: false, method: "get" },
+  { route: '/api/daily-ops/metrics/bundle', handler: _lazy_7ki8Q4, lazy: true, middleware: false, method: "get" },
+  { route: '/api/daily-ops/metrics/labor', handler: _lazy_GI_DGY, lazy: true, middleware: false, method: "get" },
+  { route: '/api/daily-ops/metrics/revenue-breakdown', handler: _lazy_Bpe9Sc, lazy: true, middleware: false, method: "get" },
+  { route: '/api/daily-ops/metrics/summary', handler: _lazy_3d9XzO, lazy: true, middleware: false, method: "get" },
   { route: '/api/daily-ops/overview', handler: _lazy_ddvbvh, lazy: true, middleware: false, method: "get" },
   { route: '/api/daily-ops/productivity', handler: _lazy_b9OPGV, lazy: true, middleware: false, method: "get" },
   { route: '/api/daily-ops/products', handler: _lazy_PkLaTv, lazy: true, middleware: false, method: "get" },
@@ -28737,6 +29508,7 @@ const handlers = [
   { route: '/api/notes/:id/todos/:todoId', handler: _lazy_cTKOaU, lazy: true, middleware: false, method: "put" },
   { route: '/api/notes', handler: _lazy_aPaNV5, lazy: true, middleware: false, method: "get" },
   { route: '/api/notes', handler: _lazy_GiLNIi, lazy: true, middleware: false, method: "post" },
+  { route: '/api/sales-aggregated-products', handler: _lazy_8bAYYr, lazy: true, middleware: false, method: "get" },
   { route: '/api/sales-aggregated', handler: _lazy_MxW0tk, lazy: true, middleware: false, method: "get" },
   { route: '/api/tags', handler: _lazy_Mwgp_z, lazy: true, middleware: false, method: "get" },
   { route: '/api/teams/:id', handler: _lazy_l24SXQ, lazy: true, middleware: false, method: "delete" },
@@ -29163,163 +29935,213 @@ async function rebuildBorkSalesAggregation(db, startDate, endDate, cronTime = /*
     byHour: 0,
     byTable: 0,
     byWorker: 0,
+    byGuestAccount: 0,
     productsMaster: 0
   };
   const [startYear, startMonth, startDay] = startDate.split("-").map(Number);
   const [endYear, endMonth, endDay] = endDate.split("-").map(Number);
   const startBorkDate = startYear * 1e4 + startMonth * 100 + startDay;
   const endBorkDate = endYear * 1e4 + endMonth * 100 + endDay;
-  const rawDocs = await db.collection("bork_raw_data").find({}).toArray();
-  if (rawDocs.length === 0) {
-    return result;
-  }
+  const locMappings = await db.collection("bork_unified_location_mapping").find({}).toArray();
+  const userMappings = await db.collection("bork_unified_user_mapping").find({}).toArray();
+  const locMap = new Map(locMappings.map((l) => [String(l.borkLocationId), { unifiedId: l.unifiedLocationId, name: l.unifiedLocationName }]));
+  const userMap = new Map(userMappings.map((u) => [u.borkUserId || u.borkUserName, { unifiedId: u.unifiedUserId, name: u.unifiedUserName }]));
+  const cursor = db.collection("bork_raw_data").find({ endpoint: "bork_daily" }).batchSize(32);
   const byCronMap = /* @__PURE__ */ new Map();
   const byHourMap = /* @__PURE__ */ new Map();
   const byTableMap = /* @__PURE__ */ new Map();
   const byWorkerMap = /* @__PURE__ */ new Map();
+  const byGuestAccountMap = /* @__PURE__ */ new Map();
   const productsMasterMap = /* @__PURE__ */ new Map();
-  for (const rawDoc of rawDocs) {
-    const locationId = rawDoc.locationId;
-    const tickets = Array.isArray(rawDoc.rawApiResponse) ? rawDoc.rawApiResponse : [rawDoc.rawApiResponse];
-    for (const ticket of tickets) {
-      if (!ticket || typeof ticket !== "object") continue;
-      const workerId = ticket.UserKey || ticket.UserId || "Unknown";
-      const workerName = ticket.UserName || "Unknown";
-      const locationName = ticket.CenterName || "Unknown";
-      const orders = Array.isArray(ticket.Orders) ? ticket.Orders : [];
-      for (const order of orders) {
-        if (!order || typeof order !== "object") continue;
-        const orderDate = String(order.Date || order.ActualDate || "").padStart(8, "0");
-        if (!orderDate || orderDate === "00000000") continue;
-        const orderBorkDate = parseInt(orderDate, 10);
-        if (orderBorkDate < startBorkDate || orderBorkDate > endBorkDate) continue;
-        const dateStr = borkDateToISO(orderBorkDate);
-        const tableNumber = String(order.TableNr || ticket.TableName || "Unknown");
-        const lines = Array.isArray(order.Lines) ? order.Lines : [];
-        for (const line of lines) {
-          if (!line || typeof line !== "object") continue;
-          const price = Number(line.Price || 0);
-          const qty = Number(line.Qty || 0);
-          const totalPrice = price * qty;
-          const productName = line.ProductName || "Unknown";
-          const productKey = line.ProductKey || "unknown";
-          const hour = extractHour(ticket.Time);
-          const cronKey = `${locationId}:${dateStr}`;
-          if (!byCronMap.has(cronKey)) {
-            byCronMap.set(cronKey, {
-              cronTime,
-              locationId,
-              locationName,
-              date: dateStr,
-              total_revenue: 0,
-              total_quantity: 0,
-              record_count: 0
-            });
+  try {
+    for await (const rawDoc of cursor) {
+      const borkLocationId = rawDoc.locationId;
+      const locMapping = locMap.get(String(borkLocationId));
+      if (!locMapping) {
+        console.warn(`No unified location mapping for Bork location ${borkLocationId}`);
+        continue;
+      }
+      const unifiedLocationId = locMapping.unifiedId;
+      const unifiedLocationName = locMapping.name;
+      const tickets = Array.isArray(rawDoc.rawApiResponse) ? rawDoc.rawApiResponse : [rawDoc.rawApiResponse];
+      for (const ticket of tickets) {
+        if (!ticket || typeof ticket !== "object") continue;
+        const borkWorkerName = ticket.UserName || "Unknown";
+        const userMapping = userMap.get(borkWorkerName) || userMap.get(ticket.UserId);
+        const unifiedWorkerId = (userMapping == null ? void 0 : userMapping.unifiedId) || "unknown";
+        const unifiedWorkerName = (userMapping == null ? void 0 : userMapping.name) || borkWorkerName;
+        const orders = Array.isArray(ticket.Orders) ? ticket.Orders : [];
+        for (const order of orders) {
+          if (!order || typeof order !== "object") continue;
+          const orderDate = String(order.Date || order.ActualDate || "").padStart(8, "0");
+          if (!orderDate || orderDate === "00000000") continue;
+          const orderBorkDate = parseInt(orderDate, 10);
+          if (orderBorkDate < startBorkDate || orderBorkDate > endBorkDate) continue;
+          const dateStr = borkDateToISO(orderBorkDate);
+          const tableNumber = String(order.TableNr || "").trim();
+          const hasTable = tableNumber.length > 0;
+          const lines = Array.isArray(order.Lines) ? order.Lines : [];
+          for (const line of lines) {
+            if (!line || typeof line !== "object") continue;
+            const price = Number(line.Price || 0);
+            const qty = Number(line.Qty || 0);
+            const totalPrice = price * qty;
+            const productName = line.ProductName || "Unknown";
+            const productKey = line.ProductKey || "unknown";
+            const hour = extractHour(ticket.Time);
+            const cronKey = `${unifiedLocationId}:${dateStr}`;
+            if (!byCronMap.has(cronKey)) {
+              byCronMap.set(cronKey, {
+                cronTime,
+                locationId: unifiedLocationId,
+                locationName: unifiedLocationName,
+                date: dateStr,
+                total_revenue: 0,
+                total_quantity: 0,
+                record_count: 0
+              });
+            }
+            const cronEntry = byCronMap.get(cronKey);
+            cronEntry.total_revenue = cronEntry.total_revenue + totalPrice;
+            cronEntry.total_quantity = cronEntry.total_quantity + qty;
+            cronEntry.record_count = cronEntry.record_count + 1;
+            const hourKey = `${unifiedLocationId}:${dateStr}:${hour}`;
+            if (!byHourMap.has(hourKey)) {
+              byHourMap.set(hourKey, {
+                date: dateStr,
+                hour,
+                locationId: unifiedLocationId,
+                locationName: unifiedLocationName,
+                total_revenue: 0,
+                total_quantity: 0,
+                record_count: 0,
+                products: /* @__PURE__ */ new Map()
+              });
+            }
+            const hourEntry = byHourMap.get(hourKey);
+            hourEntry.total_revenue = hourEntry.total_revenue + totalPrice;
+            hourEntry.total_quantity = hourEntry.total_quantity + qty;
+            hourEntry.record_count = hourEntry.record_count + 1;
+            if (!hourEntry.products.has(productKey)) {
+              hourEntry.products.set(productKey, {
+                productId: productKey,
+                productName,
+                revenue: 0,
+                quantity: 0
+              });
+            }
+            const prod = hourEntry.products.get(productKey);
+            prod.revenue += totalPrice;
+            prod.quantity += qty;
+            if (hasTable) {
+              const tableKey = `${unifiedLocationId}:${dateStr}:${hour}:${tableNumber}`;
+              if (!byTableMap.has(tableKey)) {
+                byTableMap.set(tableKey, {
+                  date: dateStr,
+                  hour,
+                  locationId: unifiedLocationId,
+                  locationName: unifiedLocationName,
+                  tableNumber,
+                  total_revenue: 0,
+                  total_quantity: 0,
+                  products: /* @__PURE__ */ new Map()
+                });
+              }
+              const tableEntry = byTableMap.get(tableKey);
+              tableEntry.total_revenue = tableEntry.total_revenue + totalPrice;
+              tableEntry.total_quantity = tableEntry.total_quantity + qty;
+              if (!tableEntry.products.has(productKey)) {
+                tableEntry.products.set(productKey, {
+                  productId: productKey,
+                  productName,
+                  revenue: 0,
+                  quantity: 0
+                });
+              }
+              const tableProd = tableEntry.products.get(productKey);
+              tableProd.revenue += totalPrice;
+              tableProd.quantity += qty;
+            }
+            const workerKey = `${unifiedLocationId}:${dateStr}:${hour}:${unifiedWorkerId}`;
+            if (!byWorkerMap.has(workerKey)) {
+              byWorkerMap.set(workerKey, {
+                date: dateStr,
+                hour,
+                locationId: unifiedLocationId,
+                locationName: unifiedLocationName,
+                workerId: unifiedWorkerId,
+                workerName: unifiedWorkerName,
+                total_revenue: 0,
+                total_quantity: 0,
+                record_count: 0,
+                products: /* @__PURE__ */ new Map()
+              });
+            }
+            const workerEntry = byWorkerMap.get(workerKey);
+            workerEntry.total_revenue = workerEntry.total_revenue + totalPrice;
+            workerEntry.total_quantity = workerEntry.total_quantity + qty;
+            workerEntry.record_count = workerEntry.record_count + 1;
+            if (!workerEntry.products.has(productKey)) {
+              workerEntry.products.set(productKey, {
+                productId: productKey,
+                productName,
+                revenue: 0,
+                quantity: 0
+              });
+            }
+            const workerProd = workerEntry.products.get(productKey);
+            workerProd.revenue += totalPrice;
+            workerProd.quantity += qty;
+            if (!hasTable) {
+              const guestAccountName = ticket.AccountName || "Unknown Account";
+              const guestKey = `${unifiedLocationId}:${dateStr}:${hour}:${guestAccountName}`;
+              if (!byGuestAccountMap.has(guestKey)) {
+                byGuestAccountMap.set(guestKey, {
+                  date: dateStr,
+                  hour,
+                  locationId: unifiedLocationId,
+                  locationName: unifiedLocationName,
+                  accountName: guestAccountName,
+                  workerId: unifiedWorkerId,
+                  workerName: unifiedWorkerName,
+                  total_revenue: 0,
+                  total_quantity: 0,
+                  products: /* @__PURE__ */ new Map()
+                });
+              }
+              const guestEntry = byGuestAccountMap.get(guestKey);
+              guestEntry.total_revenue = guestEntry.total_revenue + totalPrice;
+              guestEntry.total_quantity = guestEntry.total_quantity + qty;
+              if (!guestEntry.products.has(productKey)) {
+                guestEntry.products.set(productKey, {
+                  productId: productKey,
+                  productName,
+                  revenue: 0,
+                  quantity: 0
+                });
+              }
+              const guestProd = guestEntry.products.get(productKey);
+              guestProd.revenue += totalPrice;
+              guestProd.quantity += qty;
+            }
+            if (!productsMasterMap.has(productKey)) {
+              productsMasterMap.set(productKey, {
+                productId: productKey,
+                productName,
+                locationIds: /* @__PURE__ */ new Set(),
+                createdAt: /* @__PURE__ */ new Date(),
+                updatedAt: /* @__PURE__ */ new Date()
+              });
+            }
+            const prodMaster = productsMasterMap.get(productKey);
+            prodMaster.locationIds.add(String(unifiedLocationId));
+            prodMaster.updatedAt = /* @__PURE__ */ new Date();
           }
-          const cronEntry = byCronMap.get(cronKey);
-          cronEntry.total_revenue = cronEntry.total_revenue + totalPrice;
-          cronEntry.total_quantity = cronEntry.total_quantity + qty;
-          cronEntry.record_count = cronEntry.record_count + 1;
-          const hourKey = `${locationId}:${dateStr}:${hour}`;
-          if (!byHourMap.has(hourKey)) {
-            byHourMap.set(hourKey, {
-              date: dateStr,
-              hour,
-              locationId,
-              locationName,
-              total_revenue: 0,
-              total_quantity: 0,
-              record_count: 0,
-              products: /* @__PURE__ */ new Map()
-            });
-          }
-          const hourEntry = byHourMap.get(hourKey);
-          hourEntry.total_revenue = hourEntry.total_revenue + totalPrice;
-          hourEntry.total_quantity = hourEntry.total_quantity + qty;
-          hourEntry.record_count = hourEntry.record_count + 1;
-          if (!hourEntry.products.has(productKey)) {
-            hourEntry.products.set(productKey, {
-              productId: productKey,
-              productName,
-              revenue: 0,
-              quantity: 0
-            });
-          }
-          const prod = hourEntry.products.get(productKey);
-          prod.revenue += totalPrice;
-          prod.quantity += qty;
-          const tableKey = `${locationId}:${dateStr}:${hour}:${tableNumber}`;
-          if (!byTableMap.has(tableKey)) {
-            byTableMap.set(tableKey, {
-              date: dateStr,
-              hour,
-              locationId,
-              locationName,
-              tableNumber,
-              total_revenue: 0,
-              total_quantity: 0,
-              products: /* @__PURE__ */ new Map()
-            });
-          }
-          const tableEntry = byTableMap.get(tableKey);
-          tableEntry.total_revenue = tableEntry.total_revenue + totalPrice;
-          tableEntry.total_quantity = tableEntry.total_quantity + qty;
-          if (!tableEntry.products.has(productKey)) {
-            tableEntry.products.set(productKey, {
-              productId: productKey,
-              productName,
-              revenue: 0,
-              quantity: 0
-            });
-          }
-          const tableProd = tableEntry.products.get(productKey);
-          tableProd.revenue += totalPrice;
-          tableProd.quantity += qty;
-          const workerKey = `${locationId}:${dateStr}:${hour}:${workerId}`;
-          if (!byWorkerMap.has(workerKey)) {
-            byWorkerMap.set(workerKey, {
-              date: dateStr,
-              hour,
-              locationId,
-              locationName,
-              workerId,
-              workerName,
-              total_revenue: 0,
-              total_quantity: 0,
-              record_count: 0,
-              products: /* @__PURE__ */ new Map()
-            });
-          }
-          const workerEntry = byWorkerMap.get(workerKey);
-          workerEntry.total_revenue = workerEntry.total_revenue + totalPrice;
-          workerEntry.total_quantity = workerEntry.total_quantity + qty;
-          workerEntry.record_count = workerEntry.record_count + 1;
-          if (!workerEntry.products.has(productKey)) {
-            workerEntry.products.set(productKey, {
-              productId: productKey,
-              productName,
-              revenue: 0,
-              quantity: 0
-            });
-          }
-          const workerProd = workerEntry.products.get(productKey);
-          workerProd.revenue += totalPrice;
-          workerProd.quantity += qty;
-          if (!productsMasterMap.has(productKey)) {
-            productsMasterMap.set(productKey, {
-              productId: productKey,
-              productName,
-              locationIds: /* @__PURE__ */ new Set(),
-              createdAt: /* @__PURE__ */ new Date(),
-              updatedAt: /* @__PURE__ */ new Date()
-            });
-          }
-          const prodMaster = productsMasterMap.get(productKey);
-          prodMaster.locationIds.add(String(locationId));
-          prodMaster.updatedAt = /* @__PURE__ */ new Date();
         }
       }
     }
+  } finally {
+    await cursor.close();
   }
   const cronDocs = Array.from(byCronMap.values());
   const hourDocs = Array.from(byHourMap.values()).map((doc) => ({
@@ -29331,6 +30153,10 @@ async function rebuildBorkSalesAggregation(db, startDate, endDate, cronTime = /*
     products: Array.from(doc.products.values())
   }));
   const workerDocs = Array.from(byWorkerMap.values()).map((doc) => ({
+    ...doc,
+    products: Array.from(doc.products.values())
+  }));
+  const guestAccountDocs = Array.from(byGuestAccountMap.values()).map((doc) => ({
     ...doc,
     products: Array.from(doc.products.values())
   }));
@@ -29353,6 +30179,10 @@ async function rebuildBorkSalesAggregation(db, startDate, endDate, cronTime = /*
   if (workerDocs.length > 0) {
     await db.collection("bork_sales_by_worker").insertMany(workerDocs);
     result.byWorker = workerDocs.length;
+  }
+  if (guestAccountDocs.length > 0) {
+    await db.collection("bork_sales_by_guest_account").insertMany(guestAccountDocs);
+    result.byGuestAccount = guestAccountDocs.length;
   }
   for (const prodDoc of productDocs) {
     await db.collection("bork_products_master").updateOne(
@@ -29605,7 +30435,7 @@ const cron_post$3 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.definePropert
   default: cron_post$2
 }, Symbol.toStringTag, { value: 'Module' }));
 
-const locations_get = defineEventHandler(async () => {
+const locations_get$2 = defineEventHandler(async () => {
   const db = await getDb();
   const unifiedLocations = await db.collection("unified_location").find({}, { projection: { primaryId: 1, name: 1 } }).sort({ name: 1 }).toArray();
   const fallbackLocations = unifiedLocations.length ? [] : await db.collection("locations").find({}, { projection: { _id: 1, name: 1 } }).sort({ name: 1 }).toArray();
@@ -29625,9 +30455,9 @@ const locations_get = defineEventHandler(async () => {
   return { success: true, locations };
 });
 
-const locations_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+const locations_get$3 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
   __proto__: null,
-  default: locations_get
+  default: locations_get$2
 }, Symbol.toStringTag, { value: 'Module' }));
 
 const runScheduled_get$2 = defineEventHandler(async (event) => {
@@ -30239,40 +31069,169 @@ const insights_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProp
   default: insights_get
 }, Symbol.toStringTag, { value: 'Module' }));
 
-const overview_get = defineEventHandler((event) => {
-  const q = getQuery$1(event);
-  const period = typeof q.period === "string" ? q.period : "today";
-  const anchor = typeof q.anchor === "string" ? q.anchor : void 0;
-  const range = resolveDailyOpsPeriod(period, anchor);
+const locations_get = defineEventHandler(async () => {
+  try {
+    const db = await getDb();
+    const unifiedLocations = await db.collection("unified_location").find({}).toArray();
+    const locations = unifiedLocations.map((doc) => {
+      var _a, _b, _c;
+      return {
+        _id: String(doc._id),
+        name: (_a = doc.name) != null ? _a : "",
+        abbreviation: (_b = doc.abbreviation) != null ? _b : "",
+        eitjeId: (_c = doc.eitjeIds) == null ? void 0 : _c[0]
+      };
+    });
+    return {
+      success: true,
+      data: locations
+    };
+  } catch (error) {
+    console.error("[daily-ops/locations] Error:", error);
+    return {
+      success: false,
+      data: [],
+      error: String(error)
+    };
+  }
+});
+
+const locations_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+  __proto__: null,
+  default: locations_get
+}, Symbol.toStringTag, { value: 'Module' }));
+
+const bundle_get = defineEventHandler(async (event) => {
+  var _a;
+  setResponseHeader(event, "Cache-Control", "private, max-age=30, stale-while-revalidate=120");
+  let ctx = parseDailyOpsMetricsQuery(getQuery$1(event));
+  const db = await getDb();
+  if (ctx.locationId && typeof ctx.locationId !== "string") {
+    try {
+      const unifiedDoc = await db.collection("unified_location").findOne({ _id: ctx.locationId });
+      if ((_a = unifiedDoc == null ? void 0 : unifiedDoc.eitjeIds) == null ? void 0 : _a[0]) {
+        ctx.locationId = String(unifiedDoc.eitjeIds[0]);
+      }
+    } catch (e) {
+      console.error("[bundle] Failed to resolve location:", e);
+    }
+  }
+  const [cat, hourBundle, laborInput] = await Promise.all([
+    fetchRevenueByCategoryFromHourAggregates(db, ctx),
+    fetchBorkHourAggregatesBundle(db, ctx),
+    fetchLaborMetricsPipelineInput(db, ctx)
+  ]);
+  const summary = buildDailyOpsSummaryDto(ctx, laborInput.revMap, laborInput.labMap);
+  const revenue = buildDailyOpsRevenueBreakdownDto(ctx, cat, hourBundle, laborInput.revMap, laborInput.labMap);
+  const labor = assembleDailyOpsLaborMetricsDto(ctx, laborInput);
+  return { summary, revenue, labor };
+});
+
+const bundle_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+  __proto__: null,
+  default: bundle_get
+}, Symbol.toStringTag, { value: 'Module' }));
+
+const labor_get = defineEventHandler(async (event) => {
+  setResponseHeader(event, "Cache-Control", "private, max-age=30, stale-while-revalidate=120");
+  const ctx = parseDailyOpsMetricsQuery(getQuery$1(event));
+  const db = await getDb();
+  const input = await fetchLaborMetricsPipelineInput(db, ctx);
+  return assembleDailyOpsLaborMetricsDto(ctx, input);
+});
+
+const labor_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+  __proto__: null,
+  default: labor_get
+}, Symbol.toStringTag, { value: 'Module' }));
+
+const revenueBreakdown_get = defineEventHandler(async (event) => {
+  setResponseHeader(event, "Cache-Control", "private, max-age=30, stale-while-revalidate=120");
+  const ctx = parseDailyOpsMetricsQuery(getQuery$1(event));
+  const db = await getDb();
+  const [cat, hourBundle, revenueByDate, laborByDate] = await Promise.all([
+    fetchRevenueByCategoryFromHourAggregates(db, ctx),
+    fetchBorkHourAggregatesBundle(db, ctx),
+    fetchRevenueByDate(db, ctx),
+    fetchLaborByDate(db, ctx)
+  ]);
+  return buildDailyOpsRevenueBreakdownDto(ctx, cat, hourBundle, revenueByDate, laborByDate);
+});
+
+const revenueBreakdown_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+  __proto__: null,
+  default: revenueBreakdown_get
+}, Symbol.toStringTag, { value: 'Module' }));
+
+const summary_get = defineEventHandler(async (event) => {
+  setResponseHeader(event, "Cache-Control", "private, max-age=30, stale-while-revalidate=120");
+  const ctx = parseDailyOpsMetricsQuery(getQuery$1(event));
+  const db = await getDb();
+  const [revMap, labMap] = await Promise.all([fetchRevenueByDate(db, ctx), fetchLaborByDate(db, ctx)]);
+  return buildDailyOpsSummaryDto(ctx, revMap, labMap);
+});
+
+const summary_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+  __proto__: null,
+  default: summary_get
+}, Symbol.toStringTag, { value: 'Module' }));
+
+const overview_get = defineEventHandler(async (event) => {
+  setResponseHeader(event, "Cache-Control", "private, max-age=30, stale-while-revalidate=120");
+  const ctx = parseDailyOpsMetricsQuery(getQuery$1(event));
+  const db = await getDb();
+  const [cat, hourBundle, revenueByDate, laborByDate] = await Promise.all([
+    fetchRevenueByCategoryFromHourAggregates(db, ctx),
+    fetchBorkHourAggregatesBundle(db, ctx),
+    fetchRevenueByDate(db, ctx),
+    fetchLaborByDate(db, ctx)
+  ]);
+  const summaryDto = buildDailyOpsSummaryDto(ctx, revenueByDate, laborByDate);
+  const totalRevenue = summaryDto.summary.totalRevenue;
+  const totalLaborCost = summaryDto.summary.totalLaborCost;
+  const profit = summaryDto.summary.profit;
+  const profitMarginPct = summaryDto.summary.profitMarginPct;
+  const tp = revenueByTimePeriodFromHourTotals(hourBundle.byHourOnly);
+  const best = computeMostProfitableHour(hourBundle.byDayHour, revenueByDate, laborByDate);
+  const revenueByCategory = [
+    { key: "drinks", label: "Drinks", amount: Math.round(cat.drinks * 100) / 100 },
+    { key: "food", label: "Food", amount: Math.round(cat.food * 100) / 100 }
+  ];
+  const revenueByTimePeriod = [
+    { key: "lunch", label: "Lunch", amount: Math.round(tp.lunch * 100) / 100 },
+    { key: "pre_drinks", label: "Pre Drinks", amount: Math.round(tp.pre_drinks * 100) / 100 },
+    { key: "dinner", label: "Dinner", amount: Math.round(tp.dinner * 100) / 100 },
+    { key: "after_drinks", label: "After Drinks", amount: Math.round(tp.after_drinks * 100) / 100 }
+  ];
+  if (tp.other > 0) {
+    revenueByTimePeriod.push({
+      key: "other",
+      label: "Other hours",
+      amount: Math.round(tp.other * 100) / 100
+    });
+  }
   return {
     range: {
-      period: range.period,
-      startDate: range.startDate,
-      endDate: range.endDate
+      period: ctx.period,
+      startDate: ctx.startDate,
+      endDate: ctx.endDate
     },
     summary: {
-      totalRevenue: 0,
-      totalLaborCost: 121.3,
-      profit: -121.3,
-      profitMarginPct: 0
+      totalRevenue: Math.round(totalRevenue * 100) / 100,
+      totalLaborCost: Math.round(totalLaborCost * 100) / 100,
+      profit: Math.round(profit * 100) / 100,
+      profitMarginPct: Math.round(profitMarginPct * 10) / 10
     },
-    revenueByCategory: [
-      { key: "drinks", label: "Drinks", amount: 0 },
-      { key: "food", label: "Food", amount: 0 }
-    ],
-    revenueByTimePeriod: [
-      { key: "lunch", label: "Lunch", amount: 0 },
-      { key: "pre_drinks", label: "Pre Drinks", amount: 0 },
-      { key: "dinner", label: "Dinner", amount: 0 },
-      { key: "after_drinks", label: "After Drinks", amount: 0 }
-    ],
+    revenueByCategory,
+    revenueByTimePeriod,
     mostProfitableHour: {
-      hourLabel: "0:00",
-      revenue: 0,
-      laborCost: 0,
-      profit: 0
+      hourLabel: best.hourLabel,
+      date: best.date,
+      revenue: Math.round(best.revenue * 100) / 100,
+      laborCost: Math.round(best.laborCost * 100) / 100,
+      profit: Math.round(best.profit * 100) / 100
     },
-    vatDisclaimer: "All revenue values shown are excluding VAT (ex VAT)"
+    vatDisclaimer: VAT_DISCLAIMER
   };
 });
 
@@ -31205,12 +32164,16 @@ async function syncTimeRegistrationShiftsWindow(db, creds, startDate, endDate) {
   const upserted = await persistRawTimeRegistrationShifts(db, records);
   return { upserted, fetched: records.length };
 }
+const sleepMs = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 async function syncTimeRegistrationShifts(db, creds, startDate, endDate) {
   const maxDays = envInt("EITJE_TIME_REGISTRATION_MAX_DAYS", 7);
+  const chunkDelayMs = envInt("EITJE_BACKFILL_CHUNK_DELAY_MS", 0);
   const chunks = splitDateRangeForEitje(startDate, endDate, maxDays);
   let upserted = 0;
   let fetched = 0;
+  let i = 0;
   for (const ch of chunks) {
+    i++;
     const r = await syncTimeRegistrationShiftsWindow(db, creds, ch.startDate, ch.endDate);
     if (r.error) {
       return {
@@ -31221,6 +32184,7 @@ async function syncTimeRegistrationShifts(db, creds, startDate, endDate) {
     }
     upserted += r.upserted;
     fetched += r.fetched;
+    if (chunkDelayMs > 0 && i < chunks.length) await sleepMs(chunkDelayMs);
   }
   return { upserted, fetched };
 }
@@ -31711,56 +32675,132 @@ const sync_post$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.definePropert
   default: sync_post
 }, Symbol.toStringTag, { value: 'Module' }));
 
+const MAX_PAGE_SIZE$1 = 200;
+const DEFAULT_PAGE_SIZE$1 = 50;
+function parseHoursPage(query) {
+  var _a, _b;
+  const page = Math.max(1, parseInt(String((_a = query.page) != null ? _a : "1"), 10) || 1);
+  const rawSize = parseInt(String((_b = query.pageSize) != null ? _b : String(DEFAULT_PAGE_SIZE$1)), 10) || DEFAULT_PAGE_SIZE$1;
+  const pageSize = Math.min(MAX_PAGE_SIZE$1, Math.max(1, rawSize));
+  return { page, pageSize, skip: (page - 1) * pageSize };
+}
+function normalizeHoursDateRange(startDate, endDate) {
+  const todayStr = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
+  const thirtyBack = /* @__PURE__ */ new Date();
+  thirtyBack.setDate(thirtyBack.getDate() - 30);
+  const thirtyStr = thirtyBack.toISOString().split("T")[0];
+  if (!startDate && !endDate) return { start: thirtyStr, end: todayStr };
+  if (startDate && !endDate) return { start: startDate, end: todayStr };
+  if (!startDate && endDate) {
+    const e = new Date(endDate);
+    const s = new Date(e);
+    s.setDate(s.getDate() - 30);
+    return { start: s.toISOString().split("T")[0], end: endDate };
+  }
+  return { start: startDate, end: endDate };
+}
+async function sumHoursBaseMatch(db, collectionName, q) {
+  var _a, _b, _c;
+  const [row] = await db.collection(collectionName).aggregate([
+    { $match: q },
+    {
+      $group: {
+        _id: null,
+        total_hours: { $sum: { $ifNull: ["$total_hours", 0] } },
+        total_cost: { $sum: { $ifNull: ["$total_cost", 0] } },
+        record_count: { $sum: { $ifNull: ["$record_count", 0] } }
+      }
+    }
+  ]).toArray();
+  const r = row;
+  return {
+    total_hours: (_a = r == null ? void 0 : r.total_hours) != null ? _a : 0,
+    total_cost: (_b = r == null ? void 0 : r.total_cost) != null ? _b : 0,
+    record_count: (_c = r == null ? void 0 : r.record_count) != null ? _c : 0
+  };
+}
 const hoursAggregated_get = defineEventHandler(async (event) => {
+  var _a, _b, _c;
   try {
     const db = await getDb();
     const query = getQuery$1(event);
+    const { page, pageSize, skip } = parseHoursPage(query);
     const startDate = query.startDate;
     const endDate = query.endDate;
+    const { start: rangeStart, end: rangeEnd } = normalizeHoursDateRange(startDate, endDate);
     const locationId = query.locationId;
     const endpoint = query.endpoint || "time_registration_shifts";
     const groupBy = query.groupBy || "day";
     const source = query.source;
     const sortBy = query.sortBy || "date";
     const sortOrder = query.sortOrder || "desc";
+    const includeLocations = query.includeLocations !== "false" && query.includeLocations !== "0";
+    const emptyPaginated = (locations2) => ({
+      success: true,
+      data: [],
+      pagination: { page, pageSize, totalCount: 0 },
+      totals: { total_hours: 0, total_cost: 0, record_count: 0 },
+      summary: { total_records: 0, group_by: groupBy },
+      locations: locations2
+    });
     if (groupBy === "worker" && source === "contracts") {
       const contractDocs = await db.collection("test-eitje-contracts").find({}).toArray();
-      const results2 = contractDocs.filter((d) => {
-        var _a;
-        return ((_a = d.total_worked_hours) != null ? _a : 0) > 0;
-      }).map((d) => {
-        var _a, _b, _c, _d, _e, _f, _g, _h;
-        return {
-          worker_id: (_a = d.support_id) != null ? _a : "",
-          worker_name: (_b = d.employee_name) != null ? _b : "Unknown",
-          total_hours: (_c = d.total_worked_hours) != null ? _c : 0,
-          total_cost: Math.round(((_d = d.total_worked_hours) != null ? _d : 0) * ((_e = d.hourly_rate) != null ? _e : 0) * 100) / 100,
-          record_count: (_f = d.total_worked_days) != null ? _f : 0,
-          location_count: d.contract_location ? 1 : 0,
-          hourly_rate: (_g = d.hourly_rate) != null ? _g : 0,
-          contract_type: (_h = d.contract_type) != null ? _h : "-",
-          team_name: "-"
-        };
-      });
+      const allRows = contractDocs.filter((d) => {
+        var _a2;
+        return ((_a2 = d.total_worked_hours) != null ? _a2 : 0) > 0;
+      }).map(
+        (d) => {
+          var _a2, _b2, _c2, _d, _e, _f, _g, _h;
+          return {
+            worker_id: (_a2 = d.support_id) != null ? _a2 : "",
+            worker_name: (_b2 = d.employee_name) != null ? _b2 : "Unknown",
+            total_hours: (_c2 = d.total_worked_hours) != null ? _c2 : 0,
+            total_cost: Math.round(((_d = d.total_worked_hours) != null ? _d : 0) * ((_e = d.hourly_rate) != null ? _e : 0) * 100) / 100,
+            record_count: (_f = d.total_worked_days) != null ? _f : 0,
+            location_count: d.contract_location ? 1 : 0,
+            hourly_rate: (_g = d.hourly_rate) != null ? _g : 0,
+            contract_type: (_h = d.contract_type) != null ? _h : "-",
+            team_name: "-"
+          };
+        }
+      );
       const sortField2 = sortBy === "total_cost" ? "total_cost" : sortBy === "worker_name" ? "worker_name" : "total_hours";
       const dir = sortOrder === "asc" ? 1 : -1;
-      results2.sort((a, b) => {
-        const va = sortField2 === "worker_name" ? a.worker_name : sortField2 === "total_cost" ? a.total_cost : a.total_hours;
-        const vb = sortField2 === "worker_name" ? b.worker_name : sortField2 === "total_cost" ? b.total_cost : b.total_hours;
-        return dir * (va < vb ? -1 : va > vb ? 1 : 0);
-      });
-      return { success: true, data: results2, summary: { total_records: results2.length, group_by: "worker", source: "contracts" }, locations: [] };
+      allRows.sort(
+        (a, b) => {
+          const va = sortField2 === "worker_name" ? a.worker_name : sortField2 === "total_cost" ? a.total_cost : a.total_hours;
+          const vb = sortField2 === "worker_name" ? b.worker_name : sortField2 === "total_cost" ? b.total_cost : b.total_hours;
+          return dir * (va < vb ? -1 : va > vb ? 1 : 0);
+        }
+      );
+      const totalCount2 = allRows.length;
+      const totals2 = allRows.reduce(
+        (acc, r) => ({
+          total_hours: acc.total_hours + r.total_hours,
+          total_cost: acc.total_cost + r.total_cost,
+          record_count: acc.record_count + r.record_count
+        }),
+        { total_hours: 0, total_cost: 0, record_count: 0 }
+      );
+      const data = allRows.slice(skip, skip + pageSize);
+      let locations2 = [];
+      if (includeLocations) {
+        const locs = await db.collection("locations").find({}, { projection: { name: 1 } }).sort({ name: 1 }).toArray();
+        locations2 = locs.map((l) => ({ _id: String(l._id), name: l.name }));
+      }
+      return {
+        success: true,
+        data,
+        pagination: { page, pageSize, totalCount: totalCount2 },
+        totals: totals2,
+        summary: { total_records: totalCount2, group_by: "worker", source: "contracts" },
+        locations: locations2
+      };
     }
-    const q = { period_type: "day" };
-    if (startDate || endDate) {
-      q.period = {};
-      if (startDate) q.period.$gte = startDate;
-      if (endDate) q.period.$lte = endDate;
-    } else {
-      const thirtyDaysAgo = /* @__PURE__ */ new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      q.period = { $gte: thirtyDaysAgo.toISOString().split("T")[0] };
-    }
+    const q = {
+      period_type: "day",
+      period: { $gte: rangeStart, $lte: rangeEnd }
+    };
     if (locationId && locationId !== "all") {
       try {
         q.locationId = new ObjectId(locationId);
@@ -31836,9 +32876,48 @@ const hoursAggregated_get = defineEventHandler(async (event) => {
           location_count: { $size: { $filter: { input: "$location_count", as: "l", cond: { $ne: ["$$l", null] } } } },
           team_name: {
             $cond: [
-              { $eq: [{ $size: { $filter: { input: "$team_names", as: "t", cond: { $and: [{ $ne: ["$$t", null] }, { $ne: ["$$t", "Unknown"] }] } } } }, 1] },
-              { $arrayElemAt: [{ $filter: { input: "$team_names", as: "t", cond: { $and: [{ $ne: ["$$t", null] }, { $ne: ["$$t", "Unknown"] }] } } }, 0] },
-              { $concat: [{ $toString: { $size: { $filter: { input: "$team_names", as: "t", cond: { $and: [{ $ne: ["$$t", null] }, { $ne: ["$$t", "Unknown"] }] } } } } }, " teams"] }
+              {
+                $eq: [
+                  {
+                    $size: {
+                      $filter: {
+                        input: "$team_names",
+                        as: "t",
+                        cond: { $and: [{ $ne: ["$$t", null] }, { $ne: ["$$t", "Unknown"] }] }
+                      }
+                    }
+                  },
+                  1
+                ]
+              },
+              {
+                $arrayElemAt: [
+                  {
+                    $filter: {
+                      input: "$team_names",
+                      as: "t",
+                      cond: { $and: [{ $ne: ["$$t", null] }, { $ne: ["$$t", "Unknown"] }] }
+                    }
+                  },
+                  0
+                ]
+              },
+              {
+                $concat: [
+                  {
+                    $toString: {
+                      $size: {
+                        $filter: {
+                          input: "$team_names",
+                          as: "t",
+                          cond: { $and: [{ $ne: ["$$t", null] }, { $ne: ["$$t", "Unknown"] }] }
+                        }
+                      }
+                    }
+                  },
+                  " teams"
+                ]
+              }
             ]
           },
           hourly_rate: { $ifNull: ["$hourly_rate", 0] },
@@ -31870,7 +32949,12 @@ const hoursAggregated_get = defineEventHandler(async (event) => {
     } else if (groupBy === "worker_location_team") {
       const workerId = query.workerId;
       if (!workerId) {
-        return { success: true, data: [], summary: { total_records: 0, group_by: "worker_location_team" }, locations: [] };
+        let locations2 = [];
+        if (includeLocations) {
+          const locs = await db.collection("locations").find({}, { projection: { name: 1 } }).sort({ name: 1 }).toArray();
+          locations2 = locs.map((l) => ({ _id: String(l._id), name: l.name }));
+        }
+        return emptyPaginated(locations2);
       }
       let userIdMatch;
       const numId = Number(workerId);
@@ -31884,15 +32968,16 @@ const hoursAggregated_get = defineEventHandler(async (event) => {
         }
       }
       aggregation = [
-        { $match: {
-          ...q,
-          userId: userIdMatch,
-          // STRICT filtering: no null, no "Unknown" values
-          locationId: { $exists: true, $ne: null },
-          teamId: { $exists: true, $ne: null },
-          team_name: { $exists: true, $nin: [null, "Unknown"] },
-          location_name: { $exists: true, $nin: [null, "Unknown"] }
-        } },
+        {
+          $match: {
+            ...q,
+            userId: userIdMatch,
+            locationId: { $exists: true, $ne: null },
+            teamId: { $exists: true, $ne: null },
+            team_name: { $exists: true, $nin: [null, "Unknown"] },
+            location_name: { $exists: true, $nin: [null, "Unknown"] }
+          }
+        },
         {
           $group: {
             _id: {
@@ -31947,25 +33032,27 @@ const hoursAggregated_get = defineEventHandler(async (event) => {
     if (groupBy !== "worker_location_team") {
       aggregation.push({ $sort: { [sortField]: sortDirection } });
     }
+    aggregation.push({
+      $facet: {
+        total: [{ $count: "count" }],
+        data: [{ $skip: skip }, { $limit: pageSize }]
+      }
+    });
     const collectionName = endpoint === "planning_shifts" ? "eitje_planning_registration_aggregation" : "eitje_time_registration_aggregation";
-    let results = await db.collection(collectionName).aggregate(aggregation).toArray();
-    if (results.length === 0 && endpoint === "time_registration_shifts" && (groupBy === "day" || groupBy === "date_location" || !["day", "team", "worker", "location", "worker_location_team"].includes(groupBy))) {
+    const [aggOut, totals] = await Promise.all([
+      db.collection(collectionName).aggregate(aggregation).toArray(),
+      sumHoursBaseMatch(db, collectionName, q)
+    ]);
+    const facet = aggOut[0];
+    let results = (_a = facet == null ? void 0 : facet.data) != null ? _a : [];
+    let totalCount = (_c = (_b = facet == null ? void 0 : facet.total[0]) == null ? void 0 : _b.count) != null ? _c : 0;
+    let totalsOut = totals;
+    if (totalCount === 0 && endpoint === "time_registration_shifts" && (groupBy === "day" || groupBy === "date_location" || !["day", "team", "worker", "location", "worker_location_team"].includes(groupBy))) {
       try {
         const rawMatch = { endpoint: "time_registration_shifts" };
-        if (startDate || endDate) {
-          const dateCond = { $exists: true, $ne: null };
-          if (startDate) dateCond.$gte = new Date(startDate);
-          if (endDate) {
-            const end = new Date(endDate);
-            end.setHours(23, 59, 59, 999);
-            dateCond.$lte = end;
-          }
-          rawMatch.date = dateCond;
-        } else {
-          const thirtyDaysAgo = /* @__PURE__ */ new Date();
-          thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-          rawMatch.date = { $gte: thirtyDaysAgo, $exists: true, $ne: null };
-        }
+        const endD = new Date(rangeEnd);
+        endD.setHours(23, 59, 59, 999);
+        rawMatch.date = { $gte: new Date(rangeStart), $lte: endD, $exists: true, $ne: null };
         if (locationId && locationId !== "all") {
           try {
             rawMatch.locationId = new ObjectId(locationId);
@@ -31986,7 +33073,12 @@ const hoursAggregated_get = defineEventHandler(async (event) => {
                     {
                       $ifNull: [
                         { $divide: [{ $toDouble: "$rawApiResponse.amt_in_cents" }, 100] },
-                        { $ifNull: [{ $toDouble: "$extracted.amount" }, { $ifNull: [{ $toDouble: "$rawApiResponse.amount" }, 0] }] }
+                        {
+                          $ifNull: [
+                            { $toDouble: "$extracted.amount" },
+                            { $ifNull: [{ $toDouble: "$rawApiResponse.amount" }, 0] }
+                          ]
+                        }
                       ]
                     }
                   ]
@@ -32014,8 +33106,20 @@ const hoursAggregated_get = defineEventHandler(async (event) => {
             },
             { $sort: { [sortBy === "total_hours" ? "total_hours" : "date"]: sortOrder === "asc" ? 1 : -1 } }
           ];
-          const rawDayResults = await db.collection("eitje_raw_data").aggregate(rawPipeline).toArray();
-          results = rawDayResults;
+          const rawFull = await db.collection("eitje_raw_data").aggregate(rawPipeline).toArray();
+          totalCount = rawFull.length;
+          results = rawFull.slice(skip, skip + pageSize);
+          totalsOut = rawFull.reduce(
+            (acc, r) => {
+              var _a2, _b2, _c2;
+              return {
+                total_hours: acc.total_hours + Number((_a2 = r.total_hours) != null ? _a2 : 0),
+                total_cost: acc.total_cost + Number((_b2 = r.total_cost) != null ? _b2 : 0),
+                record_count: acc.record_count + Number((_c2 = r.record_count) != null ? _c2 : 0)
+              };
+            },
+            { total_hours: 0, total_cost: 0, record_count: 0 }
+          );
         } else {
           const rawPipeline = [
             { $match: rawMatch },
@@ -32029,7 +33133,12 @@ const hoursAggregated_get = defineEventHandler(async (event) => {
                     {
                       $ifNull: [
                         { $divide: [{ $toDouble: "$rawApiResponse.amt_in_cents" }, 100] },
-                        { $ifNull: [{ $toDouble: "$extracted.amount" }, { $ifNull: [{ $toDouble: "$rawApiResponse.amount" }, 0] }] }
+                        {
+                          $ifNull: [
+                            { $toDouble: "$extracted.amount" },
+                            { $ifNull: [{ $toDouble: "$rawApiResponse.amount" }, 0] }
+                          ]
+                        }
                       ]
                     }
                   ]
@@ -32044,10 +33153,12 @@ const hoursAggregated_get = defineEventHandler(async (event) => {
                           {
                             $ifNull: [
                               "$rawApiResponse.location_name",
-                              { $ifNull: [
-                                "$rawApiResponse.environment_name",
-                                { $ifNull: ["$rawApiResponse.environment.name", "Unknown"] }
-                              ] }
+                              {
+                                $ifNull: [
+                                  "$rawApiResponse.environment_name",
+                                  { $ifNull: ["$rawApiResponse.environment.name", "Unknown"] }
+                                ]
+                              }
                             ]
                           }
                         ]
@@ -32076,21 +33187,44 @@ const hoursAggregated_get = defineEventHandler(async (event) => {
                 record_count: 1
               }
             },
-            { $sort: { [sortBy === "location_name" ? "location_name" : sortBy === "total_hours" ? "total_hours" : "date"]: sortOrder === "asc" ? 1 : -1 } }
+            {
+              $sort: {
+                [sortBy === "location_name" ? "location_name" : sortBy === "total_hours" ? "total_hours" : "date"]: sortOrder === "asc" ? 1 : -1
+              }
+            }
           ];
-          const rawDateLocResults = await db.collection("eitje_raw_data").aggregate(rawPipeline).toArray();
-          results = rawDateLocResults;
+          const rawFull = await db.collection("eitje_raw_data").aggregate(rawPipeline).toArray();
+          totalCount = rawFull.length;
+          results = rawFull.slice(skip, skip + pageSize);
+          totalsOut = rawFull.reduce(
+            (acc, r) => {
+              var _a2, _b2, _c2;
+              return {
+                total_hours: acc.total_hours + Number((_a2 = r.total_hours) != null ? _a2 : 0),
+                total_cost: acc.total_cost + Number((_b2 = r.total_cost) != null ? _b2 : 0),
+                record_count: acc.record_count + Number((_c2 = r.record_count) != null ? _c2 : 0)
+              };
+            },
+            { total_hours: 0, total_cost: 0, record_count: 0 }
+          );
         }
       } catch (fallbackErr) {
         console.error("[hours-aggregated] raw fallback failed:", fallbackErr);
       }
     }
     let locations = [];
-    if (groupBy !== "location") {
-      const locs = await db.collection("locations").find({}).sort({ name: 1 }).toArray();
+    if (includeLocations && groupBy !== "location") {
+      const locs = await db.collection("locations").find({}, { projection: { name: 1 } }).sort({ name: 1 }).toArray();
       locations = locs.map((l) => ({ _id: String(l._id), name: l.name }));
     }
-    return { success: true, data: results, summary: { total_records: results.length, group_by: groupBy }, locations };
+    return {
+      success: true,
+      data: results,
+      pagination: { page, pageSize, totalCount },
+      totals: totalsOut,
+      summary: { total_records: totalCount, group_by: groupBy },
+      locations
+    };
   } catch (error) {
     console.error("[hours-aggregated]", error);
     throw createError({ statusCode: 500, message: "Failed to fetch hours data" });
@@ -33893,127 +35027,470 @@ const index_post$3 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProper
   default: index_post$2
 }, Symbol.toStringTag, { value: 'Module' }));
 
+function parseLocationId(raw) {
+  if (!raw || raw === "all") {
+    throw createError({ statusCode: 400, message: "locationId is required" });
+  }
+  try {
+    return new ObjectId(raw);
+  } catch {
+    return raw;
+  }
+}
+function parseWorkerIdForFilter(raw) {
+  const wid = raw.trim();
+  if (!wid || wid === "unknown") return "unknown";
+  try {
+    return new ObjectId(wid);
+  } catch {
+    return wid;
+  }
+}
+const salesAggregatedProducts_get = defineEventHandler(async (event) => {
+  var _a, _b, _c;
+  try {
+    const q = getQuery$1(event);
+    const groupBy = String(q.groupBy || "");
+    const date = String(q.date || "");
+    const hourRaw = q.hour;
+    const hour = typeof hourRaw === "string" || typeof hourRaw === "number" ? Number(hourRaw) : NaN;
+    if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(hour)) {
+      throw createError({ statusCode: 400, message: "date (YYYY-MM-DD) and hour are required" });
+    }
+    const locationId = parseLocationId(typeof q.locationId === "string" ? q.locationId : void 0);
+    const db = await getDb();
+    let collectionName = "";
+    const filter = { date, hour, locationId };
+    if (groupBy === "hour" || groupBy === "date_location") {
+      collectionName = "bork_sales_by_hour";
+    } else if (groupBy === "table") {
+      collectionName = "bork_sales_by_table";
+      const tn = typeof q.tableNumber === "string" ? q.tableNumber : String((_a = q.tableNumber) != null ? _a : "");
+      if (!tn) {
+        throw createError({ statusCode: 400, message: "tableNumber is required for table detail" });
+      }
+      filter.tableNumber = tn;
+    } else if (groupBy === "worker") {
+      collectionName = "bork_sales_by_worker";
+      const wid = typeof q.workerId === "string" ? q.workerId : String((_b = q.workerId) != null ? _b : "");
+      filter.workerId = parseWorkerIdForFilter(wid.length > 0 ? wid : "unknown");
+    } else if (groupBy === "guestAccount") {
+      collectionName = "bork_sales_by_guest_account";
+      const acc = typeof q.accountName === "string" ? q.accountName : "";
+      if (!acc) {
+        throw createError({ statusCode: 400, message: "accountName is required for guestAccount detail" });
+      }
+      filter.accountName = acc;
+    } else {
+      throw createError({ statusCode: 400, message: "Invalid groupBy for product detail" });
+    }
+    const doc = await db.collection(collectionName).findOne(filter, { projection: { products: 1, _id: 0 } });
+    const products = (_c = doc == null ? void 0 : doc.products) != null ? _c : [];
+    return { success: true, products, collection: collectionName };
+  } catch (err) {
+    if (err && typeof err === "object" && "statusCode" in err) throw err;
+    throw createError({ statusCode: 500, message: "Failed to load product breakdown" });
+  }
+});
+
+const salesAggregatedProducts_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+  __proto__: null,
+  default: salesAggregatedProducts_get
+}, Symbol.toStringTag, { value: 'Module' }));
+
+const MAX_PAGE_SIZE = 200;
+const DEFAULT_PAGE_SIZE = 50;
+function parsePageParams(query) {
+  var _a, _b;
+  const page = Math.max(1, parseInt(String((_a = query.page) != null ? _a : "1"), 10) || 1);
+  const rawSize = parseInt(String((_b = query.pageSize) != null ? _b : String(DEFAULT_PAGE_SIZE)), 10) || DEFAULT_PAGE_SIZE;
+  const pageSize = Math.min(MAX_PAGE_SIZE, Math.max(1, rawSize));
+  return { page, pageSize, skip: (page - 1) * pageSize };
+}
+function normalizeDateRange(startDate, endDate) {
+  const todayStr = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
+  const thirtyBack = /* @__PURE__ */ new Date();
+  thirtyBack.setDate(thirtyBack.getDate() - 30);
+  const thirtyStr = thirtyBack.toISOString().split("T")[0];
+  if (!startDate && !endDate) return { start: thirtyStr, end: todayStr };
+  if (startDate && !endDate) return { start: startDate, end: todayStr };
+  if (!startDate && endDate) {
+    const e = new Date(endDate);
+    const s = new Date(e);
+    s.setDate(s.getDate() - 30);
+    return { start: s.toISOString().split("T")[0], end: endDate };
+  }
+  return { start: startDate, end: endDate };
+}
+function parseLocationFilter(locationId) {
+  if (!locationId || locationId === "all") return void 0;
+  try {
+    return new ObjectId(locationId);
+  } catch {
+    return locationId;
+  }
+}
+function isoDateToBorkYmdInt(iso) {
+  const [y, m, d] = iso.split("-").map((x) => parseInt(x, 10));
+  return y * 1e4 + m * 100 + d;
+}
+async function aggregateSalesByProductFromRaw(db, rangeStartIso, rangeEndIso, unifiedLocationId, productSearch, minLineTotal, sortObj, skip, pageSize) {
+  var _a, _b, _c, _d, _e, _f, _g;
+  const startYmd = isoDateToBorkYmdInt(rangeStartIso);
+  const endYmd = isoDateToBorkYmdInt(rangeEndIso);
+  const rawMatch = { rawApiResponse: { $exists: true, $ne: null } };
+  if (unifiedLocationId !== void 0) {
+    const maps = await db.collection("bork_unified_location_mapping").find({ unifiedLocationId }).project({ borkLocationId: 1 }).toArray();
+    const borkIds = maps.map((m) => m.borkLocationId).filter((id) => id != null);
+    if (borkIds.length === 0) {
+      return { results: [], totalCount: 0, totals: { total_revenue: 0, total_quantity: 0, record_count: 0 } };
+    }
+    rawMatch.locationId = { $in: borkIds };
+  }
+  const escapedSearch = productSearch.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const pipeline = [
+    { $match: rawMatch },
+    {
+      $addFields: {
+        _tickets: {
+          $cond: {
+            if: { $isArray: "$rawApiResponse" },
+            then: "$rawApiResponse",
+            else: {
+              $cond: {
+                if: { $ne: ["$rawApiResponse", null] },
+                then: ["$rawApiResponse"],
+                else: []
+              }
+            }
+          }
+        }
+      }
+    },
+    { $unwind: { path: "$_tickets", preserveNullAndEmptyArrays: false } },
+    { $unwind: { path: "$_tickets.Orders", preserveNullAndEmptyArrays: false } },
+    {
+      $addFields: {
+        _ord: "$_tickets.Orders",
+        borkLocationId: "$locationId"
+      }
+    },
+    {
+      $addFields: {
+        odRaw: { $ifNull: ["$_ord.Date", "$_ord.ActualDate"] }
+      }
+    },
+    {
+      $addFields: {
+        orderYmd: {
+          $convert: {
+            input: {
+              $substrCP: [
+                { $concat: ["00000000", { $toString: { $ifNull: ["$odRaw", ""] } }] },
+                {
+                  $subtract: [
+                    { $strLenCP: { $concat: ["00000000", { $toString: { $ifNull: ["$odRaw", ""] } }] } },
+                    8
+                  ]
+                },
+                8
+              ]
+            },
+            to: "int",
+            onError: null,
+            onNull: null
+          }
+        }
+      }
+    },
+    { $match: { orderYmd: { $gte: startYmd, $lte: endYmd } } },
+    { $unwind: { path: "$_ord.Lines", preserveNullAndEmptyArrays: false } },
+    {
+      $addFields: {
+        line: "$_ord.Lines",
+        lineUnitPrice: { $toDouble: { $ifNull: ["$_ord.Lines.Price", 0] } },
+        lineQty: { $toDouble: { $ifNull: ["$_ord.Lines.Qty", 0] } },
+        productKey: { $toString: { $ifNull: ["$_ord.Lines.ProductKey", "unknown"] } },
+        productName: { $ifNull: ["$_ord.Lines.ProductName", "Unknown"] }
+      }
+    },
+    {
+      $addFields: {
+        lineValue: { $multiply: ["$lineUnitPrice", "$lineQty"] }
+      }
+    },
+    {
+      $lookup: {
+        from: "bork_unified_location_mapping",
+        let: { bid: "$borkLocationId" },
+        pipeline: [
+          {
+            $match: {
+              $expr: { $eq: [{ $toString: "$borkLocationId" }, { $toString: "$$bid" }] }
+            }
+          },
+          { $limit: 1 }
+        ],
+        as: "_loc"
+      }
+    },
+    { $match: { "_loc.0": { $exists: true } } },
+    {
+      $addFields: {
+        unifiedLocationId: { $arrayElemAt: ["$_loc.unifiedLocationId", 0] },
+        unifiedLocationName: { $arrayElemAt: ["$_loc.unifiedLocationName", 0] }
+      }
+    },
+    {
+      $group: {
+        _id: {
+          productKey: "$productKey",
+          productName: "$productName",
+          unitPrice: "$lineUnitPrice",
+          locationId: "$unifiedLocationId",
+          locationName: "$unifiedLocationName"
+        },
+        quantity: { $sum: "$lineQty" },
+        lineTotal: { $sum: "$lineValue" }
+      }
+    },
+    {
+      $group: {
+        _id: {
+          productKey: "$_id.productKey",
+          unitPrice: "$_id.unitPrice"
+        },
+        productName: { $first: "$_id.productName" },
+        unit_price: { $first: "$_id.unitPrice" },
+        total_quantity: { $sum: "$quantity" },
+        total_revenue: { $sum: "$lineTotal" },
+        byLocation: {
+          $push: {
+            locationId: "$_id.locationId",
+            locationName: "$_id.locationName",
+            quantity: "$quantity",
+            lineTotal: "$lineTotal"
+          }
+        }
+      }
+    },
+    {
+      $project: {
+        _id: 0,
+        productId: "$_id.productKey",
+        productName: 1,
+        unit_price: 1,
+        total_quantity: 1,
+        total_revenue: 1,
+        byLocation: 1
+      }
+    }
+  ];
+  if (productSearch) {
+    pipeline.push({ $match: { productName: { $regex: escapedSearch, $options: "i" } } });
+  }
+  if (minLineTotal > 0) {
+    pipeline.push({ $match: { total_revenue: { $gte: minLineTotal } } });
+  }
+  pipeline.push({ $sort: sortObj });
+  pipeline.push({
+    $facet: {
+      totals: [
+        {
+          $group: {
+            _id: null,
+            total_revenue: { $sum: "$total_revenue" },
+            total_quantity: { $sum: "$total_quantity" }
+          }
+        }
+      ],
+      totalCount: [{ $count: "count" }],
+      data: [{ $skip: skip }, { $limit: pageSize }]
+    }
+  });
+  const agg = await db.collection("bork_raw_data").aggregate(pipeline, { allowDiskUse: true }).toArray();
+  const facet = agg[0];
+  const t = facet == null ? void 0 : facet.totals[0];
+  return {
+    results: (_a = facet == null ? void 0 : facet.data) != null ? _a : [],
+    totalCount: (_c = (_b = facet == null ? void 0 : facet.totalCount[0]) == null ? void 0 : _b.count) != null ? _c : 0,
+    totals: {
+      total_revenue: (_d = t == null ? void 0 : t.total_revenue) != null ? _d : 0,
+      total_quantity: (_e = t == null ? void 0 : t.total_quantity) != null ? _e : 0,
+      record_count: (_g = (_f = facet == null ? void 0 : facet.totalCount[0]) == null ? void 0 : _f.count) != null ? _g : 0
+    }
+  };
+}
+async function sumMatchedMetrics(db, collection, match) {
+  var _a, _b, _c;
+  const [row] = await db.collection(collection).aggregate([
+    { $match: match },
+    {
+      $group: {
+        _id: null,
+        total_revenue: { $sum: { $ifNull: ["$total_revenue", 0] } },
+        total_quantity: { $sum: { $ifNull: ["$total_quantity", 0] } },
+        record_count: { $sum: { $ifNull: ["$record_count", 0] } }
+      }
+    }
+  ]).toArray();
+  const r = row;
+  return {
+    total_revenue: (_a = r == null ? void 0 : r.total_revenue) != null ? _a : 0,
+    total_quantity: (_b = r == null ? void 0 : r.total_quantity) != null ? _b : 0,
+    record_count: (_c = r == null ? void 0 : r.record_count) != null ? _c : 0
+  };
+}
+async function findPaged(db, collection, match, sortObj, skip, limit, excludeProducts) {
+  const projection = excludeProducts ? { products: 0 } : {};
+  const col = db.collection(collection);
+  const [results, totalCount, totals] = await Promise.all([
+    col.find(match, { projection }).sort(sortObj).skip(skip).limit(limit).toArray(),
+    col.countDocuments(match),
+    sumMatchedMetrics(db, collection, match)
+  ]);
+  return { results, totalCount, totals };
+}
 const salesAggregated_get = defineEventHandler(async (event) => {
+  var _a, _b, _c;
   try {
     const db = await getDb();
     const query = getQuery$1(event);
-    const startDate = query.startDate;
-    const endDate = query.endDate;
-    const locationId = query.locationId;
+    const { page, pageSize, skip } = parsePageParams(query);
+    const rawStart = typeof query.startDate === "string" ? query.startDate : void 0;
+    const rawEnd = typeof query.endDate === "string" ? query.endDate : void 0;
+    const { start: rangeStart, end: rangeEnd } = normalizeDateRange(rawStart, rawEnd);
+    const locationId = typeof query.locationId === "string" ? query.locationId : void 0;
     const groupBy = query.groupBy || "date";
     const sortBy = query.sortBy || "date";
     const sortOrder = query.sortOrder || "desc";
-    const q = {};
-    if (startDate || endDate) {
-      q.date = {};
-      if (startDate) q.date.$gte = startDate;
-      if (endDate) q.date.$lte = endDate;
-    } else {
-      const thirtyDaysAgo = /* @__PURE__ */ new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      q.date = { $gte: thirtyDaysAgo.toISOString().split("T")[0] };
+    const includeProducts = query.includeProducts === "true" || query.includeProducts === "1";
+    const includeLocations = query.includeLocations !== "false" && query.includeLocations !== "0";
+    const productSearch = typeof query.productSearch === "string" ? query.productSearch.trim() : "";
+    const minRevenueRaw = query.minRevenue;
+    const minRevenue = typeof minRevenueRaw === "string" || typeof minRevenueRaw === "number" ? Math.max(0, Number(minRevenueRaw) || 0) : 0;
+    const dateFilter = {
+      $gte: rangeStart,
+      $lte: rangeEnd
+    };
+    const q = { date: dateFilter };
+    const locationFilter = parseLocationFilter(locationId);
+    if (locationFilter !== void 0) q.locationId = locationFilter;
+    const sortField = sortBy === "location" || sortBy === "location_name" ? "locationName" : sortBy === "product_name" ? "product_name" : sortBy === "unit_price" ? "unit_price" : sortBy === "total_revenue" ? "total_revenue" : sortBy === "total_quantity" ? "total_quantity" : "date";
+    let resolvedSortKey = sortField;
+    if (groupBy === "location" && (sortBy === "location" || sortBy === "location_name")) {
+      resolvedSortKey = "location_name";
+    } else if (groupBy === "product" && sortBy === "product_name") {
+      resolvedSortKey = "productName";
+    } else if (groupBy === "product" && sortBy === "unit_price") {
+      resolvedSortKey = "unit_price";
     }
-    if (locationId && locationId !== "all") {
-      try {
-        q.location_id = new ObjectId(locationId);
-      } catch {
-        q.location_id = locationId;
-      }
+    if (groupBy === "product" && resolvedSortKey === "date") {
+      resolvedSortKey = "total_revenue";
     }
-    let aggregation = [{ $match: q }];
-    if (groupBy === "date") {
-      aggregation.push({
-        $group: {
-          _id: "$date",
-          total_revenue: { $sum: { $toDouble: "$revenue" } },
-          total_quantity: { $sum: { $toDouble: "$quantity" } },
-          record_count: { $sum: 1 },
-          location_count: { $addToSet: "$location_id" }
-        }
-      });
-      aggregation.push({
-        $project: {
-          _id: 0,
-          date: "$_id",
-          total_revenue: { $round: ["$total_revenue", 2] },
-          total_quantity: { $round: ["$total_quantity", 2] },
-          record_count: 1,
-          location_count: { $size: { $filter: { input: "$location_count", as: "l", cond: { $ne: ["$$l", null] } } } }
-        }
-      });
-    } else if (groupBy === "location") {
-      aggregation.push({
-        $group: {
-          _id: { location_id: "$location_id", location_name: "$location_name" },
-          total_revenue: { $sum: { $toDouble: "$revenue" } },
-          total_quantity: { $sum: { $toDouble: "$quantity" } },
-          record_count: { $sum: 1 },
-          product_count: { $addToSet: "$product_name" }
-        }
-      });
-      aggregation.push({
-        $project: {
-          _id: 0,
-          location_id: "$_id.location_id",
-          location_name: { $ifNull: ["$_id.location_name", "Unknown"] },
-          total_revenue: { $round: ["$total_revenue", 2] },
-          total_quantity: { $round: ["$total_quantity", 2] },
-          record_count: 1,
-          product_count: { $size: { $filter: { input: "$product_count", as: "p", cond: { $ne: ["$$p", null] } } } }
-        }
-      });
-    } else if (groupBy === "product") {
-      aggregation.push({
-        $group: {
-          _id: { product_id: "$product_id", product_name: "$product_name" },
-          total_revenue: { $sum: { $toDouble: "$revenue" } },
-          total_quantity: { $sum: { $toDouble: "$quantity" } },
-          record_count: { $sum: 1 },
-          location_count: { $addToSet: "$location_id" }
-        }
-      });
-      aggregation.push({
-        $project: {
-          _id: 0,
-          product_id: "$_id.product_id",
-          product_name: { $ifNull: ["$_id.product_name", "Unknown"] },
-          total_revenue: { $round: ["$total_revenue", 2] },
-          total_quantity: { $round: ["$total_quantity", 2] },
-          record_count: 1,
-          location_count: { $size: { $filter: { input: "$location_count", as: "l", cond: { $ne: ["$$l", null] } } } }
-        }
-      });
-    } else {
-      aggregation.push({
-        $group: {
-          _id: { date: "$date", location_id: "$location_id", location_name: "$location_name" },
-          total_revenue: { $sum: { $toDouble: "$revenue" } },
-          total_quantity: { $sum: { $toDouble: "$quantity" } },
-          record_count: { $sum: 1 }
-        }
-      });
-      aggregation.push({
-        $project: {
-          _id: 0,
-          date: "$_id.date",
-          location_id: "$_id.location_id",
-          location_name: { $ifNull: ["$_id.location_name", "Unknown"] },
-          total_revenue: { $round: ["$total_revenue", 2] },
-          total_quantity: { $round: ["$total_quantity", 2] },
-          record_count: 1
-        }
-      });
-    }
-    const sortField = sortBy === "location" || sortBy === "location_name" ? "location_name" : sortBy === "product_name" ? "product_name" : sortBy === "total_revenue" ? "total_revenue" : sortBy === "total_quantity" ? "total_quantity" : "date";
     const sortDirection = sortOrder === "asc" ? 1 : -1;
-    aggregation.push({ $sort: { [sortField]: sortDirection } });
-    const results = await db.collection("test-bork-sales-unified").aggregate(aggregation).toArray();
-    let locations = [];
-    if (groupBy !== "location") {
-      const locs = await db.collection("locations").find({}).sort({ name: 1 }).toArray();
-      locations = locs.map((l) => ({ _id: String(l._id), name: l.name }));
+    const sortObj = { [resolvedSortKey]: sortDirection };
+    let results = [];
+    let collectionName = "bork_sales_by_cron";
+    let totalCount = 0;
+    let totals = { total_revenue: 0, total_quantity: 0, record_count: 0 };
+    const excludeProducts = !includeProducts;
+    if (groupBy === "date") {
+      collectionName = "bork_sales_by_cron";
+      const out = await findPaged(db, collectionName, q, sortObj, skip, pageSize, false);
+      results = out.results;
+      totalCount = out.totalCount;
+      totals = out.totals;
+    } else if (groupBy === "location") {
+      collectionName = "bork_sales_by_cron";
+      const pipeline = [
+        { $match: q },
+        {
+          $group: {
+            _id: { locationId: "$locationId", locationName: "$locationName" },
+            total_revenue: { $sum: "$total_revenue" },
+            total_quantity: { $sum: "$total_quantity" },
+            record_count: { $sum: "$record_count" }
+          }
+        },
+        {
+          $project: {
+            _id: 0,
+            locationId: "$_id.locationId",
+            location_name: "$_id.locationName",
+            total_revenue: { $round: ["$total_revenue", 2] },
+            total_quantity: { $round: ["$total_quantity", 2] },
+            record_count: 1
+          }
+        },
+        { $sort: sortObj },
+        {
+          $facet: {
+            total: [{ $count: "count" }],
+            data: [{ $skip: skip }, { $limit: pageSize }]
+          }
+        }
+      ];
+      const agg = await db.collection(collectionName).aggregate(pipeline).toArray();
+      const facet = agg[0];
+      totalCount = (_b = (_a = facet == null ? void 0 : facet.total[0]) == null ? void 0 : _a.count) != null ? _b : 0;
+      results = (_c = facet == null ? void 0 : facet.data) != null ? _c : [];
+      totals = await sumMatchedMetrics(db, collectionName, q);
+    } else if (groupBy === "product") {
+      collectionName = "bork_raw_data";
+      const out = await aggregateSalesByProductFromRaw(
+        db,
+        rangeStart,
+        rangeEnd,
+        locationFilter,
+        productSearch,
+        minRevenue,
+        sortObj,
+        skip,
+        pageSize
+      );
+      results = out.results;
+      totalCount = out.totalCount;
+      totals = out.totals;
+    } else if (groupBy === "guestAccount" || groupBy === "hour" || groupBy === "table" || groupBy === "worker" || groupBy === "date_location") {
+      if (groupBy === "table") collectionName = "bork_sales_by_table";
+      else if (groupBy === "worker") collectionName = "bork_sales_by_worker";
+      else if (groupBy === "guestAccount") collectionName = "bork_sales_by_guest_account";
+      else collectionName = "bork_sales_by_hour";
+      const out = await findPaged(db, collectionName, q, sortObj, skip, pageSize, excludeProducts);
+      results = out.results;
+      totalCount = out.totalCount;
+      totals = out.totals;
+    } else {
+      collectionName = "bork_sales_by_hour";
+      const out = await findPaged(db, collectionName, q, sortObj, skip, pageSize, excludeProducts);
+      results = out.results;
+      totalCount = out.totalCount;
+      totals = out.totals;
     }
-    return { success: true, data: results, summary: { total_records: results.length, group_by: groupBy }, locations };
+    let locations = [];
+    if (includeLocations && groupBy !== "location") {
+      const locs = await db.collection("locations").find({}, { projection: { name: 1 } }).sort({ name: 1 }).toArray();
+      locations = locs.map((l) => ({
+        _id: String(l._id),
+        name: typeof l.name === "string" ? l.name : ""
+      }));
+    }
+    return {
+      success: true,
+      data: results,
+      pagination: {
+        page,
+        pageSize,
+        totalCount
+      },
+      totals,
+      summary: {
+        group_by: groupBy,
+        collection: collectionName
+      },
+      locations
+    };
   } catch (error) {
     console.error("[sales-aggregated]", error);
     throw createError({ statusCode: 500, message: "Failed to fetch sales data" });
