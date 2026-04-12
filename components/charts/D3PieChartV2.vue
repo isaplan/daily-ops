@@ -1,6 +1,6 @@
 <template>
   <div>
-    <svg v-if="data && data.length > 0" ref="svgRef" :width="width" :height="height" class="rounded-lg overflow-hidden" style="border: 2px solid #111827;"></svg>
+    <svg v-if="data && data.length > 0" ref="svgRef" :width="width" :height="height" class="overflow-visible"></svg>
     <div v-else class="rounded-lg p-6 flex items-center justify-center" :style="{ height: `${height}px`, width: `${width}px`, border: '2px solid #111827' }">
       <div class="text-center">
         <p class="text-gray-500 text-base font-medium">No Data Available</p>
@@ -43,6 +43,25 @@ const createChart = () => {
   const svg = d3.select(svgRef.value)
   svg.selectAll('*').remove()
 
+  // Add SVG background with rounded corners effect using rect
+  svg
+    .append('rect')
+    .attr('width', props.width)
+    .attr('height', props.height)
+    .attr('fill', 'white')
+    .attr('rx', 8)
+    .attr('ry', 8)
+
+  svg
+    .append('rect')
+    .attr('width', props.width)
+    .attr('height', props.height)
+    .attr('fill', 'none')
+    .attr('stroke', '#111827')
+    .attr('stroke-width', 2)
+    .attr('rx', 8)
+    .attr('ry', 8)
+
   const radius = Math.min(props.width, props.height) / 2 - 40
 
   const g = svg
@@ -53,8 +72,7 @@ const createChart = () => {
   g.append('circle')
     .attr('r', radius + 5)
     .attr('fill', 'white')
-    .attr('stroke', '#e5e7eb')
-    .attr('stroke-width', 1)
+    .attr('stroke', 'none')
 
   const pie = d3.pie<DataPoint>().value((d) => d.value)
   const arc = d3
