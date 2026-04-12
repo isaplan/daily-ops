@@ -43,36 +43,18 @@ const createChart = () => {
   const svg = d3.select(svgRef.value)
   svg.selectAll('*').remove()
 
-  // Add SVG background with rounded corners effect using rect
-  svg
-    .append('rect')
-    .attr('width', props.width)
-    .attr('height', props.height)
-    .attr('fill', 'white')
-    .attr('rx', 8)
-    .attr('ry', 8)
-
-  svg
-    .append('rect')
-    .attr('width', props.width)
-    .attr('height', props.height)
-    .attr('fill', 'none')
-    .attr('stroke', '#111827')
-    .attr('stroke-width', 2)
-    .attr('rx', 8)
-    .attr('ry', 8)
-
   const radius = Math.min(props.width, props.height) / 2 - 40
 
   const g = svg
     .append('g')
     .attr('transform', `translate(${props.width / 2},${props.height / 2})`)
 
-  // Add white background circle
+  // Add white background circle with black border
   g.append('circle')
     .attr('r', radius + 5)
     .attr('fill', 'white')
-    .attr('stroke', 'none')
+    .attr('stroke', '#111827')
+    .attr('stroke-width', 2)
 
   const pie = d3.pie<DataPoint>().value((d) => d.value)
   const arc = d3
