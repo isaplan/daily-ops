@@ -4,7 +4,13 @@
 import type { Db } from 'mongodb'
 import { ObjectId } from 'mongodb'
 import { resolveDailyOpsPeriod } from '~/utils/dailyOpsPeriod'
-import type { DailyOpsPeriodId } from '~/types/daily-ops-dashboard'
+import type {
+  DailyOpsLaborDayDto,
+  DailyOpsLaborMetricsDto,
+  DailyOpsPeriodId,
+  DailyOpsRevenueBreakdownDto,
+  DailyOpsSummaryDto,
+} from '~/types/daily-ops-dashboard'
 
 const VAT_DISCLAIMER = 'All revenue values shown are excluding VAT (ex VAT)'
 
@@ -16,6 +22,7 @@ export type DailyOpsMetricsContext = {
   startDate: string
   endDate: string
   locationId: ObjectId | string | undefined
+  eitjeLocationId?: string | number | undefined
 }
 
 export function parseDailyOpsMetricsQuery(q: Record<string, unknown>): DailyOpsMetricsContext {
@@ -39,9 +46,11 @@ export function parseDailyOpsMetricsQuery(q: Record<string, unknown>): DailyOpsM
   }
 }
 
-function isoDateToBorkYmdInt(iso: string): number {
-  const [y, m, d] = iso.split('-').map((x) => parseInt(x, 10))
-  return y * 10000 + m * 100 + d
+export async function resolveUnifiedLocationToEitjeId(db: Db, unifiedId: ObjectId | string): Promise<string | number | undefined> {
+  if (!unifiedId) return undefined
+  const objId = typeof unifiedId === 'string' ? new ObjectId(unifiedId) : unifiedId
+  const doc = await db.collection('unified_location').findOne({ _id: objId })
+  return doc?.eitjeIds?.[0]
 }
 
 export function enumerateUtcDatesInclusive(start: string, end: string): string[] {
@@ -122,109 +131,129 @@ export async function fetchEitjeLaborTotals(db: Db, ctx: DailyOpsMetricsContext)
   return { totalHours: r?.total_hours ?? 0, totalLaborCost: r?.total_cost ?? 0 }
 }
 
-export async function fetchRevenueByCategoryFromRaw(db: Db, ctx: DailyOpsMetricsContext) {
-  const startYmd = isoDateToBorkYmdInt(ctx.startDate)
-  const endYmd = isoDateToBorkYmdInt(ctx.endDate)
+/**
+ * Drinks vs food from `bork_sales_by_hour.products` (rebuilt by Bork aggregation from raw tickets).
+ * Same name-pattern heuristic as legacy raw pipeline; no `bork_raw_data` scan.
+ * Hour-level revenue minus summed product lines is added to food (missing/empty product arrays).
+ */
+export async function fetchRevenueByCategoryFromHourAggregates(db: Db, ctx: DailyOpsMetricsContext) {
+  const match = borkCronMatch(ctx)
 
-  const rawMatch: Record<string, unknown> = { rawApiResponse: { $exists: true, $ne: null } }
-
-  if (ctx.locationId !== undefined) {
-    const maps = await db
-      .collection('bork_unified_location_mapping')
-      .find({ unifiedLocationId: ctx.locationId })
-      .project({ borkLocationId: 1 })
-      .toArray()
-    const borkIds = maps.map((m) => m.borkLocationId).filter((id) => id != null)
-    if (borkIds.length === 0) {
-      return { drinks: 0, food: 0 }
-    }
-    rawMatch.locationId = { $in: borkIds }
-  }
-
-  const byCat = (await db
-    .collection('bork_raw_data')
-    .aggregate(
-      [
-        { $match: rawMatch },
-        {
-          $addFields: {
-            _tickets: {
-              $cond: {
-                if: { $isArray: '$rawApiResponse' },
-                then: '$rawApiResponse',
-                else: {
+  const [facetRow] = (await db
+    .collection('bork_sales_by_hour')
+    .aggregate([
+      { $match: match },
+      {
+        $facet: {
+          categoryFromLines: [
+            { $unwind: { path: '$products', preserveNullAndEmptyArrays: false } },
+            {
+              $addFields: {
+                productName: { $ifNull: ['$products.productName', ''] },
+                lineValue: { $toDouble: { $ifNull: ['$products.revenue', 0] } },
+              },
+            },
+            {
+              $addFields: {
+                bucket: {
                   $cond: {
-                    if: { $ne: ['$rawApiResponse', null] },
-                    then: ['$rawApiResponse'],
-                    else: [],
+                    if: { $regexMatch: { input: '$productName', regex: DRINK_NAME_PATTERN } },
+                    then: 'drinks',
+                    else: 'food',
                   },
                 },
               },
             },
-          },
-        },
-        { $unwind: { path: '$_tickets', preserveNullAndEmptyArrays: false } },
-        { $unwind: { path: '$_tickets.Orders', preserveNullAndEmptyArrays: false } },
-        {
-          $addFields: {
-            odRaw: { $ifNull: ['$_tickets.Orders.Date', '$_tickets.Orders.ActualDate'] },
-          },
-        },
-        {
-          $addFields: {
-            orderYmd: {
-              $convert: {
-                input: {
-                  $substrCP: [
-                    { $concat: ['00000000', { $toString: { $ifNull: ['$odRaw', ''] } }] },
-                    {
-                      $subtract: [
-                        { $strLenCP: { $concat: ['00000000', { $toString: { $ifNull: ['$odRaw', ''] } }] } },
-                        8,
-                      ],
-                    },
-                    8,
-                  ],
-                },
-                to: 'int',
-                onError: null,
-                onNull: null,
+            { $group: { _id: '$bucket', amount: { $sum: '$lineValue' } } },
+          ],
+          hourRevenueTotal: [
+            { $group: { _id: null, total: { $sum: { $ifNull: ['$total_revenue', 0] } } } },
+          ],
+          productLinesTotal: [
+            { $unwind: { path: '$products', preserveNullAndEmptyArrays: false } },
+            {
+              $group: {
+                _id: null,
+                total: { $sum: { $toDouble: { $ifNull: ['$products.revenue', 0] } } },
               },
             },
-          },
+          ],
         },
-        { $match: { orderYmd: { $gte: startYmd, $lte: endYmd } } },
-        { $unwind: { path: '$_tickets.Orders.Lines', preserveNullAndEmptyArrays: false } },
-        {
-          $addFields: {
-            productName: { $ifNull: ['$_tickets.Orders.Lines.ProductName', ''] },
-            lineValue: {
-              $multiply: [
-                { $toDouble: { $ifNull: ['$_tickets.Orders.Lines.Price', 0] } },
-                { $toDouble: { $ifNull: ['$_tickets.Orders.Lines.Qty', 0] } },
-              ],
-            },
-          },
-        },
-        {
-          $addFields: {
-            bucket: {
-              $cond: {
-                if: { $regexMatch: { input: '$productName', regex: DRINK_NAME_PATTERN } },
-                then: 'drinks',
-                else: 'food',
-              },
-            },
-          },
-        },
-        { $group: { _id: '$bucket', amount: { $sum: '$lineValue' } } },
-      ],
-      { allowDiskUse: true }
-    )
-    .toArray()) as { _id: string; amount: number }[]
-  const drinks = byCat.find((x) => x._id === 'drinks')?.amount ?? 0
-  const food = byCat.find((x) => x._id === 'food')?.amount ?? 0
+      },
+    ])
+    .toArray()) as {
+    categoryFromLines: { _id: string; amount: number }[]
+    hourRevenueTotal: { _id: null; total: number }[]
+    productLinesTotal: { _id: null; total: number }[]
+  }[]
+
+  const byCat = facetRow?.categoryFromLines ?? []
+  let drinks = byCat.find((x) => x._id === 'drinks')?.amount ?? 0
+  let food = byCat.find((x) => x._id === 'food')?.amount ?? 0
+  const hourGrand = facetRow?.hourRevenueTotal?.[0]?.total ?? 0
+  const lineGrand = facetRow?.productLinesTotal?.[0]?.total ?? 0
+  const gap = Math.max(0, hourGrand - lineGrand)
+  food += gap
+
   return { drinks, food }
+}
+
+/** @deprecated Use fetchRevenueByCategoryFromHourAggregates (reads `bork_sales_by_hour`, not raw). */
+export const fetchRevenueByCategoryFromRaw = fetchRevenueByCategoryFromHourAggregates
+
+export type BorkHourAggregatesBundle = {
+  byHourOnly: { _id: number; amount: number }[]
+  byDayHour: { _id: { d: string; h: number }; revenue: number }[]
+}
+
+/** One pass over `bork_sales_by_hour` for time-period totals and per-day-hour revenue. */
+export async function fetchBorkHourAggregatesBundle(db: Db, ctx: DailyOpsMetricsContext): Promise<BorkHourAggregatesBundle> {
+  const [row] = (await db
+    .collection('bork_sales_by_hour')
+    .aggregate([
+      { $match: borkCronMatch(ctx) },
+      {
+        $facet: {
+          byHourOnly: [
+            {
+              $group: {
+                _id: '$hour',
+                amount: { $sum: { $ifNull: ['$total_revenue', 0] } },
+              },
+            },
+          ],
+          byDayHour: [
+            {
+              $group: {
+                _id: { d: '$date', h: '$hour' },
+                revenue: { $sum: { $ifNull: ['$total_revenue', 0] } },
+              },
+            },
+          ],
+        },
+      },
+    ])
+    .toArray()) as { byHourOnly: BorkHourAggregatesBundle['byHourOnly']; byDayHour: BorkHourAggregatesBundle['byDayHour'] }[]
+
+  return {
+    byHourOnly: row?.byHourOnly ?? [],
+    byDayHour: row?.byDayHour ?? [],
+  }
+}
+
+export function revenueByTimePeriodFromHourTotals(rows: { _id: number; amount: number }[]) {
+  const sums = {
+    lunch: 0,
+    pre_drinks: 0,
+    dinner: 0,
+    after_drinks: 0,
+    other: 0,
+  }
+  for (const r of rows) {
+    const k = timePeriodKey(Number(r._id))
+    sums[k] += r.amount
+  }
+  return sums
 }
 
 export async function fetchRevenueByTimePeriod(db: Db, ctx: DailyOpsMetricsContext) {
@@ -241,18 +270,7 @@ export async function fetchRevenueByTimePeriod(db: Db, ctx: DailyOpsMetricsConte
     ])
     .toArray()) as { _id: number; amount: number }[]
 
-  const sums = {
-    lunch: 0,
-    pre_drinks: 0,
-    dinner: 0,
-    after_drinks: 0,
-    other: 0,
-  }
-  for (const r of rows) {
-    const k = timePeriodKey(Number(r._id))
-    sums[k] += r.amount
-  }
-  return sums
+  return revenueByTimePeriodFromHourTotals(rows)
 }
 
 export async function fetchHourlyRevenueForRange(db: Db, ctx: DailyOpsMetricsContext) {
@@ -282,6 +300,42 @@ export async function fetchRevenueByDate(db: Db, ctx: DailyOpsMetricsContext) {
   return new Map(rows.map((r) => [r._id, r.revenue]))
 }
 
+const LOC_DAY_KEY_SEP = '\x1f'
+
+/** Stable key for `date` + Bork/Eitje `locationId` string (revenue & labor rollups). */
+export function locationDayKey (date: string, locationId: string): string {
+  return `${date}${LOC_DAY_KEY_SEP}${String(locationId)}`
+}
+
+export function parseLocationDayKey (key: string): { date: string; locationId: string } {
+  const i = key.indexOf(LOC_DAY_KEY_SEP)
+  if (i <= 0) return { date: key, locationId: '' }
+  return { date: key.slice(0, i), locationId: key.slice(i + LOC_DAY_KEY_SEP.length) }
+}
+
+/** Revenue per calendar day and venue (ex VAT, from `bork_sales_by_cron`). */
+export async function fetchRevenueByDateAndLocation (db: Db, ctx: DailyOpsMetricsContext): Promise<Map<string, number>> {
+  const rows = (await db
+    .collection('bork_sales_by_cron')
+    .aggregate([
+      { $match: borkCronMatch(ctx) },
+      {
+        $group: {
+          _id: { date: '$date', locationId: '$locationId' },
+          revenue: { $sum: { $ifNull: ['$total_revenue', 0] } },
+        },
+      },
+    ])
+    .toArray()) as { _id: { date: string; locationId: unknown }; revenue: number }[]
+
+  const map = new Map<string, number>()
+  for (const r of rows) {
+    const lid = r._id.locationId != null ? String(r._id.locationId) : 'unknown'
+    map.set(locationDayKey(r._id.date, lid), r.revenue)
+  }
+  return map
+}
+
 export async function fetchLaborByDate(db: Db, ctx: DailyOpsMetricsContext) {
   const rows = (await db
     .collection('eitje_time_registration_aggregation')
@@ -292,12 +346,112 @@ export async function fetchLaborByDate(db: Db, ctx: DailyOpsMetricsContext) {
           _id: '$period',
           laborCost: { $sum: { $ifNull: ['$total_cost', 0] } },
           hours: { $sum: { $ifNull: ['$total_hours', 0] } },
+          workerIds: { $addToSet: '$userId' },
+        },
+      },
+      {
+        $project: {
+          _id: 1,
+          laborCost: 1,
+          hours: 1,
+          distinctWorkerCount: {
+            $size: {
+              $filter: { input: '$workerIds', as: 'w', cond: { $ne: ['$$w', null] } },
+            },
+          },
         },
       },
     ])
-    .toArray()) as { _id: string; laborCost: number; hours: number }[]
+    .toArray()) as { _id: string; laborCost: number; hours: number; distinctWorkerCount: number }[]
 
-  return new Map(rows.map((r) => [r._id, { laborCost: r.laborCost, hours: r.hours }]))
+  return new Map(
+    rows.map((r) => [
+      r._id,
+      { laborCost: r.laborCost, hours: r.hours, distinctWorkerCount: r.distinctWorkerCount },
+    ])
+  )
+}
+
+export type ContractTypeDayRow = {
+  date: string
+  contractType: string
+  workerCount: number
+  totalHours: number
+  totalCost: number
+}
+
+/** Hours, cost, and distinct workers per calendar day and contract type (from members.contract_type). */
+export async function fetchHoursCostByContractTypeByDay(db: Db, ctx: DailyOpsMetricsContext) {
+  return (await db
+    .collection('eitje_time_registration_aggregation')
+    .aggregate([
+      { $match: eitjeAggMatch(ctx) },
+      {
+        $lookup: {
+          from: 'members',
+          let: { uid: { $toString: '$userId' } },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $or: [
+                    { $eq: [{ $toString: '$eitje_id' }, '$$uid'] },
+                    {
+                      $gt: [
+                        {
+                          $size: {
+                            $filter: {
+                              input: { $ifNull: ['$eitje_ids', []] },
+                              as: 'x',
+                              cond: { $eq: [{ $toString: '$$x' }, '$$uid'] },
+                            },
+                          },
+                        },
+                        0,
+                      ],
+                    },
+                  ],
+                },
+              },
+            },
+            { $limit: 1 },
+            { $project: { contract_type: 1 } },
+          ],
+          as: '_m',
+        },
+      },
+      {
+        $addFields: {
+          contractType: {
+            $ifNull: [{ $arrayElemAt: ['$_m.contract_type', 0] }, '-'],
+          },
+        },
+      },
+      {
+        $group: {
+          _id: { period: '$period', contractType: '$contractType' },
+          workerIds: { $addToSet: '$userId' },
+          total_hours: { $sum: { $ifNull: ['$total_hours', 0] } },
+          total_cost: { $sum: { $ifNull: ['$total_cost', 0] } },
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          date: '$_id.period',
+          contractType: '$_id.contractType',
+          workerCount: {
+            $size: {
+              $filter: { input: '$workerIds', as: 'w', cond: { $ne: ['$$w', null] } },
+            },
+          },
+          totalHours: { $round: ['$total_hours', 2] },
+          totalCost: { $round: ['$total_cost', 2] },
+        },
+      },
+      { $sort: { contractType: 1, date: 1 } },
+    ])
+    .toArray()) as ContractTypeDayRow[]
 }
 
 export function computeMostProfitableHour(
@@ -380,6 +534,59 @@ export async function fetchWorkersByTeamLocation(db: Db, ctx: DailyOpsMetricsCon
     totalHours: number
     totalCost: number
   }[]
+}
+
+export type WorkersTeamLocationDayRow = {
+  date: string
+  locationId: string
+  locationName: string
+  teamId: string
+  teamName: string
+  workerCount: number
+  totalHours: number
+  totalCost: number
+}
+
+/** Same as period rollup, but grouped by calendar day (period) + location + team. */
+export async function fetchWorkersByTeamLocationByDay(db: Db, ctx: DailyOpsMetricsContext) {
+  return (await db
+    .collection('eitje_time_registration_aggregation')
+    .aggregate([
+      { $match: eitjeAggMatch(ctx) },
+      {
+        $group: {
+          _id: {
+            period: '$period',
+            locationId: '$locationId',
+            location_name: '$location_name',
+            teamId: '$teamId',
+            team_name: '$team_name',
+          },
+          workerIds: { $addToSet: '$userId' },
+          total_hours: { $sum: { $ifNull: ['$total_hours', 0] } },
+          total_cost: { $sum: { $ifNull: ['$total_cost', 0] } },
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          date: '$_id.period',
+          locationId: { $toString: '$_id.locationId' },
+          locationName: { $ifNull: ['$_id.location_name', ''] },
+          teamId: { $toString: '$_id.teamId' },
+          teamName: { $ifNull: ['$_id.team_name', ''] },
+          workerCount: {
+            $size: {
+              $filter: { input: '$workerIds', as: 'w', cond: { $ne: ['$$w', null] } },
+            },
+          },
+          totalHours: { $round: ['$total_hours', 2] },
+          totalCost: { $round: ['$total_cost', 2] },
+        },
+      },
+      { $sort: { locationName: 1, teamName: 1, date: 1 } },
+    ])
+    .toArray()) as WorkersTeamLocationDayRow[]
 }
 
 export async function fetchHoursCostByContractType(db: Db, ctx: DailyOpsMetricsContext) {
@@ -584,7 +791,7 @@ export async function inventoryCollections(db: Db, ctx: DailyOpsMetricsContext) 
   if (cron === 0) notes.push('No rows in bork_sales_by_cron for this range — run Bork sync/rebuild aggregations.')
   if (hours === 0) notes.push('No rows in bork_sales_by_hour for this range.')
   if (eitje === 0) notes.push('No rows in eitje_time_registration_aggregation for this range — rebuild Eitje aggregation.')
-  notes.push('Food vs drinks uses a name-pattern heuristic on Bork line ProductName; tune DRINK_NAME_PATTERN as needed.')
+  notes.push('Food vs drinks uses a name-pattern heuristic on `bork_sales_by_hour.products` (from Bork rebuild); tune DRINK_NAME_PATTERN as needed.')
   notes.push('Hour-level labor cost uses daily labor prorated by that day’s hourly revenue share.')
   if (ctx.locationId === undefined) {
     notes.push('All locations: labor productivity min/max merges revenue and hours only when both exist for the same location/day.')
@@ -594,6 +801,261 @@ export async function inventoryCollections(db: Db, ctx: DailyOpsMetricsContext) 
     hasBorkHourData: hours > 0,
     hasEitjeAggData: eitje > 0,
     notes,
+  }
+}
+
+export type LaborMetricsPipelineInput = {
+  workersByTeamLocation: Awaited<ReturnType<typeof fetchWorkersByTeamLocation>>
+  workersByTeamLocationByDayRaw: Awaited<ReturnType<typeof fetchWorkersByTeamLocationByDay>>
+  hoursCostByContractType: Awaited<ReturnType<typeof fetchHoursCostByContractType>>
+  contractTypeByDay: Awaited<ReturnType<typeof fetchHoursCostByContractTypeByDay>>
+  productivityByLocationDay: Awaited<ReturnType<typeof fetchLaborProductivityByLocationDay>>
+  inventory: Awaited<ReturnType<typeof inventoryCollections>>
+  revMap: Map<string, number>
+  revByDateLocation: Map<string, number>
+  labMap: Awaited<ReturnType<typeof fetchLaborByDate>>
+}
+
+export async function fetchLaborMetricsPipelineInput(db: Db, ctx: DailyOpsMetricsContext): Promise<LaborMetricsPipelineInput> {
+  const [
+    workersByTeamLocation,
+    workersByTeamLocationByDayRaw,
+    hoursCostByContractType,
+    contractTypeByDay,
+    productivityByLocationDay,
+    inventory,
+    revMap,
+    revByDateLocation,
+    labMap,
+  ] = await Promise.all([
+    fetchWorkersByTeamLocation(db, ctx),
+    fetchWorkersByTeamLocationByDay(db, ctx),
+    fetchHoursCostByContractType(db, ctx),
+    fetchHoursCostByContractTypeByDay(db, ctx),
+    fetchLaborProductivityByLocationDay(db, ctx),
+    inventoryCollections(db, ctx),
+    fetchRevenueByDate(db, ctx),
+    fetchRevenueByDateAndLocation(db, ctx),
+    fetchLaborByDate(db, ctx),
+  ])
+  return {
+    workersByTeamLocation,
+    workersByTeamLocationByDayRaw,
+    hoursCostByContractType,
+    contractTypeByDay,
+    productivityByLocationDay,
+    inventory,
+    revMap,
+    revByDateLocation,
+    labMap,
+  }
+}
+
+export function assembleDailyOpsLaborMetricsDto(
+  ctx: DailyOpsMetricsContext,
+  input: LaborMetricsPipelineInput
+): DailyOpsLaborMetricsDto {
+  const {
+    workersByTeamLocation,
+    workersByTeamLocationByDayRaw,
+    hoursCostByContractType,
+    contractTypeByDay,
+    productivityByLocationDay,
+    inventory,
+    revMap,
+    revByDateLocation,
+    labMap,
+  } = input
+
+  const locDayAgg = new Map<string, { hours: number; cost: number }>()
+  for (const row of workersByTeamLocationByDayRaw) {
+    const k = locationDayKey(row.date, row.locationId)
+    let a = locDayAgg.get(k)
+    if (!a) {
+      a = { hours: 0, cost: 0 }
+      locDayAgg.set(k, a)
+    }
+    a.hours += row.totalHours
+    a.cost += row.totalCost
+  }
+
+  const workersByTeamLocationByDay = workersByTeamLocationByDayRaw.map((row) => {
+    const k = locationDayKey(row.date, row.locationId)
+    const rev = revByDateLocation.get(k) ?? 0
+    const agg = locDayAgg.get(k) ?? { hours: 0, cost: 0 }
+    let attributedRev = 0
+    if (rev > 0 && agg.hours > 0) {
+      attributedRev = rev * (row.totalHours / agg.hours)
+    }
+    const laborCostPctOfRevenue =
+      attributedRev > 0 ? Math.round((row.totalCost / attributedRev) * 100 * 10) / 10 : null
+    return {
+      ...row,
+      laborCostPctOfRevenue,
+    }
+  })
+
+  const locationLaborPctByDay: {
+    date: string
+    locationId: string
+    laborCostPctOfRevenue: number | null
+  }[] = []
+  for (const [k, agg] of locDayAgg) {
+    const { date, locationId } = parseLocationDayKey(k)
+    const rev = revByDateLocation.get(k) ?? 0
+    const laborCostPctOfRevenue =
+      rev > 0 ? Math.round((agg.cost / rev) * 100 * 10) / 10 : null
+    locationLaborPctByDay.push({ date, locationId, laborCostPctOfRevenue })
+  }
+  locationLaborPctByDay.sort(
+    (a, b) => a.locationId.localeCompare(b.locationId) || a.date.localeCompare(b.date)
+  )
+
+  const days = enumerateUtcDatesInclusive(ctx.startDate, ctx.endDate)
+  let sumRev = 0
+  let sumLab = 0
+  let sumHours = 0
+
+  const daily: DailyOpsLaborDayDto[] = days.map((date) => {
+    const revenue = revMap.get(date) ?? 0
+    const lab = labMap.get(date)
+    const laborCost = lab?.laborCost ?? 0
+    const hours = lab?.hours ?? 0
+    const distinctWorkerCount = lab?.distinctWorkerCount ?? 0
+    sumRev += revenue
+    sumLab += laborCost
+    sumHours += hours
+    const laborCostPctOfRevenue = revenue > 0 ? (laborCost / revenue) * 100 : null
+    const revenuePerLaborHour = hours > 0 ? revenue / hours : null
+    return {
+      date,
+      revenue: Math.round(revenue * 100) / 100,
+      laborCost: Math.round(laborCost * 100) / 100,
+      hours: Math.round(hours * 100) / 100,
+      distinctWorkerCount,
+      laborCostPctOfRevenue:
+        laborCostPctOfRevenue != null ? Math.round(laborCostPctOfRevenue * 10) / 10 : null,
+      revenuePerLaborHour:
+        revenuePerLaborHour != null ? Math.round(revenuePerLaborHour * 100) / 100 : null,
+    }
+  })
+
+  const periodRollup = {
+    revenue: Math.round(sumRev * 100) / 100,
+    laborCost: Math.round(sumLab * 100) / 100,
+    hours: Math.round(sumHours * 100) / 100,
+    laborCostPctOfRevenue:
+      sumRev > 0 ? Math.round((sumLab / sumRev) * 100 * 10) / 10 : null,
+    revenuePerLaborHour:
+      sumHours > 0 ? Math.round((sumRev / sumHours) * 100) / 100 : null,
+  }
+
+  return {
+    range: {
+      period: ctx.period,
+      startDate: ctx.startDate,
+      endDate: ctx.endDate,
+    },
+    inventory: {
+      hasBorkCronData: inventory.hasBorkCronData,
+      hasBorkHourData: inventory.hasBorkHourData,
+      hasEitjeAggData: inventory.hasEitjeAggData,
+      notes: inventory.notes,
+    },
+    workersByTeamLocation,
+    workersByTeamLocationByDay,
+    locationLaborPctByDay,
+    hoursCostByContractType,
+    contractTypeByDay,
+    daily,
+    periodRollup,
+    productivityByLocationDay,
+  }
+}
+
+export function buildDailyOpsSummaryDto(
+  ctx: DailyOpsMetricsContext,
+  revMap: Map<string, number>,
+  labMap: LaborMetricsPipelineInput['labMap']
+): DailyOpsSummaryDto {
+  let totalRevenue = 0
+  for (const v of revMap.values()) totalRevenue += v
+  let totalLaborCost = 0
+  let totalLaborHours = 0
+  for (const v of labMap.values()) {
+    totalLaborCost += v.laborCost
+    totalLaborHours += v.hours
+  }
+  const profit = totalRevenue - totalLaborCost
+  const profitMarginPct = totalRevenue > 0 ? (profit / totalRevenue) * 100 : 0
+  const revenuePerLaborHour = totalLaborHours > 0 ? totalRevenue / totalLaborHours : null
+  const laborCostPctOfRevenue = totalRevenue > 0 ? (totalLaborCost / totalRevenue) * 100 : null
+
+  return {
+    range: {
+      period: ctx.period,
+      startDate: ctx.startDate,
+      endDate: ctx.endDate,
+    },
+    summary: {
+      totalRevenue: Math.round(totalRevenue * 100) / 100,
+      totalLaborCost: Math.round(totalLaborCost * 100) / 100,
+      totalLaborHours: Math.round(totalLaborHours * 100) / 100,
+      profit: Math.round(profit * 100) / 100,
+      profitMarginPct: Math.round(profitMarginPct * 10) / 10,
+      revenuePerLaborHour:
+        revenuePerLaborHour != null ? Math.round(revenuePerLaborHour * 100) / 100 : null,
+      laborCostPctOfRevenue:
+        laborCostPctOfRevenue != null ? Math.round(laborCostPctOfRevenue * 10) / 10 : null,
+    },
+    vatDisclaimer: VAT_DISCLAIMER,
+  }
+}
+
+export function buildDailyOpsRevenueBreakdownDto(
+  ctx: DailyOpsMetricsContext,
+  cat: { drinks: number; food: number },
+  hourBundle: BorkHourAggregatesBundle,
+  revMap: Map<string, number>,
+  labMap: LaborMetricsPipelineInput['labMap']
+): DailyOpsRevenueBreakdownDto {
+  const tp = revenueByTimePeriodFromHourTotals(hourBundle.byHourOnly)
+  const best = computeMostProfitableHour(hourBundle.byDayHour, revMap, labMap)
+
+  const revenueByCategory = [
+    { key: 'drinks', label: 'Drinks', amount: Math.round(cat.drinks * 100) / 100 },
+    { key: 'food', label: 'Food', amount: Math.round(cat.food * 100) / 100 },
+  ]
+
+  const revenueByTimePeriod: { key: string; label: string; amount: number }[] = [
+    { key: 'lunch', label: 'Lunch', amount: Math.round(tp.lunch * 100) / 100 },
+    { key: 'pre_drinks', label: 'Pre Drinks', amount: Math.round(tp.pre_drinks * 100) / 100 },
+    { key: 'dinner', label: 'Dinner', amount: Math.round(tp.dinner * 100) / 100 },
+    { key: 'after_drinks', label: 'After Drinks', amount: Math.round(tp.after_drinks * 100) / 100 },
+  ]
+  if (tp.other > 0) {
+    revenueByTimePeriod.push({
+      key: 'other',
+      label: 'Other hours',
+      amount: Math.round(tp.other * 100) / 100,
+    })
+  }
+
+  return {
+    range: {
+      period: ctx.period,
+      startDate: ctx.startDate,
+      endDate: ctx.endDate,
+    },
+    revenueByCategory,
+    revenueByTimePeriod,
+    mostProfitableHour: {
+      hourLabel: best.hourLabel,
+      date: best.date,
+      revenue: Math.round(best.revenue * 100) / 100,
+      laborCost: Math.round(best.laborCost * 100) / 100,
+      profit: Math.round(best.profit * 100) / 100,
+    },
   }
 }
 

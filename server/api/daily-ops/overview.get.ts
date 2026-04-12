@@ -1,15 +1,14 @@
 import { getDb } from '../../utils/db'
 import {
   VAT_DISCLAIMER,
-  computeMostProfitableHour,
-  fetchBorkRevenueTotals,
-  fetchEitjeLaborTotals,
-  fetchHourlyRevenueForRange,
+  buildDailyOpsSummaryDto,
+  fetchBorkHourAggregatesBundle,
   fetchLaborByDate,
-  fetchRevenueByCategoryFromRaw,
+  fetchRevenueByCategoryFromHourAggregates,
   fetchRevenueByDate,
-  fetchRevenueByTimePeriod,
   parseDailyOpsMetricsQuery,
+  revenueByTimePeriodFromHourTotals,
+  computeMostProfitableHour,
 } from '../../utils/dailyOpsDashboardMetrics'
 import type { DailyOpsOverviewDto } from '~/types/daily-ops-dashboard'
 
@@ -19,22 +18,21 @@ export default defineEventHandler(async (event): Promise<DailyOpsOverviewDto> =>
   const ctx = parseDailyOpsMetricsQuery(getQuery(event) as Record<string, unknown>)
   const db = await getDb()
 
-  const [rev, lab, cat, tp, hourRows, revenueByDate, laborByDate] = await Promise.all([
-    fetchBorkRevenueTotals(db, ctx),
-    fetchEitjeLaborTotals(db, ctx),
-    fetchRevenueByCategoryFromRaw(db, ctx),
-    fetchRevenueByTimePeriod(db, ctx),
-    fetchHourlyRevenueForRange(db, ctx),
+  const [cat, hourBundle, revenueByDate, laborByDate] = await Promise.all([
+    fetchRevenueByCategoryFromHourAggregates(db, ctx),
+    fetchBorkHourAggregatesBundle(db, ctx),
     fetchRevenueByDate(db, ctx),
     fetchLaborByDate(db, ctx),
   ])
 
-  const totalRevenue = rev.totalRevenue
-  const totalLaborCost = lab.totalLaborCost
-  const profit = totalRevenue - totalLaborCost
-  const profitMarginPct = totalRevenue > 0 ? (profit / totalRevenue) * 100 : 0
+  const summaryDto = buildDailyOpsSummaryDto(ctx, revenueByDate, laborByDate)
+  const totalRevenue = summaryDto.summary.totalRevenue
+  const totalLaborCost = summaryDto.summary.totalLaborCost
+  const profit = summaryDto.summary.profit
+  const profitMarginPct = summaryDto.summary.profitMarginPct
 
-  const best = computeMostProfitableHour(hourRows, revenueByDate, laborByDate)
+  const tp = revenueByTimePeriodFromHourTotals(hourBundle.byHourOnly)
+  const best = computeMostProfitableHour(hourBundle.byDayHour, revenueByDate, laborByDate)
 
   const revenueByCategory = [
     { key: 'drinks', label: 'Drinks', amount: Math.round(cat.drinks * 100) / 100 },

@@ -42,8 +42,31 @@ export type DailyOpsLaborDayDto = {
   revenue: number
   laborCost: number
   hours: number
+  /** Distinct Eitje users with time rows that day (UTC period). */
+  distinctWorkerCount: number
   laborCostPctOfRevenue: number | null
   revenuePerLaborHour: number | null
+}
+
+export type DailyOpsWorkersTeamLocationDayDto = {
+  date: string
+  locationId: string
+  locationName: string
+  teamId: string
+  teamName: string
+  workerCount: number
+  totalHours: number
+  totalCost: number
+  /** Labor cost as % of revenue attributed to this team (venue revenue x team hours share). */
+  laborCostPctOfRevenue: number | null
+}
+
+export type DailyOpsContractTypeDayDto = {
+  date: string
+  contractType: string
+  workerCount: number
+  totalHours: number
+  totalCost: number
 }
 
 export type DailyOpsLaborMetricsDto = {
@@ -63,11 +86,21 @@ export type DailyOpsLaborMetricsDto = {
     totalHours: number
     totalCost: number
   }[]
+  /** Per-day rows for transposed workers × team table */
+  workersByTeamLocationByDay: DailyOpsWorkersTeamLocationDayDto[]
+  /** Venue labor cost as % of Bork revenue for that venue and UTC day. */
+  locationLaborPctByDay: {
+    date: string
+    locationId: string
+    laborCostPctOfRevenue: number | null
+  }[]
   hoursCostByContractType: {
     contractType: string
     totalHours: number
     totalCost: number
   }[]
+  /** Per UTC day and contract type (from members). */
+  contractTypeByDay: DailyOpsContractTypeDayDto[]
   daily: DailyOpsLaborDayDto[]
   periodRollup: {
     revenue: number

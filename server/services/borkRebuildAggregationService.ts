@@ -1,9 +1,9 @@
 /**
  * @registry-id: borkRebuildAggregationService
  * @created: 2026-04-09T00:00:00.000Z
- * @last-modified: 2026-04-09T00:00:00.000Z
+ * @last-modified: 2026-04-13T12:00:00.000Z
  * @description: Rebuilds Bork sales aggregations from bork_raw_data; creates by-hour, by-table, by-worker, by-cron snapshots
- * @last-fix: [2026-04-09] Initial implementation with focused small-document collections
+ * @last-fix: [2026-04-13] Only read endpoint bork_daily (exclude master/catalog raw rows from aggregation)
  *
  * @exports-to:
  * ✓ server/services/borkSyncService.ts
@@ -71,10 +71,10 @@ export async function rebuildBorkSalesAggregation(
   const locMap = new Map(locMappings.map(l => [String(l.borkLocationId), { unifiedId: l.unifiedLocationId, name: l.unifiedLocationName }]))
   const userMap = new Map(userMappings.map(u => [u.borkUserId || u.borkUserName, { unifiedId: u.unifiedUserId, name: u.unifiedUserName }]))
 
-  // Fetch ALL raw data (we'll filter by date in the processing loop)
+  // Ticket-day sync only (master/catalog JSON lives in same collection with other endpoints)
   const rawDocs = await db
     .collection('bork_raw_data')
-    .find({})
+    .find({ endpoint: 'bork_daily' })
     .toArray()
 
   if (rawDocs.length === 0) {
