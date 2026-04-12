@@ -1,14 +1,5 @@
 <template>
-  <svg v-if="data && data.length > 0" ref="svgRef" :width="width" :height="height" class="overflow-visible"></svg>
-  <svg v-else ref="svgRef" :width="width" :height="height" class="overflow-visible">
-    <circle :cx="width / 2" :cy="height / 2" :r="(Math.min(width, height) / 2 - 35)" fill="white" stroke="#111827" stroke-width="2" />
-    <text :x="width / 2" :y="height / 2 - 20" text-anchor="middle" class="font-medium text-gray-500">
-      No Data Available
-    </text>
-    <text :x="width / 2" :y="height / 2 + 10" text-anchor="middle" class="text-sm text-gray-400">
-      {{ selectedPeriod }}
-    </text>
-  </svg>
+  <svg ref="svgRef" :width="width" :height="height" class="overflow-visible"></svg>
 </template>
 
 <script setup lang="ts">
@@ -39,7 +30,7 @@ const props = withDefaults(
 const svgRef = ref<SVGSVGElement | null>(null)
 
 const createChart = () => {
-  if (!svgRef.value || !props.data || props.data.length === 0) return
+  if (!svgRef.value) return
 
   const svg = d3.select(svgRef.value)
   svg.selectAll('*').remove()
@@ -50,13 +41,33 @@ const createChart = () => {
     .append('g')
     .attr('transform', `translate(${props.width / 2},${props.height / 2})`)
 
-  // Add white background circle with black border
+  // Always add white background circle with black border
   g.append('circle')
     .attr('r', radius + 5)
     .attr('fill', 'white')
     .attr('stroke', '#111827')
     .attr('stroke-width', 2)
 
+  // If no data, show message
+  if (!props.data || props.data.length === 0) {
+    g.append('text')
+      .attr('x', 0)
+      .attr('y', -10)
+      .attr('text-anchor', 'middle')
+      .attr('class', 'font-medium text-base fill-gray-500')
+      .text('No Data Available')
+
+    g.append('text')
+      .attr('x', 0)
+      .attr('y', 15)
+      .attr('text-anchor', 'middle')
+      .attr('class', 'text-sm fill-gray-400')
+      .text(props.selectedPeriod)
+
+    return
+  }
+
+  // Draw pie chart if data exists
   const pie = d3.pie<DataPoint>().value((d) => d.value)
   const arc = d3
     .arc<d3.PieArcDatum<DataPoint>>()

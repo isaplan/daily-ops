@@ -108,7 +108,7 @@
 
         <div class="grid min-w-0 gap-6 lg:grid-cols-2">
         <div class="grid grid-cols-2 gap-8 min-w-0">
-          <div class="min-w-0">
+          <div class="min-w-0 text-center">
             <h3 class="mb-4 text-lg font-semibold text-gray-900">Revenue by Category</h3>
             <p class="mb-3 text-xs text-gray-500">Drinks vs food uses product-name keywords on Bork lines.</p>
             <D3PieChartV2
@@ -120,7 +120,7 @@
             />
           </div>
 
-          <div class="min-w-0">
+          <div class="min-w-0 text-center">
             <h3 class="mb-4 text-lg font-semibold text-gray-900">Revenue by Time Period</h3>
             <p class="mb-3 text-xs text-gray-500">Daily breakdown of revenue.</p>
             <D3PieChartV2
