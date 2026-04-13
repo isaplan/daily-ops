@@ -53,4 +53,4 @@ export { useResizable } from '../node_modules/.pnpm/@nuxt+ui@4.6.0_@tiptap+exten
 export { useScrollShadow } from '../node_modules/.pnpm/@nuxt+ui@4.6.0_@tiptap+extensions@3.21.0_@tiptap+core@3.21.0_@tiptap+pm@3.21.0__@tiptap_0031915eeee23c7bd8bdaceb369561a1/node_modules/@nuxt/ui/dist/runtime/composables/useScrollShadow';
 export { useScrollspy } from '../node_modules/.pnpm/@nuxt+ui@4.6.0_@tiptap+extensions@3.21.0_@tiptap+core@3.21.0_@tiptap+pm@3.21.0__@tiptap_0031915eeee23c7bd8bdaceb369561a1/node_modules/@nuxt/ui/dist/runtime/composables/useScrollspy';
 export { useToast } from '../node_modules/.pnpm/@nuxt+ui@4.6.0_@tiptap+extensions@3.21.0_@tiptap+core@3.21.0_@tiptap+pm@3.21.0__@tiptap_0031915eeee23c7bd8bdaceb369561a1/node_modules/@nuxt/ui/dist/runtime/composables/useToast';
-export { useNuxtDevTools } from '../node_modules/.pnpm/@nuxt+devtools@3.2.4_vite@7.3.1_jiti@2.6.1_lightningcss@1.32.0_terser@5.46.1_yaml@2.8.3__vue@3.5.31_typescript@5.9.3_/node_modules/@nuxt/devtools/dist/runtime/use-nuxt-devtools';
+export { useNuxtDevTools } from '../node_modules/@nuxt/devtools/dist/runtime/use-nuxt-devtools';

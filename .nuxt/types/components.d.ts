@@ -185,7 +185,7 @@ interface _GlobalComponents {
   Head: typeof import("../../node_modules/.pnpm/nuxt@4.4.2_@babel+core@7.29.0_@babel+plugin-syntax-jsx@7.28.6_@babel+core@7.29.0__@emna_17b042fbec102db6cfc876b0c60ffb5d/node_modules/nuxt/dist/head/runtime/components")['Head']
   Html: typeof import("../../node_modules/.pnpm/nuxt@4.4.2_@babel+core@7.29.0_@babel+plugin-syntax-jsx@7.28.6_@babel+core@7.29.0__@emna_17b042fbec102db6cfc876b0c60ffb5d/node_modules/nuxt/dist/head/runtime/components")['Html']
   Body: typeof import("../../node_modules/.pnpm/nuxt@4.4.2_@babel+core@7.29.0_@babel+plugin-syntax-jsx@7.28.6_@babel+core@7.29.0__@emna_17b042fbec102db6cfc876b0c60ffb5d/node_modules/nuxt/dist/head/runtime/components")['Body']
-  Icon: typeof import("../../node_modules/.pnpm/@nuxt+icon@2.2.1_magicast@0.5.2_vite@7.3.1_jiti@2.6.1_lightningcss@1.32.0_terser@5.46.1_4abecf752c96ef90061202239c0fe9f1/node_modules/@nuxt/icon/dist/runtime/components/index")['default']
+  Icon: typeof import("../../node_modules/@nuxt/icon/dist/runtime/components/index")['default']
   NuxtIsland: typeof import("../../node_modules/.pnpm/nuxt@4.4.2_@babel+core@7.29.0_@babel+plugin-syntax-jsx@7.28.6_@babel+core@7.29.0__@emna_17b042fbec102db6cfc876b0c60ffb5d/node_modules/nuxt/dist/app/components/nuxt-island")['default']
   LazyAppSidebar: LazyComponent<typeof import("../../components/AppSidebar.vue")['default']>
   LazyContentWithMentionAutocomplete: LazyComponent<typeof import("../../components/ContentWithMentionAutocomplete.vue")['default']>
@@ -358,7 +358,7 @@ interface _GlobalComponents {
   LazyHead: LazyComponent<typeof import("../../node_modules/.pnpm/nuxt@4.4.2_@babel+core@7.29.0_@babel+plugin-syntax-jsx@7.28.6_@babel+core@7.29.0__@emna_17b042fbec102db6cfc876b0c60ffb5d/node_modules/nuxt/dist/head/runtime/components")['Head']>
   LazyHtml: LazyComponent<typeof import("../../node_modules/.pnpm/nuxt@4.4.2_@babel+core@7.29.0_@babel+plugin-syntax-jsx@7.28.6_@babel+core@7.29.0__@emna_17b042fbec102db6cfc876b0c60ffb5d/node_modules/nuxt/dist/head/runtime/components")['Html']>
   LazyBody: LazyComponent<typeof import("../../node_modules/.pnpm/nuxt@4.4.2_@babel+core@7.29.0_@babel+plugin-syntax-jsx@7.28.6_@babel+core@7.29.0__@emna_17b042fbec102db6cfc876b0c60ffb5d/node_modules/nuxt/dist/head/runtime/components")['Body']>
-  LazyIcon: LazyComponent<typeof import("../../node_modules/.pnpm/@nuxt+icon@2.2.1_magicast@0.5.2_vite@7.3.1_jiti@2.6.1_lightningcss@1.32.0_terser@5.46.1_4abecf752c96ef90061202239c0fe9f1/node_modules/@nuxt/icon/dist/runtime/components/index")['default']>
+  LazyIcon: LazyComponent<typeof import("../../node_modules/@nuxt/icon/dist/runtime/components/index")['default']>
   LazyNuxtIsland: LazyComponent<typeof import("../../node_modules/.pnpm/nuxt@4.4.2_@babel+core@7.29.0_@babel+plugin-syntax-jsx@7.28.6_@babel+core@7.29.0__@emna_17b042fbec102db6cfc876b0c60ffb5d/node_modules/nuxt/dist/app/components/nuxt-island")['default']>
 }
 

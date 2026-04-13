@@ -159,6 +159,7 @@
             <li><NuxtLink to="/daily-ops/sales/by-worker" :class="navLinkClass(route.path === '/daily-ops/sales/by-worker')">By Worker</NuxtLink></li>
             <li><NuxtLink to="/daily-ops/sales/by-product" :class="navLinkClass(route.path === '/daily-ops/sales/by-product')">By Product</NuxtLink></li>
             <li><NuxtLink to="/daily-ops/sales/by-guest-account" :class="navLinkClass(route.path === '/daily-ops/sales/by-guest-account')">By Guest Account</NuxtLink></li>
+            <li><NuxtLink to="/daily-ops/sales/day-breakdown" :class="navLinkClass(route.path === '/daily-ops/sales/day-breakdown')">Day Breakdown</NuxtLink></li>
           </ul>
         </li>
         <li>

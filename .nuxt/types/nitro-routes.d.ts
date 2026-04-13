@@ -11,6 +11,9 @@ declare module "nitropack/types" {
       'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/bork/v2/cron.get').default>>>>
       'post': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/bork/v2/cron.post').default>>>>
     }
+    '/api/bork/v2/day-breakdown': {
+      'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/bork/v2/day-breakdown.get').default>>>>
+    }
     '/api/bork/v2/locations': {
       'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/bork/v2/locations.get').default>>>>
     }

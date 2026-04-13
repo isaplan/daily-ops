@@ -428,7 +428,11 @@ async function main (): Promise<void> {
     )
 
     const aggStart = startIso
-    const aggEnd = endIso
+    // NOTE: Extend end date by 1 day because business day logic (08:00-08:00) means
+    // hours 0-7 on the day after belong to the current business day
+    const aggEndDate = new Date(endIso)
+    aggEndDate.setDate(aggEndDate.getDate() + 1)
+    const aggEnd = aggEndDate.toISOString().split('T')[0]
 
     let needsRebuild = true
     if (!fullReset && !forceRebuild && !mutatedRaw) {

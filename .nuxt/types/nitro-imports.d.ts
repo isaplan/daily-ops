@@ -145,6 +145,7 @@ declare global {
   const readRawBody: typeof import('../../node_modules/.pnpm/h3@1.15.10/node_modules/h3').readRawBody
   const readValidatedBody: typeof import('../../node_modules/.pnpm/h3@1.15.10/node_modules/h3').readValidatedBody
   const removeResponseHeader: typeof import('../../node_modules/.pnpm/h3@1.15.10/node_modules/h3').removeResponseHeader
+  const resolveDailyOpsPeriod: typeof import('../../server/utils/dailyOpsPeriod').resolveDailyOpsPeriod
   const resolveEitjeAggregationUserCandidates: typeof import('../../server/utils/memberEitjeContext').resolveEitjeAggregationUserCandidates
   const resolveSlugsToUnifiedUserIds: typeof import('../../server/utils/noteMentions').resolveSlugsToUnifiedUserIds
   const resolveUnifiedLocationToEitjeId: typeof import('../../server/utils/dailyOpsDashboardMetrics').resolveUnifiedLocationToEitjeId
@@ -196,6 +197,9 @@ declare global {
   export type { DailyOpsMetricsContext, BorkHourAggregatesBundle, ContractTypeDayRow, WorkersTeamLocationDayRow, LaborMetricsPipelineInput } from '../../server/utils/dailyOpsDashboardMetrics'
   import('../../server/utils/dailyOpsDashboardMetrics')
   // @ts-ignore
+  export type { DailyOpsDateRange } from '../../server/utils/dailyOpsPeriod'
+  import('../../server/utils/dailyOpsPeriod')
+  // @ts-ignore
   export type { UtcDayRange } from '../../server/utils/eitjeHours'
   import('../../server/utils/eitjeHours')
   // @ts-ignore
@@ -226,6 +230,7 @@ export { defineNitroErrorHandler } from 'nitropack/runtime/internal/error/utils'
 export { buildAssetsURL as __buildAssetsURL, publicAssetsURL as __publicAssetsURL } from '/Users/alviniomolina/Documents/GitHub/daily-ops/node_modules/.pnpm/@nuxt+nitro-server@4.4.2_@babel+core@7.29.0_db0@0.3.4_ioredis@5.10.1_magicast@0.5.2_nux_4ef35676041ca6aeac96e97cd57aa3e3/node_modules/@nuxt/nitro-server/dist/runtime/utils/paths';
 export { defineAppConfig } from '/Users/alviniomolina/Documents/GitHub/daily-ops/node_modules/.pnpm/@nuxt+nitro-server@4.4.2_@babel+core@7.29.0_db0@0.3.4_ioredis@5.10.1_magicast@0.5.2_nux_4ef35676041ca6aeac96e97cd57aa3e3/node_modules/@nuxt/nitro-server/dist/runtime/utils/config';
 export { parseDailyOpsMetricsQuery, resolveUnifiedLocationToEitjeId, enumerateUtcDatesInclusive, fetchBorkRevenueTotals, fetchEitjeLaborTotals, fetchRevenueByCategoryFromHourAggregates, fetchRevenueByCategoryFromRaw, fetchBorkHourAggregatesBundle, revenueByTimePeriodFromHourTotals, fetchRevenueByTimePeriod, fetchHourlyRevenueForRange, fetchRevenueByDate, locationDayKey, parseLocationDayKey, fetchRevenueByDateAndLocation, fetchLaborByDate, fetchHoursCostByContractTypeByDay, computeMostProfitableHour, fetchWorkersByTeamLocation, fetchWorkersByTeamLocationByDay, fetchHoursCostByContractType, fetchLaborProductivityByLocationDay, inventoryCollections, fetchLaborMetricsPipelineInput, assembleDailyOpsLaborMetricsDto, buildDailyOpsSummaryDto, buildDailyOpsRevenueBreakdownDto, VAT_DISCLAIMER } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/dailyOpsDashboardMetrics';
+export { resolveDailyOpsPeriod } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/dailyOpsPeriod';
 export { getDb, getNotesCollection, getUnifiedUsersCollection, getMenuItemsCollection, getMenusCollection, getMenuVersionsCollection, connectToDatabase } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/db';
 export { findEitjeCredentialDocument, documentToEitjeStoredCredentials, documentToCredentialsApiShape } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/eitjeApiCredentials';
 export { EITJE_HOURS_ADD_FIELDS, getUtcDayRange } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/eitjeHours';
