@@ -1,15 +1,13 @@
 /**
  * @registry-id: borkRebuildAggregationService
  * @created: 2026-04-09T00:00:00.000Z
- * @last-modified: 2026-04-13T17:00:00.000Z
- * @description: Rebuilds Bork sales aggregations from bork_raw_data using UNIFIED location names with BUSINESS DAY logic (08:00-08:00)
- * @last-fix: [2026-04-13] Fixed date aggregation: hours 0-7 now correctly belong to previous business day (business day runs 08:00-08:00)
+ * @last-modified: 2026-04-13T17:20:00.000Z
+ * @description: Rebuilds Bork sales aggregations from bork_raw_data using UNIFIED location names by CALENDAR DATE
+ * @last-fix: [2026-04-13] Reverted: Store by calendar date (not business date). Business day logic applied at query/API layer for reporting.
  *
- * @CRITICAL BUSINESS LOGIC:
- * - Business day: 08:00 yesterday → 08:00 today (e.g., Apr 10 08:00 → Apr 11 08:00 = "2026-04-10")
- * - Hours 0-7 (00:00-08:00) belong to the PREVIOUS business day
- * - Hours 8-23 (08:00-23:59) belong to the CURRENT business day
- * - All aggregations use businessDayDate, NOT raw ticket date
+ * @CRITICAL: Aggregations use CALENDAR DATES (when transaction occurred).
+ * Business day calculations (06:00-05:59:59) are applied in the API layer for reporting/display.
+ * This allows direct validation against register data (which tracks by calendar date + time).
  *
  * @CRITICAL: This service uses bork_unified_location_mapping to resolve locationNames.
  * All aggregation documents MUST have locationName matching unifiedLocationName, NOT raw Bork names.
@@ -18,7 +16,7 @@
  * @exports-to:
  * ✓ server/services/borkSyncService.ts
  * ✓ server/api/bork/v2/aggregation.get.ts
- * ✓ pages/daily-ops/sales/day-breakdown.vue => Requires unified location names and correct business day dates
+ * ✓ pages/daily-ops/sales/day-breakdown.vue => Apply business day logic in query layer
  */
 
 import type { Db, Document } from 'mongodb'
@@ -50,26 +48,6 @@ function extractHour(timeStr: string | undefined): number {
   if (!timeStr) return 0
   const match = timeStr.match(/^(\d{1,2}):/)
   return match ? parseInt(match[1], 10) : 0
-}
-
-/**
- * Calculate business day (08:00 to 08:00) for a given ticket date and hour.
- * Hours 00-07 belong to the previous business day.
- * Hours 08-23 belong to the current business day.
- * 
- * Example: 2026-04-11 02:00 → 2026-04-10 (business day: 08:00 Apr 10 → 08:00 Apr 11)
- * Example: 2026-04-11 14:00 → 2026-04-11 (business day: 08:00 Apr 11 → 08:00 Apr 12)
- */
-function getBusinessDayDate(dateStr: string, hour: number): string {
-  const [year, month, day] = dateStr.split('-').map(Number)
-  const date = new Date(year, month - 1, day, hour, 0, 0)
-  
-  // If hour is 0-7, this transaction belongs to yesterday's business day
-  if (hour < 8) {
-    date.setDate(date.getDate() - 1)
-  }
-  
-  return date.toISOString().split('T')[0]
 }
 
 /**
@@ -174,17 +152,17 @@ export async function rebuildBorkSalesAggregation(
           // Extract hour from ticket time (not order time)
           const hour = extractHour(ticket.Time as string)
           
-          // Calculate business day (08:00-08:00): hours 0-7 belong to previous day
-          const businessDayDate = getBusinessDayDate(dateStr, hour)
+          // Store by calendar date - business day logic applied in API/query layer
+          // This allows matching against register reset times (06:00 each day)
 
           // BY CRON: aggregate by unified location + date (ALL orders)
-          const cronKey = `${unifiedLocationId}:${businessDayDate}`
+          const cronKey = `${unifiedLocationId}:${dateStr}`
           if (!byCronMap.has(cronKey)) {
             byCronMap.set(cronKey, {
               cronTime,
               locationId: unifiedLocationId,
               locationName: unifiedLocationName,
-              date: businessDayDate,
+              date: dateStr,
               total_revenue: 0,
               total_quantity: 0,
               record_count: 0,
@@ -196,10 +174,10 @@ export async function rebuildBorkSalesAggregation(
           cronEntry.record_count = (cronEntry.record_count as number) + 1
 
           // BY HOUR: aggregate by unified location + date + hour (ALL orders)
-          const hourKey = `${unifiedLocationId}:${businessDayDate}:${hour}`
+          const hourKey = `${unifiedLocationId}:${dateStr}:${hour}`
           if (!byHourMap.has(hourKey)) {
             byHourMap.set(hourKey, {
-              date: businessDayDate,
+              date: dateStr,
               hour,
               locationId: unifiedLocationId,
               locationName: unifiedLocationName,
@@ -229,10 +207,10 @@ export async function rebuildBorkSalesAggregation(
 
           // BY TABLE: ONLY if order has table number (skip guest accounts)
           if (hasTable) {
-            const tableKey = `${unifiedLocationId}:${businessDayDate}:${hour}:${tableNumber}`
+            const tableKey = `${unifiedLocationId}:${dateStr}:${hour}:${tableNumber}`
             if (!byTableMap.has(tableKey)) {
               byTableMap.set(tableKey, {
-                date: businessDayDate,
+                date: dateStr,
                 hour,
                 locationId: unifiedLocationId,
                 locationName: unifiedLocationName,
@@ -260,10 +238,10 @@ export async function rebuildBorkSalesAggregation(
           }
 
           // BY WORKER: aggregate by unified location + date + hour + worker
-          const workerKey = `${unifiedLocationId}:${businessDayDate}:${hour}:${unifiedWorkerId}`
+          const workerKey = `${unifiedLocationId}:${dateStr}:${hour}:${unifiedWorkerId}`
           if (!byWorkerMap.has(workerKey)) {
             byWorkerMap.set(workerKey, {
-              date: businessDayDate,
+              date: dateStr,
               hour,
               locationId: unifiedLocationId,
               locationName: unifiedLocationName,
@@ -295,10 +273,10 @@ export async function rebuildBorkSalesAggregation(
           // BY GUEST ACCOUNT: ONLY if order has NO table (guest/on-factuur)
           if (!hasTable) {
             const guestAccountName = ticket.AccountName || 'Unknown Account'
-            const guestKey = `${unifiedLocationId}:${businessDayDate}:${hour}:${guestAccountName}`
+            const guestKey = `${unifiedLocationId}:${dateStr}:${hour}:${guestAccountName}`
             if (!byGuestAccountMap.has(guestKey)) {
               byGuestAccountMap.set(guestKey, {
-                date: businessDayDate,
+                date: dateStr,
                 hour,
                 locationId: unifiedLocationId,
                 locationName: unifiedLocationName,

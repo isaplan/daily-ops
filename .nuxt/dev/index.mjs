@@ -5,7 +5,8 @@ import { resolve, dirname, join } from 'node:path';
 import nodeCrypto, { createHash } from 'node:crypto';
 import { parentPort, threadId } from 'node:worker_threads';
 import { escapeHtml } from 'file:///Users/alviniomolina/Documents/GitHub/daily-ops/node_modules/.pnpm/@vue+shared@3.5.31/node_modules/@vue/shared/dist/shared.cjs.js';
-import { MongoClient, ObjectId } from 'file:///Users/alviniomolina/Documents/GitHub/daily-ops/node_modules/.pnpm/mongodb@7.1.1/node_modules/mongodb/lib/index.js';
+import { ObjectId, MongoClient } from 'file:///Users/alviniomolina/Documents/GitHub/daily-ops/node_modules/.pnpm/mongodb@7.1.1/node_modules/mongodb/lib/index.js';
+import { defineEventHandler as defineEventHandler$1, getQuery as getQuery$2, createError as createError$1 } from 'file:///Users/alviniomolina/Documents/GitHub/daily-ops/node_modules/h3/dist/index.mjs';
 import { request } from 'node:https';
 import Papa from 'file:///Users/alviniomolina/Documents/GitHub/daily-ops/node_modules/.pnpm/papaparse@5.5.3/node_modules/papaparse/papaparse.js';
 import * as cpexcel from '/Users/alviniomolina/Documents/GitHub/daily-ops/node_modules/.pnpm/xlsx@0.18.5/node_modules/xlsx/dist/cpexcel.js';
@@ -2471,16 +2472,16 @@ _wH6JrtIxmaSoA8lCPWFnE9z4lQeXW6H5z3l5aymEQw
 const assets = {
   "/index.mjs": {
     "type": "text/javascript; charset=utf-8",
-    "etag": "\"1376b1-KlGK4QoZW70E19O1YPi9M0i4fzI\"",
-    "mtime": "2026-04-13T19:05:43.406Z",
-    "size": 1275569,
+    "etag": "\"13751c-Pzl5IQy0u+F8eDorcO7jOpt1+nM\"",
+    "mtime": "2026-04-13T19:37:55.035Z",
+    "size": 1275164,
     "path": "index.mjs"
   },
   "/index.mjs.map": {
     "type": "application/json",
-    "etag": "\"380000-ekzrmk+i064VfOi+hAl4xQCON7I\"",
-    "mtime": "2026-04-13T19:05:44.385Z",
-    "size": 5147603,
+    "etag": "\"4e85c5-bwgo4yP80ToC2565w5c9pjyZb+4\"",
+    "mtime": "2026-04-13T19:37:55.136Z",
+    "size": 5146053,
     "path": "index.mjs.map"
   }
 };
@@ -3018,6 +3019,838 @@ async function runTask(name, {
   } finally {
     delete __runningTasks__[name];
   }
+}
+
+const DAILY_OPS_PERIODS = [
+  "today",
+  "yesterday",
+  "this-week",
+  "last-week"
+];
+function pad(n) {
+  return String(n).padStart(2, "0");
+}
+function utcYmd(d) {
+  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
+}
+function parseYmd(ymd) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd.trim());
+  if (!m) return null;
+  const y = Number(m[1]);
+  const mo = Number(m[2]) - 1;
+  const day = Number(m[3]);
+  const d = new Date(Date.UTC(y, mo, day));
+  if (d.getUTCFullYear() !== y || d.getUTCMonth() !== mo || d.getUTCDate() !== day) return null;
+  return d;
+}
+function startOfIsoWeekUtc(anchor) {
+  const d = new Date(anchor);
+  const dow = d.getUTCDay();
+  const diff = dow === 0 ? -6 : 1 - dow;
+  d.setUTCDate(d.getUTCDate() + diff);
+  return d;
+}
+function addDaysUtc(d, days) {
+  const x = new Date(d);
+  x.setUTCDate(x.getUTCDate() + days);
+  return x;
+}
+function resolveDailyOpsPeriod(raw, anchor) {
+  const period = DAILY_OPS_PERIODS.includes(raw) ? raw : "today";
+  const anchorDate = anchor && parseYmd(anchor) ? parseYmd(anchor) : /* @__PURE__ */ new Date();
+  const today = utcYmd(anchorDate);
+  if (period === "today") {
+    return { period, startDate: today, endDate: today };
+  }
+  if (period === "yesterday") {
+    const y = addDaysUtc(parseYmd(today), -1);
+    const ymd = utcYmd(y);
+    return { period, startDate: ymd, endDate: ymd };
+  }
+  if (period === "this-week") {
+    const start = startOfIsoWeekUtc(anchorDate);
+    const end = addDaysUtc(start, 6);
+    return { period, startDate: utcYmd(start), endDate: utcYmd(end) };
+  }
+  const thisStart = startOfIsoWeekUtc(anchorDate);
+  const lastStart = addDaysUtc(thisStart, -7);
+  const lastEnd = addDaysUtc(thisStart, -1);
+  return { period, startDate: utcYmd(lastStart), endDate: utcYmd(lastEnd) };
+}
+
+const VAT_DISCLAIMER = "All revenue values shown are excluding VAT (ex VAT)";
+const DRINK_NAME_PATTERN = /wine|wijn|beer|bier|gint|gin |vodka|whisk|whiskey|rum|cocktail|cola|sprite|fanta|coffee|koffie|thee|tea|sap|juice|fris|prosecco|champagne|cider|tonic|latte|cappuccino|espresso|pils|stelz|borrel|aperol|campari|martini|soda|limonade/i;
+function parseDailyOpsMetricsQuery(q) {
+  const periodRaw = typeof q.period === "string" ? q.period : "today";
+  const anchor = typeof q.anchor === "string" ? q.anchor : void 0;
+  const range = resolveDailyOpsPeriod(periodRaw, anchor);
+  const locRaw = typeof q.location === "string" ? q.location : void 0;
+  let locationId;
+  if (locRaw && locRaw !== "all") {
+    try {
+      locationId = new ObjectId(locRaw);
+    } catch {
+      locationId = locRaw;
+    }
+  }
+  return {
+    period: range.period,
+    startDate: range.startDate,
+    endDate: range.endDate,
+    locationId
+  };
+}
+function enumerateUtcDatesInclusive(start, end) {
+  const out = [];
+  const [ys, ms, ds] = start.split("-").map(Number);
+  const [ye, me, de] = end.split("-").map(Number);
+  let y = ys != null ? ys : 0;
+  let m = ms != null ? ms : 1;
+  let d = ds != null ? ds : 1;
+  const endT = new Date(Date.UTC(ye != null ? ye : 0, (me != null ? me : 1) - 1, de != null ? de : 1)).getTime();
+  let cur = new Date(Date.UTC(y, m - 1, d)).getTime();
+  while (cur <= endT) {
+    const dt = new Date(cur);
+    const p = (n) => String(n).padStart(2, "0");
+    out.push(`${dt.getUTCFullYear()}-${p(dt.getUTCMonth() + 1)}-${p(dt.getUTCDate())}`);
+    cur += 864e5;
+  }
+  return out;
+}
+function timePeriodKey(hour) {
+  if (hour >= 11 && hour <= 14) return "lunch";
+  if (hour >= 15 && hour <= 16) return "pre_drinks";
+  if (hour >= 17 && hour <= 21) return "dinner";
+  if (hour >= 22 || hour <= 3) return "after_drinks";
+  return "other";
+}
+function borkCronMatch(ctx) {
+  const q = {
+    date: { $gte: ctx.startDate, $lte: ctx.endDate }
+  };
+  if (ctx.locationId !== void 0) q.locationId = ctx.locationId;
+  return q;
+}
+function eitjeAggMatch(ctx) {
+  const q = {
+    period_type: "day",
+    period: { $gte: ctx.startDate, $lte: ctx.endDate }
+  };
+  if (ctx.locationId !== void 0) q.locationId = ctx.locationId;
+  return q;
+}
+async function fetchRevenueByCategoryFromHourAggregates(db, ctx) {
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k;
+  const match = borkCronMatch(ctx);
+  const [facetRow] = await db.collection("bork_sales_by_hour").aggregate([
+    { $match: match },
+    {
+      $facet: {
+        categoryFromLines: [
+          { $unwind: { path: "$products", preserveNullAndEmptyArrays: false } },
+          {
+            $addFields: {
+              productName: { $ifNull: ["$products.productName", ""] },
+              lineValue: { $toDouble: { $ifNull: ["$products.revenue", 0] } }
+            }
+          },
+          {
+            $addFields: {
+              bucket: {
+                $cond: {
+                  if: { $regexMatch: { input: "$productName", regex: DRINK_NAME_PATTERN } },
+                  then: "drinks",
+                  else: "food"
+                }
+              }
+            }
+          },
+          { $group: { _id: "$bucket", amount: { $sum: "$lineValue" } } }
+        ],
+        hourRevenueTotal: [
+          { $group: { _id: null, total: { $sum: { $ifNull: ["$total_revenue", 0] } } } }
+        ],
+        productLinesTotal: [
+          { $unwind: { path: "$products", preserveNullAndEmptyArrays: false } },
+          {
+            $group: {
+              _id: null,
+              total: { $sum: { $toDouble: { $ifNull: ["$products.revenue", 0] } } }
+            }
+          }
+        ]
+      }
+    }
+  ]).toArray();
+  const byCat = (_a = facetRow == null ? void 0 : facetRow.categoryFromLines) != null ? _a : [];
+  let drinks = (_c = (_b = byCat.find((x) => x._id === "drinks")) == null ? void 0 : _b.amount) != null ? _c : 0;
+  let food = (_e = (_d = byCat.find((x) => x._id === "food")) == null ? void 0 : _d.amount) != null ? _e : 0;
+  const hourGrand = (_h = (_g = (_f = facetRow == null ? void 0 : facetRow.hourRevenueTotal) == null ? void 0 : _f[0]) == null ? void 0 : _g.total) != null ? _h : 0;
+  const lineGrand = (_k = (_j = (_i = facetRow == null ? void 0 : facetRow.productLinesTotal) == null ? void 0 : _i[0]) == null ? void 0 : _j.total) != null ? _k : 0;
+  const gap = Math.max(0, hourGrand - lineGrand);
+  food += gap;
+  return { drinks, food };
+}
+async function fetchBorkHourAggregatesBundle(db, ctx) {
+  var _a, _b;
+  const [row] = await db.collection("bork_sales_by_hour").aggregate([
+    { $match: borkCronMatch(ctx) },
+    {
+      $facet: {
+        byHourOnly: [
+          {
+            $group: {
+              _id: "$hour",
+              amount: { $sum: { $ifNull: ["$total_revenue", 0] } }
+            }
+          }
+        ],
+        byDayHour: [
+          {
+            $group: {
+              _id: { d: "$date", h: "$hour" },
+              revenue: { $sum: { $ifNull: ["$total_revenue", 0] } }
+            }
+          }
+        ]
+      }
+    }
+  ]).toArray();
+  return {
+    byHourOnly: (_a = row == null ? void 0 : row.byHourOnly) != null ? _a : [],
+    byDayHour: (_b = row == null ? void 0 : row.byDayHour) != null ? _b : []
+  };
+}
+function revenueByTimePeriodFromHourTotals(rows) {
+  const sums = {
+    lunch: 0,
+    pre_drinks: 0,
+    dinner: 0,
+    after_drinks: 0,
+    other: 0
+  };
+  for (const r of rows) {
+    const k = timePeriodKey(Number(r._id));
+    sums[k] += r.amount;
+  }
+  return sums;
+}
+async function fetchRevenueByDate(db, ctx) {
+  const rows = await db.collection("bork_sales_by_cron").aggregate([
+    { $match: borkCronMatch(ctx) },
+    { $group: { _id: "$date", revenue: { $sum: { $ifNull: ["$total_revenue", 0] } } } }
+  ]).toArray();
+  return new Map(rows.map((r) => [r._id, r.revenue]));
+}
+const LOC_DAY_KEY_SEP = "";
+function locationDayKey(date, locationId) {
+  return `${date}${LOC_DAY_KEY_SEP}${String(locationId)}`;
+}
+function parseLocationDayKey(key) {
+  const i = key.indexOf(LOC_DAY_KEY_SEP);
+  if (i <= 0) return { date: key, locationId: "" };
+  return { date: key.slice(0, i), locationId: key.slice(i + LOC_DAY_KEY_SEP.length) };
+}
+async function fetchRevenueByDateAndLocation(db, ctx) {
+  const rows = await db.collection("bork_sales_by_cron").aggregate([
+    { $match: borkCronMatch(ctx) },
+    {
+      $group: {
+        _id: { date: "$date", locationId: "$locationId" },
+        revenue: { $sum: { $ifNull: ["$total_revenue", 0] } }
+      }
+    }
+  ]).toArray();
+  const map = /* @__PURE__ */ new Map();
+  for (const r of rows) {
+    const lid = r._id.locationId != null ? String(r._id.locationId) : "unknown";
+    map.set(locationDayKey(r._id.date, lid), r.revenue);
+  }
+  return map;
+}
+async function fetchLaborByDate(db, ctx) {
+  const rows = await db.collection("eitje_time_registration_aggregation").aggregate([
+    { $match: eitjeAggMatch(ctx) },
+    {
+      $group: {
+        _id: "$period",
+        laborCost: { $sum: { $ifNull: ["$total_cost", 0] } },
+        hours: { $sum: { $ifNull: ["$total_hours", 0] } },
+        workerIds: { $addToSet: "$userId" }
+      }
+    },
+    {
+      $project: {
+        _id: 1,
+        laborCost: 1,
+        hours: 1,
+        distinctWorkerCount: {
+          $size: {
+            $filter: { input: "$workerIds", as: "w", cond: { $ne: ["$$w", null] } }
+          }
+        }
+      }
+    }
+  ]).toArray();
+  return new Map(
+    rows.map((r) => [
+      r._id,
+      { laborCost: r.laborCost, hours: r.hours, distinctWorkerCount: r.distinctWorkerCount }
+    ])
+  );
+}
+async function fetchHoursCostByContractTypeByDay(db, ctx) {
+  return await db.collection("eitje_time_registration_aggregation").aggregate([
+    { $match: eitjeAggMatch(ctx) },
+    {
+      $lookup: {
+        from: "members",
+        let: { uid: { $toString: "$userId" } },
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $or: [
+                  { $eq: [{ $toString: "$eitje_id" }, "$$uid"] },
+                  {
+                    $gt: [
+                      {
+                        $size: {
+                          $filter: {
+                            input: { $ifNull: ["$eitje_ids", []] },
+                            as: "x",
+                            cond: { $eq: [{ $toString: "$$x" }, "$$uid"] }
+                          }
+                        }
+                      },
+                      0
+                    ]
+                  }
+                ]
+              }
+            }
+          },
+          { $limit: 1 },
+          { $project: { contract_type: 1 } }
+        ],
+        as: "_m"
+      }
+    },
+    {
+      $addFields: {
+        contractType: {
+          $ifNull: [{ $arrayElemAt: ["$_m.contract_type", 0] }, "-"]
+        }
+      }
+    },
+    {
+      $group: {
+        _id: { period: "$period", contractType: "$contractType" },
+        workerIds: { $addToSet: "$userId" },
+        total_hours: { $sum: { $ifNull: ["$total_hours", 0] } },
+        total_cost: { $sum: { $ifNull: ["$total_cost", 0] } }
+      }
+    },
+    {
+      $project: {
+        _id: 0,
+        date: "$_id.period",
+        contractType: "$_id.contractType",
+        workerCount: {
+          $size: {
+            $filter: { input: "$workerIds", as: "w", cond: { $ne: ["$$w", null] } }
+          }
+        },
+        totalHours: { $round: ["$total_hours", 2] },
+        totalCost: { $round: ["$total_cost", 2] }
+      }
+    },
+    { $sort: { contractType: 1, date: 1 } }
+  ]).toArray();
+}
+function computeMostProfitableHour(hourRows, revenueByDate, laborByDate) {
+  var _a, _b, _c;
+  let best = {
+    hourLabel: "\u2014",
+    date: "",
+    hour: 0,
+    revenue: 0,
+    laborCost: 0,
+    profit: 0
+  };
+  for (const row of hourRows) {
+    const day = row._id.d;
+    const h = row._id.h;
+    const rev = row.revenue;
+    const dayRev = (_a = revenueByDate.get(day)) != null ? _a : 0;
+    const dayLab = (_c = (_b = laborByDate.get(day)) == null ? void 0 : _b.laborCost) != null ? _c : 0;
+    const alloc = dayRev > 0 ? dayLab * (rev / dayRev) : 0;
+    const profit = rev - alloc;
+    if (profit > best.profit) {
+      best = {
+        hourLabel: `${day} ${String(h).padStart(2, "0")}:00`,
+        date: day,
+        hour: h,
+        revenue: rev,
+        laborCost: alloc,
+        profit
+      };
+    }
+  }
+  return best;
+}
+async function fetchWorkersByTeamLocation(db, ctx) {
+  return await db.collection("eitje_time_registration_aggregation").aggregate([
+    { $match: eitjeAggMatch(ctx) },
+    {
+      $group: {
+        _id: {
+          locationId: "$locationId",
+          location_name: "$location_name",
+          teamId: "$teamId",
+          team_name: "$team_name"
+        },
+        workerIds: { $addToSet: "$userId" },
+        total_hours: { $sum: { $ifNull: ["$total_hours", 0] } },
+        total_cost: { $sum: { $ifNull: ["$total_cost", 0] } }
+      }
+    },
+    {
+      $project: {
+        _id: 0,
+        locationId: { $toString: "$_id.locationId" },
+        locationName: { $ifNull: ["$_id.location_name", ""] },
+        teamId: { $toString: "$_id.teamId" },
+        teamName: { $ifNull: ["$_id.team_name", ""] },
+        workerCount: {
+          $size: {
+            $filter: { input: "$workerIds", as: "w", cond: { $ne: ["$$w", null] } }
+          }
+        },
+        totalHours: { $round: ["$total_hours", 2] },
+        totalCost: { $round: ["$total_cost", 2] }
+      }
+    },
+    { $sort: { locationName: 1, teamName: 1 } }
+  ]).toArray();
+}
+async function fetchWorkersByTeamLocationByDay(db, ctx) {
+  return await db.collection("eitje_time_registration_aggregation").aggregate([
+    { $match: eitjeAggMatch(ctx) },
+    {
+      $group: {
+        _id: {
+          period: "$period",
+          locationId: "$locationId",
+          location_name: "$location_name",
+          teamId: "$teamId",
+          team_name: "$team_name"
+        },
+        workerIds: { $addToSet: "$userId" },
+        total_hours: { $sum: { $ifNull: ["$total_hours", 0] } },
+        total_cost: { $sum: { $ifNull: ["$total_cost", 0] } }
+      }
+    },
+    {
+      $project: {
+        _id: 0,
+        date: "$_id.period",
+        locationId: { $toString: "$_id.locationId" },
+        locationName: { $ifNull: ["$_id.location_name", ""] },
+        teamId: { $toString: "$_id.teamId" },
+        teamName: { $ifNull: ["$_id.team_name", ""] },
+        workerCount: {
+          $size: {
+            $filter: { input: "$workerIds", as: "w", cond: { $ne: ["$$w", null] } }
+          }
+        },
+        totalHours: { $round: ["$total_hours", 2] },
+        totalCost: { $round: ["$total_cost", 2] }
+      }
+    },
+    { $sort: { locationName: 1, teamName: 1, date: 1 } }
+  ]).toArray();
+}
+async function fetchHoursCostByContractType(db, ctx) {
+  return await db.collection("eitje_time_registration_aggregation").aggregate([
+    { $match: eitjeAggMatch(ctx) },
+    {
+      $group: {
+        _id: { userId: "$userId" },
+        total_hours: { $sum: { $ifNull: ["$total_hours", 0] } },
+        total_cost: { $sum: { $ifNull: ["$total_cost", 0] } }
+      }
+    },
+    {
+      $lookup: {
+        from: "members",
+        let: { uid: { $toString: "$_id.userId" } },
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $or: [
+                  { $eq: [{ $toString: "$eitje_id" }, "$$uid"] },
+                  {
+                    $gt: [
+                      {
+                        $size: {
+                          $filter: {
+                            input: { $ifNull: ["$eitje_ids", []] },
+                            as: "x",
+                            cond: { $eq: [{ $toString: "$$x" }, "$$uid"] }
+                          }
+                        }
+                      },
+                      0
+                    ]
+                  }
+                ]
+              }
+            }
+          },
+          { $limit: 1 },
+          { $project: { contract_type: 1 } }
+        ],
+        as: "_m"
+      }
+    },
+    {
+      $addFields: {
+        contractType: {
+          $ifNull: [{ $arrayElemAt: ["$_m.contract_type", 0] }, "-"]
+        }
+      }
+    },
+    {
+      $group: {
+        _id: "$contractType",
+        totalHours: { $sum: "$total_hours" },
+        totalCost: { $sum: "$total_cost" }
+      }
+    },
+    {
+      $project: {
+        _id: 0,
+        contractType: { $ifNull: ["$_id", "-"] },
+        totalHours: { $round: ["$totalHours", 2] },
+        totalCost: { $round: ["$totalCost", 2] }
+      }
+    },
+    { $sort: { totalCost: -1 } }
+  ]).toArray();
+}
+async function fetchLaborProductivityByLocationDay(db, ctx) {
+  var _a, _b;
+  const revRows = await db.collection("bork_sales_by_cron").aggregate([
+    { $match: borkCronMatch(ctx) },
+    {
+      $group: {
+        _id: { date: "$date", locationId: "$locationId", locationName: "$locationName" },
+        revenue: { $sum: { $ifNull: ["$total_revenue", 0] } }
+      }
+    }
+  ]).toArray();
+  const labRows = await db.collection("eitje_time_registration_aggregation").aggregate([
+    { $match: eitjeAggMatch(ctx) },
+    {
+      $group: {
+        _id: { period: "$period", locationId: "$locationId", location_name: "$location_name" },
+        hours: { $sum: { $ifNull: ["$total_hours", 0] } },
+        laborCost: { $sum: { $ifNull: ["$total_cost", 0] } }
+      }
+    }
+  ]).toArray();
+  const byLoc = /* @__PURE__ */ new Map();
+  const locKey = (id) => id != null ? String(id) : "unknown";
+  for (const r of revRows) {
+    const lk = locKey(r._id.locationId);
+    if (!byLoc.has(lk)) {
+      byLoc.set(lk, { name: (_a = r._id.locationName) != null ? _a : lk, days: [] });
+    }
+    const entry = byLoc.get(lk);
+    if (r._id.locationName) entry.name = r._id.locationName;
+    let d = entry.days.find((x) => x.date === r._id.date);
+    if (!d) {
+      d = { date: r._id.date, revenuePerLaborHour: 0, revenue: 0, hours: 0 };
+      entry.days.push(d);
+    }
+    d.revenue += r.revenue;
+  }
+  for (const r of labRows) {
+    const lk = locKey(r._id.locationId);
+    if (!byLoc.has(lk)) {
+      byLoc.set(lk, { name: (_b = r._id.location_name) != null ? _b : lk, days: [] });
+    }
+    const entry = byLoc.get(lk);
+    if (r._id.location_name) entry.name = r._id.location_name;
+    let d = entry.days.find((x) => x.date === r._id.period);
+    if (!d) {
+      d = { date: r._id.period, revenuePerLaborHour: 0, revenue: 0, hours: 0 };
+      entry.days.push(d);
+    }
+    d.hours += r.hours;
+  }
+  const out = [];
+  for (const [lid, { name, days }] of byLoc) {
+    const scored = days.map((d) => ({
+      date: d.date,
+      revenue: d.revenue,
+      hours: d.hours,
+      revenuePerLaborHour: d.hours > 0 ? d.revenue / d.hours : d.revenue > 0 ? Number.POSITIVE_INFINITY : 0
+    })).filter((d) => d.hours > 0 || d.revenue > 0);
+    const finite = scored.filter((d) => d.hours > 0 && Number.isFinite(d.revenuePerLaborHour));
+    let highest = null;
+    let lowest = null;
+    for (const d of finite) {
+      if (!highest || d.revenuePerLaborHour > highest.revenuePerLaborHour) highest = d;
+      if (!lowest || d.revenuePerLaborHour < lowest.revenuePerLaborHour) lowest = d;
+    }
+    out.push({
+      locationId: lid,
+      locationName: name,
+      highest: highest ? {
+        date: highest.date,
+        revenuePerLaborHour: Math.round(highest.revenuePerLaborHour * 100) / 100,
+        revenue: Math.round(highest.revenue * 100) / 100,
+        hours: Math.round(highest.hours * 100) / 100
+      } : null,
+      lowest: lowest ? {
+        date: lowest.date,
+        revenuePerLaborHour: Math.round(lowest.revenuePerLaborHour * 100) / 100,
+        revenue: Math.round(lowest.revenue * 100) / 100,
+        hours: Math.round(lowest.hours * 100) / 100
+      } : null
+    });
+  }
+  out.sort((a, b) => a.locationName.localeCompare(b.locationName));
+  return out;
+}
+async function inventoryCollections(db, ctx) {
+  const notes = [];
+  const cron = await db.collection("bork_sales_by_cron").countDocuments(borkCronMatch(ctx), { limit: 1 });
+  const hours = await db.collection("bork_sales_by_hour").countDocuments(borkCronMatch(ctx), { limit: 1 });
+  const eitje = await db.collection("eitje_time_registration_aggregation").countDocuments(eitjeAggMatch(ctx), { limit: 1 });
+  if (cron === 0) notes.push("No rows in bork_sales_by_cron for this range \u2014 run Bork sync/rebuild aggregations.");
+  if (hours === 0) notes.push("No rows in bork_sales_by_hour for this range.");
+  if (eitje === 0) notes.push("No rows in eitje_time_registration_aggregation for this range \u2014 rebuild Eitje aggregation.");
+  notes.push("Food vs drinks uses a name-pattern heuristic on `bork_sales_by_hour.products` (from Bork rebuild); tune DRINK_NAME_PATTERN as needed.");
+  notes.push("Hour-level labor cost uses daily labor prorated by that day\u2019s hourly revenue share.");
+  if (ctx.locationId === void 0) {
+    notes.push("All locations: labor productivity min/max merges revenue and hours only when both exist for the same location/day.");
+  }
+  return {
+    hasBorkCronData: cron > 0,
+    hasBorkHourData: hours > 0,
+    hasEitjeAggData: eitje > 0,
+    notes
+  };
+}
+async function fetchLaborMetricsPipelineInput(db, ctx) {
+  const [
+    workersByTeamLocation,
+    workersByTeamLocationByDayRaw,
+    hoursCostByContractType,
+    contractTypeByDay,
+    productivityByLocationDay,
+    inventory,
+    revMap,
+    revByDateLocation,
+    labMap
+  ] = await Promise.all([
+    fetchWorkersByTeamLocation(db, ctx),
+    fetchWorkersByTeamLocationByDay(db, ctx),
+    fetchHoursCostByContractType(db, ctx),
+    fetchHoursCostByContractTypeByDay(db, ctx),
+    fetchLaborProductivityByLocationDay(db, ctx),
+    inventoryCollections(db, ctx),
+    fetchRevenueByDate(db, ctx),
+    fetchRevenueByDateAndLocation(db, ctx),
+    fetchLaborByDate(db, ctx)
+  ]);
+  return {
+    workersByTeamLocation,
+    workersByTeamLocationByDayRaw,
+    hoursCostByContractType,
+    contractTypeByDay,
+    productivityByLocationDay,
+    inventory,
+    revMap,
+    revByDateLocation,
+    labMap
+  };
+}
+function assembleDailyOpsLaborMetricsDto(ctx, input) {
+  var _a;
+  const {
+    workersByTeamLocation,
+    workersByTeamLocationByDayRaw,
+    hoursCostByContractType,
+    contractTypeByDay,
+    productivityByLocationDay,
+    inventory,
+    revMap,
+    revByDateLocation,
+    labMap
+  } = input;
+  const locDayAgg = /* @__PURE__ */ new Map();
+  for (const row of workersByTeamLocationByDayRaw) {
+    const k = locationDayKey(row.date, row.locationId);
+    let a = locDayAgg.get(k);
+    if (!a) {
+      a = { hours: 0, cost: 0 };
+      locDayAgg.set(k, a);
+    }
+    a.hours += row.totalHours;
+    a.cost += row.totalCost;
+  }
+  const workersByTeamLocationByDay = workersByTeamLocationByDayRaw.map((row) => {
+    var _a2, _b;
+    const k = locationDayKey(row.date, row.locationId);
+    const rev = (_a2 = revByDateLocation.get(k)) != null ? _a2 : 0;
+    const agg = (_b = locDayAgg.get(k)) != null ? _b : { hours: 0};
+    let attributedRev = 0;
+    if (rev > 0 && agg.hours > 0) {
+      attributedRev = rev * (row.totalHours / agg.hours);
+    }
+    const laborCostPctOfRevenue = attributedRev > 0 ? Math.round(row.totalCost / attributedRev * 100 * 10) / 10 : null;
+    return {
+      ...row,
+      laborCostPctOfRevenue
+    };
+  });
+  const locationLaborPctByDay = [];
+  for (const [k, agg] of locDayAgg) {
+    const { date, locationId } = parseLocationDayKey(k);
+    const rev = (_a = revByDateLocation.get(k)) != null ? _a : 0;
+    const laborCostPctOfRevenue = rev > 0 ? Math.round(agg.cost / rev * 100 * 10) / 10 : null;
+    locationLaborPctByDay.push({ date, locationId, laborCostPctOfRevenue });
+  }
+  locationLaborPctByDay.sort(
+    (a, b) => a.locationId.localeCompare(b.locationId) || a.date.localeCompare(b.date)
+  );
+  const days = enumerateUtcDatesInclusive(ctx.startDate, ctx.endDate);
+  let sumRev = 0;
+  let sumLab = 0;
+  let sumHours = 0;
+  const daily = days.map((date) => {
+    var _a2, _b, _c, _d;
+    const revenue = (_a2 = revMap.get(date)) != null ? _a2 : 0;
+    const lab = labMap.get(date);
+    const laborCost = (_b = lab == null ? void 0 : lab.laborCost) != null ? _b : 0;
+    const hours = (_c = lab == null ? void 0 : lab.hours) != null ? _c : 0;
+    const distinctWorkerCount = (_d = lab == null ? void 0 : lab.distinctWorkerCount) != null ? _d : 0;
+    sumRev += revenue;
+    sumLab += laborCost;
+    sumHours += hours;
+    const laborCostPctOfRevenue = revenue > 0 ? laborCost / revenue * 100 : null;
+    const revenuePerLaborHour = hours > 0 ? revenue / hours : null;
+    return {
+      date,
+      revenue: Math.round(revenue * 100) / 100,
+      laborCost: Math.round(laborCost * 100) / 100,
+      hours: Math.round(hours * 100) / 100,
+      distinctWorkerCount,
+      laborCostPctOfRevenue: laborCostPctOfRevenue != null ? Math.round(laborCostPctOfRevenue * 10) / 10 : null,
+      revenuePerLaborHour: revenuePerLaborHour != null ? Math.round(revenuePerLaborHour * 100) / 100 : null
+    };
+  });
+  const periodRollup = {
+    revenue: Math.round(sumRev * 100) / 100,
+    laborCost: Math.round(sumLab * 100) / 100,
+    hours: Math.round(sumHours * 100) / 100,
+    laborCostPctOfRevenue: sumRev > 0 ? Math.round(sumLab / sumRev * 100 * 10) / 10 : null,
+    revenuePerLaborHour: sumHours > 0 ? Math.round(sumRev / sumHours * 100) / 100 : null
+  };
+  return {
+    range: {
+      period: ctx.period,
+      startDate: ctx.startDate,
+      endDate: ctx.endDate
+    },
+    inventory: {
+      hasBorkCronData: inventory.hasBorkCronData,
+      hasBorkHourData: inventory.hasBorkHourData,
+      hasEitjeAggData: inventory.hasEitjeAggData,
+      notes: inventory.notes
+    },
+    workersByTeamLocation,
+    workersByTeamLocationByDay,
+    locationLaborPctByDay,
+    hoursCostByContractType,
+    contractTypeByDay,
+    daily,
+    periodRollup,
+    productivityByLocationDay
+  };
+}
+function buildDailyOpsSummaryDto(ctx, revMap, labMap) {
+  let totalRevenue = 0;
+  for (const v of revMap.values()) totalRevenue += v;
+  let totalLaborCost = 0;
+  let totalLaborHours = 0;
+  for (const v of labMap.values()) {
+    totalLaborCost += v.laborCost;
+    totalLaborHours += v.hours;
+  }
+  const profit = totalRevenue - totalLaborCost;
+  const profitMarginPct = totalRevenue > 0 ? profit / totalRevenue * 100 : 0;
+  const revenuePerLaborHour = totalLaborHours > 0 ? totalRevenue / totalLaborHours : null;
+  const laborCostPctOfRevenue = totalRevenue > 0 ? totalLaborCost / totalRevenue * 100 : null;
+  return {
+    range: {
+      period: ctx.period,
+      startDate: ctx.startDate,
+      endDate: ctx.endDate
+    },
+    summary: {
+      totalRevenue: Math.round(totalRevenue * 100) / 100,
+      totalLaborCost: Math.round(totalLaborCost * 100) / 100,
+      totalLaborHours: Math.round(totalLaborHours * 100) / 100,
+      profit: Math.round(profit * 100) / 100,
+      profitMarginPct: Math.round(profitMarginPct * 10) / 10,
+      revenuePerLaborHour: revenuePerLaborHour != null ? Math.round(revenuePerLaborHour * 100) / 100 : null,
+      laborCostPctOfRevenue: laborCostPctOfRevenue != null ? Math.round(laborCostPctOfRevenue * 10) / 10 : null
+    },
+    vatDisclaimer: VAT_DISCLAIMER
+  };
+}
+function buildDailyOpsRevenueBreakdownDto(ctx, cat, hourBundle, revMap, labMap) {
+  const tp = revenueByTimePeriodFromHourTotals(hourBundle.byHourOnly);
+  const best = computeMostProfitableHour(hourBundle.byDayHour, revMap, labMap);
+  const revenueByCategory = [
+    { key: "drinks", label: "Drinks", amount: Math.round(cat.drinks * 100) / 100 },
+    { key: "food", label: "Food", amount: Math.round(cat.food * 100) / 100 }
+  ];
+  const revenueByTimePeriod = [
+    { key: "lunch", label: "Lunch", amount: Math.round(tp.lunch * 100) / 100 },
+    { key: "pre_drinks", label: "Pre Drinks", amount: Math.round(tp.pre_drinks * 100) / 100 },
+    { key: "dinner", label: "Dinner", amount: Math.round(tp.dinner * 100) / 100 },
+    { key: "after_drinks", label: "After Drinks", amount: Math.round(tp.after_drinks * 100) / 100 }
+  ];
+  if (tp.other > 0) {
+    revenueByTimePeriod.push({
+      key: "other",
+      label: "Other hours",
+      amount: Math.round(tp.other * 100) / 100
+    });
+  }
+  return {
+    range: {
+      period: ctx.period,
+      startDate: ctx.startDate,
+      endDate: ctx.endDate
+    },
+    revenueByCategory,
+    revenueByTimePeriod,
+    mostProfitableHour: {
+      hourLabel: best.hourLabel,
+      date: best.date,
+      revenue: Math.round(best.revenue * 100) / 100,
+      laborCost: Math.round(best.laborCost * 100) / 100,
+      profit: Math.round(best.profit * 100) / 100
+    }
+  };
 }
 
 function loadParentEnv() {
@@ -28548,16 +29381,21 @@ const _DOsdnx = defineCachedEventHandler(async (event) => {
   // 1 week
 });
 
-const _lazy_q9PCQb = () => import('../../../../../../../../../server/api/bork/v2/aggregation.get.ts');
 const _lazy_rpoMxL = () => Promise.resolve().then(function () { return credentials_get$3; });
 const _lazy_Fk11Zg = () => Promise.resolve().then(function () { return credentials_post$3; });
 const _lazy_0fNa4b = () => Promise.resolve().then(function () { return cron_get$3; });
 const _lazy_56hgXw = () => Promise.resolve().then(function () { return cron_post$3; });
-const _lazy_VkZeTR = () => Promise.resolve().then(function () { return locations_get$1; });
+const _lazy_9B1hFx = () => Promise.resolve().then(function () { return dayBreakdown_get$1; });
+const _lazy_VkZeTR = () => Promise.resolve().then(function () { return locations_get$3; });
 const _lazy_GrR807 = () => Promise.resolve().then(function () { return runScheduled_get$3; });
 const _lazy_2sV_oe = () => Promise.resolve().then(function () { return sync_post$3; });
 const _lazy_ir2wis = () => Promise.resolve().then(function () { return dataIntegrity_get$1; });
 const _lazy_fiyqpy = () => Promise.resolve().then(function () { return insights_get$1; });
+const _lazy_gJJ0yZ = () => Promise.resolve().then(function () { return locations_get$1; });
+const _lazy_7ki8Q4 = () => Promise.resolve().then(function () { return bundle_get$1; });
+const _lazy_GI_DGY = () => Promise.resolve().then(function () { return labor_get$1; });
+const _lazy_Bpe9Sc = () => Promise.resolve().then(function () { return revenueBreakdown_get$1; });
+const _lazy_3d9XzO = () => Promise.resolve().then(function () { return summary_get$1; });
 const _lazy_ddvbvh = () => Promise.resolve().then(function () { return overview_get$1; });
 const _lazy_b9OPGV = () => Promise.resolve().then(function () { return productivity_get$1; });
 const _lazy_PkLaTv = () => Promise.resolve().then(function () { return products_get$1; });
@@ -28568,7 +29406,7 @@ const _lazy_vALsC_ = () => Promise.resolve().then(function () { return run_get$1
 const _lazy_4juWGc = () => Promise.resolve().then(function () { return fieldMapping_get$1; });
 const _lazy_p6BmvL = () => Promise.resolve().then(function () { return fieldMapping_post$1; });
 const _lazy_2QLQU4 = () => Promise.resolve().then(function () { return rawSample_get$1; });
-const _lazy_MpGCkQ = () => import('../../../../../../../../../server/api/eitje/v2/aggregation.get.ts');
+const _lazy_fx_aI0 = () => Promise.resolve().then(function () { return borkRawSample_get$1; });
 const _lazy_G_ytS1 = () => Promise.resolve().then(function () { return credentials_get$1; });
 const _lazy_SfurXI = () => Promise.resolve().then(function () { return credentials_post$1; });
 const _lazy_nlLK9d = () => Promise.resolve().then(function () { return cron_get$1; });
@@ -28609,6 +29447,7 @@ const _lazy_W7TMy2 = () => Promise.resolve().then(function () { return share_pos
 const _lazy_cTKOaU = () => Promise.resolve().then(function () { return _todoId__put$1; });
 const _lazy_aPaNV5 = () => Promise.resolve().then(function () { return index_get$9; });
 const _lazy_GiLNIi = () => Promise.resolve().then(function () { return index_post$3; });
+const _lazy_8bAYYr = () => Promise.resolve().then(function () { return salesAggregatedProducts_get$1; });
 const _lazy_MxW0tk = () => Promise.resolve().then(function () { return salesAggregated_get$1; });
 const _lazy_Mwgp_z = () => Promise.resolve().then(function () { return index_get$7; });
 const _lazy_l24SXQ = () => Promise.resolve().then(function () { return _id__delete$1; });
@@ -28621,16 +29460,21 @@ const _lazy_JxEXup = () => Promise.resolve().then(function () { return renderer;
 
 const handlers = [
   { route: '', handler: _h4lKws, lazy: false, middleware: true, method: undefined },
-  { route: '/api/bork/v2/aggregation', handler: _lazy_q9PCQb, lazy: true, middleware: false, method: "get" },
   { route: '/api/bork/v2/credentials', handler: _lazy_rpoMxL, lazy: true, middleware: false, method: "get" },
   { route: '/api/bork/v2/credentials', handler: _lazy_Fk11Zg, lazy: true, middleware: false, method: "post" },
   { route: '/api/bork/v2/cron', handler: _lazy_0fNa4b, lazy: true, middleware: false, method: "get" },
   { route: '/api/bork/v2/cron', handler: _lazy_56hgXw, lazy: true, middleware: false, method: "post" },
+  { route: '/api/bork/v2/day-breakdown', handler: _lazy_9B1hFx, lazy: true, middleware: false, method: "get" },
   { route: '/api/bork/v2/locations', handler: _lazy_VkZeTR, lazy: true, middleware: false, method: "get" },
   { route: '/api/bork/v2/run-scheduled', handler: _lazy_GrR807, lazy: true, middleware: false, method: "get" },
   { route: '/api/bork/v2/sync', handler: _lazy_2sV_oe, lazy: true, middleware: false, method: "post" },
   { route: '/api/cron/data-integrity', handler: _lazy_ir2wis, lazy: true, middleware: false, method: "get" },
   { route: '/api/daily-ops/insights', handler: _lazy_fiyqpy, lazy: true, middleware: false, method: "get" },
+  { route: '/api/daily-ops/locations', handler: _lazy_gJJ0yZ, lazy: true, middleware: false, method: "get" },
+  { route: '/api/daily-ops/metrics/bundle', handler: _lazy_7ki8Q4, lazy: true, middleware: false, method: "get" },
+  { route: '/api/daily-ops/metrics/labor', handler: _lazy_GI_DGY, lazy: true, middleware: false, method: "get" },
+  { route: '/api/daily-ops/metrics/revenue-breakdown', handler: _lazy_Bpe9Sc, lazy: true, middleware: false, method: "get" },
+  { route: '/api/daily-ops/metrics/summary', handler: _lazy_3d9XzO, lazy: true, middleware: false, method: "get" },
   { route: '/api/daily-ops/overview', handler: _lazy_ddvbvh, lazy: true, middleware: false, method: "get" },
   { route: '/api/daily-ops/productivity', handler: _lazy_b9OPGV, lazy: true, middleware: false, method: "get" },
   { route: '/api/daily-ops/products', handler: _lazy_PkLaTv, lazy: true, middleware: false, method: "get" },
@@ -28641,7 +29485,7 @@ const handlers = [
   { route: '/api/data-sources/:datasource/field-mapping', handler: _lazy_4juWGc, lazy: true, middleware: false, method: "get" },
   { route: '/api/data-sources/:datasource/field-mapping', handler: _lazy_p6BmvL, lazy: true, middleware: false, method: "post" },
   { route: '/api/data-sources/:datasource/raw-sample', handler: _lazy_2QLQU4, lazy: true, middleware: false, method: "get" },
-  { route: '/api/eitje/v2/aggregation', handler: _lazy_MpGCkQ, lazy: true, middleware: false, method: "get" },
+  { route: '/api/debug/bork-raw-sample', handler: _lazy_fx_aI0, lazy: true, middleware: false, method: "get" },
   { route: '/api/eitje/v2/credentials', handler: _lazy_G_ytS1, lazy: true, middleware: false, method: "get" },
   { route: '/api/eitje/v2/credentials', handler: _lazy_SfurXI, lazy: true, middleware: false, method: "post" },
   { route: '/api/eitje/v2/cron', handler: _lazy_nlLK9d, lazy: true, middleware: false, method: "get" },
@@ -28682,6 +29526,7 @@ const handlers = [
   { route: '/api/notes/:id/todos/:todoId', handler: _lazy_cTKOaU, lazy: true, middleware: false, method: "put" },
   { route: '/api/notes', handler: _lazy_aPaNV5, lazy: true, middleware: false, method: "get" },
   { route: '/api/notes', handler: _lazy_GiLNIi, lazy: true, middleware: false, method: "post" },
+  { route: '/api/sales-aggregated-products', handler: _lazy_8bAYYr, lazy: true, middleware: false, method: "get" },
   { route: '/api/sales-aggregated', handler: _lazy_MxW0tk, lazy: true, middleware: false, method: "get" },
   { route: '/api/tags', handler: _lazy_Mwgp_z, lazy: true, middleware: false, method: "get" },
   { route: '/api/teams/:id', handler: _lazy_l24SXQ, lazy: true, middleware: false, method: "delete" },
@@ -29102,14 +29947,6 @@ function extractHour(timeStr) {
   const match = timeStr.match(/^(\d{1,2}):/);
   return match ? parseInt(match[1], 10) : 0;
 }
-function getBusinessDayDate(dateStr, hour) {
-  const [year, month, day] = dateStr.split("-").map(Number);
-  const date = new Date(year, month - 1, day, hour, 0, 0);
-  if (hour < 8) {
-    date.setDate(date.getDate() - 1);
-  }
-  return date.toISOString().split("T")[0];
-}
 async function rebuildBorkSalesAggregation(db, startDate, endDate, cronTime = /* @__PURE__ */ new Date()) {
   const result = {
     byCron: 0,
@@ -29170,14 +30007,13 @@ async function rebuildBorkSalesAggregation(db, startDate, endDate, cronTime = /*
             const productName = line.ProductName || "Unknown";
             const productKey = line.ProductKey || "unknown";
             const hour = extractHour(ticket.Time);
-            const businessDayDate = getBusinessDayDate(dateStr, hour);
-            const cronKey = `${unifiedLocationId}:${businessDayDate}`;
+            const cronKey = `${unifiedLocationId}:${dateStr}`;
             if (!byCronMap.has(cronKey)) {
               byCronMap.set(cronKey, {
                 cronTime,
                 locationId: unifiedLocationId,
                 locationName: unifiedLocationName,
-                date: businessDayDate,
+                date: dateStr,
                 total_revenue: 0,
                 total_quantity: 0,
                 record_count: 0
@@ -29187,10 +30023,10 @@ async function rebuildBorkSalesAggregation(db, startDate, endDate, cronTime = /*
             cronEntry.total_revenue = cronEntry.total_revenue + totalPrice;
             cronEntry.total_quantity = cronEntry.total_quantity + qty;
             cronEntry.record_count = cronEntry.record_count + 1;
-            const hourKey = `${unifiedLocationId}:${businessDayDate}:${hour}`;
+            const hourKey = `${unifiedLocationId}:${dateStr}:${hour}`;
             if (!byHourMap.has(hourKey)) {
               byHourMap.set(hourKey, {
-                date: businessDayDate,
+                date: dateStr,
                 hour,
                 locationId: unifiedLocationId,
                 locationName: unifiedLocationName,
@@ -29216,10 +30052,10 @@ async function rebuildBorkSalesAggregation(db, startDate, endDate, cronTime = /*
             prod.revenue += totalPrice;
             prod.quantity += qty;
             if (hasTable) {
-              const tableKey = `${unifiedLocationId}:${businessDayDate}:${hour}:${tableNumber}`;
+              const tableKey = `${unifiedLocationId}:${dateStr}:${hour}:${tableNumber}`;
               if (!byTableMap.has(tableKey)) {
                 byTableMap.set(tableKey, {
-                  date: businessDayDate,
+                  date: dateStr,
                   hour,
                   locationId: unifiedLocationId,
                   locationName: unifiedLocationName,
@@ -29244,10 +30080,10 @@ async function rebuildBorkSalesAggregation(db, startDate, endDate, cronTime = /*
               tableProd.revenue += totalPrice;
               tableProd.quantity += qty;
             }
-            const workerKey = `${unifiedLocationId}:${businessDayDate}:${hour}:${unifiedWorkerId}`;
+            const workerKey = `${unifiedLocationId}:${dateStr}:${hour}:${unifiedWorkerId}`;
             if (!byWorkerMap.has(workerKey)) {
               byWorkerMap.set(workerKey, {
-                date: businessDayDate,
+                date: dateStr,
                 hour,
                 locationId: unifiedLocationId,
                 locationName: unifiedLocationName,
@@ -29276,10 +30112,10 @@ async function rebuildBorkSalesAggregation(db, startDate, endDate, cronTime = /*
             workerProd.quantity += qty;
             if (!hasTable) {
               const guestAccountName = ticket.AccountName || "Unknown Account";
-              const guestKey = `${unifiedLocationId}:${businessDayDate}:${hour}:${guestAccountName}`;
+              const guestKey = `${unifiedLocationId}:${dateStr}:${hour}:${guestAccountName}`;
               if (!byGuestAccountMap.has(guestKey)) {
                 byGuestAccountMap.set(guestKey, {
-                  date: businessDayDate,
+                  date: dateStr,
                   hour,
                   locationId: unifiedLocationId,
                   locationName: unifiedLocationName,
@@ -29617,7 +30453,51 @@ const cron_post$3 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.definePropert
   default: cron_post$2
 }, Symbol.toStringTag, { value: 'Module' }));
 
-const locations_get = defineEventHandler(async () => {
+const dayBreakdown_get = defineEventHandler$1(async (event) => {
+  const query = getQuery$2(event);
+  const dateStr = query.date;
+  const location = query.location || "all";
+  if (!dateStr) {
+    throw createError$1({ statusCode: 400, statusMessage: "date parameter required (YYYY-MM-DD)" });
+  }
+  const db = await getDb();
+  try {
+    const startDate = /* @__PURE__ */ new Date(`${dateStr}T08:00:00Z`);
+    const endDate = new Date(startDate);
+    endDate.setDate(endDate.getDate() + 1);
+    const startDateStr = startDate.toISOString().split("T")[0];
+    const endDateStr = endDate.toISOString().split("T")[0];
+    const dateQuery = { date: { $gte: startDateStr, $lte: endDateStr } };
+    const locationQuery = location === "all" ? {} : { locationName: location };
+    const hourly = await db.collection("bork_sales_by_hour").find({ ...dateQuery, ...locationQuery }).sort({ date: 1, hour: 1 }).toArray();
+    const worker = await db.collection("bork_sales_by_worker").find({ ...dateQuery, ...locationQuery }).sort({ total_revenue: -1 }).toArray();
+    const table = await db.collection("bork_sales_by_table").find({ ...dateQuery, ...locationQuery }).sort({ total_revenue: -1 }).toArray();
+    const product = await db.collection("bork_products_master").find({ ...dateQuery, ...locationQuery }).sort({ total_revenue: -1 }).toArray();
+    return {
+      dateRange: {
+        startDate: startDateStr,
+        endDate: endDateStr,
+        startTime: startDate.toISOString(),
+        endTime: endDate.toISOString()
+      },
+      location,
+      hourly,
+      worker,
+      table,
+      product
+    };
+  } catch (e) {
+    console.error("[borkDayBreakdownApi]", e);
+    throw createError$1({ statusCode: 500, statusMessage: String(e) });
+  }
+});
+
+const dayBreakdown_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+  __proto__: null,
+  default: dayBreakdown_get
+}, Symbol.toStringTag, { value: 'Module' }));
+
+const locations_get$2 = defineEventHandler(async () => {
   const db = await getDb();
   const unifiedLocations = await db.collection("unified_location").find({}, { projection: { primaryId: 1, name: 1 } }).sort({ name: 1 }).toArray();
   const fallbackLocations = unifiedLocations.length ? [] : await db.collection("locations").find({}, { projection: { _id: 1, name: 1 } }).sort({ name: 1 }).toArray();
@@ -29637,9 +30517,9 @@ const locations_get = defineEventHandler(async () => {
   return { success: true, locations };
 });
 
-const locations_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+const locations_get$3 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
   __proto__: null,
-  default: locations_get
+  default: locations_get$2
 }, Symbol.toStringTag, { value: 'Module' }));
 
 const runScheduled_get$2 = defineEventHandler(async (event) => {
@@ -30229,63 +31109,6 @@ const dataIntegrity_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defin
   default: dataIntegrity_get
 }, Symbol.toStringTag, { value: 'Module' }));
 
-const DAILY_OPS_PERIODS = [
-  "today",
-  "yesterday",
-  "this-week",
-  "last-week"
-];
-function pad(n) {
-  return String(n).padStart(2, "0");
-}
-function utcYmd(d) {
-  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
-}
-function parseYmd(ymd) {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd.trim());
-  if (!m) return null;
-  const y = Number(m[1]);
-  const mo = Number(m[2]) - 1;
-  const day = Number(m[3]);
-  const d = new Date(Date.UTC(y, mo, day));
-  if (d.getUTCFullYear() !== y || d.getUTCMonth() !== mo || d.getUTCDate() !== day) return null;
-  return d;
-}
-function startOfIsoWeekUtc(anchor) {
-  const d = new Date(anchor);
-  const dow = d.getUTCDay();
-  const diff = dow === 0 ? -6 : 1 - dow;
-  d.setUTCDate(d.getUTCDate() + diff);
-  return d;
-}
-function addDaysUtc(d, days) {
-  const x = new Date(d);
-  x.setUTCDate(x.getUTCDate() + days);
-  return x;
-}
-function resolveDailyOpsPeriod(raw, anchor) {
-  const period = DAILY_OPS_PERIODS.includes(raw) ? raw : "today";
-  const anchorDate = anchor && parseYmd(anchor) ? parseYmd(anchor) : /* @__PURE__ */ new Date();
-  const today = utcYmd(anchorDate);
-  if (period === "today") {
-    return { period, startDate: today, endDate: today };
-  }
-  if (period === "yesterday") {
-    const y = addDaysUtc(parseYmd(today), -1);
-    const ymd = utcYmd(y);
-    return { period, startDate: ymd, endDate: ymd };
-  }
-  if (period === "this-week") {
-    const start = startOfIsoWeekUtc(anchorDate);
-    const end = addDaysUtc(start, 6);
-    return { period, startDate: utcYmd(start), endDate: utcYmd(end) };
-  }
-  const thisStart = startOfIsoWeekUtc(anchorDate);
-  const lastStart = addDaysUtc(thisStart, -7);
-  const lastEnd = addDaysUtc(thisStart, -1);
-  return { period, startDate: utcYmd(lastStart), endDate: utcYmd(lastEnd) };
-}
-
 const insights_get = defineEventHandler((event) => {
   const q = getQuery$1(event);
   const period = typeof q.period === "string" ? q.period : "today";
@@ -30308,246 +31131,112 @@ const insights_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProp
   default: insights_get
 }, Symbol.toStringTag, { value: 'Module' }));
 
-const VAT_DISCLAIMER = "All revenue values shown are excluding VAT (ex VAT)";
-const DRINK_NAME_PATTERN = /wine|wijn|beer|bier|gint|gin |vodka|whisk|whiskey|rum|cocktail|cola|sprite|fanta|coffee|koffie|thee|tea|sap|juice|fris|prosecco|champagne|cider|tonic|latte|cappuccino|espresso|pils|stelz|borrel|aperol|campari|martini|soda|limonade/i;
-function parseDailyOpsMetricsQuery(q) {
-  const periodRaw = typeof q.period === "string" ? q.period : "today";
-  const anchor = typeof q.anchor === "string" ? q.anchor : void 0;
-  const range = resolveDailyOpsPeriod(periodRaw, anchor);
-  const locRaw = typeof q.location === "string" ? q.location : void 0;
-  let locationId;
-  if (locRaw && locRaw !== "all") {
-    try {
-      locationId = new ObjectId(locRaw);
-    } catch {
-      locationId = locRaw;
-    }
-  }
-  return {
-    period: range.period,
-    startDate: range.startDate,
-    endDate: range.endDate,
-    locationId
-  };
-}
-function timePeriodKey(hour) {
-  if (hour >= 11 && hour <= 14) return "lunch";
-  if (hour >= 15 && hour <= 16) return "pre_drinks";
-  if (hour >= 17 && hour <= 21) return "dinner";
-  if (hour >= 22 || hour <= 3) return "after_drinks";
-  return "other";
-}
-function borkCronMatch(ctx) {
-  const q = {
-    date: { $gte: ctx.startDate, $lte: ctx.endDate }
-  };
-  if (ctx.locationId !== void 0) q.locationId = ctx.locationId;
-  return q;
-}
-function eitjeAggMatch(ctx) {
-  const q = {
-    period_type: "day",
-    period: { $gte: ctx.startDate, $lte: ctx.endDate }
-  };
-  if (ctx.locationId !== void 0) q.locationId = ctx.locationId;
-  return q;
-}
-async function fetchRevenueByCategoryFromHourAggregates(db, ctx) {
-  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k;
-  const match = borkCronMatch(ctx);
-  const [facetRow] = await db.collection("bork_sales_by_hour").aggregate([
-    { $match: match },
-    {
-      $facet: {
-        categoryFromLines: [
-          { $unwind: { path: "$products", preserveNullAndEmptyArrays: false } },
-          {
-            $addFields: {
-              productName: { $ifNull: ["$products.productName", ""] },
-              lineValue: { $toDouble: { $ifNull: ["$products.revenue", 0] } }
-            }
-          },
-          {
-            $addFields: {
-              bucket: {
-                $cond: {
-                  if: { $regexMatch: { input: "$productName", regex: DRINK_NAME_PATTERN } },
-                  then: "drinks",
-                  else: "food"
-                }
-              }
-            }
-          },
-          { $group: { _id: "$bucket", amount: { $sum: "$lineValue" } } }
-        ],
-        hourRevenueTotal: [
-          { $group: { _id: null, total: { $sum: { $ifNull: ["$total_revenue", 0] } } } }
-        ],
-        productLinesTotal: [
-          { $unwind: { path: "$products", preserveNullAndEmptyArrays: false } },
-          {
-            $group: {
-              _id: null,
-              total: { $sum: { $toDouble: { $ifNull: ["$products.revenue", 0] } } }
-            }
-          }
-        ]
-      }
-    }
-  ]).toArray();
-  const byCat = (_a = facetRow == null ? void 0 : facetRow.categoryFromLines) != null ? _a : [];
-  let drinks = (_c = (_b = byCat.find((x) => x._id === "drinks")) == null ? void 0 : _b.amount) != null ? _c : 0;
-  let food = (_e = (_d = byCat.find((x) => x._id === "food")) == null ? void 0 : _d.amount) != null ? _e : 0;
-  const hourGrand = (_h = (_g = (_f = facetRow == null ? void 0 : facetRow.hourRevenueTotal) == null ? void 0 : _f[0]) == null ? void 0 : _g.total) != null ? _h : 0;
-  const lineGrand = (_k = (_j = (_i = facetRow == null ? void 0 : facetRow.productLinesTotal) == null ? void 0 : _i[0]) == null ? void 0 : _j.total) != null ? _k : 0;
-  const gap = Math.max(0, hourGrand - lineGrand);
-  food += gap;
-  return { drinks, food };
-}
-async function fetchBorkHourAggregatesBundle(db, ctx) {
-  var _a, _b;
-  const [row] = await db.collection("bork_sales_by_hour").aggregate([
-    { $match: borkCronMatch(ctx) },
-    {
-      $facet: {
-        byHourOnly: [
-          {
-            $group: {
-              _id: "$hour",
-              amount: { $sum: { $ifNull: ["$total_revenue", 0] } }
-            }
-          }
-        ],
-        byDayHour: [
-          {
-            $group: {
-              _id: { d: "$date", h: "$hour" },
-              revenue: { $sum: { $ifNull: ["$total_revenue", 0] } }
-            }
-          }
-        ]
-      }
-    }
-  ]).toArray();
-  return {
-    byHourOnly: (_a = row == null ? void 0 : row.byHourOnly) != null ? _a : [],
-    byDayHour: (_b = row == null ? void 0 : row.byDayHour) != null ? _b : []
-  };
-}
-function revenueByTimePeriodFromHourTotals(rows) {
-  const sums = {
-    lunch: 0,
-    pre_drinks: 0,
-    dinner: 0,
-    after_drinks: 0,
-    other: 0
-  };
-  for (const r of rows) {
-    const k = timePeriodKey(Number(r._id));
-    sums[k] += r.amount;
-  }
-  return sums;
-}
-async function fetchRevenueByDate(db, ctx) {
-  const rows = await db.collection("bork_sales_by_cron").aggregate([
-    { $match: borkCronMatch(ctx) },
-    { $group: { _id: "$date", revenue: { $sum: { $ifNull: ["$total_revenue", 0] } } } }
-  ]).toArray();
-  return new Map(rows.map((r) => [r._id, r.revenue]));
-}
-async function fetchLaborByDate(db, ctx) {
-  const rows = await db.collection("eitje_time_registration_aggregation").aggregate([
-    { $match: eitjeAggMatch(ctx) },
-    {
-      $group: {
-        _id: "$period",
-        laborCost: { $sum: { $ifNull: ["$total_cost", 0] } },
-        hours: { $sum: { $ifNull: ["$total_hours", 0] } },
-        workerIds: { $addToSet: "$userId" }
-      }
-    },
-    {
-      $project: {
-        _id: 1,
-        laborCost: 1,
-        hours: 1,
-        distinctWorkerCount: {
-          $size: {
-            $filter: { input: "$workerIds", as: "w", cond: { $ne: ["$$w", null] } }
-          }
-        }
-      }
-    }
-  ]).toArray();
-  return new Map(
-    rows.map((r) => [
-      r._id,
-      { laborCost: r.laborCost, hours: r.hours, distinctWorkerCount: r.distinctWorkerCount }
-    ])
-  );
-}
-function computeMostProfitableHour(hourRows, revenueByDate, laborByDate) {
-  var _a, _b, _c;
-  let best = {
-    hourLabel: "\u2014",
-    date: "",
-    hour: 0,
-    revenue: 0,
-    laborCost: 0,
-    profit: 0
-  };
-  for (const row of hourRows) {
-    const day = row._id.d;
-    const h = row._id.h;
-    const rev = row.revenue;
-    const dayRev = (_a = revenueByDate.get(day)) != null ? _a : 0;
-    const dayLab = (_c = (_b = laborByDate.get(day)) == null ? void 0 : _b.laborCost) != null ? _c : 0;
-    const alloc = dayRev > 0 ? dayLab * (rev / dayRev) : 0;
-    const profit = rev - alloc;
-    if (profit > best.profit) {
-      best = {
-        hourLabel: `${day} ${String(h).padStart(2, "0")}:00`,
-        date: day,
-        hour: h,
-        revenue: rev,
-        laborCost: alloc,
-        profit
+const locations_get = defineEventHandler(async () => {
+  try {
+    const db = await getDb();
+    const unifiedLocations = await db.collection("unified_location").find({}).toArray();
+    const locations = unifiedLocations.map((doc) => {
+      var _a, _b, _c;
+      return {
+        _id: String(doc._id),
+        name: (_a = doc.name) != null ? _a : "",
+        abbreviation: (_b = doc.abbreviation) != null ? _b : "",
+        eitjeId: (_c = doc.eitjeIds) == null ? void 0 : _c[0]
       };
+    });
+    return {
+      success: true,
+      data: locations
+    };
+  } catch (error) {
+    console.error("[daily-ops/locations] Error:", error);
+    return {
+      success: false,
+      data: [],
+      error: String(error)
+    };
+  }
+});
+
+const locations_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+  __proto__: null,
+  default: locations_get
+}, Symbol.toStringTag, { value: 'Module' }));
+
+const bundle_get = defineEventHandler(async (event) => {
+  var _a;
+  setResponseHeader(event, "Cache-Control", "private, max-age=30, stale-while-revalidate=120");
+  let ctx = parseDailyOpsMetricsQuery(getQuery$1(event));
+  const db = await getDb();
+  if (ctx.locationId && typeof ctx.locationId !== "string") {
+    try {
+      const unifiedDoc = await db.collection("unified_location").findOne({ _id: ctx.locationId });
+      if ((_a = unifiedDoc == null ? void 0 : unifiedDoc.eitjeIds) == null ? void 0 : _a[0]) {
+        ctx.locationId = String(unifiedDoc.eitjeIds[0]);
+      }
+    } catch (e) {
+      console.error("[bundle] Failed to resolve location:", e);
     }
   }
-  return best;
-}
-function buildDailyOpsSummaryDto(ctx, revMap, labMap) {
-  let totalRevenue = 0;
-  for (const v of revMap.values()) totalRevenue += v;
-  let totalLaborCost = 0;
-  let totalLaborHours = 0;
-  for (const v of labMap.values()) {
-    totalLaborCost += v.laborCost;
-    totalLaborHours += v.hours;
-  }
-  const profit = totalRevenue - totalLaborCost;
-  const profitMarginPct = totalRevenue > 0 ? profit / totalRevenue * 100 : 0;
-  const revenuePerLaborHour = totalLaborHours > 0 ? totalRevenue / totalLaborHours : null;
-  const laborCostPctOfRevenue = totalRevenue > 0 ? totalLaborCost / totalRevenue * 100 : null;
-  return {
-    range: {
-      period: ctx.period,
-      startDate: ctx.startDate,
-      endDate: ctx.endDate
-    },
-    summary: {
-      totalRevenue: Math.round(totalRevenue * 100) / 100,
-      totalLaborCost: Math.round(totalLaborCost * 100) / 100,
-      totalLaborHours: Math.round(totalLaborHours * 100) / 100,
-      profit: Math.round(profit * 100) / 100,
-      profitMarginPct: Math.round(profitMarginPct * 10) / 10,
-      revenuePerLaborHour: revenuePerLaborHour != null ? Math.round(revenuePerLaborHour * 100) / 100 : null,
-      laborCostPctOfRevenue: laborCostPctOfRevenue != null ? Math.round(laborCostPctOfRevenue * 10) / 10 : null
-    },
-    vatDisclaimer: VAT_DISCLAIMER
-  };
-}
+  const [cat, hourBundle, laborInput] = await Promise.all([
+    fetchRevenueByCategoryFromHourAggregates(db, ctx),
+    fetchBorkHourAggregatesBundle(db, ctx),
+    fetchLaborMetricsPipelineInput(db, ctx)
+  ]);
+  const summary = buildDailyOpsSummaryDto(ctx, laborInput.revMap, laborInput.labMap);
+  const revenue = buildDailyOpsRevenueBreakdownDto(ctx, cat, hourBundle, laborInput.revMap, laborInput.labMap);
+  const labor = assembleDailyOpsLaborMetricsDto(ctx, laborInput);
+  return { summary, revenue, labor };
+});
+
+const bundle_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+  __proto__: null,
+  default: bundle_get
+}, Symbol.toStringTag, { value: 'Module' }));
+
+const labor_get = defineEventHandler(async (event) => {
+  setResponseHeader(event, "Cache-Control", "private, max-age=30, stale-while-revalidate=120");
+  const ctx = parseDailyOpsMetricsQuery(getQuery$1(event));
+  const db = await getDb();
+  const input = await fetchLaborMetricsPipelineInput(db, ctx);
+  return assembleDailyOpsLaborMetricsDto(ctx, input);
+});
+
+const labor_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+  __proto__: null,
+  default: labor_get
+}, Symbol.toStringTag, { value: 'Module' }));
+
+const revenueBreakdown_get = defineEventHandler(async (event) => {
+  setResponseHeader(event, "Cache-Control", "private, max-age=30, stale-while-revalidate=120");
+  const ctx = parseDailyOpsMetricsQuery(getQuery$1(event));
+  const db = await getDb();
+  const [cat, hourBundle, revenueByDate, laborByDate] = await Promise.all([
+    fetchRevenueByCategoryFromHourAggregates(db, ctx),
+    fetchBorkHourAggregatesBundle(db, ctx),
+    fetchRevenueByDate(db, ctx),
+    fetchLaborByDate(db, ctx)
+  ]);
+  return buildDailyOpsRevenueBreakdownDto(ctx, cat, hourBundle, revenueByDate, laborByDate);
+});
+
+const revenueBreakdown_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+  __proto__: null,
+  default: revenueBreakdown_get
+}, Symbol.toStringTag, { value: 'Module' }));
+
+const summary_get = defineEventHandler(async (event) => {
+  setResponseHeader(event, "Cache-Control", "private, max-age=30, stale-while-revalidate=120");
+  const ctx = parseDailyOpsMetricsQuery(getQuery$1(event));
+  const db = await getDb();
+  const [revMap, labMap] = await Promise.all([fetchRevenueByDate(db, ctx), fetchLaborByDate(db, ctx)]);
+  return buildDailyOpsSummaryDto(ctx, revMap, labMap);
+});
+
+const summary_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+  __proto__: null,
+  default: summary_get
+}, Symbol.toStringTag, { value: 'Module' }));
 
 const overview_get = defineEventHandler(async (event) => {
   setResponseHeader(event, "Cache-Control", "private, max-age=30, stale-while-revalidate=120");
@@ -30881,6 +31570,43 @@ const rawSample_get = defineEventHandler(async (event) => {
 const rawSample_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
   __proto__: null,
   default: rawSample_get
+}, Symbol.toStringTag, { value: 'Module' }));
+
+const borkRawSample_get = defineEventHandler(async () => {
+  try {
+    const db = await getDb();
+    const count = await db.collection("bork_raw_data").countDocuments();
+    if (count === 0) {
+      return { error: "No documents in bork_raw_data" };
+    }
+    const sample = await db.collection("bork_raw_data").findOne({});
+    const firstRecord = Array.isArray(sample == null ? void 0 : sample.rawApiResponse) ? sample == null ? void 0 : sample.rawApiResponse[0] : sample == null ? void 0 : sample.rawApiResponse;
+    return {
+      totalCount: count,
+      documentStructure: {
+        topLevelKeys: Object.keys(sample || {}),
+        syncDedupKey: sample == null ? void 0 : sample.syncDedupKey,
+        endpoint: sample == null ? void 0 : sample.endpoint,
+        locationId: sample == null ? void 0 : sample.locationId,
+        date: sample == null ? void 0 : sample.date,
+        rawApiResponseType: Array.isArray(sample == null ? void 0 : sample.rawApiResponse) ? "ARRAY" : typeof (sample == null ? void 0 : sample.rawApiResponse),
+        rawApiResponseLength: Array.isArray(sample == null ? void 0 : sample.rawApiResponse) ? sample.rawApiResponse.length : "N/A"
+      },
+      firstRecord: firstRecord ? {
+        keys: Object.keys(firstRecord),
+        sample: firstRecord
+      } : null
+    };
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "Unknown error"
+    };
+  }
+});
+
+const borkRawSample_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+  __proto__: null,
+  default: borkRawSample_get
 }, Symbol.toStringTag, { value: 'Module' }));
 
 const credentials_get = defineEventHandler(async () => {
@@ -34363,6 +35089,77 @@ const index_post$3 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProper
   default: index_post$2
 }, Symbol.toStringTag, { value: 'Module' }));
 
+function parseLocationId(raw) {
+  if (!raw || raw === "all") {
+    throw createError({ statusCode: 400, message: "locationId is required" });
+  }
+  try {
+    return new ObjectId(raw);
+  } catch {
+    return raw;
+  }
+}
+function parseWorkerIdForFilter(raw) {
+  const wid = raw.trim();
+  if (!wid || wid === "unknown") return "unknown";
+  try {
+    return new ObjectId(wid);
+  } catch {
+    return wid;
+  }
+}
+const salesAggregatedProducts_get = defineEventHandler(async (event) => {
+  var _a, _b, _c;
+  try {
+    const q = getQuery$1(event);
+    const groupBy = String(q.groupBy || "");
+    const date = String(q.date || "");
+    const hourRaw = q.hour;
+    const hour = typeof hourRaw === "string" || typeof hourRaw === "number" ? Number(hourRaw) : NaN;
+    if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(hour)) {
+      throw createError({ statusCode: 400, message: "date (YYYY-MM-DD) and hour are required" });
+    }
+    const locationId = parseLocationId(typeof q.locationId === "string" ? q.locationId : void 0);
+    const db = await getDb();
+    let collectionName = "";
+    const filter = { date, hour, locationId };
+    if (groupBy === "hour" || groupBy === "date_location") {
+      collectionName = "bork_sales_by_hour";
+    } else if (groupBy === "table") {
+      collectionName = "bork_sales_by_table";
+      const tn = typeof q.tableNumber === "string" ? q.tableNumber : String((_a = q.tableNumber) != null ? _a : "");
+      if (!tn) {
+        throw createError({ statusCode: 400, message: "tableNumber is required for table detail" });
+      }
+      filter.tableNumber = tn;
+    } else if (groupBy === "worker") {
+      collectionName = "bork_sales_by_worker";
+      const wid = typeof q.workerId === "string" ? q.workerId : String((_b = q.workerId) != null ? _b : "");
+      filter.workerId = parseWorkerIdForFilter(wid.length > 0 ? wid : "unknown");
+    } else if (groupBy === "guestAccount") {
+      collectionName = "bork_sales_by_guest_account";
+      const acc = typeof q.accountName === "string" ? q.accountName : "";
+      if (!acc) {
+        throw createError({ statusCode: 400, message: "accountName is required for guestAccount detail" });
+      }
+      filter.accountName = acc;
+    } else {
+      throw createError({ statusCode: 400, message: "Invalid groupBy for product detail" });
+    }
+    const doc = await db.collection(collectionName).findOne(filter, { projection: { products: 1, _id: 0 } });
+    const products = (_c = doc == null ? void 0 : doc.products) != null ? _c : [];
+    return { success: true, products, collection: collectionName };
+  } catch (err) {
+    if (err && typeof err === "object" && "statusCode" in err) throw err;
+    throw createError({ statusCode: 500, message: "Failed to load product breakdown" });
+  }
+});
+
+const salesAggregatedProducts_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+  __proto__: null,
+  default: salesAggregatedProducts_get
+}, Symbol.toStringTag, { value: 'Module' }));
+
 const MAX_PAGE_SIZE = 200;
 const DEFAULT_PAGE_SIZE = 50;
 function parsePageParams(query) {
@@ -34461,846 +35258,6 @@ async function aggregateSalesByProductFromRaw(db, rangeStartIso, rangeEndIso, un
                 8
               ]
             },
-            to: "int",
-            onError: null,
-            onNull: null
-          }
-        }
-      }
-    },
-    { $match: { orderYmd: { $gte: startYmd, $lte: endYmd } } },
-    { $unwind: { path: "$_ord.Lines", preserveNullAndEmptyArrays: false } },
-    {
-      $addFields: {
-        line: "$_ord.Lines",
-        lineUnitPrice: { $toDouble: { $ifNull: ["$_ord.Lines.Price", 0] } },
-        lineQty: { $toDouble: { $ifNull: ["$_ord.Lines.Qty", 0] } },
-        productKey: { $toString: { $ifNull: ["$_ord.Lines.ProductKey", "unknown"] } },
-        productName: { $ifNull: ["$_ord.Lines.ProductName", "Unknown"] }
-      }
-    },
-    {
-      $addFields: {
-        lineValue: { $multiply: ["$lineUnitPrice", "$lineQty"] }
-      }
-    },
-    {
-      $lookup: {
-        from: "bork_unified_location_mapping",
-        let: { bid: "$borkLocationId" },
-        pipeline: [
-          {
-            $match: {
-              $expr: { $eq: [{ $toString: "$borkLocationId" }, { $toString: "$$bid" }] }
-            }
-          },
-          { $limit: 1 }
-        ],
-        as: "_loc"
-      }
-    },
-    { $match: { "_loc.0": { $exists: true } } },
-    {
-      $addFields: {
-        unifiedLocationId: { $arrayElemAt: ["$_loc.unifiedLocationId", 0] },
-        unifiedLocationName: { $arrayElemAt: ["$_loc.unifiedLocationName", 0] }
-      }
-    },
-    {
-      $group: {
-        _id: {
-          productKey: "$productKey",
-          productName: "$productName",
-          unitPrice: "$lineUnitPrice",
-          locationId: "$unifiedLocationId",
-          locationName: "$unifiedLocationName"
-        },
-        quantity: { $sum: "$lineQty" },
-        lineTotal: { $sum: "$lineValue" }
-      }
-    },
-    {
-      $group: {
-        _id: {
-          productKey: "$_id.productKey",
-          unitPrice: "$_id.unitPrice"
-        },
-        productName: { $first: "$_id.productName" },
-        unit_price: { $first: "$_id.unitPrice" },
-        total_quantity: { $sum: "$quantity" },
-        total_revenue: { $sum: "$lineTotal" },
-        byLocation: {
-          $push: {
-            locationId: "$_id.locationId",
-            locationName: "$_id.locationName",
-            quantity: "$quantity",
-            lineTotal: "$lineTotal"
-          }
-        }
-      }
-    },
-    {
-      $project: {
-        _id: 0,
-        productId: "$_id.productKey",
-        productName: 1,
-        unit_price: 1,
-        total_quantity: 1,
-        total_revenue: 1,
-        byLocation: 1
-      }
-    }
-  ];
-  if (productSearch) {
-    pipeline.push({ $match: { productName: { $regex: escapedSearch, $options: "i" } } });
-  }
-  if (minLineTotal > 0) {
-    pipeline.push({ $match: { total_revenue: { $gte: minLineTotal } } });
-  }
-  pipeline.push({ $sort: sortObj });
-  pipeline.push({
-    $facet: {
-      totals: [
-        {
-          $group: {
-            _id: null,
-            total_revenue: { $sum: "$total_revenue" },
-            total_quantity: { $sum: "$total_quantity" }
-          }
-        }
-      ],
-      totalCount: [{ $count: "count" }],
-      data: [{ $skip: skip }, { $limit: pageSize }]
-    }
-  });
-  const agg = await db.collection("bork_raw_data").aggregate(pipeline, { allowDiskUse: true }).toArray();
-  const facet = agg[0];
-  const t = facet == null ? void 0 : facet.totals[0];
-  return {
-    results: (_a = facet == null ? void 0 : facet.data) != null ? _a : [],
-    totalCount: (_c = (_b = facet == null ? void 0 : facet.totalCount[0]) == null ? void 0 : _b.count) != null ? _c : 0,
-    totals: {
-      total_revenue: (_d = t == null ? void 0 : t.total_revenue) != null ? _d : 0,
-      total_quantity: (_e = t == null ? void 0 : t.total_quantity) != null ? _e : 0,
-      record_count: (_g = (_f = facet == null ? void 0 : facet.totalCount[0]) == null ? void 0 : _f.count) != null ? _g : 0
-    }
-  };
-}
-async function sumMatchedMetrics(db, collection, match) {
-  var _a, _b, _c;
-  const [row] = await db.collection(collection).aggregate([
-    { $match: match },
-    {
-      $group: {
-        _id: null,
-        total_revenue: { $sum: { $ifNull: ["$total_revenue", 0] } },
-        total_quantity: { $sum: { $ifNull: ["$total_quantity", 0] } },
-        record_count: { $sum: { $ifNull: ["$record_count", 0] } }
-      }
-    }
-  ]).toArray();
-  const r = row;
-  return {
-    total_revenue: (_a = r == null ? void 0 : r.total_revenue) != null ? _a : 0,
-    total_quantity: (_b = r == null ? void 0 : r.total_quantity) != null ? _b : 0,
-    record_count: (_c = r == null ? void 0 : r.record_count) != null ? _c : 0
-  };
-}
-async function findPaged(db, collection, match, sortObj, skip, limit, excludeProducts) {
-  const projection = excludeProducts ? { products: 0 } : {};
-  const col = db.collection(collection);
-  const [results, totalCount, totals] = await Promise.all([
-    col.find(match, { projection }).sort(sortObj).skip(skip).limit(limit).toArray(),
-    col.countDocuments(match),
-    sumMatchedMetrics(db, collection, match)
-  ]);
-  return { results, totalCount, totals };
-}
-const salesAggregated_get = defineEventHandler(async (event) => {
-  var _a, _b, _c;
-  try {
-    const db = await getDb();
-    const query = getQuery$1(event);
-    const { page, pageSize, skip } = parsePageParams(query);
-    const rawStart = typeof query.startDate === "string" ? query.startDate : void 0;
-    const rawEnd = typeof query.endDate === "string" ? query.endDate : void 0;
-    const { start: rangeStart, end: rangeEnd } = normalizeDateRange(rawStart, rawEnd);
-    const locationId = typeof query.locationId === "string" ? query.locationId : void 0;
-    const groupBy = query.groupBy || "date";
-    const sortBy = query.sortBy || "date";
-    const sortOrder = query.sortOrder || "desc";
-    const includeProducts = query.includeProducts === "true" || query.includeProducts === "1";
-    const includeLocations = query.includeLocations !== "false" && query.includeLocations !== "0";
-    const productSearch = typeof query.productSearch === "string" ? query.productSearch.trim() : "";
-    const minRevenueRaw = query.minRevenue;
-    const minRevenue = typeof minRevenueRaw === "string" || typeof minRevenueRaw === "number" ? Math.max(0, Number(minRevenueRaw) || 0) : 0;
-    const dateFilter = {
-      $gte: rangeStart,
-      $lte: rangeEnd
-    };
-    const q = { date: dateFilter };
-    const locationFilter = parseLocationFilter(locationId);
-    if (locationFilter !== void 0) q.locationId = locationFilter;
-    const sortField = sortBy === "location" || sortBy === "location_name" ? "locationName" : sortBy === "product_name" ? "product_name" : sortBy === "unit_price" ? "unit_price" : sortBy === "total_revenue" ? "total_revenue" : sortBy === "total_quantity" ? "total_quantity" : "date";
-    let resolvedSortKey = sortField;
-    if (groupBy === "location" && (sortBy === "location" || sortBy === "location_name")) {
-      resolvedSortKey = "location_name";
-    } else if (groupBy === "product" && sortBy === "product_name") {
-      resolvedSortKey = "productName";
-    } else if (groupBy === "product" && sortBy === "unit_price") {
-      resolvedSortKey = "unit_price";
-    }
-    if (groupBy === "product" && resolvedSortKey === "date") {
-      resolvedSortKey = "total_revenue";
-    }
-    const sortDirection = sortOrder === "asc" ? 1 : -1;
-    const sortObj = { [resolvedSortKey]: sortDirection };
-    let results = [];
-    let collectionName = "bork_sales_by_cron";
-    let totalCount = 0;
-    let totals = { total_revenue: 0, total_quantity: 0, record_count: 0 };
-    const excludeProducts = !includeProducts;
-    if (groupBy === "date") {
-      collectionName = "bork_sales_by_cron";
-      const out = await findPaged(db, collectionName, q, sortObj, skip, pageSize, false);
-      results = out.results;
-      totalCount = out.totalCount;
-      totals = out.totals;
-    } else if (groupBy === "location") {
-      collectionName = "bork_sales_by_cron";
-      const pipeline = [
-        { $match: q },
-        {
-          $group: {
-            _id: { locationId: "$locationId", locationName: "$locationName" },
-            total_revenue: { $sum: "$total_revenue" },
-            total_quantity: { $sum: "$total_quantity" },
-            record_count: { $sum: "$record_count" }
-          }
-        },
-        {
-          $project: {
-            _id: 0,
-            locationId: "$_id.locationId",
-            location_name: "$_id.locationName",
-            total_revenue: { $round: ["$total_revenue", 2] },
-            total_quantity: { $round: ["$total_quantity", 2] },
-            record_count: 1
-          }
-        },
-        { $sort: sortObj },
-        {
-          $facet: {
-            total: [{ $count: "count" }],
-            data: [{ $skip: skip }, { $limit: pageSize }]
-          }
-        }
-      ];
-      const agg = await db.collection(collectionName).aggregate(pipeline).toArray();
-      const facet = agg[0];
-      totalCount = (_b = (_a = facet == null ? void 0 : facet.total[0]) == null ? void 0 : _a.count) != null ? _b : 0;
-      results = (_c = facet == null ? void 0 : facet.data) != null ? _c : [];
-      totals = await sumMatchedMetrics(db, collectionName, q);
-    } else if (groupBy === "product") {
-      collectionName = "bork_raw_data";
-      const out = await aggregateSalesByProductFromRaw(
-        db,
-        rangeStart,
-        rangeEnd,
-        locationFilter,
-        productSearch,
-        minRevenue,
-        sortObj,
-        skip,
-        pageSize
-      );
-      results = out.results;
-      totalCount = out.totalCount;
-      totals = out.totals;
-    } else if (groupBy === "guestAccount" || groupBy === "hour" || groupBy === "table" || groupBy === "worker" || groupBy === "date_location") {
-      if (groupBy === "table") collectionName = "bork_sales_by_table";
-      else if (groupBy === "worker") collectionName = "bork_sales_by_worker";
-      else if (groupBy === "guestAccount") collectionName = "bork_sales_by_guest_account";
-      else collectionName = "bork_sales_by_hour";
-      const out = await findPaged(db, collectionName, q, sortObj, skip, pageSize, excludeProducts);
-      results = out.results;
-      totalCount = out.totalCount;
-      totals = out.totals;
-    } else {
-      collectionName = "bork_sales_by_hour";
-      const out = await findPaged(db, collectionName, q, sortObj, skip, pageSize, excludeProducts);
-      results = out.results;
-      totalCount = out.totalCount;
-      totals = out.totals;
-    }
-    let locations = [];
-    if (includeLocations && groupBy !== "location") {
-      const locs = await db.collection("locations").find({}, { projection: { name: 1 } }).sort({ name: 1 }).toArray();
-      locations = locs.map((l) => ({
-        _id: String(l._id),
-        name: typeof l.name === "string" ? l.name : ""
-      }));
-    }
-    return {
-      success: true,
-      data: results,
-      pagination: {
-        page,
-        pageSize,
-        totalCount
-      },
-      totals,
-      summary: {
-        group_by: groupBy,
-        collection: collectionName
-      },
-      locations
-    };
-  } catch (error) {
-    console.error("[sales-aggregated]", error);
-    throw createError({ statusCode: 500, message: "Failed to fetch sales data" });
-  }
-});
-
-const salesAggregated_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
-  __proto__: null,
-  default: salesAggregated_get
-}, Symbol.toStringTag, { value: 'Module' }));
-
-const index_get$6 = defineEventHandler(async () => {
-  const coll = await getNotesCollection();
-  const tags = await coll.distinct("tags", {
-    tags: { $exists: true, $ne: [] },
-    ...activeNotesMatch()
-  });
-  const normalized = tags.filter((t) => typeof t === "string" && t.trim() !== "").map((t) => t.trim().toLowerCase());
-  const unique = [...new Set(normalized)].sort((a, b) => a.localeCompare(b));
-  return { success: true, data: unique };
-});
-
-const index_get$7 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
-  __proto__: null,
-  default: index_get$6
-}, Symbol.toStringTag, { value: 'Module' }));
-
-const _id__delete = defineEventHandler(async (event) => {
-  const id = getRouterParam(event, "id");
-  if (!id) throw createError({ statusCode: 400, statusMessage: "Missing id" });
-  let oid;
-  try {
-    oid = new ObjectId(id);
-  } catch {
-    throw createError({ statusCode: 404, statusMessage: "Team not found" });
-  }
-  const db = await getDb();
-  const result = await db.collection("teams").updateOne(
-    { _id: oid },
-    { $set: { is_active: false, updated_at: /* @__PURE__ */ new Date() } }
-  );
-  if (result.matchedCount === 0) {
-    throw createError({ statusCode: 404, statusMessage: "Team not found" });
-  }
-  return { success: true, message: "Team deactivated" };
-});
-
-const _id__delete$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
-  __proto__: null,
-  default: _id__delete
-}, Symbol.toStringTag, { value: 'Module' }));
-
-const index_get$4 = defineEventHandler(async (event) => {
-  const query = getQuery$1(event);
-  const locationId = query.location_id;
-  const db = await getDb();
-  const filter = {
-    $or: [
-      { is_active: true },
-      { isActive: true },
-      { is_active: { $exists: false }, isActive: { $exists: false } }
-    ]
-  };
-  if (locationId && /^[0-9a-f]{24}$/i.test(locationId)) {
-    filter.location_id = new ObjectId(locationId);
-  }
-  const teams = await db.collection("teams").find(filter).sort({ name: 1 }).toArray();
-  const data = teams.map((t) => {
-    var _a, _b, _c;
-    const locId = (_a = t.location_id) != null ? _a : t.locationId;
-    return {
-      _id: String(t._id),
-      name: (_c = (_b = t.name) != null ? _b : t.Name) != null ? _c : "",
-      location_id: locId ? String(locId) : void 0,
-      description: t.description,
-      is_active: t.is_active !== false && t.isActive !== false
-    };
-  });
-  return { success: true, data };
-});
-
-const index_get$5 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
-  __proto__: null,
-  default: index_get$4
-}, Symbol.toStringTag, { value: 'Module' }));
-
-const index_post = defineEventHandler(async (event) => {
-  var _a, _b;
-  const body = await readBody(event);
-  if (!((_a = body == null ? void 0 : body.name) == null ? void 0 : _a.trim())) {
-    throw createError({ statusCode: 400, statusMessage: "name is required" });
-  }
-  if (!(body == null ? void 0 : body.location_id)) {
-    throw createError({ statusCode: 400, statusMessage: "location_id is required" });
-  }
-  let locationOid;
-  try {
-    locationOid = new ObjectId(body.location_id);
-  } catch {
-    throw createError({ statusCode: 400, statusMessage: "invalid location_id" });
-  }
-  const db = await getDb();
-  const now = /* @__PURE__ */ new Date();
-  const doc = {
-    name: body.name.trim(),
-    location_id: locationOid,
-    description: ((_b = body.description) == null ? void 0 : _b.trim()) || void 0,
-    is_active: true,
-    created_at: now,
-    updated_at: now
-  };
-  const result = await db.collection("teams").insertOne(doc);
-  const inserted = await db.collection("teams").findOne({ _id: result.insertedId });
-  const data = inserted ? { _id: String(inserted._id), name: inserted.name, location_id: String(inserted.location_id), description: inserted.description, is_active: inserted.is_active } : { _id: String(result.insertedId), ...doc, location_id: body.location_id };
-  return { success: true, data };
-});
-
-const index_post$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
-  __proto__: null,
-  default: index_post
-}, Symbol.toStringTag, { value: 'Module' }));
-
-const NAME_KEYS = ["canonicalName", "primaryName", "name", "displayName", "eitjeNames"];
-function getDisplayName(doc) {
-  for (const k of NAME_KEYS) {
-    const v = doc[k];
-    if (typeof v === "string" && v.trim().length > 0 && v.length < 200) return v.trim();
-    if (Array.isArray(v) && typeof v[0] === "string" && v[0].trim()) return v[0].trim();
-  }
-  const allIds = doc.allIds;
-  if (Array.isArray(allIds) && allIds[0] && typeof allIds[0].name === "string") {
-    const n = allIds[0].name.trim();
-    if (n) return n;
-  }
-  for (const [key, val] of Object.entries(doc)) {
-    if (key === "_id" || key.startsWith("$") || key === "allIds" || key === "allIdValues") continue;
-    if (typeof val === "string" && val.trim().length > 0 && val.length < 200 && !/^[0-9a-f]{24}$/i.test(val)) return val.trim();
-    if (Array.isArray(val) && typeof val[0] === "string" && val[0].length < 200) return val[0].trim();
-  }
-  return "";
-}
-const index_get$2 = defineEventHandler(async () => {
-  try {
-    const coll = await getUnifiedUsersCollection();
-    const list = await coll.find({
-      $or: [
-        { isActive: true },
-        { is_active: true },
-        { isActive: { $exists: false }, is_active: { $exists: false } }
-      ]
-    }).sort({ canonicalName: 1 }).toArray();
-    const data = list.map((u) => {
-      var _a, _b;
-      const display = getDisplayName(u) || `User ${String(u._id).slice(-6)}`;
-      const slack = typeof u.slackUsername === "string" ? u.slackUsername : typeof u.slackusername === "string" ? u.slackusername : null;
-      const locId = (_b = (_a = u.location_id) != null ? _a : u.locationId) != null ? _b : u.primaryLocationId;
-      const location_id = locId != null ? String(locId) : null;
-      return {
-        _id: String(u._id),
-        canonicalName: display,
-        primaryName: display,
-        primaryEmail: (typeof u.primaryEmail === "string" ? u.primaryEmail : "") || "",
-        slackUsername: slack != null ? slack : null,
-        location_id
-      };
-    });
-    return { success: true, data };
-  } catch {
-    return { success: true, data: [] };
-  }
-});
-
-const index_get$3 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
-  __proto__: null,
-  default: index_get$2
-}, Symbol.toStringTag, { value: 'Module' }));
-
-const active_get = defineEventHandler(async () => {
-  const db = await getDb();
-  const activeWorkers = await db.collection("members").find({
-    is_active: true,
-    email: { $exists: true, $ne: "" }
-  }).sort({ name: 1 }).project({
-    _id: 1,
-    name: 1,
-    email: 1,
-    contract_type: 1,
-    contract_start_date: 1,
-    contract_end_date: 1,
-    hourly_rate: 1,
-    phone: 1
-  }).toArray();
-  const data = activeWorkers.map((w) => ({
-    _id: String(w._id),
-    name: w.name || "",
-    email: w.email || "",
-    contractType: w.contract_type || "",
-    contractStartDate: w.contract_start_date ? new Date(w.contract_start_date).toISOString() : null,
-    contractEndDate: w.contract_end_date ? new Date(w.contract_end_date).toISOString() : null,
-    hourlyRate: w.hourly_rate || 0,
-    phone: w.phone || ""
-  }));
-  return {
-    success: true,
-    count: data.length,
-    data
-  };
-});
-
-const active_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
-  __proto__: null,
-  default: active_get
-}, Symbol.toStringTag, { value: 'Module' }));
-
-const index_get = defineEventHandler(async (event) => {
-  const db = await getDb();
-  const query = getQuery$1(event);
-  const filter = {
-    email: { $exists: true, $ne: "" }
-  };
-  if (query.active === "true") {
-    filter.is_active = true;
-  } else if (query.active === "false") {
-    filter.is_active = false;
-  }
-  const workers = await db.collection("members").find(filter).sort({ name: 1 }).project({
-    _id: 1,
-    name: 1,
-    email: 1,
-    contract_type: 1,
-    contract_start_date: 1,
-    contract_end_date: 1,
-    hourly_rate: 1,
-    phone: 1,
-    is_active: 1,
-    age: 1,
-    city: 1,
-    postcode: 1,
-    street: 1
-  }).toArray();
-  const data = workers.map((w) => ({
-    _id: String(w._id),
-    name: w.name || "",
-    email: w.email || "",
-    contractType: w.contract_type || "",
-    contractStartDate: w.contract_start_date ? new Date(w.contract_start_date).toISOString() : null,
-    contractEndDate: w.contract_end_date ? new Date(w.contract_end_date).toISOString() : null,
-    hourlyRate: w.hourly_rate || 0,
-    phone: w.phone || "",
-    isActive: w.is_active || false,
-    age: w.age || null,
-    city: w.city || "",
-    postcode: w.postcode || "",
-    street: w.street || ""
-  }));
-  return {
-    success: true,
-    count: data.length,
-    data
-  };
-});
-
-const index_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
-  __proto__: null,
-  default: index_get
-}, Symbol.toStringTag, { value: 'Module' }));
-
-function renderPayloadResponse(ssrContext) {
-	return {
-		body: encodeForwardSlashes(stringify(splitPayload(ssrContext).payload, ssrContext["~payloadReducers"])) ,
-		statusCode: getResponseStatus(ssrContext.event),
-		statusMessage: getResponseStatusText(ssrContext.event),
-		headers: {
-			"content-type": "application/json;charset=utf-8" ,
-			"x-powered-by": "Nuxt"
-		}
-	};
-}
-function renderPayloadJsonScript(opts) {
-	const contents = opts.data ? encodeForwardSlashes(stringify(opts.data, opts.ssrContext["~payloadReducers"])) : "";
-	const payload = {
-		"type": "application/json",
-		"innerHTML": contents,
-		"data-nuxt-data": appId,
-		"data-ssr": false
-	};
-	{
-		payload.id = "__NUXT_DATA__";
-	}
-	if (opts.src) {
-		payload["data-src"] = opts.src;
-	}
-	const config = uneval(opts.ssrContext.config);
-	return [payload, { innerHTML: `window.__NUXT__={};window.__NUXT__.config=${config}` }];
-}
-/**
-* Encode forward slashes as unicode escape sequences to prevent
-* Google from treating them as internal links and trying to crawl them.
-* @see https://github.com/nuxt/nuxt/issues/24175
-*/
-function encodeForwardSlashes(str) {
-	return str.replaceAll("/", "\\u002F");
-}
-function splitPayload(ssrContext) {
-	const { data, prerenderedAt, ...initial } = ssrContext.payload;
-	return {
-		initial: {
-			...initial,
-			prerenderedAt
-		},
-		payload: {
-			data,
-			prerenderedAt
-		}
-	};
-}
-
-const renderSSRHeadOptions = {"omitLineBreaks":true};
-
-// @ts-expect-error private property consumed by vite-generated url helpers
-globalThis.__buildAssetsURL = buildAssetsURL;
-// @ts-expect-error private property consumed by vite-generated url helpers
-globalThis.__publicAssetsURL = publicAssetsURL;
-const HAS_APP_TELEPORTS = !!(appTeleportAttrs.id);
-const APP_TELEPORT_OPEN_TAG = HAS_APP_TELEPORTS ? `<${appTeleportTag}${propsToString(appTeleportAttrs)}>` : "";
-const APP_TELEPORT_CLOSE_TAG = HAS_APP_TELEPORTS ? `</${appTeleportTag}>` : "";
-const PAYLOAD_URL_RE = /^[^?]*\/_payload.json(?:\?.*)?$/ ;
-const PAYLOAD_FILENAME = "_payload.json" ;
-const handler = defineRenderHandler(async (event) => {
-	const nitroApp = useNitroApp();
-	// Whether we're rendering an error page
-	const ssrError = event.path.startsWith("/__nuxt_error") ? getQuery$1(event) : null;
-	if (ssrError && !("__unenv__" in event.node.req)) {
-		throw createError({
-			status: 404,
-			statusText: "Page Not Found: /__nuxt_error",
-			message: "Page Not Found: /__nuxt_error"
-		});
-	}
-	// Initialize ssr context
-	const ssrContext = createSSRContext(event);
-	// needed for hash hydration plugin to work
-	const headEntryOptions = { mode: "server" };
-	ssrContext.head.push(appHead, headEntryOptions);
-	if (ssrError) {
-		// eslint-disable-next-line @typescript-eslint/no-deprecated
-		const status = ssrError.status || ssrError.statusCode;
-		if (status) {
-			// eslint-disable-next-line @typescript-eslint/no-deprecated
-			ssrError.status = ssrError.statusCode = Number.parseInt(status);
-		}
-		if (typeof ssrError.data === "string") {
-			try {
-				ssrError.data = destr(ssrError.data);
-			} catch {}
-		}
-		setSSRError(ssrContext, ssrError);
-	}
-	// Get route options (for `ssr: false`, `isr`, `cache` and `noScripts`)
-	const routeOptions = getRouteRules(event);
-	// Whether we are prerendering route or using ISR/SWR caching
-	const _PAYLOAD_EXTRACTION = !ssrContext.noSSR && ((routeOptions.isr || routeOptions.cache));
-	// When NUXT_PAYLOAD_INLINE is true (payloadExtraction: 'client'), we inline the full payload
-	// in the HTML to avoid a separate _payload.json fetch on initial load (which would trigger a
-	// second render or lambda invocation). The _payload.json endpoint still works for client-side nav.
-	const _PAYLOAD_INLINE = !_PAYLOAD_EXTRACTION || NUXT_PAYLOAD_INLINE;
-	const isRenderingPayload = (_PAYLOAD_EXTRACTION || routeOptions.prerender) && PAYLOAD_URL_RE.test(ssrContext.url);
-	if (isRenderingPayload) {
-		const url = ssrContext.url.substring(0, ssrContext.url.lastIndexOf("/")) || "/";
-		ssrContext.url = url;
-		event._path = event.node.req.url = url;
-		if (payloadCache && await payloadCache.hasItem(url)) {
-			return payloadCache.getItem(url);
-		}
-	}
-	if (routeOptions.ssr === false) {
-		ssrContext.noSSR = true;
-	}
-	const payloadURL = _PAYLOAD_EXTRACTION ? joinURL(ssrContext.runtimeConfig.app.cdnURL || ssrContext.runtimeConfig.app.baseURL, ssrContext.url.replace(/\?.*$/, ""), PAYLOAD_FILENAME) + "?" + ssrContext.runtimeConfig.app.buildId : undefined;
-	// Render app
-	const renderer = await getRenderer();
-	const _rendered = await renderer.renderToString(ssrContext).catch(async (error) => {
-		// We use error to bypass full render if we have an early response we can make
-		// TODO: remove _renderResponse in nuxt v5
-		if ((ssrContext["~renderResponse"] || ssrContext._renderResponse) && error.message === "skipping render") {
-			return {};
-		}
-		// Use explicitly thrown error in preference to subsequent rendering errors
-		const _err = !ssrError && ssrContext.payload?.error || error;
-		await ssrContext.nuxt?.hooks.callHook("app:error", _err);
-		throw _err;
-	});
-	// Render inline styles
-	// TODO: remove _renderResponse in nuxt v5
-	const inlinedStyles = [];
-	await ssrContext.nuxt?.hooks.callHook("app:rendered", {
-		ssrContext,
-		renderResult: _rendered
-	});
-	if (ssrContext["~renderResponse"] || ssrContext._renderResponse) {
-		// TODO: remove _renderResponse in nuxt v5
-		return ssrContext["~renderResponse"] || ssrContext._renderResponse;
-	}
-	// Handle errors
-	if (ssrContext.payload?.error && !ssrError) {
-		throw ssrContext.payload.error;
-	}
-	// Directly render payload routes
-	if (isRenderingPayload) {
-		const response = renderPayloadResponse(ssrContext);
-		if (payloadCache) {
-			await payloadCache.setItem(ssrContext.url, response);
-		}
-		return response;
-	}
-	if (_PAYLOAD_EXTRACTION) {
-		// Cache payload from the current SSR context so _payload.json requests can be served
-		// without a full re-render (during prerender via LRU+FS, at runtime via in-memory TTL cache)
-		if (payloadCache) {
-			await payloadCache.setItem(ssrContext.url === "/" ? "/" : ssrContext.url.replace(/\/$/, ""), renderPayloadResponse(ssrContext));
-		}
-	}
-	const NO_SCRIPTS = routeOptions.noScripts;
-	// Setup head
-	const { styles, scripts } = getRequestDependencies(ssrContext, renderer.rendererContext);
-	// 1. Preload payloads and app manifest
-	// Skip preload when inlining full payload in HTML (no separate fetch needed for initial load)
-	if (_PAYLOAD_EXTRACTION && !_PAYLOAD_INLINE && !NO_SCRIPTS) {
-		ssrContext.head.push({ link: [{
-			rel: "preload",
-			as: "fetch",
-			crossorigin: "anonymous",
-			href: payloadURL
-		} ] }, headEntryOptions);
-	}
-	// 2. Styles
-	if (inlinedStyles.length) {
-		ssrContext.head.push({ style: inlinedStyles });
-	}
-	const link = [];
-	for (const resource of Object.values(styles)) {
-		// Do not add links to resources that are inlined (vite v5+)
-		if ("inline" in getQuery(resource.file)) {
-			continue;
-		}
-		// Add CSS links in <head> for CSS files
-		// - in production
-		// - in dev mode when not rendering an island
-		link.push({
-			rel: "stylesheet",
-			href: renderer.rendererContext.buildAssetsURL(resource.file),
-			crossorigin: ""
-		});
-	}
-	if (link.length) {
-		ssrContext.head.push({ link }, headEntryOptions);
-	}
-	if (!NO_SCRIPTS) {
-		// 4. Resource Hints
-		// Remove lazy hydrated modules from ssrContext.modules so they don't get preloaded
-		// (CSS links are already added above, this only affects JS preloads)
-		if (ssrContext["~lazyHydratedModules"]) {
-			for (const id of ssrContext["~lazyHydratedModules"]) {
-				ssrContext.modules?.delete(id);
-			}
-		}
-		ssrContext.head.push({ link: getPreloadLinks(ssrContext, renderer.rendererContext) }, headEntryOptions);
-		ssrContext.head.push({ link: getPrefetchLinks(ssrContext, renderer.rendererContext) }, headEntryOptions);
-		// 5. Payloads
-		ssrContext.head.push({ script: _PAYLOAD_INLINE ? renderPayloadJsonScript({
-			ssrContext,
-			data: ssrContext.payload
-		})  : renderPayloadJsonScript({
-			ssrContext,
-			data: splitPayload(ssrContext).initial,
-			src: payloadURL
-		})  }, {
-			...headEntryOptions,
-			tagPosition: "bodyClose",
-			tagPriority: "high"
-		});
-	}
-	// 6. Scripts
-	if (!routeOptions.noScripts) {
-		const tagPosition = "head";
-		ssrContext.head.push({ script: Object.values(scripts).map((resource) => ({
-			type: resource.module ? "module" : null,
-			src: renderer.rendererContext.buildAssetsURL(resource.file),
-			defer: resource.module ? null : true,
-			tagPosition,
-			crossorigin: ""
-		})) }, headEntryOptions);
-	}
-	const { headTags, bodyTags, bodyTagsOpen, htmlAttrs, bodyAttrs } = await renderSSRHead(ssrContext.head, renderSSRHeadOptions);
-	// Create render context
-	const htmlContext = {
-		htmlAttrs: htmlAttrs ? [htmlAttrs] : [],
-		head: normalizeChunks([headTags]),
-		bodyAttrs: bodyAttrs ? [bodyAttrs] : [],
-		bodyPrepend: normalizeChunks([bodyTagsOpen, ssrContext.teleports?.body]),
-		body: [replaceIslandTeleports(ssrContext, _rendered.html) , APP_TELEPORT_OPEN_TAG + (HAS_APP_TELEPORTS ? joinTags([ssrContext.teleports?.[`#${appTeleportAttrs.id}`]]) : "") + APP_TELEPORT_CLOSE_TAG],
-		bodyAppend: [bodyTags]
-	};
-	// Allow hooking into the rendered result
-	await nitroApp.hooks.callHook("render:html", htmlContext, { event });
-	// Construct HTML response
-	return {
-		body: renderHTMLDocument(htmlContext),
-		statusCode: getResponseStatus(event),
-		statusMessage: getResponseStatusText(event),
-		headers: {
-			"content-type": "text/html;charset=utf-8",
-			"x-powered-by": "Nuxt"
-		}
-	};
-});
-function normalizeChunks(chunks) {
-	const result = [];
-	for (const _chunk of chunks) {
-		const chunk = _chunk?.trim();
-		if (chunk) {
-			result.push(chunk);
-		}
-	}
-	return result;
-}
-function joinTags(tags) {
-	return tags.join("");
-}
-function joinAttrs(chunks) {
-	if (chunks.length === 0) {
-		return "";
-	}
-	return " " + chunks.join(" ");
-}
-function renderHTMLDocument(html) {
-	return "<!DOCTYPE html>" + `<html${joinAttrs(html.htmlAttrs)}>` + `<head>${joinTags(html.head)}</head>` + `<body${joinAttrs(html.bodyAttrs)}>${joinTags(html.bodyPrepend)}${joinTags(html.body)}${joinTags(html.bodyAppend)}</body>` + "</html>";
-}
-
-const renderer = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
-  __proto__: null,
-  default: handler
-}, Symbol.toStringTag, { value: 'Module' }));
-//# sourceMappingURL=index.mjs.map
-      },
             to: "int",
             onError: null,
             onNull: null
