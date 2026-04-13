@@ -52,11 +52,13 @@ function extractHour(timeStr: string | undefined): number {
 
 /**
  * Rebuild all Bork sales aggregations from raw data for a date range
+ * @param collectionSuffix Optional suffix for collection names (e.g., '_test' creates bork_sales_by_hour_test)
  */
 export async function rebuildBorkSalesAggregation(
   db: Db,
   startDate: string,
   endDate: string,
+  collectionSuffix: string = '',
   cronTime: Date = new Date()
 ): Promise<RebuildBorkAggResult> {
   const result: RebuildBorkAggResult = {
@@ -349,29 +351,41 @@ export async function rebuildBorkSalesAggregation(
     locationIds: Array.from(doc.locationIds),
   }))
 
+  // CLEAR existing aggregations for this date range before rebuilding
+  // This prevents duplicates when rebuilding the same date range
+  const clearStartDate = borkDateToISO(startBorkDate)
+  const clearEndDate = borkDateToISO(endBorkDate)
+  
+  console.log(`[rebuildBorkSalesAggregation] Clearing existing aggregations for ${clearStartDate} to ${clearEndDate}...`)
+  await db.collection(`bork_sales_by_cron${collectionSuffix}`).deleteMany({ date: { $gte: clearStartDate, $lte: clearEndDate } })
+  await db.collection(`bork_sales_by_hour${collectionSuffix}`).deleteMany({ date: { $gte: clearStartDate, $lte: clearEndDate } })
+  await db.collection(`bork_sales_by_table${collectionSuffix}`).deleteMany({ date: { $gte: clearStartDate, $lte: clearEndDate } })
+  await db.collection(`bork_sales_by_worker${collectionSuffix}`).deleteMany({ date: { $gte: clearStartDate, $lte: clearEndDate } })
+  await db.collection(`bork_sales_by_guest_account${collectionSuffix}`).deleteMany({ date: { $gte: clearStartDate, $lte: clearEndDate } })
+
   // Insert or upsert documents
   if (cronDocs.length > 0) {
-    await db.collection('bork_sales_by_cron').insertMany(cronDocs)
+    await db.collection(`bork_sales_by_cron${collectionSuffix}`).insertMany(cronDocs)
     result.byCron = cronDocs.length
   }
 
   if (hourDocs.length > 0) {
-    await db.collection('bork_sales_by_hour').insertMany(hourDocs)
+    await db.collection(`bork_sales_by_hour${collectionSuffix}`).insertMany(hourDocs)
     result.byHour = hourDocs.length
   }
 
   if (tableDocs.length > 0) {
-    await db.collection('bork_sales_by_table').insertMany(tableDocs)
+    await db.collection(`bork_sales_by_table${collectionSuffix}`).insertMany(tableDocs)
     result.byTable = tableDocs.length
   }
 
   if (workerDocs.length > 0) {
-    await db.collection('bork_sales_by_worker').insertMany(workerDocs)
+    await db.collection(`bork_sales_by_worker${collectionSuffix}`).insertMany(workerDocs)
     result.byWorker = workerDocs.length
   }
 
   if (guestAccountDocs.length > 0) {
-    await db.collection('bork_sales_by_guest_account').insertMany(guestAccountDocs)
+    await db.collection(`bork_sales_by_guest_account${collectionSuffix}`).insertMany(guestAccountDocs)
     result.byGuestAccount = guestAccountDocs.length
   }
 

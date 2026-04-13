@@ -6,7 +6,6 @@ import nodeCrypto, { createHash } from 'node:crypto';
 import { parentPort, threadId } from 'node:worker_threads';
 import { escapeHtml } from 'file:///Users/alviniomolina/Documents/GitHub/daily-ops/node_modules/.pnpm/@vue+shared@3.5.31/node_modules/@vue/shared/dist/shared.cjs.js';
 import { ObjectId, MongoClient } from 'file:///Users/alviniomolina/Documents/GitHub/daily-ops/node_modules/.pnpm/mongodb@7.1.1/node_modules/mongodb/lib/index.js';
-import { defineEventHandler as defineEventHandler$1, getQuery as getQuery$2, createError as createError$1 } from 'file:///Users/alviniomolina/Documents/GitHub/daily-ops/node_modules/h3/dist/index.mjs';
 import { request } from 'node:https';
 import Papa from 'file:///Users/alviniomolina/Documents/GitHub/daily-ops/node_modules/.pnpm/papaparse@5.5.3/node_modules/papaparse/papaparse.js';
 import * as cpexcel from '/Users/alviniomolina/Documents/GitHub/daily-ops/node_modules/.pnpm/xlsx@0.18.5/node_modules/xlsx/dist/cpexcel.js';
@@ -2472,16 +2471,16 @@ _wH6JrtIxmaSoA8lCPWFnE9z4lQeXW6H5z3l5aymEQw
 const assets = {
   "/index.mjs": {
     "type": "text/javascript; charset=utf-8",
-    "etag": "\"13751c-Pzl5IQy0u+F8eDorcO7jOpt1+nM\"",
-    "mtime": "2026-04-13T19:37:55.035Z",
-    "size": 1275164,
+    "etag": "\"137582-uMiNDNVJfc+TtuSe7+V568+IkS0\"",
+    "mtime": "2026-04-13T20:51:38.947Z",
+    "size": 1275266,
     "path": "index.mjs"
   },
   "/index.mjs.map": {
     "type": "application/json",
-    "etag": "\"4e85c5-bwgo4yP80ToC2565w5c9pjyZb+4\"",
-    "mtime": "2026-04-13T19:37:55.136Z",
-    "size": 5146053,
+    "etag": "\"4e858d-EbU7ietv0A3303ZHMDhMEGOSQeA\"",
+    "mtime": "2026-04-13T20:51:40.016Z",
+    "size": 5145997,
     "path": "index.mjs.map"
   }
 };
@@ -29385,7 +29384,6 @@ const _lazy_rpoMxL = () => Promise.resolve().then(function () { return credentia
 const _lazy_Fk11Zg = () => Promise.resolve().then(function () { return credentials_post$3; });
 const _lazy_0fNa4b = () => Promise.resolve().then(function () { return cron_get$3; });
 const _lazy_56hgXw = () => Promise.resolve().then(function () { return cron_post$3; });
-const _lazy_9B1hFx = () => Promise.resolve().then(function () { return dayBreakdown_get$1; });
 const _lazy_VkZeTR = () => Promise.resolve().then(function () { return locations_get$3; });
 const _lazy_GrR807 = () => Promise.resolve().then(function () { return runScheduled_get$3; });
 const _lazy_2sV_oe = () => Promise.resolve().then(function () { return sync_post$3; });
@@ -29464,7 +29462,6 @@ const handlers = [
   { route: '/api/bork/v2/credentials', handler: _lazy_Fk11Zg, lazy: true, middleware: false, method: "post" },
   { route: '/api/bork/v2/cron', handler: _lazy_0fNa4b, lazy: true, middleware: false, method: "get" },
   { route: '/api/bork/v2/cron', handler: _lazy_56hgXw, lazy: true, middleware: false, method: "post" },
-  { route: '/api/bork/v2/day-breakdown', handler: _lazy_9B1hFx, lazy: true, middleware: false, method: "get" },
   { route: '/api/bork/v2/locations', handler: _lazy_VkZeTR, lazy: true, middleware: false, method: "get" },
   { route: '/api/bork/v2/run-scheduled', handler: _lazy_GrR807, lazy: true, middleware: false, method: "get" },
   { route: '/api/bork/v2/sync', handler: _lazy_2sV_oe, lazy: true, middleware: false, method: "post" },
@@ -29947,7 +29944,7 @@ function extractHour(timeStr) {
   const match = timeStr.match(/^(\d{1,2}):/);
   return match ? parseInt(match[1], 10) : 0;
 }
-async function rebuildBorkSalesAggregation(db, startDate, endDate, cronTime = /* @__PURE__ */ new Date()) {
+async function rebuildBorkSalesAggregation(db, startDate, endDate, collectionSuffix = "", cronTime = /* @__PURE__ */ new Date()) {
   const result = {
     byCron: 0,
     byHour: 0,
@@ -30182,24 +30179,32 @@ async function rebuildBorkSalesAggregation(db, startDate, endDate, cronTime = /*
     ...doc,
     locationIds: Array.from(doc.locationIds)
   }));
+  const clearStartDate = borkDateToISO(startBorkDate);
+  const clearEndDate = borkDateToISO(endBorkDate);
+  console.log(`[rebuildBorkSalesAggregation] Clearing existing aggregations for ${clearStartDate} to ${clearEndDate}...`);
+  await db.collection(`bork_sales_by_cron${collectionSuffix}`).deleteMany({ date: { $gte: clearStartDate, $lte: clearEndDate } });
+  await db.collection(`bork_sales_by_hour${collectionSuffix}`).deleteMany({ date: { $gte: clearStartDate, $lte: clearEndDate } });
+  await db.collection(`bork_sales_by_table${collectionSuffix}`).deleteMany({ date: { $gte: clearStartDate, $lte: clearEndDate } });
+  await db.collection(`bork_sales_by_worker${collectionSuffix}`).deleteMany({ date: { $gte: clearStartDate, $lte: clearEndDate } });
+  await db.collection(`bork_sales_by_guest_account${collectionSuffix}`).deleteMany({ date: { $gte: clearStartDate, $lte: clearEndDate } });
   if (cronDocs.length > 0) {
-    await db.collection("bork_sales_by_cron").insertMany(cronDocs);
+    await db.collection(`bork_sales_by_cron${collectionSuffix}`).insertMany(cronDocs);
     result.byCron = cronDocs.length;
   }
   if (hourDocs.length > 0) {
-    await db.collection("bork_sales_by_hour").insertMany(hourDocs);
+    await db.collection(`bork_sales_by_hour${collectionSuffix}`).insertMany(hourDocs);
     result.byHour = hourDocs.length;
   }
   if (tableDocs.length > 0) {
-    await db.collection("bork_sales_by_table").insertMany(tableDocs);
+    await db.collection(`bork_sales_by_table${collectionSuffix}`).insertMany(tableDocs);
     result.byTable = tableDocs.length;
   }
   if (workerDocs.length > 0) {
-    await db.collection("bork_sales_by_worker").insertMany(workerDocs);
+    await db.collection(`bork_sales_by_worker${collectionSuffix}`).insertMany(workerDocs);
     result.byWorker = workerDocs.length;
   }
   if (guestAccountDocs.length > 0) {
-    await db.collection("bork_sales_by_guest_account").insertMany(guestAccountDocs);
+    await db.collection(`bork_sales_by_guest_account${collectionSuffix}`).insertMany(guestAccountDocs);
     result.byGuestAccount = guestAccountDocs.length;
   }
   for (const prodDoc of productDocs) {
@@ -30451,50 +30456,6 @@ const cron_post$2 = defineEventHandler(async (event) => {
 const cron_post$3 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
   __proto__: null,
   default: cron_post$2
-}, Symbol.toStringTag, { value: 'Module' }));
-
-const dayBreakdown_get = defineEventHandler$1(async (event) => {
-  const query = getQuery$2(event);
-  const dateStr = query.date;
-  const location = query.location || "all";
-  if (!dateStr) {
-    throw createError$1({ statusCode: 400, statusMessage: "date parameter required (YYYY-MM-DD)" });
-  }
-  const db = await getDb();
-  try {
-    const startDate = /* @__PURE__ */ new Date(`${dateStr}T08:00:00Z`);
-    const endDate = new Date(startDate);
-    endDate.setDate(endDate.getDate() + 1);
-    const startDateStr = startDate.toISOString().split("T")[0];
-    const endDateStr = endDate.toISOString().split("T")[0];
-    const dateQuery = { date: { $gte: startDateStr, $lte: endDateStr } };
-    const locationQuery = location === "all" ? {} : { locationName: location };
-    const hourly = await db.collection("bork_sales_by_hour").find({ ...dateQuery, ...locationQuery }).sort({ date: 1, hour: 1 }).toArray();
-    const worker = await db.collection("bork_sales_by_worker").find({ ...dateQuery, ...locationQuery }).sort({ total_revenue: -1 }).toArray();
-    const table = await db.collection("bork_sales_by_table").find({ ...dateQuery, ...locationQuery }).sort({ total_revenue: -1 }).toArray();
-    const product = await db.collection("bork_products_master").find({ ...dateQuery, ...locationQuery }).sort({ total_revenue: -1 }).toArray();
-    return {
-      dateRange: {
-        startDate: startDateStr,
-        endDate: endDateStr,
-        startTime: startDate.toISOString(),
-        endTime: endDate.toISOString()
-      },
-      location,
-      hourly,
-      worker,
-      table,
-      product
-    };
-  } catch (e) {
-    console.error("[borkDayBreakdownApi]", e);
-    throw createError$1({ statusCode: 500, statusMessage: String(e) });
-  }
-});
-
-const dayBreakdown_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
-  __proto__: null,
-  default: dayBreakdown_get
 }, Symbol.toStringTag, { value: 'Module' }));
 
 const locations_get$2 = defineEventHandler(async () => {
@@ -36027,6 +35988,77 @@ const handler = defineRenderHandler(async (event) => {
 			data: ssrContext.payload
 		})  : renderPayloadJsonScript({
 			ssrContext,
+			data: splitPayload(ssrContext).initial,
+			src: payloadURL
+		})  }, {
+			...headEntryOptions,
+			tagPosition: "bodyClose",
+			tagPriority: "high"
+		});
+	}
+	// 6. Scripts
+	if (!routeOptions.noScripts) {
+		const tagPosition = "head";
+		ssrContext.head.push({ script: Object.values(scripts).map((resource) => ({
+			type: resource.module ? "module" : null,
+			src: renderer.rendererContext.buildAssetsURL(resource.file),
+			defer: resource.module ? null : true,
+			tagPosition,
+			crossorigin: ""
+		})) }, headEntryOptions);
+	}
+	const { headTags, bodyTags, bodyTagsOpen, htmlAttrs, bodyAttrs } = await renderSSRHead(ssrContext.head, renderSSRHeadOptions);
+	// Create render context
+	const htmlContext = {
+		htmlAttrs: htmlAttrs ? [htmlAttrs] : [],
+		head: normalizeChunks([headTags]),
+		bodyAttrs: bodyAttrs ? [bodyAttrs] : [],
+		bodyPrepend: normalizeChunks([bodyTagsOpen, ssrContext.teleports?.body]),
+		body: [replaceIslandTeleports(ssrContext, _rendered.html) , APP_TELEPORT_OPEN_TAG + (HAS_APP_TELEPORTS ? joinTags([ssrContext.teleports?.[`#${appTeleportAttrs.id}`]]) : "") + APP_TELEPORT_CLOSE_TAG],
+		bodyAppend: [bodyTags]
+	};
+	// Allow hooking into the rendered result
+	await nitroApp.hooks.callHook("render:html", htmlContext, { event });
+	// Construct HTML response
+	return {
+		body: renderHTMLDocument(htmlContext),
+		statusCode: getResponseStatus(event),
+		statusMessage: getResponseStatusText(event),
+		headers: {
+			"content-type": "text/html;charset=utf-8",
+			"x-powered-by": "Nuxt"
+		}
+	};
+});
+function normalizeChunks(chunks) {
+	const result = [];
+	for (const _chunk of chunks) {
+		const chunk = _chunk?.trim();
+		if (chunk) {
+			result.push(chunk);
+		}
+	}
+	return result;
+}
+function joinTags(tags) {
+	return tags.join("");
+}
+function joinAttrs(chunks) {
+	if (chunks.length === 0) {
+		return "";
+	}
+	return " " + chunks.join(" ");
+}
+function renderHTMLDocument(html) {
+	return "<!DOCTYPE html>" + `<html${joinAttrs(html.htmlAttrs)}>` + `<head>${joinTags(html.head)}</head>` + `<body${joinAttrs(html.bodyAttrs)}>${joinTags(html.bodyPrepend)}${joinTags(html.body)}${joinTags(html.bodyAppend)}</body>` + "</html>";
+}
+
+const renderer = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+  __proto__: null,
+  default: handler
+}, Symbol.toStringTag, { value: 'Module' }));
+//# sourceMappingURL=index.mjs.map
+ext,
 			data: splitPayload(ssrContext).initial,
 			src: payloadURL
 		})  }, {

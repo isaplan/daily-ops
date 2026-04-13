@@ -1,8 +1,8 @@
 /**
  * Bork historical sync: ticket days + master JSON per location, then rebuild sales aggregates.
  *
- * Default: incremental — never deletes bork_raw_data; skips days/master already in DB (including
- * empty ticket days stored as placeholders). Safe after laptop sleep / network errors: re-run the same command to continue.
+ * IMPROVED VERSION: Syncs backwards from today to Jan 1, 2025 in weekly batches.
+ * After each week completes, triggers aggregation for that week's data.
  *
  *   BORK_BACKFILL_CONFIRM=1 nohup node --experimental-strip-types scripts/bork-full-raw-backfill.ts >> /tmp/bork-backfill.log 2>&1 &
  *
@@ -13,14 +13,14 @@
  *   MONGODB_URI, MONGODB_DB_NAME
  *   BORK_BACKFILL_CONFIRM=1       — required
  *   BORK_BACKFILL_FULL_RESET=1     — delete bork_raw_data + all Bork aggregate collections, then refetch all
- *   BORK_FORCE_REBUILD=1           — always clear bork_sales_* / products_master and rebuild (even if no new raw)
- *   BORK_BACKFILL_START, BORK_BACKFILL_END — ISO dates (default 2024-01-01 .. today UTC)
- *   BORK_DAY_DELAY_MS=75, BORK_BATCH_DAYS=31, BORK_BATCH_PAUSE_MS=200, BORK_LOCATION_PAUSE_MS=400,
+ *   BORK_DAY_DELAY_MS=75, BORK_BATCH_PAUSE_MS=200, BORK_LOCATION_PAUSE_MS=400,
  *   BORK_MASTER_DELAY_MS=150, BORK_PROGRESS_EVERY=50
  *
- * Aggregation runs only if: full reset, or new raw rows were written this run, or aggregates look
- * empty, or BORK_FORCE_REBUILD=1. If everything was skipped and bork_sales_by_cron already has
- * documents, aggregation is skipped to save time.
+ * Behavior:
+ * - Starts from TODAY and syncs BACKWARDS to 2025-01-01
+ * - Groups data into WEEKLY batches (Sunday-Saturday)
+ * - After each week syncs successfully, triggers aggregation immediately
+ * - Aggregation runs only on newly synced data for that week
  */
 import { readFileSync, existsSync } from 'node:fs'
 import { resolve } from 'node:path'
