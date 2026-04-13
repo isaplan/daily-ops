@@ -2,8 +2,8 @@ name: Daily Ops - Bork & Eitje Sync & Aggregation
 
 on:
   schedule:
-    # Bork: 8, 15, 18, 20, 22, 00 UTC
-    - cron: '0 8,15,18,20,22,0 * * *'
+    # Amsterdam CET/CEST: 8, 15, 18, 20, 22, 00 (converted to UTC: 7, 14, 17, 19, 21, 23)
+    - cron: '0 7,14,17,19,21,23 * * *'
   
   # Allow manual trigger
   workflow_dispatch:
