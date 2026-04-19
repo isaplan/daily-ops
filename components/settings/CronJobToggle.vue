@@ -10,7 +10,8 @@
         :model-value="enabled" 
         @update:model-value="onToggle"
         :ui="{
-          base: 'data-[state=checked]:bg-gray-900 data-[state=unchecked]:bg-gray-400'
+          base: 'border-2 border-blue-900 data-[state=checked]:bg-blue-900 data-[state=unchecked]:bg-gray-200',
+          thumb: 'bg-white'
         }"
       />
     </div>
