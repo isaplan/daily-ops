@@ -6,7 +6,13 @@
         <p class="text-sm text-gray-500">{{ description }}</p>
         <p v-if="scheduleNote" class="text-xs text-gray-500">{{ scheduleNote }}</p>
       </div>
-      <USwitch :model-value="enabled" @update:model-value="onToggle" color="error" />
+      <USwitch 
+        :model-value="enabled" 
+        @update:model-value="onToggle"
+        :ui="{
+          base: 'data-[state=checked]:bg-gray-900 data-[state=unchecked]:bg-gray-400'
+        }"
+      />
     </div>
 
     <EndpointCheckList :endpoints="endpoints" />
