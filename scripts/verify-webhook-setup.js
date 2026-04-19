@@ -118,7 +118,7 @@ async function checkWebhookLogs() {
 
 async function verifyWatchSubscription() {
   try {
-    const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:8080'
+    const baseUrl = process.env.APP_BASE_URL || 'http://localhost:8080'
     const response = await fetch(`${baseUrl}/api/inbox/watch`, {
       method: 'GET',
     })
@@ -152,7 +152,7 @@ async function verifyWatchSubscription() {
 
 async function verifyWebhookEndpoint() {
   try {
-    const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:8080'
+    const baseUrl = process.env.APP_BASE_URL || 'http://localhost:8080'
     const testPayload = {
       message: {
         data: Buffer.from(

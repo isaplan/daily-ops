@@ -46,8 +46,6 @@ Create `.env.local`:
 PORT=8080
 MONGODB_URI=mongodb+srv://...
 MONGODB_DB_NAME=daily-ops-db
-NEXTAUTH_URL=http://localhost:8080
-NEXTAUTH_SECRET=your-secret-key
 CRON_SECRET=your-cron-secret-for-external-scheduling
 ```
 

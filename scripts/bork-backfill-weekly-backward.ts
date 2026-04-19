@@ -13,12 +13,14 @@
  * - After each week syncs successfully, triggers aggregation immediately
  * - Incremental by default (skips days already in DB)
  * - Safe to restart: re-run to continue from where it left off
+ * - Optional V2: BORK_AGG_V2=1 also rebuilds bork_sales_hours + bork_business_days (see borkRebuildAggregationV2Service); BORK_AGG_V2_SUFFIX=_test targets test collection names
  */
 
 import { readFileSync, existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { MongoClient, type Db, type Document } from 'mongodb'
 import { rebuildBorkSalesAggregation } from '../server/services/borkRebuildAggregationService.ts'
+import { rebuildBorkSalesAggregationV2 } from '../server/services/borkRebuildAggregationV2Service.ts'
 
 function loadDotEnv() {
   for (const file of ['.env.local', '.env']) {
@@ -345,6 +347,15 @@ async function main(): Promise<void> {
           console.log(
             `    ✅ Aggregation complete: ${result.byCron} cron, ${result.byHour} hour, ${result.byTable} table, ${result.byWorker} worker`
           )
+          const runV2 =
+            process.env.BORK_AGG_V2 === '1' || process.env.BORK_AGG_V2 === 'yes'
+          if (runV2) {
+            const v2Suffix = process.env.BORK_AGG_V2_SUFFIX ?? ''
+            const v2 = await rebuildBorkSalesAggregationV2(db, aggStart, aggEnd, v2Suffix)
+            console.log(
+              `    ✅ V2 (business days): ${v2.businessDays} bork_business_days${v2Suffix || ''}, ${v2.salesHours} bork_sales_hours${v2Suffix || ''}`
+            )
+          }
           totalWeeksSynced++
         } catch (e) {
           console.warn(`    ⚠️  Aggregation failed: ${e instanceof Error ? e.message : String(e)}`)

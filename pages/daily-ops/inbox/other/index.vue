@@ -1,6 +1,13 @@
 <template>
-  <div class="p-6">
-    <h1 class="text-2xl font-bold text-gray-900">Inbox – Other</h1>
-    <p class="mt-2 text-gray-600">Other inbox items. Full UI in the Next.js app.</p>
-  </div>
+  <InboxPageShell
+    title="Other"
+    description="Miscellaneous inbox content and exploratory data."
+  >
+    <NuxtLink
+      to="/daily-ops/inbox/other/all-test-data"
+      class="inline-flex rounded-lg border-2 border-gray-900 bg-white px-4 py-3 font-semibold hover:bg-gray-50"
+    >
+      Browse all test collections
+    </NuxtLink>
+  </InboxPageShell>
 </template>

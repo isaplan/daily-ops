@@ -133,7 +133,7 @@ async function checkWebhookLogs(): Promise<void> {
 
 async function verifyWatchSubscription(): Promise<void> {
   try {
-    const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:8080'
+    const baseUrl = process.env.APP_BASE_URL || 'http://localhost:8080'
     const response = await fetch(`${baseUrl}/api/inbox/watch`, {
       method: 'GET',
     })
@@ -160,14 +160,14 @@ async function verifyWatchSubscription(): Promise<void> {
       step: 'Watch Subscription',
       status: '❌',
       message: `Failed to check watch status: ${error instanceof Error ? error.message : 'Unknown error'}`,
-      details: 'Make sure your Next.js server is running',
+      details: 'Make sure the Nuxt dev server is running (e.g. pnpm dev on port 8080)',
     })
   }
 }
 
 async function verifyWebhookEndpoint(): Promise<void> {
   try {
-    const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:8080'
+    const baseUrl = process.env.APP_BASE_URL || 'http://localhost:8080'
     const testPayload = {
       message: {
         data: Buffer.from(
@@ -208,7 +208,7 @@ async function verifyWebhookEndpoint(): Promise<void> {
       step: 'Webhook Endpoint',
       status: '❌',
       message: `Webhook endpoint not accessible: ${error instanceof Error ? error.message : 'Unknown error'}`,
-      details: 'Make sure your Next.js server is running and endpoint is publicly accessible',
+      details: 'Make sure the Nuxt server is running and the webhook URL is publicly accessible',
     })
   }
 }

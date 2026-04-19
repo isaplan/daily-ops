@@ -1,0 +1,1 @@
+import{_ as e,r as o,o as c,f as s}from"./D0tx336m.js";const n={};function a(r,_){const t=o("InboxTestDataView");return c(),s(t,{"test-type":"contracts",title:"Eitje — Contracts",description:"Rows mapped to test-eitje-contracts."})}const p=e(n,[["render",a]]);export{p as default};
