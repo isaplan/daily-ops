@@ -1,6 +1,7 @@
 <template>
-  <div class="p-6">
-    <h1 class="text-2xl font-bold text-gray-900">Bork – Sales Per Hour</h1>
-    <p class="mt-2 text-gray-600">Bork sales per hour. Full UI in the Next.js app.</p>
-  </div>
+  <InboxTestDataView
+    test-type="product_sales_per_hour"
+    title="Bork — Sales per hour"
+    description="Raw rows in test-bork-basis-rapport (product sales per hour)."
+  />
 </template>

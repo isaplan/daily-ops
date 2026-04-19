@@ -1,13 +1,13 @@
 /**
  * @registry-id: borkRebuildAggregationService
  * @created: 2026-04-09T00:00:00.000Z
- * @last-modified: 2026-04-13T17:20:00.000Z
+ * @last-modified: 2026-04-14T12:00:00.000Z
  * @description: Rebuilds Bork sales aggregations from bork_raw_data using UNIFIED location names by CALENDAR DATE
- * @last-fix: [2026-04-13] Reverted: Store by calendar date (not business date). Business day logic applied at query/API layer for reporting.
+ * @last-fix: [2026-04-14] Added business_date + business_hour (register day 06:00–05:59:59) on hour/table/worker/guest docs
  *
- * @CRITICAL: Aggregations use CALENDAR DATES (when transaction occurred).
- * Business day calculations (06:00-05:59:59) are applied in the API layer for reporting/display.
- * This allows direct validation against register data (which tracks by calendar date + time).
+ * @CRITICAL: Primary bucketing uses calendar order.Date + ticket hour (local register time).
+ * Each hourly (and related) document also stores business_date + business_hour so reports can filter by register business day without recomputing.
+ * Register business day: 06:00–05:59:59 → business_hour 0 = 06:00–06:59 same day, 18–23 = 00:00–05:59 next calendar day.
  *
  * @CRITICAL: This service uses bork_unified_location_mapping to resolve locationNames.
  * All aggregation documents MUST have locationName matching unifiedLocationName, NOT raw Bork names.
@@ -48,6 +48,33 @@ function extractHour(timeStr: string | undefined): number {
   if (!timeStr) return 0
   const match = timeStr.match(/^(\d{1,2}):/)
   return match ? parseInt(match[1], 10) : 0
+}
+
+/** ISO YYYY-MM-DD plus whole days (UTC calendar math; Bork times are treated as local wall-clock). */
+function addCalendarDaysISO(dateStr: string, deltaDays: number): string {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  const dt = new Date(Date.UTC(y, m - 1, d + deltaDays))
+  const yy = dt.getUTCFullYear()
+  const mm = String(dt.getUTCMonth() + 1).padStart(2, '0')
+  const dd = String(dt.getUTCDate()).padStart(2, '0')
+  return `${yy}-${mm}-${dd}`
+}
+
+/**
+ * Register business day 06:00 (inclusive) through 05:59:59 next morning.
+ * business_hour 0 = 06:00–06:59, … 17 = 23:00–23:59, 18 = 00:00–00:59 next calendar day, … 23 = 05:00–05:59.
+ */
+function calendarToBusinessDay(
+  calendarDateStr: string,
+  calendarHour: number
+): { businessDate: string; businessHour: number } {
+  if (calendarHour >= 6 && calendarHour <= 23) {
+    return { businessDate: calendarDateStr, businessHour: calendarHour - 6 }
+  }
+  return {
+    businessDate: addCalendarDaysISO(calendarDateStr, -1),
+    businessHour: calendarHour + 18,
+  }
 }
 
 /**
@@ -153,9 +180,7 @@ export async function rebuildBorkSalesAggregation(
 
           // Extract hour from ticket time (not order time)
           const hour = extractHour(ticket.Time as string)
-          
-          // Store by calendar date - business day logic applied in API/query layer
-          // This allows matching against register reset times (06:00 each day)
+          const { businessDate, businessHour } = calendarToBusinessDay(dateStr, hour)
 
           // BY CRON: aggregate by unified location + date (ALL orders)
           const cronKey = `${unifiedLocationId}:${dateStr}`
@@ -181,6 +206,8 @@ export async function rebuildBorkSalesAggregation(
             byHourMap.set(hourKey, {
               date: dateStr,
               hour,
+              business_date: businessDate,
+              business_hour: businessHour,
               locationId: unifiedLocationId,
               locationName: unifiedLocationName,
               total_revenue: 0,
@@ -214,6 +241,8 @@ export async function rebuildBorkSalesAggregation(
               byTableMap.set(tableKey, {
                 date: dateStr,
                 hour,
+                business_date: businessDate,
+                business_hour: businessHour,
                 locationId: unifiedLocationId,
                 locationName: unifiedLocationName,
                 tableNumber,
@@ -245,6 +274,8 @@ export async function rebuildBorkSalesAggregation(
             byWorkerMap.set(workerKey, {
               date: dateStr,
               hour,
+              business_date: businessDate,
+              business_hour: businessHour,
               locationId: unifiedLocationId,
               locationName: unifiedLocationName,
               workerId: unifiedWorkerId,
@@ -280,6 +311,8 @@ export async function rebuildBorkSalesAggregation(
               byGuestAccountMap.set(guestKey, {
                 date: dateStr,
                 hour,
+                business_date: businessDate,
+                business_hour: businessHour,
                 locationId: unifiedLocationId,
                 locationName: unifiedLocationName,
                 accountName: guestAccountName,

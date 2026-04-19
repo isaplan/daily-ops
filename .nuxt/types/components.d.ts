@@ -35,6 +35,8 @@ interface _GlobalComponents {
   DailyOpsSectionPage: typeof import("../../components/daily-ops/DailyOpsSectionPage.vue")['default']
   DailyOpsDashboardDayHoursShare: typeof import("../../components/daily-ops/DashboardDayHoursShare.vue")['default']
   DailyOpsWorkerDetailsDrawer: typeof import("../../components/daily-ops/WorkerDetailsDrawer.vue")['default']
+  DailyOpsInboxPageShell: typeof import("../../components/daily-ops/inbox/InboxPageShell.vue")['default']
+  DailyOpsInboxTestDataView: typeof import("../../components/daily-ops/inbox/InboxTestDataView.vue")['default']
   SettingsCredentialInput: typeof import("../../components/settings/CredentialInput.vue")['default']
   SettingsCronJobToggle: typeof import("../../components/settings/CronJobToggle.vue")['default']
   SettingsDataFieldMapper: typeof import("../../components/settings/DataFieldMapper.vue")['default']
@@ -208,6 +210,8 @@ interface _GlobalComponents {
   LazyDailyOpsSectionPage: LazyComponent<typeof import("../../components/daily-ops/DailyOpsSectionPage.vue")['default']>
   LazyDailyOpsDashboardDayHoursShare: LazyComponent<typeof import("../../components/daily-ops/DashboardDayHoursShare.vue")['default']>
   LazyDailyOpsWorkerDetailsDrawer: LazyComponent<typeof import("../../components/daily-ops/WorkerDetailsDrawer.vue")['default']>
+  LazyDailyOpsInboxPageShell: LazyComponent<typeof import("../../components/daily-ops/inbox/InboxPageShell.vue")['default']>
+  LazyDailyOpsInboxTestDataView: LazyComponent<typeof import("../../components/daily-ops/inbox/InboxTestDataView.vue")['default']>
   LazySettingsCredentialInput: LazyComponent<typeof import("../../components/settings/CredentialInput.vue")['default']>
   LazySettingsCronJobToggle: LazyComponent<typeof import("../../components/settings/CronJobToggle.vue")['default']>
   LazySettingsDataFieldMapper: LazyComponent<typeof import("../../components/settings/DataFieldMapper.vue")['default']>

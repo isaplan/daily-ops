@@ -1,0 +1,24 @@
+name: Gmail Inbox Watch Renew
+
+# Renews Gmail users.watch before Google’s ~7-day expiration. OAuth access tokens
+# refresh automatically on each API call (googleapis); this job only re-registers the watch.
+on:
+  schedule:
+    - cron: '30 5 * * *'
+  workflow_dispatch:
+
+jobs:
+  renew-gmail-watch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Renew Gmail push watch (production)
+        env:
+          DO_APP_DOMAIN: ${{ secrets.DO_APP_DOMAIN }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$DO_APP_DOMAIN" ] || [ -z "$CRON_SECRET" ]; then
+            echo "Missing DO_APP_DOMAIN or CRON_SECRET in repository secrets"
+            exit 1
+          fi
+          curl -fsS "https://${DO_APP_DOMAIN}/api/inbox/watch/renew?secret=${CRON_SECRET}" \
+            -w "\nHTTP %{http_code}\n"

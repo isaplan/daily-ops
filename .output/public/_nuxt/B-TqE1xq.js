@@ -1,0 +1,1 @@
+import{_ as t}from"./CqN_C1tQ.js";import{g as n,o as e,f as i}from"./D0tx336m.js";import"./D3t5613Z.js";import"./BB7fe5Jd.js";import"./Df4lrUlY.js";import"./C8Ffz_a3.js";import"./CJVWbR2p.js";const l=n({__name:"insights",setup(p){return(r,s)=>{const o=t;return e(),i(o,{section:"insights"})}}});export{l as default};

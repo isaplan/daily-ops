@@ -1,0 +1,1 @@
+import{_ as o,r as t,o as s,f as r}from"./D0tx336m.js";const n={};function c(a,i){const e=t("InboxTestDataView");return s(),r(e,{"test-type":"hours",title:"Eitje — Hours",description:"Rows mapped to test-eitje-hours from inbox imports."})}const _=o(n,[["render",c]]);export{_ as default};

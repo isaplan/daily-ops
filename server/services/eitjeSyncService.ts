@@ -1,9 +1,9 @@
 /**
  * @registry-id: eitjeSyncService
  * @created: 2026-04-05T12:00:00.000Z
- * @last-modified: 2026-04-12T12:00:00.000Z
+ * @last-modified: 2026-04-19T12:00:00.000Z
  * @description: Fetches Eitje Open API resources and upserts eitje_raw_data; drives cron/sync handlers
- * @last-fix: [2026-04-12] Optional EITJE_BACKFILL_CHUNK_DELAY_MS between time-registration API windows
+ * @last-fix: [2026-04-19] Credentials hint uses getMongoDatabaseName() (same resolution as server/utils/db.ts)
  *
  * @exports-to:
  * ✓ server/api/eitje/v2/cron.post.ts
@@ -14,6 +14,7 @@ import { createHash } from 'node:crypto'
 import { request as httpRequest } from 'node:http'
 import { request as httpsRequest } from 'node:https'
 import type { Db } from 'mongodb'
+import { getMongoDatabaseName } from '../utils/db'
 import { documentToEitjeStoredCredentials, findEitjeCredentialDocument } from '../utils/eitjeApiCredentials'
 import { eitjeFetchJson, legacyEitjeV2Headers, normalizeEitjeBaseUrl, type EitjeStoredCredentials } from './eitjeOpenApiFetch'
 import { rebuildEitjeTimeRegistrationAggregation } from './eitjeRebuildAggregationService'
@@ -41,7 +42,7 @@ export async function loadActiveEitjeCredentials (db: Db): Promise<EitjeStoredCr
 }
 
 export function eitjeCredentialsHintMessage (): string {
-  const dbn = process.env.MONGODB_DB_NAME || 'daily-ops'
+  const dbn = getMongoDatabaseName()
   return `No usable Eitje row in api_credentials (database "${dbn}"). Open Settings → Eitje API → save all four fields, or align MONGODB_DB_NAME / MONGODB_URI in .env.local with the DB where you store credentials.`
 }
 

@@ -101,6 +101,44 @@ declare module "nitropack/types" {
     '/api/hours-row-records': {
       'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/hours-row-records.get').default>>>>
     }
+    '/api/inbox/:id': {
+      'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/inbox/[id].get').default>>>>
+    }
+    '/api/inbox/list': {
+      'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/inbox/list.get').default>>>>
+    }
+    '/api/inbox/parse': {
+      'post': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/inbox/parse.post').default>>>>
+    }
+    '/api/inbox/process-all': {
+      'post': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/inbox/process-all.post').default>>>>
+    }
+    '/api/inbox/process/:emailId': {
+      'post': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/inbox/process/[emailId].post').default>>>>
+    }
+    '/api/inbox/sync': {
+      'post': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/inbox/sync.post').default>>>>
+    }
+    '/api/inbox/test-data/:type': {
+      'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/inbox/test-data/[type].get').default>>>>
+    }
+    '/api/inbox/unprocessed-count': {
+      'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/inbox/unprocessed-count.get').default>>>>
+    }
+    '/api/inbox/upload': {
+      'post': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/inbox/upload.post').default>>>>
+    }
+    '/api/inbox/watch': {
+      'delete': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/inbox/watch.delete').default>>>>
+      'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/inbox/watch.get').default>>>>
+      'post': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/inbox/watch.post').default>>>>
+    }
+    '/api/inbox/watch/renew': {
+      'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/inbox/watch/renew.get').default>>>>
+    }
+    '/api/inbox/webhook': {
+      'post': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/inbox/webhook.post').default>>>>
+    }
     '/api/locations/:id': {
       'delete': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/locations/[id].delete').default>>>>
     }
@@ -195,13 +233,13 @@ declare module "nitropack/types" {
       'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/workers/index.get').default>>>>
     }
     '/__nuxt_error': {
-      'default': Simplify<Serialize<Awaited<ReturnType<typeof import('../../node_modules/.pnpm/@nuxt+nitro-server@4.4.2_@babel+core@7.29.0_db0@0.3.4_ioredis@5.10.1_magicast@0.5.2_nux_4ef35676041ca6aeac96e97cd57aa3e3/node_modules/@nuxt/nitro-server/dist/runtime/handlers/renderer').default>>>>
+      'default': Simplify<Serialize<Awaited<ReturnType<typeof import('../../node_modules/@nuxt/nitro-server/dist/runtime/handlers/renderer').default>>>>
     }
     '/__nuxt_island/**': {
       'default': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/#internal/nuxt/island-renderer').default>>>>
     }
     '/api/_nuxt_icon/:collection': {
-      'default': Simplify<Serialize<Awaited<ReturnType<typeof import('../../node_modules/.pnpm/@nuxt+icon@2.2.1_magicast@0.5.2_vite@7.3.1_jiti@2.6.1_lightningcss@1.32.0_terser@5.46.1_4abecf752c96ef90061202239c0fe9f1/node_modules/@nuxt/icon/dist/runtime/server/api').default>>>>
+      'default': Simplify<Serialize<Awaited<ReturnType<typeof import('../../node_modules/@nuxt/icon/dist/runtime/server/api').default>>>>
     }
   }
 }

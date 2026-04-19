@@ -1,3 +1,9 @@
+/**
+ * @registry-id: mongoDb
+ * @last-modified: 2026-04-19T12:00:00.000Z
+ * @description: Single MongoClient + DB name resolution for Nitro routes and services
+ * @last-fix: [2026-04-19] Accept DATABASE_URL when MONGODB_URI unset (DO App Platform database binding)
+ */
 import { MongoClient, type Collection } from 'mongodb'
 import { readFileSync, existsSync } from 'fs'
 import { resolve } from 'path'
@@ -42,8 +48,36 @@ function loadCwdMongoEnv () {
 }
 loadCwdMongoEnv()
 
-const uri = process.env.MONGODB_URI || 'mongodb://localhost:27017'
-const dbName = process.env.MONGODB_DB_NAME || 'daily-ops'
+/** DB segment after host in MONGODB_URI (e.g. daily-ops-db); ignores when URI has no path. */
+function parseDbNameFromMongoUri (uri: string): string | undefined {
+  if (!uri) return undefined
+  const noQuery = uri.split('?')[0] ?? ''
+  const afterScheme = noQuery.replace(/^mongodb(\+srv)?:\/\//i, '')
+  const slash = afterScheme.indexOf('/')
+  if (slash < 0) return undefined
+  const name = afterScheme.slice(slash + 1).replace(/\/$/, '')
+  return name.length > 0 ? name : undefined
+}
+
+function mongoConnectionString (): string {
+  return (process.env.MONGODB_URI || process.env.DATABASE_URL || '').trim()
+}
+
+function resolveMongoDbName (): string {
+  const explicit = process.env.MONGODB_DB_NAME?.trim()
+  if (explicit) return explicit
+  const parsed = parseDbNameFromMongoUri(mongoConnectionString())
+  if (parsed) return parsed
+  return 'daily-ops-db'
+}
+
+const uri = mongoConnectionString() || 'mongodb://localhost:27017'
+const dbName = resolveMongoDbName()
+
+/** Resolved logical DB name (env, URI path, or default). For error messages. */
+export function getMongoDatabaseName (): string {
+  return dbName
+}
 
 let client: MongoClient | null = null
 
