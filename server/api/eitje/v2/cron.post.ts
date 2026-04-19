@@ -1,4 +1,5 @@
 import { getDb } from '../../../utils/db'
+import { executeEitjeJob } from '../../../services/eitjeSyncService'
 
 type Body = {
   action: 'start' | 'stop' | 'run-now' | 'update'
@@ -48,7 +49,23 @@ export default defineEventHandler(async (event) => {
       },
       { upsert: true },
     )
-    return { success: true, message: 'Run triggered' }
+
+    const syncResult = await executeEitjeJob(db, body.jobType)
+    await db.collection('integration_cron_jobs').updateOne(query, {
+      $set: {
+        lastSyncAt: now.toISOString(),
+        lastSyncOk: syncResult.ok,
+        lastSyncMessage: syncResult.message,
+        lastSyncDetail: syncResult,
+        updatedAt: new Date(),
+      },
+    })
+
+    return {
+      success: syncResult.ok,
+      message: syncResult.ok ? syncResult.message : syncResult.message,
+      sync: syncResult,
+    }
   }
 
   await db.collection('integration_cron_jobs').updateOne(

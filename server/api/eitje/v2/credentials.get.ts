@@ -1,19 +1,13 @@
 import { getDb } from '../../../utils/db'
+import { documentToCredentialsApiShape, findEitjeCredentialDocument } from '../../../utils/eitjeApiCredentials'
 
 export default defineEventHandler(async () => {
   const db = await getDb()
-  const row = await db.collection('api_credentials').findOne(
-    { provider: 'eitje', isActive: true },
-    { sort: { createdAt: -1 } }
-  )
+  const row = await findEitjeCredentialDocument(db)
+  const credentials = row ? documentToCredentialsApiShape(row) : null
 
   return {
     success: true,
-    credentials: row
-      ? {
-          baseUrl: row.baseUrl || 'https://open-api.eitje.app/open_api',
-          additionalConfig: row.additionalConfig || {},
-        }
-      : null,
+    credentials,
   }
 })

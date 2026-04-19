@@ -4,10 +4,16 @@
   "type": "module",
   "scripts": {
     "build": "nuxt build",
-    "dev": "nuxt dev",
+    "dev": "nuxt dev -p 8080",
+    "dev:clean": "lsof -ti:8080 | xargs kill -9 2>/dev/null; rm -rf .nuxt .output node_modules/.vite node_modules/.cache && nuxt dev -p 8080",
     "generate": "nuxt generate",
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
+    "copy:locations-teams": "node --experimental-strip-types scripts/copy-locations-teams-to-remote.ts",
+    "copy:unified-users": "node --experimental-strip-types scripts/copy-unified-users-to-remote.ts",
+    "migrate:credentials": "node --experimental-strip-types scripts/migrate-credentials-to-remote.ts",
+    "bork:backfill": "NODE_OPTIONS='--max-old-space-size=8192' node --experimental-strip-types scripts/bork-full-raw-backfill.ts",
+    "eitje:backfill": "npx --yes tsx scripts/eitje-full-raw-backfill.ts",
     "start": "node .output/server/index.mjs"
   },
   "dependencies": {
@@ -15,6 +21,7 @@
     "@tiptap/extension-placeholder": "^3.20.0",
     "@tiptap/starter-kit": "^3.20.0",
     "@tiptap/vue-3": "^3.20.0",
+    "d3": "^7.9.0",
     "html2pdf.js": "^0.14.0",
     "mongodb": "^7.0.0",
     "nuxt": "^4.0.0",
@@ -24,9 +31,6 @@
     "vue": "latest",
     "vue-router": "^4.6.4",
     "xlsx": "^0.18.5"
-  },
-  "devDependencies": {
-    "@nuxt/devtools": "latest"
   },
   "engines": {
     "node": "22.22.1"

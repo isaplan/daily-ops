@@ -58,6 +58,19 @@ export default defineEventHandler(async (event) => {
       locationClauses.push({ locationId: locIdStr })
       if (eitjeIds.length) locationClauses.push({ environmentId: { $in: eitjeIds } })
       ;(match.$and as unknown[]).push({ $or: locationClauses })
+    } else {
+      // Check if locationName is provided as fallback filter
+      const locationNameParam = query.locationName as string | undefined
+      if (locationNameParam && locationNameParam !== 'Unknown') {
+        ;(match.$and as unknown[]).push({
+          $or: [
+            { 'extracted.locationName': locationNameParam },
+            { 'rawApiResponse.environment.name': locationNameParam },
+            { 'rawApiResponse.environment_name': locationNameParam },
+            { 'rawApiResponse.location_name': locationNameParam },
+          ]
+        })
+      }
     }
 
     const pipeline: unknown[] = [
@@ -137,13 +150,23 @@ export default defineEventHandler(async (event) => {
           worker_name: {
             $ifNull: [
               { $arrayElemAt: ['$user.canonicalName', 0] },
-              { $ifNull: [{ $arrayElemAt: ['$user.primaryName', 0] }, 'Unknown'] }
+              {
+                $ifNull: [
+                  { $arrayElemAt: ['$user.primaryName', 0] },
+                  { $ifNull: ['$rawApiResponse.user.name', 'Unknown'] }
+                ]
+              }
             ]
           },
           team_name: {
             $ifNull: [
               { $arrayElemAt: ['$team.canonicalName', 0] },
-              { $ifNull: [{ $arrayElemAt: ['$team.primaryName', 0] }, 'Unknown'] }
+              {
+                $ifNull: [
+                  { $arrayElemAt: ['$team.primaryName', 0] },
+                  { $ifNull: ['$rawApiResponse.team.name', 'Unknown'] }
+                ]
+              }
             ]
           },
           start: 1,

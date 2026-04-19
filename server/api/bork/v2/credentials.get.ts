@@ -15,7 +15,11 @@ type CredentialRow = {
 
 export default defineEventHandler(async () => {
   const db = await getDb()
-  const creds = await db.collection<CredentialRow>('api_credentials').find({ provider: 'bork' }).sort({ createdAt: -1 }).toArray()
+  const creds = await db
+    .collection<CredentialRow>('api_credentials')
+    .find({ provider: { $in: ['bork', 'Bork'] } })
+    .sort({ createdAt: -1 })
+    .toArray()
 
   const list: { _id: string; locationId: string; locationName: string | null; baseUrl: string; hasApiKey: boolean }[] = []
   for (const c of creds) {

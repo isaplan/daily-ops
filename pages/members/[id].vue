@@ -1,6 +1,5 @@
 <template>
-  <div class="min-h-screen bg-gray-50 p-8">
-    <div class="max-w-4xl mx-auto">
+  <div class="max-w-4xl mx-auto w-full">
       <UButton variant="ghost" size="sm" class="mb-4 text-blue-600 hover:text-blue-800" to="/organisation">
         ← Back
       </UButton>
@@ -49,12 +48,12 @@
             <UFormField label="Email *"><UInput v-model="editForm.email" type="email" placeholder="Email" required /></UFormField>
             <UFormField label="Slack username"><UInput v-model="editForm.slack_username" placeholder="@username" /></UFormField>
             <UFormField label="Location">
-              <USelectMenu v-model="editForm.location_id" :items="locationOptions" value-attribute="value" class="w-full" @update:model-value="editForm.team_id = ''">
+              <USelectMenu v-model="editForm.location_id" :items="locationOptions" value-key="value" class="w-full" @update:model-value="editForm.team_id = ''">
                 <template #leading><UIcon name="i-lucide-map-pin" class="size-4 text-gray-500" /></template>
               </USelectMenu>
             </UFormField>
             <UFormField label="Team">
-              <USelectMenu v-model="editForm.team_id" :items="filteredTeamOptions" value-attribute="value" class="w-full">
+              <USelectMenu v-model="editForm.team_id" :items="filteredTeamOptions" value-key="value" class="w-full">
                 <template #leading><UIcon name="i-lucide-users" class="size-4 text-gray-500" /></template>
               </USelectMenu>
             </UFormField>
@@ -74,7 +73,206 @@
           </div>
         </div>
 
-        <!-- Connections: summary cards + Notes / Todos / Decisions (like Next.js ConnectionsDisplay) -->
+        <!-- Worker Info Card: show contract, rates, contact details if available -->
+        <div v-if="hasWorkerData" class="bg-white border border-gray-200 rounded-lg p-6 mb-6">
+          <h2 class="text-xl font-bold text-gray-900 mb-4">Worker Information</h2>
+          
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- Contract Details -->
+            <div>
+              <h3 class="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">Contract Details</h3>
+              <div class="space-y-2 text-sm">
+                <div v-if="member.contract_type" class="flex justify-between">
+                  <span class="text-gray-600">Type:</span>
+                  <span class="font-medium">{{ member.contract_type }}</span>
+                </div>
+                <div v-if="member.contract_start_date" class="flex justify-between">
+                  <span class="text-gray-600">Start Date:</span>
+                  <span class="font-medium">{{ formatDate(member.contract_start_date) }}</span>
+                </div>
+                <div v-if="member.contract_end_date" class="flex justify-between">
+                  <span class="text-gray-600">End Date:</span>
+                  <span class="font-medium" :class="isContractExpired ? 'text-red-600' : 'text-green-600'">
+                    {{ formatDate(member.contract_end_date) }}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Compensation -->
+            <div>
+              <h3 class="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">Compensation</h3>
+              <div class="space-y-2 text-sm">
+                <div v-if="member.hourly_rate" class="flex justify-between">
+                  <span class="text-gray-600">Hourly Rate:</span>
+                  <span class="font-medium">€{{ member.hourly_rate.toFixed(2) }}</span>
+                </div>
+                <div v-if="member.weekly_hours" class="flex justify-between">
+                  <span class="text-gray-600">Weekly Hours:</span>
+                  <span class="font-medium">{{ member.weekly_hours.toFixed(1) }}h</span>
+                </div>
+                <div v-if="member.monthly_hours" class="flex justify-between">
+                  <span class="text-gray-600">Monthly Hours:</span>
+                  <span class="font-medium">{{ member.monthly_hours.toFixed(1) }}h</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Contact Information -->
+            <div>
+              <h3 class="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">Contact Information</h3>
+              <div class="space-y-2 text-sm">
+                <div v-if="member.phone" class="flex justify-between">
+                  <span class="text-gray-600">Phone:</span>
+                  <span class="font-medium">{{ member.phone }}</span>
+                </div>
+                <div v-if="member.birthday" class="flex justify-between">
+                  <span class="text-gray-600">Birthday:</span>
+                  <span class="font-medium">{{ member.birthday }}</span>
+                </div>
+                <div v-if="member.age" class="flex justify-between">
+                  <span class="text-gray-600">Age:</span>
+                  <span class="font-medium">{{ member.age }} years</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Address -->
+            <div v-if="hasAddressData">
+              <h3 class="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">Address</h3>
+              <div class="space-y-2 text-sm">
+                <div v-if="member.street" class="text-gray-900">{{ member.street }}</div>
+                <div v-if="member.postcode || member.city" class="text-gray-900">
+                  <span v-if="member.postcode">{{ member.postcode }}</span>
+                  <span v-if="member.postcode && member.city">&nbsp;</span>
+                  <span v-if="member.city">{{ member.city }}</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- IDs -->
+            <div v-if="member.nmbrs_id || member.support_id">
+              <h3 class="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">Identifiers</h3>
+              <div class="space-y-2 text-sm">
+                <div v-if="member.nmbrs_id" class="flex justify-between">
+                  <span class="text-gray-600">Nmbrs ID:</span>
+                  <span class="font-medium font-mono">{{ member.nmbrs_id }}</span>
+                </div>
+                <div v-if="member.support_id" class="flex justify-between">
+                  <span class="text-gray-600">Support ID:</span>
+                  <span class="font-medium font-mono">{{ member.support_id }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Eitje: every location + team this person appears on (worked + planned) -->
+        <div
+          v-if="member.eitje_places"
+          class="mb-6 overflow-hidden rounded-2xl border border-[hsl(45,25%,82%)] bg-gradient-to-br from-[hsl(45,20%,99%)] via-white to-[hsl(200,35%,98%)] p-6 shadow-sm"
+        >
+          <div class="mb-5 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h2 class="text-xl font-bold tracking-tight text-gray-900">Hours by location</h2>
+              <p class="text-sm text-gray-600">
+                From synced Eitje data: <span class="font-medium text-gray-800">clocked</span> hours and
+                <span class="font-medium text-gray-800">planned</span> rooster. One card per location; teams listed below.
+              </p>
+              <div
+                v-if="member.eitje_totals"
+                class="mt-3 flex flex-wrap gap-2"
+              >
+                <span
+                  class="inline-flex items-center gap-1.5 rounded-lg bg-emerald-100/90 px-3 py-1.5 text-sm font-semibold text-emerald-950 ring-1 ring-emerald-300/60"
+                >
+                  Total worked {{ member.eitje_totals.worked_hours.toFixed(1) }}h
+                </span>
+                <span
+                  class="inline-flex items-center gap-1.5 rounded-lg bg-sky-100/90 px-3 py-1.5 text-sm font-semibold text-sky-950 ring-1 ring-sky-300/60"
+                >
+                  Total planned {{ member.eitje_totals.planned_hours.toFixed(1) }}h
+                </span>
+                <span v-if="eitjePlacesGroupedByLocation.length" class="text-xs text-gray-500 self-center">
+                  {{ eitjePlacesGroupedByLocation.length }} location(s) · {{ member.eitje_totals.places_count }} team row(s)
+                </span>
+              </div>
+            </div>
+            <div class="text-xs text-gray-500 sm:text-right">
+              <p>
+                Rolling {{ member.eitje_places.months_back }} months ·
+                {{ formatIsoDate(member.eitje_places.range_start) }} – {{ formatIsoDate(member.eitje_places.range_end) }}
+              </p>
+              <p v-if="member.eitje_places.data_source === 'raw_fallback'" class="mt-1 text-amber-800/90">
+                Built from stored shift rows (daily totals had no match for this support ID / name).
+              </p>
+            </div>
+          </div>
+
+          <div
+            v-if="eitjePlacesGroupedByLocation.length"
+            class="grid gap-4 sm:grid-cols-2 xl:grid-cols-2"
+          >
+            <div
+              v-for="loc in eitjePlacesGroupedByLocation"
+              :key="loc.location_key"
+              class="group relative flex flex-col rounded-xl border border-gray-200/80 bg-white/90 p-4 shadow-[0_1px_0_rgba(0,0,0,0.04)] backdrop-blur-sm transition hover:border-[hsl(45,30%,70%)] hover:shadow-md"
+            >
+              <div class="absolute right-3 top-3 size-2 rounded-full bg-[hsl(45,55%,55%)] opacity-60 group-hover:opacity-100" aria-hidden="true" />
+              <p class="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Location</p>
+              <p class="text-base font-semibold leading-snug text-gray-900">{{ loc.location_name }}</p>
+              <div class="mt-3 flex flex-wrap gap-2 border-b border-gray-100 pb-3">
+                <span
+                  class="inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-900 ring-1 ring-emerald-200/80"
+                  title="Sum of clocked hours at this location"
+                >
+                  <span class="size-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
+                  Worked {{ loc.worked_total.toFixed(1) }}h
+                </span>
+                <span
+                  class="inline-flex items-center gap-1 rounded-lg bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-900 ring-1 ring-sky-200/80"
+                  title="Sum of planned hours at this location"
+                >
+                  <span class="size-1.5 rounded-full bg-sky-500" aria-hidden="true" />
+                  Planned {{ loc.planned_total.toFixed(1) }}h
+                </span>
+              </div>
+              <p class="mt-3 text-[11px] font-semibold uppercase tracking-wider text-gray-400">Teams</p>
+              <ul class="mt-2 space-y-3">
+                <li
+                  v-for="(t, ti) in loc.teams"
+                  :key="`${loc.location_key}-team-${ti}`"
+                  class="rounded-lg bg-gray-50/80 px-3 py-2.5 ring-1 ring-gray-100"
+                >
+                  <p class="text-sm font-medium text-gray-900">{{ t.team_name }}</p>
+                  <div class="mt-2 flex flex-wrap gap-2">
+                    <span
+                      class="inline-flex items-center gap-1 rounded-md bg-emerald-50/90 px-2 py-0.5 text-[11px] font-semibold text-emerald-900"
+                    >
+                      Worked {{ t.worked_hours.toFixed(1) }}h
+                    </span>
+                    <span
+                      class="inline-flex items-center gap-1 rounded-md bg-sky-50/90 px-2 py-0.5 text-[11px] font-semibold text-sky-900"
+                    >
+                      Planned {{ t.planned_hours.toFixed(1) }}h
+                    </span>
+                  </div>
+                  <p class="mt-1.5 text-[10px] text-gray-500">
+                    {{ t.worked_records }} worked rows · {{ t.planned_records }} planned rows
+                  </p>
+                </li>
+              </ul>
+              <p class="mt-3 text-[10px] text-gray-400">
+                Location total: {{ loc.worked_records_total }} worked rows · {{ loc.planned_records_total }} planned rows
+              </p>
+            </div>
+          </div>
+          <p v-else class="rounded-lg border border-dashed border-gray-200 bg-white/60 px-4 py-6 text-center text-sm text-gray-600">
+            No shifts in Eitje for this person in the last {{ member.eitje_places.months_back }} months (checked by support ID, unified user ids, and name).
+            If they do work in Eitje, confirm sync and that support ID {{ member.support_id || '—' }} matches their Eitje profile.
+          </p>
+        </div>
+
         <div class="bg-white border border-gray-200 rounded-lg p-6">
           <h2 class="text-2xl font-bold text-gray-900 mb-4">Connections</h2>
 
@@ -169,7 +367,6 @@
           </template>
         </div>
       </template>
-    </div>
   </div>
 </template>
 
@@ -188,6 +385,39 @@ type MemberItem = {
   location_name?: string
   team_name?: string
   is_active?: boolean
+  contract_type?: string
+  contract_start_date?: string | null
+  contract_end_date?: string | null
+  hourly_rate?: number
+  weekly_hours?: number
+  monthly_hours?: number
+  phone?: string
+  age?: number
+  birthday?: string
+  postcode?: string
+  city?: string
+  street?: string
+  nmbrs_id?: string
+  support_id?: string
+  eitje_places?: {
+    months_back: number
+    range_start: string
+    range_end: string
+    data_source?: 'aggregation' | 'raw_fallback' | 'none'
+    merged: Array<{
+      location_name: string
+      team_name: string
+      worked_hours: number
+      planned_hours: number
+      worked_records: number
+      planned_records: number
+    }>
+  }
+  eitje_totals?: {
+    worked_hours: number
+    planned_hours: number
+    places_count: number
+  }
 }
 type ConnectionNote = { _id: string; slug?: string; title: string; content?: string; created_at?: string | null }
 type ConnectionTodo = { _id: string; text: string; checked: boolean; noteId: string; noteSlug?: string; noteTitle: string }
@@ -214,6 +444,69 @@ const { data: memberData, pending, error: memberFetchError } = await useFetch<{ 
   { watch: [id] }
 )
 const member = computed(() => memberData.value?.data ?? null)
+
+type EitjeTeamInLoc = {
+  team_name: string
+  worked_hours: number
+  planned_hours: number
+  worked_records: number
+  planned_records: number
+}
+type EitjeLocationCard = {
+  location_key: string
+  location_name: string
+  teams: EitjeTeamInLoc[]
+  worked_total: number
+  planned_total: number
+  worked_records_total: number
+  planned_records_total: number
+}
+
+/** One card per location; teams aggregated from merged location+team rows. */
+const eitjePlacesGroupedByLocation = computed((): EitjeLocationCard[] => {
+  const merged = member.value?.eitje_places?.merged ?? []
+  const map = new Map<string, { location_name: string; teams: EitjeTeamInLoc[] }>()
+  for (const row of merged) {
+    const locName = (row.location_name ?? 'Unknown').trim() || 'Unknown'
+    const key = locName.toLowerCase()
+    let g = map.get(key)
+    if (!g) {
+      g = { location_name: locName, teams: [] }
+      map.set(key, g)
+    }
+    g.teams.push({
+      team_name: row.team_name ?? 'Unknown',
+      worked_hours: row.worked_hours,
+      planned_hours: row.planned_hours,
+      worked_records: row.worked_records,
+      planned_records: row.planned_records,
+    })
+  }
+  const out: EitjeLocationCard[] = []
+  for (const [location_key, g] of map) {
+    g.teams.sort((a, b) =>
+      a.team_name.localeCompare(b.team_name, undefined, { sensitivity: 'base' })
+    )
+    const worked_total = g.teams.reduce((s, t) => s + t.worked_hours, 0)
+    const planned_total = g.teams.reduce((s, t) => s + t.planned_hours, 0)
+    const worked_records_total = g.teams.reduce((s, t) => s + t.worked_records, 0)
+    const planned_records_total = g.teams.reduce((s, t) => s + t.planned_records, 0)
+    out.push({
+      location_key,
+      location_name: g.location_name,
+      teams: g.teams,
+      worked_total,
+      planned_total,
+      worked_records_total,
+      planned_records_total,
+    })
+  }
+  out.sort((a, b) =>
+    a.location_name.localeCompare(b.location_name, undefined, { sensitivity: 'base' })
+  )
+  return out
+})
+
 const memberError = computed(() => {
   if (member.value) return ''
   const e = memberFetchError.value
@@ -241,6 +534,52 @@ function formatDate(val: string | null | undefined) {
     return ''
   }
 }
+
+/** YYYY-MM-DD from API → locale date */
+function formatIsoDate(val: string | null | undefined) {
+  if (!val) return ''
+  try {
+    const [y, m, d] = val.split('-').map(Number)
+    if (!y || !m || !d) return val
+    return new Date(y, m - 1, d).toLocaleDateString()
+  } catch {
+    return val ?? ''
+  }
+}
+
+const hasWorkerData = computed(() => {
+  if (!member.value) return false
+  return !!(
+    member.value.contract_type ||
+    member.value.contract_start_date ||
+    member.value.contract_end_date ||
+    member.value.hourly_rate ||
+    typeof member.value.weekly_hours === 'number' ||
+    typeof member.value.monthly_hours === 'number' ||
+    member.value.phone ||
+    member.value.age ||
+    member.value.birthday ||
+    member.value.street ||
+    member.value.postcode ||
+    member.value.city ||
+    !!(member.value.support_id && member.value.support_id.trim()) ||
+    !!(member.value.nmbrs_id && member.value.nmbrs_id.trim())
+  )
+})
+
+const hasAddressData = computed(() => {
+  if (!member.value) return false
+  return !!(member.value.street || member.value.postcode || member.value.city)
+})
+
+const isContractExpired = computed(() => {
+  if (!member.value?.contract_end_date) return false
+  try {
+    return new Date(member.value.contract_end_date) < new Date()
+  } catch {
+    return false
+  }
+})
 
 const { data: locationsData } = await useFetch<{ success: boolean; data: LocationItem[] }>('/api/locations')
 const { data: teamsData } = await useFetch<{ success: boolean; data: TeamItem[] }>('/api/teams')
@@ -304,7 +643,8 @@ async function saveMember() {
       },
     })
     if (res.success && res.data) {
-      memberData.value = { success: true, data: res.data }
+      const full = await $fetch<{ success: boolean; data: MemberItem }>(`/api/members/${id.value}`)
+      memberData.value = full.success && full.data ? full : { success: true, data: res.data }
       isEditing.value = false
     } else {
       saveError.value = res.error ?? 'Failed to update member'

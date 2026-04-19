@@ -1,3 +1,4 @@
+import { resolveDailyOpsPeriod } from '~/utils/dailyOpsPeriod'
 import { DAILY_OPS_PERIOD_IDS, type DailyOpsPeriodId } from '~/types/daily-ops-dashboard'
 
 export type DailyOpsNavKey = 'overview' | 'revenue' | 'productivity' | 'workload' | 'products' | 'insights'
@@ -60,20 +61,23 @@ export function useDailyOpsDashboardRoute() {
       year: 'numeric',
       month: 'long',
       day: 'numeric',
+      timeZone: 'UTC',
     })
-    const anchor = new Date()
+    const anchorYmd = anchor.value ?? new Date().toISOString().slice(0, 10)
+    const anchorUtc = new Date(`${anchorYmd}T12:00:00.000Z`)
     if (period.value === 'today') {
-      return `Today: ${fmt.format(anchor)}`
+      return `Today: ${fmt.format(anchorUtc)} (UTC)`
     }
     if (period.value === 'yesterday') {
-      const y = new Date(anchor)
-      y.setDate(y.getDate() - 1)
-      return `Yesterday: ${fmt.format(y)}`
+      const y = new Date(anchorUtc)
+      y.setUTCDate(y.getUTCDate() - 1)
+      return `Yesterday: ${fmt.format(y)} (UTC)`
     }
+    const r = resolveDailyOpsPeriod(period.value, anchorYmd)
     if (period.value === 'this-week') {
-      return `This week`
+      return `This week: ${r.startDate} → ${r.endDate} (UTC)`
     }
-    return `Last week`
+    return `Last week: ${r.startDate} → ${r.endDate} (UTC)`
   })
 
   return {

@@ -1,3 +1,9 @@
 <template>
-  <DailyOpsSectionPage section="productivity" />
+  <DailyOpsHomeDashboard page-heading-suffix="Productivity" />
 </template>
+
+<script setup lang="ts">
+definePageMeta({
+  keepalive: true,
+})
+</script>

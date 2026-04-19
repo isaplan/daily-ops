@@ -5,6 +5,7 @@
 
 import { ObjectId } from 'mongodb'
 import { getNotesCollection } from '../../../utils/db'
+import { activeNotesMatch } from '../../../utils/noteDeletedFilter'
 import { parseBlockNoteContent } from '../../../../types/noteBlock'
 
 const NOTES_LIMIT = 50
@@ -20,6 +21,7 @@ export default defineEventHandler(async (event) => {
   const notes = await coll
     .find({
       is_archived: { $ne: true },
+      ...activeNotesMatch(),
       $or: [{ 'connected_to.member_id': oid }, { connected_member_ids: oid }],
     })
     .sort({ is_pinned: -1, created_at: -1 })

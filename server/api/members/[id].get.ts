@@ -1,5 +1,6 @@
 import { ObjectId } from 'mongodb'
 import { getDb } from '../../utils/db'
+import { fetchMemberEitjePlaces } from '../../utils/memberEitjeContext'
 
 export default defineEventHandler(async (event) => {
   const id = getRouterParam(event, 'id')
@@ -13,11 +14,6 @@ export default defineEventHandler(async (event) => {
   const db = await getDb()
   const member = await db.collection('members').findOne({
     _id: oid,
-    $or: [
-      { is_active: true },
-      { isActive: true },
-      { is_active: { $exists: false }, isActive: { $exists: false } },
-    ],
   })
   if (!member) {
     throw createError({ statusCode: 404, statusMessage: 'Member not found' })
@@ -45,6 +41,20 @@ export default defineEventHandler(async (event) => {
       // ignore
     }
   }
+
+  const supportIdStr = typeof m.support_id === 'string' ? m.support_id : undefined
+  const eitje_places = await fetchMemberEitjePlaces(db, {
+    supportId: supportIdStr,
+    userName: name,
+    monthsBack: 36,
+  })
+  const merged = eitje_places.merged
+  const eitje_totals = {
+    worked_hours: merged.reduce((s, r) => s + r.worked_hours, 0),
+    planned_hours: merged.reduce((s, r) => s + r.planned_hours, 0),
+    places_count: merged.length,
+  }
+
   const data = {
     _id: String(member._id),
     name: name || `Member ${String(member._id).slice(-6)}`,
@@ -55,6 +65,29 @@ export default defineEventHandler(async (event) => {
     location_name: locationName,
     team_name: teamName,
     is_active: m.is_active !== false && m.isActive !== false,
+    // Worker data fields
+    contract_type: typeof m.contract_type === 'string' ? m.contract_type : undefined,
+    contract_start_date: m.contract_start_date ? new Date(m.contract_start_date as string).toISOString() : undefined,
+    contract_end_date: m.contract_end_date ? new Date(m.contract_end_date as string).toISOString() : undefined,
+    hourly_rate: typeof m.hourly_rate === 'number' ? m.hourly_rate : undefined,
+    weekly_hours: typeof m.weekly_hours === 'number' ? m.weekly_hours : undefined,
+    monthly_hours: typeof m.monthly_hours === 'number' ? m.monthly_hours : undefined,
+    phone: typeof m.phone === 'string' ? m.phone : undefined,
+    age: typeof m.age === 'number' ? m.age : undefined,
+    birthday: typeof m.birthday === 'string' ? m.birthday : undefined,
+    postcode: typeof m.postcode === 'string' ? m.postcode : undefined,
+    city: typeof m.city === 'string' ? m.city : undefined,
+    street: typeof m.street === 'string' ? m.street : undefined,
+    nmbrs_id: typeof m.nmbrs_id === 'string' ? m.nmbrs_id : undefined,
+    support_id: typeof m.support_id === 'string' ? m.support_id : undefined,
+    eitje_places: {
+      months_back: eitje_places.months_back,
+      range_start: eitje_places.range_start,
+      range_end: eitje_places.range_end,
+      merged: eitje_places.merged,
+      data_source: eitje_places.source,
+    },
+    eitje_totals,
   }
   return { success: true, data }
 })

@@ -17,6 +17,8 @@ export interface Note {
   status?: 'draft' | 'published'
   created_at: string
   updated_at: string
+  /** Set when note is in trash (soft-delete). Omitted or null = active. */
+  deleted_at?: string | null
   /** Populated from unified_users when fetching a single note */
   mentioned_members?: { _id: string; canonicalName: string }[]
   /** Populated when fetching a single note; IDs of users attending/collaborating (notified on share). */

@@ -1,11 +1,16 @@
-import type { DailyOpsPeriodId } from '~/types/daily-ops-dashboard'
+/**
+ * Daily Ops period resolver: converts period strings and anchors to UTC date ranges.
+ * @registry-id: dailyOpsPeriod
+ * @created: 2026-04-13T11:00:00.000Z
+ * @last-modified: 2026-04-13T11:00:00.000Z
+ * @description: Resolve daily-ops query period (today, yesterday, week, etc) to ISO date ranges
+ * @last-fix: [2026-04-13] Created missing utility for server/utils auto-import
+ * 
+ * @exports-to:
+ * ✓ server/utils/dailyOpsDashboardMetrics.ts => resolveDailyOpsPeriod() for metric context resolution
+ */
 
-const DAILY_OPS_PERIODS: readonly DailyOpsPeriodId[] = [
-  'today',
-  'yesterday',
-  'this-week',
-  'last-week',
-]
+import type { DailyOpsPeriodId } from '~/types/daily-ops-dashboard'
 
 export type DailyOpsDateRange = {
   period: DailyOpsPeriodId
@@ -13,73 +18,94 @@ export type DailyOpsDateRange = {
   endDate: string
 }
 
-function pad(n: number): string {
+function padZero(n: number): string {
   return String(n).padStart(2, '0')
 }
 
-/** YYYY-MM-DD in UTC (matches toISOString().slice(0, 10) for a UTC calendar day). */
-function utcYmd(d: Date): string {
-  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`
-}
-
-function parseYmd(ymd: string): Date | null {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd.trim())
-  if (!m) return null
-  const y = Number(m[1])
-  const mo = Number(m[2]) - 1
-  const day = Number(m[3])
-  const d = new Date(Date.UTC(y, mo, day))
-  if (d.getUTCFullYear() !== y || d.getUTCMonth() !== mo || d.getUTCDate() !== day) return null
-  return d
-}
-
-function startOfIsoWeekUtc(anchor: Date): Date {
-  const d = new Date(anchor)
-  const dow = d.getUTCDay()
-  const diff = dow === 0 ? -6 : 1 - dow
-  d.setUTCDate(d.getUTCDate() + diff)
-  return d
-}
-
-function addDaysUtc(d: Date, days: number): Date {
-  const x = new Date(d)
-  x.setUTCDate(x.getUTCDate() + days)
-  return x
+function dateToIso(date: Date): string {
+  return `${date.getUTCFullYear()}-${padZero(date.getUTCMonth() + 1)}-${padZero(date.getUTCDate())}`
 }
 
 /**
- * Resolves a dashboard period to inclusive UTC date range (YYYY-MM-DD).
- * Anchor defaults to current UTC date; optional `anchor` query can align client and server.
+ * Resolve a period string (e.g., 'today', 'this-week') to a UTC date range.
+ * @param period - Period identifier ('today', 'yesterday', 'this-week', 'last-week')
+ * @param anchor - Optional anchor date (YYYY-MM-DD) to calculate relative periods from. Defaults to today.
+ * @returns Object with period, startDate, and endDate (all in YYYY-MM-DD UTC format)
  */
 export function resolveDailyOpsPeriod(
-  raw: string | undefined,
+  period: string | DailyOpsPeriodId,
   anchor?: string
 ): DailyOpsDateRange {
-  const period = (DAILY_OPS_PERIODS.includes(raw as DailyOpsPeriodId) ? raw : 'today') as DailyOpsPeriodId
-
-  const anchorDate =
-    anchor && parseYmd(anchor) ? parseYmd(anchor)! : new Date()
-
-  const today = utcYmd(anchorDate)
-
-  if (period === 'today') {
-    return { period, startDate: today, endDate: today }
+  // Parse anchor or use today as reference
+  let reference: Date
+  if (anchor) {
+    const [y, m, d] = anchor.split('-').map(Number)
+    reference = new Date(Date.UTC(y, (m ?? 1) - 1, d ?? 1))
+  } else {
+    reference = new Date()
+    reference.setUTCHours(0, 0, 0, 0)
   }
 
-  if (period === 'yesterday') {
-    const y = addDaysUtc(parseYmd(today)!, -1)
-    const ymd = utcYmd(y)
-    return { period, startDate: ymd, endDate: ymd }
-  }
+  const dayOfWeek = reference.getUTCDay()
 
-  if (period === 'this-week') {
-    const start = startOfIsoWeekUtc(anchorDate)
-    const end = addDaysUtc(start, 6)
-    return { period, startDate: utcYmd(start), endDate: utcYmd(end) }
-  }
+  switch (period) {
+    case 'today': {
+      const dateStr = dateToIso(reference)
+      return {
+        period: 'today',
+        startDate: dateStr,
+        endDate: dateStr,
+      }
+    }
 
-  const thisStart = startOfIsoWeekUtc(anchorDate)
-  const lastStart = addDaysUtc(thisStart, -7)
-  const lastEnd = addDaysUtc(thisStart, -1)
-  return { period, startDate: utcYmd(lastStart), endDate: utcYmd(lastEnd) }
+    case 'yesterday': {
+      const yesterday = new Date(reference)
+      yesterday.setUTCDate(yesterday.getUTCDate() - 1)
+      const dateStr = dateToIso(yesterday)
+      return {
+        period: 'yesterday',
+        startDate: dateStr,
+        endDate: dateStr,
+      }
+    }
+
+    case 'this-week': {
+      // Monday = 1, Sunday = 0; start from Monday of current week
+      const startOfWeek = new Date(reference)
+      const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1
+      startOfWeek.setUTCDate(startOfWeek.getUTCDate() - daysToMonday)
+      return {
+        period: 'this-week',
+        startDate: dateToIso(startOfWeek),
+        endDate: dateToIso(reference),
+      }
+    }
+
+    case 'last-week': {
+      // Get the Monday of last week
+      const startOfLastWeek = new Date(reference)
+      const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1
+      startOfLastWeek.setUTCDate(startOfLastWeek.getUTCDate() - (daysToMonday + 7))
+      
+      // End of last week is Sunday (6 days after Monday)
+      const endOfLastWeek = new Date(startOfLastWeek)
+      endOfLastWeek.setUTCDate(endOfLastWeek.getUTCDate() + 6)
+      
+      return {
+        period: 'last-week',
+        startDate: dateToIso(startOfLastWeek),
+        endDate: dateToIso(endOfLastWeek),
+      }
+    }
+
+    default: {
+      // Fallback: treat as 'today'
+      const dateStr = dateToIso(reference)
+      return {
+        period: 'today',
+        startDate: dateStr,
+        endDate: dateStr,
+      }
+    }
+  }
 }

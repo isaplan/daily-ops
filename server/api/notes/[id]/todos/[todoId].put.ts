@@ -21,6 +21,9 @@ export default defineEventHandler(async (event) => {
   const filter = isMongoId(id) ? { _id: new ObjectId(id) } : { slug: id }
   const note = await coll.findOne(filter)
   if (!note) throw createError({ statusCode: 404, message: 'Note not found' })
+  if ((note as Record<string, unknown>).deleted_at != null) {
+    throw createError({ statusCode: 400, message: 'Cannot update todos for a note in trash' })
+  }
 
   const raw = (note.content ?? '').trim()
   if (!raw.startsWith('{"version":2') || !raw.includes('"blocks"')) {

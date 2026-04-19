@@ -1,4 +1,4 @@
-import { resolveDailyOpsPeriod } from '../../utils/dailyOpsPeriod'
+import { resolveDailyOpsPeriod } from '~/utils/dailyOpsPeriod'
 import type { DailyOpsSectionStubDto } from '~/types/daily-ops-dashboard'
 
 export default defineEventHandler((event): DailyOpsSectionStubDto => {

@@ -11,11 +11,18 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, message: 'Invalid note identifier' })
   }
 
+  const fromTrash = getQuery(event).fromTrash === '1' || getQuery(event).fromTrash === 'true'
+
   const coll = await getNotesCollection()
   const filter = isMongoId(id) ? { _id: new ObjectId(id) } : { slug: id }
   const note = await coll.findOne(filter)
 
   if (!note) {
+    throw createError({ statusCode: 404, message: 'Note not found' })
+  }
+
+  const delAt = (note as Record<string, unknown>).deleted_at
+  if (delAt != null && !fromTrash) {
     throw createError({ statusCode: 404, message: 'Note not found' })
   }
 

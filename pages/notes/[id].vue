@@ -1,22 +1,22 @@
 <template>
   <div class="flex min-h-0 flex-1 flex-col bg-[hsl(45,15%,95%)]">
-    <template v-if="(note || isNew) && !pending">
+    <UAlert
+      v-if="note && isTrashed"
+      color="warning"
+      class="mb-4 shrink-0"
+      title="This note is in Trash"
+      description="Restore it to edit again, or open Trash to remove forever."
+    />
     <div class="sticky top-3 z-10 mb-4 flex min-w-0 shrink-0 items-center gap-3 border-b border-gray-200 pb-2">
-          <UButton
-            variant="ghost"
-            size="sm"
-            class="shrink-0"
-            :loading="savingBeforeClose"
-            :disabled="savingBeforeClose"
-            @click="closeNote"
-          >
-            {{ savingBeforeClose ? 'Saving note…' : '← Back' }}
+          <UButton variant="ghost" size="sm" to="/" class="shrink-0">
+            ← Back
           </UButton>
 <UInput
         v-if="!pending && (note || isNew)"
         v-model="editableTitle"
         placeholder="Note title"
         variant="none"
+        :readonly="!!note && isTrashed"
         class="min-w-0 flex-1 text-5xl font-bold rounded-none px-0"
       />
           <div
@@ -61,63 +61,151 @@
           </div>
         </div>
 
-    <div
-      class="flex min-h-0 flex-1 flex-col gap-6 overflow-hidden md:flex-row"
-    >
+    <div v-if="!isNew && note && isPublished && !isTrashed" class="flex min-h-0 flex-1 flex-col gap-6 overflow-hidden md:flex-row">
+      <div class="flex min-h-0 min-w-0 flex-1 flex-col">
+        <div class="min-h-0 flex-1 overflow-y-auto">
+          <NoteReadOnlyView :note="note" :blocks="readOnlyBlocks" :note-id="id" @todo-toggled="refresh" />
+        </div>
+        <div class="sticky bottom-0 z-30 flex w-full justify-end gap-2 border-t border-gray-200/50 bg-[hsl(45,15%,95%)] p-2 rounded-b-lg">
+          <UButton variant="outline" trailing-icon="i-lucide-file-down" @click="generatePdf">
+            PDF
+          </UButton>
+          <UButton variant="outline" @click="setStatusDraft">
+            Edit
+          </UButton>
+          <UButton variant="outline" color="red" icon="i-heroicons-trash" :loading="deleting" @click="deleteNote">
+            Delete
+          </UButton>
+          <UButton variant="ghost" @click="navigateTo('/')">
+            Cancel
+          </UButton>
+        </div>
+      </div>
+
+      <div
+        v-if="asideVisible"
+        class="sticky top-0 flex h-fit w-full shrink-0 flex-col gap-4 self-start rounded-lg p-4 md:max-w-[25%] md:w-3/12 bg-[hsl(45,12%,92%)]/90 backdrop-blur-md"
+      >
+        <div v-if="asideTab === 'details' && detailsOpen" class="min-h-0 max-h-[calc(100vh-10rem)] overflow-y-auto space-y-3">
+          <h3 class="text-sm font-semibold text-gray-900">Details</h3>
+          <p class="text-xs text-gray-500">Edit the note to change location, team, tags and more.</p>
+          <div v-if="note?.tags?.length" class="flex flex-wrap gap-1.5">
+            <span v-for="tag in note.tags" :key="tag" class="rounded-md bg-gray-100 px-2 py-1 text-sm">#{{ tag }}</span>
+          </div>
+        </div>
+        <div v-else-if="asideTab === 'todos'" class="min-h-0 space-y-2">
+          <h3 class="text-xs font-semibold uppercase tracking-wide text-gray-500">Todo</h3>
+          <ul class="space-y-1.5">
+            <li
+              v-for="todo in noteTodos"
+              :key="todo.id"
+              class="flex items-start gap-2 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm"
+            >
+              <span :class="todo.checked ? 'text-gray-500 line-through' : 'text-gray-900'">{{ todo.text }}</span>
+            </li>
+          </ul>
+        </div>
+        <div v-else-if="asideTab === 'agreed'" class="min-h-0 space-y-2">
+          <h3 class="text-xs font-semibold uppercase tracking-wide text-gray-500">Agreed</h3>
+          <ul class="space-y-1.5">
+            <li
+              v-for="agree in noteAgrees"
+              :key="agree.id"
+              class="flex items-start gap-2 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900"
+            >
+              <UIcon name="i-lucide-handshake" class="mt-0.5 size-4 shrink-0 text-gray-500" />
+              {{ agree.text }}
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div v-else-if="!isNew && note && isTrashed" class="flex min-h-0 flex-1 flex-col gap-6 overflow-hidden md:flex-row">
+      <div class="flex min-h-0 min-w-0 flex-1 flex-col">
+        <div class="min-h-0 flex-1 overflow-y-auto">
+          <NoteReadOnlyView
+            :note="note"
+            :blocks="isPublished ? readOnlyBlocks : noteBlocks"
+            :note-id="undefined"
+          />
+        </div>
+        <div class="sticky bottom-0 z-30 flex w-full flex-wrap justify-end gap-2 border-t border-gray-200/50 bg-[hsl(45,15%,95%)] p-2 rounded-b-lg">
+          <UButton v-if="isPublished" variant="outline" trailing-icon="i-lucide-file-down" @click="generatePdf">
+            PDF
+          </UButton>
+          <UButton variant="outline" :loading="restoring" @click="restoreFromBanner">
+            Restore
+          </UButton>
+          <UButton variant="ghost" to="/notes/trash">
+            Trash
+          </UButton>
+        </div>
+      </div>
+      <div
+        v-if="asideVisible"
+        class="sticky top-0 flex h-fit w-full shrink-0 flex-col gap-4 self-start rounded-lg p-4 md:max-w-[25%] md:w-3/12 bg-[hsl(45,12%,92%)]/90 backdrop-blur-md"
+      >
+        <div v-if="asideTab === 'details' && detailsOpen" class="min-h-0 max-h-[calc(100vh-10rem)] overflow-y-auto space-y-3">
+          <h3 class="text-sm font-semibold text-gray-900">Details</h3>
+          <p v-if="note?.tags?.length" class="flex flex-wrap gap-1.5">
+            <span v-for="tag in note.tags" :key="tag" class="rounded-md bg-gray-100 px-2 py-1 text-sm">#{{ tag }}</span>
+          </p>
+        </div>
+        <div v-else-if="asideTab === 'todos'" class="min-h-0 space-y-2">
+          <h3 class="text-xs font-semibold uppercase tracking-wide text-gray-500">Todo</h3>
+          <ul class="space-y-1.5">
+            <li
+              v-for="todo in noteTodos"
+              :key="todo.id"
+              class="flex items-start gap-2 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm"
+            >
+              <span :class="todo.checked ? 'text-gray-500 line-through' : 'text-gray-900'">{{ todo.text }}</span>
+            </li>
+          </ul>
+        </div>
+        <div v-else-if="asideTab === 'agreed'" class="min-h-0 space-y-2">
+          <h3 class="text-xs font-semibold uppercase tracking-wide text-gray-500">Agreed</h3>
+          <ul class="space-y-1.5">
+            <li
+              v-for="agree in noteAgrees"
+              :key="agree.id"
+              class="flex items-start gap-2 rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900"
+            >
+              <UIcon name="i-lucide-handshake" class="mt-0.5 size-4 shrink-0 text-gray-500" />
+              {{ agree.text }}
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div v-else-if="!isNew && note && !isPublished && !isTrashed" class="flex min-h-0 flex-1 flex-col gap-6 overflow-hidden md:flex-row">
       <div class="flex min-h-0 min-w-0 flex-1 flex-col">
         <div class="min-h-0 flex-1 overflow-y-auto">
           <WeeklyNoteEditor
-            v-if="(note && isBlockNote) || isNew"
-            ref="weeklyEditorRef"
+            v-if="isBlockNote"
             v-model:details-open="detailsOpen"
-            :note="note ?? undefined"
-            :editing="note?.status === 'published' ? publishedNoteEditing : true"
-            :initial-template="isNew && useWeekly ? 'weekly' : undefined"
+            :note="note"
             :external-title="editableTitle"
             @saved="onSaved"
             @cancel="onEditorCancel"
-            @start-edit="publishedNoteEditing = true"
           />
           <NotesForm
             v-else
-            :note="note ?? undefined"
+            :note="note"
             :external-title="editableTitle"
             @saved="onSaved"
-            @cancel="navigateTo('/')"
+            @cancel="onEditorCancel"
           />
         </div>
       </div>
       <div
-        v-if="asideVisible || activeMembers.length"
+        v-if="asideVisible"
         class="sticky top-0 flex h-fit w-full shrink-0 flex-col gap-4 self-start rounded-lg p-4 md:max-w-[25%] md:w-3/12 bg-[hsl(45,12%,92%)]/90 backdrop-blur-md"
       >
-        <template v-if="asideTab === 'details' && detailsOpen">
-          <div
-            v-if="note && note.status === 'published' && !publishedNoteEditing"
-            class="min-h-0 space-y-3 text-sm text-gray-700"
-          >
-            <p>
-              <span class="font-semibold text-gray-900">Owner</span><br>
-              {{ ownerLabel }}
-            </p>
-            <p>
-              <span class="font-semibold text-gray-900">Date Created</span><br>
-              {{ formatDate(note.created_at) }}
-            </p>
-            <p>
-              <span class="font-semibold text-gray-900">Published</span><br>
-              {{ note.status === 'published' ? 'Yes' : 'No' }}
-              <span v-if="note.status === 'published' && note.updated_at">
-                — {{ formatDate(note.updated_at) }}
-              </span>
-            </p>
-            <p>
-              <span class="font-semibold text-gray-900">Shared with members</span><br>
-              {{ sharedWithLabel }}
-            </p>
-          </div>
-          <div v-else id="details-panel-target" class="min-h-0" />
-        </template>
+        <!-- Tab content (tabs are in the header now) -->
+        <div v-if="asideTab === 'details' && detailsOpen" id="details-panel-target" class="min-h-0 max-h-[calc(100vh-10rem)] overflow-y-auto" />
         <div v-else-if="asideTab === 'todos'" class="min-h-0 space-y-2">
           <h3 class="text-xs font-semibold uppercase tracking-wide text-gray-500">Todo</h3>
           <ul class="space-y-1.5">
@@ -147,29 +235,38 @@
             </li>
           </ul>
         </div>
-        <aside v-if="activeMembers.length" class="shrink-0">
-          <div class="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-            <h3 class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-3">Active members</h3>
-            <ul class="space-y-2">
-              <li
-                v-for="m in activeMembers"
-                :key="m._id"
-                class="text-sm font-medium text-gray-900"
-              >
-                {{ m.canonicalName }}
-              </li>
-            </ul>
-          </div>
-        </aside>
       </div>
     </div>
-    </template>
+
+    <div v-else-if="isNew" class="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto md:flex-row">
+      <div class="min-h-0 min-w-0 flex-1 overflow-y-auto">
+          <WeeklyNoteEditor
+            v-if="useWeekly"
+            v-model:details-open="detailsOpen"
+            :initial-template="useWeekly ? 'weekly' : undefined"
+            :external-title="editableTitle"
+            @saved="onSaved"
+            @cancel="navigateTo('/')"
+          />
+          <NotesForm
+            v-else
+            :external-title="editableTitle"
+            @saved="onSaved"
+            @cancel="navigateTo('/')"
+          />
+      </div>
+      <div
+        v-if="detailsOpen && showDetailsButton"
+        id="details-panel-target"
+        class="w-full shrink-0 rounded-lg p-4 md:max-w-[25%] md:w-3/12 bg-[hsl(45,12%,92%)]/90 backdrop-blur-md"
+      />
+    </div>
 
     <div v-else-if="pending">
       <USkeleton class="h-12 w-3/4 mb-4" />
       <USkeleton class="h-64 w-full" />
     </div>
-    <div v-else-if="!isNew && (error || !note)">
+    <div v-else-if="error || !note">
       <p class="text-red-600">Note not found or failed to load.</p>
     </div>
   </div>
@@ -178,7 +275,8 @@
 <script setup lang="ts">
 import type { Note, NoteResponse } from '~/types/note'
 import { isBlockNoteContent, parseBlockNoteContent } from '~/types/noteBlock'
-import { getWeeklyNoteTitle } from '~/lib/templates/weeklyNoteTemplate'
+import { getWeeklyNoteTitle, WEEKLY_DETAILS_BLOCK_ID } from '~/lib/templates/weeklyNoteTemplate'
+import { buildNotePdfDocumentForPrint } from '~/lib/pdf/notePdfDocument'
 
 const route = useRoute()
 const router = useRouter()
@@ -187,39 +285,69 @@ const isNew = computed(() => id.value === 'new')
 const useWeekly = computed(() => isNew.value && route.query.template === 'weekly')
 
 const { data, pending, error, refresh } = await useFetch<NoteResponse>(
-  () => (isNew.value ? null : `/api/notes/${id.value}`),
-  { watch: [id] }
+  () => {
+    if (isNew.value) return null
+    const fromTrash = route.query.fromTrash === '1' || route.query.fromTrash === 'true'
+    return fromTrash ? `/api/notes/${id.value}?fromTrash=1` : `/api/notes/${id.value}`
+  },
+  { watch: [id, () => route.query.fromTrash] }
 )
 
 const note = computed(() => data.value?.data ?? null)
+const isTrashed = computed(() => !!note.value?.deleted_at)
+const isPublished = computed(() => note.value?.status === 'published')
 const isBlockNote = computed(() =>
   note.value?.content ? isBlockNoteContent(note.value.content) : false
 )
 const noteBlocks = computed(() =>
   note.value?.content ? (parseBlockNoteContent(note.value.content) ?? []) : []
 )
+/** When published, hide Details block in main content (aside shows details). */
+const readOnlyBlocks = computed(() =>
+  isPublished.value
+    ? noteBlocks.value.filter((b) => b.id !== WEEKLY_DETAILS_BLOCK_ID)
+    : noteBlocks.value
+)
 const noteTodos = computed(() => noteBlocks.value.flatMap((b) => b.todos ?? []))
 const noteAgrees = computed(() => noteBlocks.value.flatMap((b) => b.agrees ?? []))
 const hasTodos = computed(() => !isNew.value && isBlockNote.value && noteTodos.value.length > 0)
 const hasAgrees = computed(() => !isNew.value && isBlockNote.value && noteAgrees.value.length > 0)
 
-const activeMembers = computed(() => note.value?.mentioned_members ?? [])
-const showDetailsButton = computed(
-  () => (!isNew.value && isBlockNote.value) || isNew.value
-)
+const showDetailsButton = computed(() => (!isNew.value && isBlockNote.value) || (isNew.value && useWeekly.value))
 const detailsOpen = ref(false)
 /** Which tab is shown in the aside: details (More), todos, or agreed. null = aside closed. */
 const asideTab = ref<'details' | 'todos' | 'agreed' | null>(null)
-/** When viewing a published note, false = view mode, true = edit mode. */
-const publishedNoteEditing = ref(false)
+const deleting = ref(false)
+const restoring = ref(false)
 
 const asideVisible = computed(
   () =>
     (detailsOpen.value && showDetailsButton.value) ||
     asideTab.value === 'todos' ||
-    asideTab.value === 'agreed' ||
-    activeMembers.value.length > 0
+    asideTab.value === 'agreed'
 )
+
+function generatePdf() {
+  if (!note.value) return
+  try {
+    const title = (note.value.title && note.value.title.trim()) || 'Untitled'
+    const doc = buildNotePdfDocumentForPrint(
+      title,
+      noteBlocks.value,
+      noteBlocks.value.length ? undefined : note.value.content
+    )
+    const iframe = document.createElement('iframe')
+    iframe.setAttribute('style', 'position:fixed;width:0;height:0;border:0;visibility:hidden')
+    document.body.appendChild(iframe)
+    iframe.srcdoc = doc
+    iframe.onload = () => {
+      iframe.contentWindow?.print()
+      setTimeout(() => iframe.remove(), 1000)
+    }
+  } catch {
+    // silent fail
+  }
+}
 
 function closeAside() {
   detailsOpen.value = false
@@ -236,42 +364,20 @@ watch(
   ({ isNew: newMode, useWeekly: weekly, note: n }) => {
     if (newMode && weekly) editableTitle.value = getWeeklyNoteTitle()
     else if (newMode) editableTitle.value = ''
-    else if (n?.title) editableTitle.value = n.title
+    else if (n) editableTitle.value = (n.title && n.title.trim()) || 'Untitled'
   },
   { immediate: true }
 )
 
-async function onSaved(updated: Note) {
+function onSaved(updated: Note) {
   if (isNew.value) {
     navigateTo(`/notes/${updated.slug || updated._id}`)
   } else {
-    await refresh()
-    if (updated.status === 'published') publishedNoteEditing.value = false
-    const canonical = updated.slug || updated._id
-    if (canonical && route.params.id !== canonical) {
-      await router.replace(`/notes/${canonical}`)
+    if (updated?.status === 'published') {
+      data.value = { success: true, data: updated }
+    } else {
+      refresh()
     }
-  }
-}
-
-const weeklyEditorRef = ref<{ saveBeforeClose: () => Promise<void> } | null>(null)
-const savingBeforeClose = ref(false)
-
-async function closeNote() {
-  savingBeforeClose.value = true
-  try {
-    await weeklyEditorRef.value?.saveBeforeClose()
-  } finally {
-    savingBeforeClose.value = false
-    navigateTo('/')
-  }
-}
-
-function onEditorCancel() {
-  if (note.value?.status === 'published') {
-    publishedNoteEditing.value = false
-  } else {
-    closeNote()
   }
 }
 
@@ -279,29 +385,63 @@ function navigateTo(path: string) {
   router.push(path)
 }
 
-function formatDate(iso: string | undefined): string {
-  if (!iso) return '—'
+async function setStatusDraft() {
+  if (!note.value) return
   try {
-    return new Date(iso).toLocaleDateString(undefined, {
-      dateStyle: 'medium',
-      timeStyle: 'short',
+    await $fetch(`/api/notes/${note.value._id}`, {
+      method: 'PUT',
+      body: { status: 'draft' },
     })
+    await refresh()
+    router.replace({ path: route.path, query: { ...route.query, fromPublished: '1' } })
   } catch {
-    return '—'
+    // ignore
   }
 }
 
-const ownerLabel = computed(() => {
-  const a = note.value?.author_id
-  if (!a) return '—'
-  return typeof a === 'object' && a?.name ? a.name : '—'
-})
+async function onEditorCancel() {
+  if (route.query.fromPublished === '1' && note.value) {
+    try {
+      await $fetch(`/api/notes/${note.value._id}`, {
+        method: 'PUT',
+        body: { status: 'published' },
+      })
+      await router.replace({ path: route.path, query: {} })
+      await refresh()
+    } catch {
+      navigateTo('/')
+    }
+  } else {
+    navigateTo('/')
+  }
+}
 
-const sharedWithLabel = computed(() => {
-  const members = note.value?.mentioned_members
-  if (!members?.length) return '—'
-  return members.map((m) => m.canonicalName).join(', ')
-})
+async function restoreFromBanner() {
+  if (!note.value) return
+  restoring.value = true
+  try {
+    await $fetch(`/api/notes/${note.value._id}/restore`, { method: 'POST' })
+    useToast().add({ title: 'Note restored', color: 'green' })
+    await router.replace({ path: route.path, query: {} })
+    await refresh()
+  } catch {
+    useToast().add({ title: 'Could not restore note', color: 'red' })
+  } finally {
+    restoring.value = false
+  }
+}
 
-watch(id, () => { publishedNoteEditing.value = false })
+async function deleteNote() {
+  if (!note.value) return
+  if (!confirm('Move this note to trash? You can restore it from Trash later.')) return
+  deleting.value = true
+  try {
+    await $fetch(`/api/notes/${note.value._id}`, { method: 'DELETE' })
+    useToast().add({ title: 'Moved to trash — you can restore from Trash in the sidebar.', color: 'green' })
+    navigateTo('/')
+  } catch {
+    useToast().add({ title: 'Could not move note to trash', color: 'red' })
+    deleting.value = false
+  }
+}
 </script>

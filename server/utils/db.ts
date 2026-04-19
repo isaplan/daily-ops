@@ -24,6 +24,24 @@ function loadParentEnv() {
 }
 loadParentEnv()
 
+/** Prefer cwd `.env.local` / `.env` for Mongo — parent-dir load can miss the app DB where `api_credentials` live. */
+function loadCwdMongoEnv () {
+  const root = resolve(process.cwd())
+  for (const file of ['.env.local', '.env']) {
+    const p = resolve(root, file)
+    if (!existsSync(p)) continue
+    for (const line of readFileSync(p, 'utf-8').split('\n')) {
+      const match = line.match(/^([^#=]+)=(.*)$/)
+      if (!match) continue
+      const key = match[1].trim()
+      if (key !== 'MONGODB_URI' && key !== 'MONGODB_DB_NAME') continue
+      let val = match[2].trim().replace(/^["']|["']$/g, '')
+      process.env[key] = val
+    }
+  }
+}
+loadCwdMongoEnv()
+
 const uri = process.env.MONGODB_URI || 'mongodb://localhost:27017'
 const dbName = process.env.MONGODB_DB_NAME || 'daily-ops'
 

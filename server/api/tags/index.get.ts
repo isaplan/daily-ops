@@ -1,9 +1,13 @@
 import { getNotesCollection } from '../../utils/db'
+import { activeNotesMatch } from '../../utils/noteDeletedFilter'
 
 /** Returns distinct tag strings from notes (and can be extended for todos, events, etc.). */
 export default defineEventHandler(async () => {
   const coll = await getNotesCollection()
-  const tags = await coll.distinct('tags', { tags: { $exists: true, $ne: [] } })
+  const tags = await coll.distinct('tags', {
+    tags: { $exists: true, $ne: [] },
+    ...activeNotesMatch(),
+  })
   const normalized = (tags as string[])
     .filter((t): t is string => typeof t === 'string' && t.trim() !== '')
     .map((t) => t.trim().toLowerCase())
