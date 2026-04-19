@@ -2,8 +2,8 @@ name: Daily Ops - Bork & Eitje Sync & Aggregation
 
 on:
   schedule:
-    # Bork: 8, 15, 18, 20, 22, 00 UTC
-    - cron: '0 8,15,18,20,22,0 * * *'
+    # Amsterdam CET/CEST: 8, 15, 18, 20, 22, 00 (converted to UTC: 7, 14, 17, 19, 21, 23)
+    - cron: '0 7,14,17,19,21,23 * * *'
   
   # Allow manual trigger
   workflow_dispatch:
@@ -27,13 +27,13 @@ jobs:
             -d '{"action":"run-now","jobType":"daily-data"}' \
             -w "\nStatus: %{http_code}\n" \
             --connect-timeout 30 \
-            --max-time 300
+            --max-time 900
         env:
           DO_APP_DOMAIN: ${{ secrets.DO_APP_DOMAIN }}
         continue-on-error: false
       
-      - name: Wait for Bork sync to finalize (15s)
-        run: sleep 15
+      - name: Wait for Bork sync to complete
+        run: sleep 600
       
       # ========================================
       # BORK AGGREGATION
@@ -44,7 +44,7 @@ jobs:
           curl -X GET "https://${{ secrets.DO_APP_DOMAIN }}/api/bork/v2/aggregation.get" \
             -w "\nStatus: %{http_code}\n" \
             --connect-timeout 30 \
-            --max-time 120
+            --max-time 600
         env:
           DO_APP_DOMAIN: ${{ secrets.DO_APP_DOMAIN }}
         continue-on-error: false
@@ -60,13 +60,13 @@ jobs:
             -d '{"action":"run-now","jobType":"daily-data"}' \
             -w "\nStatus: %{http_code}\n" \
             --connect-timeout 30 \
-            --max-time 300
+            --max-time 600
         env:
           DO_APP_DOMAIN: ${{ secrets.DO_APP_DOMAIN }}
         continue-on-error: false
       
-      - name: Wait for Eitje sync to finalize (15s)
-        run: sleep 15
+      - name: Wait for Eitje sync to complete
+        run: sleep 300
       
       # ========================================
       # EITJE AGGREGATION
@@ -77,7 +77,7 @@ jobs:
           curl -X GET "https://${{ secrets.DO_APP_DOMAIN }}/api/eitje/v2/aggregation.get" \
             -w "\nStatus: %{http_code}\n" \
             --connect-timeout 30 \
-            --max-time 120
+            --max-time 300
         env:
           DO_APP_DOMAIN: ${{ secrets.DO_APP_DOMAIN }}
         continue-on-error: false
