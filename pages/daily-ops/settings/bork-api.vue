@@ -201,7 +201,7 @@
                 <p class="text-sm text-gray-600">Sync today's data at set times for all locations</p>
                 <p class="text-xs text-gray-500">Sync runs at 01:00, 08:00, 15:00, 18:00, 19:00, 20:00, 21:00, 23:00 (Europe/Amsterdam)</p>
               </div>
-              <USwitch
+              <SettingsCronSwitch
                 :model-value="Boolean(dailyCronStatus?.isActive)"
                 @update:model-value="(checked) => handleCronToggle('daily-data', checked)"
               />
@@ -246,7 +246,7 @@
                 <p class="text-sm font-medium text-gray-900">Enable Master Data Sync</p>
                 <p class="text-sm text-gray-600">Sync master data daily for all locations</p>
               </div>
-              <USwitch
+              <SettingsCronSwitch
                 :model-value="Boolean(masterCronStatus?.isActive)"
                 @update:model-value="(checked) => handleCronToggle('master-data', checked)"
               />
@@ -308,7 +308,7 @@
                 <p class="text-sm font-medium text-gray-900">Enable Historical Data Sync</p>
                 <p class="text-sm text-gray-600">Sync last 30 days daily for all locations</p>
               </div>
-              <USwitch
+              <SettingsCronSwitch
                 :model-value="Boolean(historicalCronStatus?.isActive)"
                 @update:model-value="(checked) => handleCronToggle('historical-data', checked)"
               />

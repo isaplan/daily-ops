@@ -6,19 +6,7 @@
         <p class="text-sm text-gray-500">{{ description }}</p>
         <p v-if="scheduleNote" class="text-xs text-gray-500">{{ scheduleNote }}</p>
       </div>
-      <div class="flex items-center gap-2">
-        <span class="text-xs font-medium" :class="enabled ? 'text-blue-900' : 'text-gray-500'">
-          {{ enabled ? 'ON' : 'OFF' }}
-        </span>
-        <USwitch 
-          :model-value="enabled" 
-          @update:model-value="onToggle"
-          :ui="{
-            base: 'border-2 border-blue-900 data-[state=checked]:bg-blue-900 data-[state=unchecked]:bg-gray-200',
-            thumb: 'bg-white'
-          }"
-        />
-      </div>
+      <SettingsCronSwitch :model-value="enabled" @update:model-value="onToggle" />
     </div>
 
     <EndpointCheckList :endpoints="endpoints" />
