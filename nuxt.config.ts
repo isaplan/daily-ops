@@ -1,5 +1,3 @@
-const disableInboxSchedule = process.env.DISABLE_INBOX_SCHEDULED === '1'
-
 export default defineNuxtConfig({
   ssr: false,
   modules: ['@nuxt/ui'],
@@ -26,18 +24,13 @@ export default defineNuxtConfig({
     },
   },
   /**
-   * Nitro scheduled tasks: cron runs inside the Node server (DO App `npm start`).
-   * Starter: `0 7 * * *` = 07:00 UTC daily. Adjust here or use crontab.guru.
-   * Local dev: set DISABLE_INBOX_SCHEDULED=1 in .env.local to skip (avoids Mongo SRV errors when offline).
+   * Nitro scheduled tasks: inbox Gmail polling runs on GitHub Actions (inbox-daily-sync.yml), same UTC hours as Bork/Eitje +10m — avoids duplicate server-side cron on DO.
+   * Task `inbox:gmail-sync` remains available for manual `npx nuxt task run inbox:gmail-sync` if needed.
    */
   nitro: {
     experimental: {
       tasks: true,
     },
-    scheduledTasks: disableInboxSchedule
-      ? {}
-      : {
-          '0 7 * * *': ['inbox:gmail-sync'],
-        },
+    scheduledTasks: {},
   },
 })

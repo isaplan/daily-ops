@@ -1,9 +1,9 @@
 /**
  * @registry-id: inboxSyncScheduledAPI
  * @created: 2026-04-20T00:00:00.000Z
- * @last-modified: 2026-04-20T00:00:00.000Z
- * @description: GET /api/inbox/sync-scheduled — daily Gmail poll without users.watch (GitHub Actions / DO cron)
- * @last-fix: [2026-04-20] Initial — CRON_SECRET + maxResults query
+ * @last-modified: 2026-04-20T12:00:00.000Z
+ * @description: GET /api/inbox/sync-scheduled — Gmail poll for GitHub Actions (same UTC hours as Bork/Eitje +10m via inbox-daily-sync.yml)
+ * @last-fix: [2026-04-20] Comment — primary production poll is GitHub cron
  *
  * @exports-to:
  * ✓ .github/workflows/inbox-daily-sync.yml
