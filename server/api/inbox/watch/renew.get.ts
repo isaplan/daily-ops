@@ -1,9 +1,9 @@
 /**
  * @registry-id: inboxGmailWatchRenewAPI
  * @created: 2026-04-19T12:00:00.000Z
- * @last-modified: 2026-04-20T00:00:00.000Z
+ * @last-modified: 2026-04-20T10:45:00.000Z
  * @description: GET /api/inbox/watch/renew — Gmail users.watch renewal for schedulers (GitHub Actions, DO cron)
- * @last-fix: [2026-04-20] Map invalid_grant to 401 + gmailOAuthError helper
+ * @last-fix: [2026-04-20] invalid_grant response includes redirect URI + client id hint for DO env debugging
  *
  * @exports-to:
  *   ✓ .github/workflows/gmail-watch-renew.yml
@@ -88,11 +88,19 @@ export default defineEventHandler(async (event) => {
     ).catch(() => {})
 
     if (isInvalidGrantError(error)) {
+      const clientId = process.env.GMAIL_CLIENT_ID ?? ''
+      const clientIdHint =
+        clientId.length > 14 ? `${clientId.slice(0, 8)}…${clientId.slice(-6)}` : clientId || '(unset)'
       throw createError({
         statusCode: 401,
         statusMessage:
           'Gmail OAuth invalid_grant: refresh token rejected. Match GMAIL_REDIRECT_URI and OAuth client to the values used when GMAIL_REFRESH_TOKEN was issued; re-authorize and update env.',
-        data: { google: getGmailOAuthErrorMessage(error) },
+        data: {
+          google: getGmailOAuthErrorMessage(error),
+          gmailRedirectUri: process.env.GMAIL_REDIRECT_URI ?? '(unset)',
+          gmailClientIdHint: clientIdHint,
+          hint: 'Update GMAIL_REFRESH_TOKEN (and matching client/redirect) on DigitalOcean, then redeploy.',
+        },
       })
     }
     throw createError({
