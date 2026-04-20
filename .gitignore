@@ -7,6 +7,8 @@ yarn.lock
 .env
 .env.local
 .env.*.local
+# Full production-style vars for local DO copy-paste only (never commit)
+env.digitalocean.paste.env
 
 # IDE
 .vscode/

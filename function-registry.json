@@ -1,9 +1,9 @@
 {
   "metadata": {
-    "totalByType": { "service": 8, "api": 1, "composable": 1, "types": 1 },
-    "totalFiles": 11,
+    "totalByType": {},
+    "totalFiles": 0,
     "version": "2.0.0",
-    "generated_at": "2026-04-18T12:00:00.000Z"
+    "generated_at": "2026-04-19T23:33:28.670Z"
   },
   "index": {
     "byName": {},
@@ -11,70 +11,5 @@
     "byType": {},
     "byLastSeen": []
   },
-  "functions": [
-    {
-      "name": "inboxTypes",
-      "file": "types/inbox.ts",
-      "type": "types",
-      "status": "completed",
-      "touch_again": true,
-      "description": "Inbox DTOs and enums for API + UI"
-    },
-    {
-      "name": "useInboxApi",
-      "file": "composables/useInboxApi.ts",
-      "type": "composable",
-      "status": "completed",
-      "touch_again": true,
-      "description": "Client helpers for /api/inbox routes"
-    },
-    {
-      "name": "inboxRepository",
-      "file": "server/services/inboxRepository.ts",
-      "type": "service",
-      "status": "completed",
-      "touch_again": true,
-      "description": "Mongo CRUD for inbox collections (legacy-compatible names)"
-    },
-    {
-      "name": "inboxProcessService",
-      "file": "server/services/inboxProcessService.ts",
-      "type": "service",
-      "status": "completed",
-      "touch_again": true,
-      "description": "Parse attachments and map to collections"
-    },
-    {
-      "name": "inboxWebhookService",
-      "file": "server/services/inboxWebhookService.ts",
-      "type": "service",
-      "status": "completed",
-      "touch_again": true,
-      "description": "Gmail Pub/Sub push: decode, history (paged), persist new mail"
-    },
-    {
-      "name": "inboxApiRoutes",
-      "file": "server/api/inbox",
-      "type": "api",
-      "status": "completed",
-      "touch_again": true,
-      "description": "Nitro routes: list, detail, sync, upload, parse, process, watch, webhook, test-data"
-    },
-    {
-      "name": "InboxPageShell",
-      "file": "components/daily-ops/inbox/InboxPageShell.vue",
-      "type": "component",
-      "status": "completed",
-      "touch_again": true,
-      "description": "Shared header chrome for inbox pages"
-    },
-    {
-      "name": "InboxTestDataView",
-      "file": "components/daily-ops/inbox/InboxTestDataView.vue",
-      "type": "component",
-      "status": "completed",
-      "touch_again": true,
-      "description": "Paginated table for /api/inbox/test-data/:type"
-    }
-  ]
+  "functions": []
 }

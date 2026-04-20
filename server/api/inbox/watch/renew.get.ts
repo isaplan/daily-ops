@@ -1,9 +1,9 @@
 /**
  * @registry-id: inboxGmailWatchRenewAPI
  * @created: 2026-04-19T12:00:00.000Z
- * @last-modified: 2026-04-19T12:00:00.000Z
+ * @last-modified: 2026-04-20T00:00:00.000Z
  * @description: GET /api/inbox/watch/renew — Gmail users.watch renewal for schedulers (GitHub Actions, DO cron)
- * @last-fix: [2026-04-19] Initial — CRON_SECRET + daily renew before Gmail ~7d expiration; OAuth access token refreshed by googleapis on each call
+ * @last-fix: [2026-04-20] Map invalid_grant to 401 + gmailOAuthError helper
  *
  * @exports-to:
  *   ✓ .github/workflows/gmail-watch-renew.yml
@@ -12,6 +12,7 @@
 import { getDb } from '../../../utils/db'
 import { ensureInboxCollections } from '../../../utils/inbox/collections'
 import { gmailWatchService } from '../../../services/gmailWatchService'
+import { getGmailOAuthErrorMessage, isInvalidGrantError } from '../../../utils/gmailOAuthError'
 
 const GMAIL_WATCH_JOB = { source: 'gmail', jobType: 'inbox-watch' } as const
 
@@ -86,6 +87,14 @@ export default defineEventHandler(async (event) => {
       { upsert: true },
     ).catch(() => {})
 
+    if (isInvalidGrantError(error)) {
+      throw createError({
+        statusCode: 401,
+        statusMessage:
+          'Gmail OAuth invalid_grant: refresh token rejected. Match GMAIL_REDIRECT_URI and OAuth client to the values used when GMAIL_REFRESH_TOKEN was issued; re-authorize and update env.',
+        data: { google: getGmailOAuthErrorMessage(error) },
+      })
+    }
     throw createError({
       statusCode: 500,
       statusMessage: msg,

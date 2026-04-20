@@ -1,67 +1,23 @@
-import { ensureInboxCollections, ensureInboxIndexes } from '../../utils/inbox/collections'
-import { emailProcessorService } from '../../services/emailProcessorService'
-import * as inboxRepo from '../../services/inboxRepository'
+/**
+ * @registry-id: inboxSyncPostAPI
+ * @created: 2026-04-18T00:00:00.000Z
+ * @last-modified: 2026-04-20T00:00:00.000Z
+ * @description: POST /api/inbox/sync — manual Gmail fetch (same pipeline as sync-scheduled)
+ * @last-fix: [2026-04-20] Delegates to inboxSyncService.runInboxGmailSync
+ *
+ * @exports-to:
+ * ✓ composables/useInboxApi.ts
+ */
+
+import { runInboxGmailSync } from '../../services/inboxSyncService'
 
 export default defineEventHandler(async (event) => {
   try {
-    await ensureInboxCollections()
-    await ensureInboxIndexes()
-
     const body = await readBody(event).catch(() => ({})) as { maxResults?: number; query?: string }
-    const maxResults = body.maxResults ?? 50
-    const query = body.query
-
-    const processedEmails = await emailProcessorService.processEmails({
-      maxResults,
-      query,
+    return await runInboxGmailSync({
+      maxResults: body.maxResults,
+      query: body.query,
     })
-
-    let emailsCreated = 0
-    let emailsFailed = 0
-
-    for (const processed of processedEmails) {
-      try {
-        const existing = await inboxRepo.findEmailByMessageId(processed.email.messageId)
-        if (existing) {
-          continue
-        }
-
-        const { _id: emailId } = await inboxRepo.insertEmail(processed.email)
-
-        for (const attachmentDto of processed.attachments) {
-          await inboxRepo.insertAttachment(emailId, {
-            ...attachmentDto,
-            emailId: String(emailId),
-          })
-        }
-
-        await inboxRepo.insertProcessingLog({
-          emailId: String(emailId),
-          eventType: 'fetch',
-          status: 'success',
-          message: `Email fetched and stored: ${processed.email.subject}`,
-        })
-
-        emailsCreated++
-      } catch {
-        emailsFailed++
-        await inboxRepo.insertProcessingLog({
-          eventType: 'fetch',
-          status: 'error',
-          message: 'Failed to store email',
-          details: { email: processed.email },
-        })
-      }
-    }
-
-    return {
-      success: true,
-      data: {
-        emailsCreated,
-        emailsFailed,
-        total: processedEmails.length,
-      },
-    }
   } catch (error) {
     throw createError({
       statusCode: 500,

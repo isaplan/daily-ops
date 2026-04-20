@@ -1,90 +1,105 @@
 name: Daily Ops - Bork & Eitje Sync & Aggregation
 
+# Nitro URLs are path WITHOUT method suffix: POST /api/bork/v2/cron (not cron.post — that falls through to SPA HTML).
+# Aggregation runs inside executeBorkJob / executeEitjeJob after raw sync; there is no separate aggregation route.
+
+# GitHub `schedule` is UTC-only. Times below match Europe/Amsterdam in CEST (UTC+2, ~late Mar–late Oct).
+# 08:00 CEST = 06:00 UTC, 15:00 → 13 UTC, 18:00 → 16 UTC, 20:00 → 18 UTC, 22:00 → 20 UTC, 00:00 → 22 UTC.
+# In CET (winter, UTC+1) these runs land one hour earlier in local wall time — adjust if you need exact winter slots.
 on:
   schedule:
-    # Amsterdam CET/CEST: 8, 15, 18, 20, 22, 00 (converted to UTC: 7, 14, 17, 19, 21, 23)
-    - cron: '0 7,14,17,19,21,23 * * *'
-  
-  # Allow manual trigger
+    - cron: '0 6,13,16,18,20,22 * * *'
+
   workflow_dispatch:
 
 jobs:
   sync-and-aggregate:
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
+
+      - name: Resolve Nitro API base (must hit Node — not SPA static host)
+        shell: bash
+        env:
+          CRON_API_BASE_URL: ${{ secrets.CRON_API_BASE_URL }}
+          DO_APP_DOMAIN: ${{ secrets.DO_APP_DOMAIN }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${DO_APP_DOMAIN:-}" && -z "${CRON_API_BASE_URL:-}" ]]; then
+            echo "::error::Set GitHub secret DO_APP_DOMAIN (hostname, no https) and/or CRON_API_BASE_URL (full https URL of the Web Service that runs Nitro)"
+            exit 1
+          fi
+          if [[ -n "${CRON_API_BASE_URL:-}" ]]; then
+            R="${CRON_API_BASE_URL%/}"
+            echo "API_ROOT=$R" >> "$GITHUB_ENV"
+            echo "Cron curls will use API_ROOT=$R (from CRON_API_BASE_URL)"
+          else
+            echo "API_ROOT=https://${DO_APP_DOMAIN}" >> "$GITHUB_ENV"
+            echo "Cron curls will use API_ROOT=https://${DO_APP_DOMAIN} (from DO_APP_DOMAIN — must route /api to Node)"
+          fi
+
       # ========================================
       # BORK SYNC
       # ========================================
       - name: Bork - Fetch new tickets from API
+        shell: bash
+        env:
+          API_ROOT: ${{ env.API_ROOT }}
         run: |
           echo "🔄 Starting Bork sync..."
-          curl -X POST "https://${{ secrets.DO_APP_DOMAIN }}/api/bork/v2/cron.post" \
+          set -euo pipefail
+          OUT=$(mktemp)
+          trap 'rm -f "$OUT"' EXIT
+          HTTP=$(curl -sS -o "$OUT" -w "%{http_code}" -X POST "${API_ROOT}/api/bork/v2/cron" \
             -H "Content-Type: application/json" \
+            -H "Accept: application/json" \
             -d '{"action":"run-now","jobType":"daily-data"}' \
-            -w "\nStatus: %{http_code}\n" \
             --connect-timeout 30 \
-            --max-time 900
-        env:
-          DO_APP_DOMAIN: ${{ secrets.DO_APP_DOMAIN }}
-        continue-on-error: false
-      
-      - name: Wait for Bork sync to complete
-        run: sleep 600
-      
-      # ========================================
-      # BORK AGGREGATION
-      # ========================================
-      - name: Bork - Aggregate today's data
-        run: |
-          echo "📊 Starting Bork aggregation..."
-          curl -X GET "https://${{ secrets.DO_APP_DOMAIN }}/api/bork/v2/aggregation.get" \
-            -w "\nStatus: %{http_code}\n" \
-            --connect-timeout 30 \
-            --max-time 600
-        env:
-          DO_APP_DOMAIN: ${{ secrets.DO_APP_DOMAIN }}
-        continue-on-error: false
-      
+            --max-time 900)
+          echo "HTTP $HTTP"
+          head -c 500 "$OUT" | tr -d '\r' | tee /dev/stderr
+          echo ""
+          if [ "$HTTP" != "200" ]; then echo "Expected HTTP 200"; exit 1; fi
+          if grep -q '<!DOCTYPE html' "$OUT"; then
+            echo "::error::Got SPA HTML, not Nitro JSON. Set GitHub secret CRON_API_BASE_URL to your DO Web Service URL (default ingress), or fix routing so ${API_ROOT}/api/* reaches Node."
+            exit 1
+          fi
+          if ! grep -q '"success"' "$OUT"; then
+            echo "::warning::Response has no JSON success field — check sync body"
+          fi
+
+      - name: Brief pause before Eitje (separate job load)
+        run: sleep 30
+
       # ========================================
       # EITJE SYNC
       # ========================================
       - name: Eitje - Fetch new time registrations from API
+        shell: bash
+        env:
+          API_ROOT: ${{ env.API_ROOT }}
         run: |
           echo "🔄 Starting Eitje sync..."
-          curl -X POST "https://${{ secrets.DO_APP_DOMAIN }}/api/eitje/v2/cron.post" \
+          set -euo pipefail
+          OUT=$(mktemp)
+          trap 'rm -f "$OUT"' EXIT
+          HTTP=$(curl -sS -o "$OUT" -w "%{http_code}" -X POST "${API_ROOT}/api/eitje/v2/cron" \
             -H "Content-Type: application/json" \
+            -H "Accept: application/json" \
             -d '{"action":"run-now","jobType":"daily-data"}' \
-            -w "\nStatus: %{http_code}\n" \
             --connect-timeout 30 \
-            --max-time 600
-        env:
-          DO_APP_DOMAIN: ${{ secrets.DO_APP_DOMAIN }}
-        continue-on-error: false
-      
-      - name: Wait for Eitje sync to complete
-        run: sleep 300
-      
-      # ========================================
-      # EITJE AGGREGATION
-      # ========================================
-      - name: Eitje - Aggregate today's data
-        run: |
-          echo "📊 Starting Eitje aggregation..."
-          curl -X GET "https://${{ secrets.DO_APP_DOMAIN }}/api/eitje/v2/aggregation.get" \
-            -w "\nStatus: %{http_code}\n" \
-            --connect-timeout 30 \
-            --max-time 300
-        env:
-          DO_APP_DOMAIN: ${{ secrets.DO_APP_DOMAIN }}
-        continue-on-error: false
-      
-      # ========================================
-      # COMPLETION
-      # ========================================
+            --max-time 600)
+          echo "HTTP $HTTP"
+          head -c 500 "$OUT" | tr -d '\r' | tee /dev/stderr
+          echo ""
+          if [ "$HTTP" != "200" ]; then exit 1; fi
+          if grep -q '<!DOCTYPE html' "$OUT"; then
+            echo "::error::Got SPA HTML — set CRON_API_BASE_URL to Nitro Web Service URL"
+            exit 1
+          fi
+
       - name: ✅ Sync & Aggregation Complete
         run: |
           echo "✅ Bork & Eitje sync + aggregation finished!"
