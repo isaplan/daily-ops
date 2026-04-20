@@ -1,9 +1,13 @@
 /**
  * Normalize googleapis / Gaxios OAuth errors for inbox routes.
  *
+ * @last-modified: 2026-04-20T22:15:00.000Z
+ * @last-fix: [2026-04-20] exports-to sync-scheduled
+ *
  * @exports-to:
  * ✓ server/api/inbox/watch.post.ts
  * ✓ server/api/inbox/watch/renew.get.ts
+ * ✓ server/api/inbox/sync-scheduled.get.ts
  */
 
 type GaxiosLike = {
