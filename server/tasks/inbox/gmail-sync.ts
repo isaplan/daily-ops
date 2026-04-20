@@ -1,11 +1,11 @@
 /**
  * Nitro task: poll Gmail, store new emails, auto-parse.
- * Scheduled via nuxt.config nitro.scheduledTasks (node_server / DO App worker).
+ * Production schedule: GitHub Actions inbox-daily-sync.yml (not Nitro scheduledTasks). Run manually: npx nuxt task run inbox:gmail-sync
  *
  * @registry-id: taskInboxGmailSync
- * @last-modified: 2026-04-20T00:00:00.000Z
- * @last-fix: [2026-04-20] Catch run() errors so scheduled task does not throw (Mongo/network offline)
- * @exports-to: nuxt.config scheduledTasks → inbox:gmail-sync
+ * @last-modified: 2026-04-20T12:00:00.000Z
+ * @last-fix: [2026-04-20] Docs — polling cadence moved to GitHub; task kept for manual runs
+ * @exports-to: (none — no nitro schedule)
  */
 
 import { runInboxGmailSync } from '../../services/inboxSyncService'

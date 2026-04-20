@@ -1,9 +1,7 @@
 name: Gmail Inbox Watch Renew
 
-# Renews Gmail users.watch before Google’s ~7-day expiration.
+# Renews Gmail users.watch (~7-day expiry). Not on a schedule when inbox uses GitHub polling only — run manually if you re-enable Pub/Sub push.
 on:
-  schedule:
-    - cron: '30 5 * * *'
   workflow_dispatch:
 
 jobs:
