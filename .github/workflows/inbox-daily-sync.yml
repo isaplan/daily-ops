@@ -1,16 +1,18 @@
-name: Gmail Inbox Watch Renew
+name: Inbox — daily Gmail sync (polling)
 
-# Renews Gmail users.watch before Google’s ~7-day expiration.
+# Fetches new mail via Gmail API + ingest + parse. Does NOT depend on users.watch / Pub/Sub.
+# Same pipeline as “Sync from Gmail” in the UI. Uses CRON_SECRET (same as Bork/Eitje scheduled jobs).
 on:
   schedule:
-    - cron: '30 5 * * *'
+    # 06:15 UTC daily (~07:15 CET / 08:15 CEST); change if you prefer another window
+    - cron: '15 6 * * *'
   workflow_dispatch:
 
 jobs:
-  renew-gmail-watch:
+  inbox-sync:
     runs-on: ubuntu-latest
     steps:
-      - name: Resolve Nitro API base + renew Gmail watch
+      - name: Run inbox Gmail sync (production)
         shell: bash
         env:
           CRON_API_BASE_URL: ${{ secrets.CRON_API_BASE_URL }}
@@ -19,7 +21,7 @@ jobs:
         run: |
           set -euo pipefail
           if [[ -z "${CRON_SECRET:-}" ]]; then
-            echo "::error::Set GitHub secret CRON_SECRET"
+            echo "::error::Missing CRON_SECRET in repository secrets"
             exit 1
           fi
           if [[ -z "${DO_APP_DOMAIN:-}" && -z "${CRON_API_BASE_URL:-}" ]]; then
@@ -31,17 +33,18 @@ jobs:
           else
             API_ROOT="https://${DO_APP_DOMAIN}"
           fi
+          echo "Inbox sync using API_ROOT=$API_ROOT"
           OUT=$(mktemp)
           trap 'rm -f "$OUT"' EXIT
-          HTTP=$(curl -sS -o "$OUT" -w "%{http_code}" "${API_ROOT}/api/inbox/watch/renew?secret=${CRON_SECRET}" \
+          HTTP=$(curl -sS -o "$OUT" -w "%{http_code}" "${API_ROOT}/api/inbox/sync-scheduled?secret=${CRON_SECRET}&maxResults=100" \
             -H "Accept: application/json" \
             --connect-timeout 30 \
-            --max-time 120)
+            --max-time 600)
           echo "HTTP $HTTP"
           head -c 400 "$OUT" | tr -d '\r' | tee /dev/stderr
           echo ""
           if [ "$HTTP" != "200" ]; then exit 1; fi
           if grep -q '<!DOCTYPE html' "$OUT"; then
-            echo "::error::Watch renew got SPA HTML — set CRON_API_BASE_URL to your DO Web Service (Nitro) URL"
+            echo "::error::Got SPA HTML — set CRON_API_BASE_URL to your DO Web Service (Nitro) URL"
             exit 1
           fi

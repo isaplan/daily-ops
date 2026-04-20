@@ -1,13 +1,15 @@
 /**
  * @registry-id: inboxProcessService
  * @created: 2026-04-18T00:00:00.000Z
- * @last-modified: 2026-04-18T00:00:00.000Z
+ * @last-modified: 2026-04-20T00:00:00.000Z
  * @description: Parse Gmail/manual attachments, map to collections (from next-js-old process routes)
- * @last-fix: [2026-04-18] Initial Nuxt implementation
+ * @last-fix: [2026-04-20] Called from webhook + sync after ingest
  *
  * @exports-to:
  * ✓ server/api/inbox/process/[emailId].post.ts
  * ✓ server/api/inbox/process-all.post.ts
+ * ✓ server/services/inboxWebhookService.ts
+ * ✓ server/api/inbox/sync.post.ts
  */
 
 import { ObjectId } from 'mongodb'

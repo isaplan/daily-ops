@@ -5,6 +5,8 @@
   >
     <div class="flex flex-wrap gap-3">
       <UButton
+        variant="outline"
+        color="neutral"
         :loading="syncing"
         icon="i-lucide-refresh-cw"
         @click="onSync"
@@ -13,6 +15,7 @@
       </UButton>
       <UButton
         variant="outline"
+        color="neutral"
         :loading="processingAll"
         icon="i-lucide-play"
         @click="onProcessAll"
@@ -21,6 +24,7 @@
       </UButton>
       <UButton
         variant="outline"
+        color="neutral"
         :loading="watchLoading"
         :icon="watchOn ? 'i-lucide-bell-off' : 'i-lucide-bell'"
         @click="onToggleWatch"

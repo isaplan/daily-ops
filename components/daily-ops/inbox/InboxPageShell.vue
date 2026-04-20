@@ -1,6 +1,6 @@
 <template>
   <div class="mx-auto max-w-7xl space-y-6">
-    <header class="space-y-1">
+    <header class="space-y-1 border-b border-gray-200 pb-4">
       <h1 class="text-2xl font-bold tracking-tight text-gray-900 md:text-3xl">
         {{ title }}
       </h1>

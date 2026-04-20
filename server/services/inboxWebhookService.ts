@@ -3,7 +3,7 @@
  * @created: 2026-04-18T00:00:00.000Z
  * @last-modified: 2026-04-18T00:00:00.000Z
  * @description: Gmail Pub/Sub push — decode notification, history.list (paged), persist new messages
- * @last-fix: [2026-04-18] Extracted from webhook.post; added getHistoryAll for multi-page history
+ * @last-fix: [2026-04-20] After ingest, auto-run processEmailAttachments (parse/map/store)
  *
  * @exports-to:
  * ✓ server/api/inbox/webhook.post.ts
@@ -14,6 +14,7 @@
 import { Buffer } from 'node:buffer'
 import { gmailWatchService } from './gmailWatchService'
 import { gmailApiService } from './gmailApiService'
+import { processEmailAttachments } from './inboxProcessService'
 import * as inboxRepo from './inboxRepository'
 
 export type PubSubPushBody = {
@@ -191,6 +192,23 @@ async function processNewEmails(notificationHistoryId: string): Promise<{
           status: 'success',
           message: `Email fetched via webhook: ${subject}`,
         })
+
+        try {
+          const proc = await processEmailAttachments(String(emailId))
+          await inboxRepo.insertProcessingLog({
+            emailId: String(emailId),
+            eventType: 'parse',
+            status: proc.success ? 'success' : 'warning',
+            message: `Auto-process after webhook: ${proc.attachmentsProcessed} attachment(s) ok, ${proc.attachmentsFailed} failed`,
+          })
+        } catch (procErr) {
+          await inboxRepo.insertProcessingLog({
+            emailId: String(emailId),
+            eventType: 'parse',
+            status: 'error',
+            message: `Auto-process after webhook failed: ${procErr instanceof Error ? procErr.message : 'unknown'}`,
+          })
+        }
 
         emailsCreated++
       } catch {
