@@ -1,11 +1,10 @@
 name: Inbox — daily Gmail sync (polling)
 
-# Fetches new mail via Gmail API + ingest + parse. Primary path when using GitHub-only polling (no Pub/Sub).
+# Fetches new mail via Gmail API + ingest + parse (manual). Production uses Nitro once daily on DO.
 # Same pipeline as “Sync from Gmail” in the UI. Uses CRON_SECRET (same as Bork/Eitje scheduled jobs).
-# Schedule: same UTC hours as daily-ops-sync.yml (Bork/Eitje) but +10 minutes — see that workflow for CEST/CET notes.
+# Schedule removed — production inbox poll runs on the DO app via Nitro (nuxt.config → 1× daily ~10:00 Amsterdam CEST).
+# Use “Run workflow” only for manual catch-up.
 on:
-  schedule:
-    - cron: '10 6,13,16,18,20,22 * * *'
   workflow_dispatch:
 
 jobs:
