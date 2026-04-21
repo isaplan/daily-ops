@@ -1,3 +1,6 @@
+/** Set `DISABLE_INBOX_SCHEDULED=1` locally to skip Gmail poll when Mongo is offline. */
+const disableInboxSchedule = process.env.DISABLE_INBOX_SCHEDULED === '1'
+
 export default defineNuxtConfig({
   ssr: false,
   modules: ['@nuxt/ui'],
@@ -24,13 +27,18 @@ export default defineNuxtConfig({
     },
   },
   /**
-   * Nitro scheduled tasks: inbox Gmail polling runs on GitHub Actions (inbox-daily-sync.yml), same UTC hours as Bork/Eitje +10m — avoids duplicate server-side cron on DO.
-   * Task `inbox:gmail-sync` remains available for manual `npx nuxt task run inbox:gmail-sync` if needed.
+   * Inbox Gmail poll: one run per day on the DO Node process (no extra DO Job component).
+   * `0 8 * * *` UTC ≈ 10:00 Europe/Amsterdam in CEST (UTC+2). In CET (winter) same cron is ~09:00 local — adjust if needed.
+   * GitHub inbox-daily-sync.yml is manual-only to avoid duplicate fetches + Actions minutes.
    */
   nitro: {
     experimental: {
       tasks: true,
     },
-    scheduledTasks: {},
+    scheduledTasks: disableInboxSchedule
+      ? {}
+      : {
+          '0 8 * * *': ['inbox:gmail-sync'],
+        },
   },
 })
