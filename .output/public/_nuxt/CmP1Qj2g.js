@@ -1,1 +1,0 @@
-import{_ as o,r as e,o as r,f as c}from"./D0tx336m.js";const n={};function s(a,i){const t=e("InboxTestDataView");return r(),c(t,{"test-type":"product_mix",title:"Bork — Product mix",description:"Raw rows in test-bork-product-mix."})}const p=o(n,[["render",s]]);export{p as default};

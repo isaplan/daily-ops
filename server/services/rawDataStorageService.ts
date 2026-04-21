@@ -29,15 +29,15 @@ export type StoreRawDataOptions = {
 function getCollectionName(documentType: DocumentType): string {
   switch (documentType) {
     case 'sales':
-      return 'test-bork-sales'
+      return 'inbox-bork-sales'
     case 'product_mix':
-      return 'test-bork-product-mix'
+      return 'inbox-bork-product-mix'
     case 'food_beverage':
-      return 'test-bork-food-beverage'
+      return 'inbox-bork-food-beverage'
     case 'basis_report':
-      return 'test-basis-report'
+      return 'inbox-bork-basis-report'
     case 'product_sales_per_hour':
-      return 'test-bork-basis-rapport'
+      return 'inbox-bork-basis-report'
     default:
       return 'unknown'
   }

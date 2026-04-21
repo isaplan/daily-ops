@@ -130,9 +130,9 @@ const FIELD_MAPPINGS: Record<DocumentType, FieldMapping[]> = {
  * Collection names for each document type
  */
 const COLLECTION_NAMES: Record<DocumentType, string> = {
-  hours: 'test-eitje-hours',
-  contracts: 'test-eitje-contracts',
-  finance: 'test-eitje-finance',
+  hours: 'inbox-eitje-hours',
+  contracts: 'inbox-eitje-contracts',
+  finance: 'inbox-eitje-finance',
   sales: 'bork_sales',
   payroll: 'payroll',
   bi: 'power_bi_exports',
@@ -140,10 +140,10 @@ const COLLECTION_NAMES: Record<DocumentType, string> = {
   formitabele: 'formitabele',
   pasy: 'pasy',
   coming_soon: 'coming_soon',
-  product_mix: 'test-bork-product-mix',
-  food_beverage: 'test-bork-food-beverage',
-  basis_report: 'test-basis-report',
-  product_sales_per_hour: 'test-bork-basis-rapport',
+  product_mix: 'inbox-bork-product-mix',
+  food_beverage: 'inbox-bork-food-beverage',
+  basis_report: 'inbox-bork-basis-report',
+  product_sales_per_hour: 'inbox-bork-basis-report',
 }
 
 /**

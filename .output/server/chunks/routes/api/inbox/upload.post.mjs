@@ -5,9 +5,8 @@ import { i as isTestDataType, s as storeRawData, d as dataMappingService } from 
 import { h as insertEmail, j as insertAttachment, i as insertParsedData, a as updateAttachment, b as updateParsedData, u as updateEmail } from '../../../_/inboxRepository.mjs';
 import 'mongodb';
 import 'papaparse';
-import 'fs';
-import 'path';
 import '/Users/alviniomolina/Documents/GitHub/daily-ops/node_modules/.pnpm/xlsx@0.18.5/node_modules/xlsx/dist/cpexcel.js';
+import 'fs';
 import 'stream';
 import 'node:http';
 import 'node:https';
@@ -15,9 +14,12 @@ import 'node:events';
 import 'node:fs';
 import 'node:path';
 import 'node:crypto';
+import 'path';
+import 'googleapis';
 import 'node:url';
 import '@iconify/utils';
 import 'consola';
+import 'node:module';
 
 const MAX = 10 * 1024 * 1024;
 const upload_post = defineEventHandler(async (event) => {

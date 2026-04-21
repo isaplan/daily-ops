@@ -1,13 +1,12 @@
 import { createRenderer, getRequestDependencies, getPreloadLinks, getPrefetchLinks } from 'vue-bundle-renderer/runtime';
-import { $ as buildAssetsURL, a0 as useRuntimeConfig, a1 as getResponseStatusText, a2 as getResponseStatus, a3 as defineRenderHandler, a4 as publicAssetsURL, a as getQuery, c as createError, a5 as destr, a6 as getRouteRules, a7 as joinURL, a8 as useNitroApp } from '../nitro/nitro.mjs';
+import { a4 as buildAssetsURL, a5 as useRuntimeConfig, a6 as getResponseStatusText, a7 as getResponseStatus, a8 as defineRenderHandler, a9 as publicAssetsURL, a as getQuery, c as createError, aa as destr, ab as getRouteRules, ac as joinURL, ad as useNitroApp } from '../nitro/nitro.mjs';
 import { createHead as createHead$1, propsToString, renderSSRHead } from 'unhead/server';
 import { stringify, uneval } from 'devalue';
 import { isRef, toValue } from 'vue';
 import 'mongodb';
 import 'papaparse';
-import 'fs';
-import 'path';
 import '/Users/alviniomolina/Documents/GitHub/daily-ops/node_modules/.pnpm/xlsx@0.18.5/node_modules/xlsx/dist/cpexcel.js';
+import 'fs';
 import 'stream';
 import 'node:http';
 import 'node:https';
@@ -16,9 +15,12 @@ import 'node:buffer';
 import 'node:fs';
 import 'node:path';
 import 'node:crypto';
+import 'path';
+import 'googleapis';
 import 'node:url';
 import '@iconify/utils';
 import 'consola';
+import 'node:module';
 
 const VueResolver = (_, value) => {
   return isRef(value) ? toValue(value) : value;

@@ -58,6 +58,7 @@ declare global {
   const documentToEitjeStoredCredentials: typeof import('../../server/utils/eitjeApiCredentials').documentToEitjeStoredCredentials
   const dynamicEventHandler: typeof import('../../node_modules/h3').dynamicEventHandler
   const eitjeUserIdCandidates: typeof import('../../server/utils/memberEitjeContext').eitjeUserIdCandidates
+  const ensureGmailWatchIfNeeded: typeof import('../../server/utils/inbox/gmailWatchAutostart').ensureGmailWatchIfNeeded
   const ensureInboxCollections: typeof import('../../server/utils/inbox/collections').ensureInboxCollections
   const ensureInboxIndexes: typeof import('../../server/utils/inbox/collections').ensureInboxIndexes
   const enumerateUtcDatesInclusive: typeof import('../../server/utils/dailyOpsDashboardMetrics').enumerateUtcDatesInclusive
@@ -90,6 +91,9 @@ declare global {
   const fromWebHandler: typeof import('../../node_modules/h3').fromWebHandler
   const getCookie: typeof import('../../node_modules/h3').getCookie
   const getDb: typeof import('../../server/utils/db').getDb
+  const getGmailInvalidGrantHint: typeof import('../../server/utils/gmailOAuthError').getGmailInvalidGrantHint
+  const getGmailOAuthErrorMessage: typeof import('../../server/utils/gmailOAuthError').getGmailOAuthErrorMessage
+  const getGmailOAuthRedirectUri: typeof import('../../server/utils/gmailOAuthRedirect').getGmailOAuthRedirectUri
   const getHeader: typeof import('../../node_modules/h3').getHeader
   const getHeaders: typeof import('../../node_modules/h3').getHeaders
   const getMenuItemsCollection: typeof import('../../server/utils/db').getMenuItemsCollection
@@ -129,6 +133,7 @@ declare global {
   const isError: typeof import('../../node_modules/h3').isError
   const isEvent: typeof import('../../node_modules/h3').isEvent
   const isEventHandler: typeof import('../../node_modules/h3').isEventHandler
+  const isInvalidGrantError: typeof import('../../server/utils/gmailOAuthError').isInvalidGrantError
   const isMethod: typeof import('../../node_modules/h3').isMethod
   const isPreflightRequest: typeof import('../../node_modules/h3').isPreflightRequest
   const isStream: typeof import('../../node_modules/h3').isStream
@@ -224,6 +229,9 @@ declare global {
   export type { ExcelParseOptions } from '../../server/utils/inbox/excel-parser'
   import('../../server/utils/inbox/excel-parser')
   // @ts-ignore
+  export type { GmailWatchAutostartResult } from '../../server/utils/inbox/gmailWatchAutostart'
+  import('../../server/utils/inbox/gmailWatchAutostart')
+  // @ts-ignore
   export type { PdfParseOptions } from '../../server/utils/inbox/pdf-parser'
   import('../../server/utils/inbox/pdf-parser')
   // @ts-ignore
@@ -258,11 +266,14 @@ export { resolveDailyOpsPeriod } from '/Users/alviniomolina/Documents/GitHub/dai
 export { getMongoDatabaseName, getDb, getNotesCollection, getUnifiedUsersCollection, getMenuItemsCollection, getMenusCollection, getMenuVersionsCollection, connectToDatabase } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/db';
 export { findEitjeCredentialDocument, documentToEitjeStoredCredentials, documentToCredentialsApiShape } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/eitjeApiCredentials';
 export { EITJE_HOURS_ADD_FIELDS, getUtcDayRange } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/eitjeHours';
+export { getGmailOAuthErrorMessage, isInvalidGrantError, getGmailInvalidGrantHint } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/gmailOAuthError';
+export { getGmailOAuthRedirectUri } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/gmailOAuthRedirect';
 export { ensureInboxCollections, ensureInboxIndexes } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/inbox/collections';
 export { INBOX_COLLECTIONS, INBOX_TARGET_COLLECTIONS } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/inbox/constants';
 export { parseCSV } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/inbox/csv-parser';
 export { classifyByFilename, classifyByContent, classifyDocument } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/inbox/document-classifier';
 export { parseExcel, getSheetNames } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/inbox/excel-parser';
+export { ensureGmailWatchIfNeeded } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/inbox/gmailWatchAutostart';
 export { parsePDF } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/inbox/pdf-parser';
 export { eitjeUserIdCandidates, resolveEitjeAggregationUserCandidates, fetchAggregationActivityByLocationTeam, mergeWorkedAndPlanned, fetchMemberEitjePlaces } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/memberEitjeContext';
 export { activeNotesMatch, trashedNotesMatch } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/noteDeletedFilter';

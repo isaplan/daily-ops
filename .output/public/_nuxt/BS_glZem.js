@@ -1,1 +1,0 @@
-import{_ as t}from"./cLWQTvfb.js";import{g as r,o as e,f as p}from"./D0tx336m.js";import"./D3t5613Z.js";import"./BB7fe5Jd.js";import"./Df4lrUlY.js";import"./C8Ffz_a3.js";import"./CJVWbR2p.js";const l=r({__name:"productivity",setup(i){return(n,a)=>{const o=t;return e(),p(o,{"page-heading-suffix":"Productivity"})}}});export{l as default};

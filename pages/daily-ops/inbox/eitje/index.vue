@@ -19,8 +19,8 @@
 
 <script setup lang="ts">
 const links = [
-  { to: '/daily-ops/inbox/eitje/hours', label: 'Hours', hint: 'test-eitje-hours' },
-  { to: '/daily-ops/inbox/eitje/contracts', label: 'Contracts', hint: 'test-eitje-contracts' },
-  { to: '/daily-ops/inbox/eitje/finance', label: 'Finance', hint: 'test-eitje-finance' },
+  { to: '/daily-ops/inbox/eitje/hours', label: 'Hours', hint: 'inbox-eitje-hours' },
+  { to: '/daily-ops/inbox/eitje/contracts', label: 'Contracts', hint: 'inbox-eitje-contracts' },
+  { to: '/daily-ops/inbox/eitje/finance', label: 'Finance', hint: 'inbox-eitje-finance' },
 ]
 </script>

@@ -7,21 +7,21 @@ type AllDataType = TestDataType | 'hours' | 'contracts' | 'finance' | 'bi'
 function getCollectionName(type: AllDataType): string {
   switch (type) {
     case 'sales':
-      return 'test-bork-sales'
+      return 'inbox-bork-sales'
     case 'product_mix':
-      return 'test-bork-product-mix'
+      return 'inbox-bork-product-mix'
     case 'food_beverage':
-      return 'test-bork-food-beverage'
+      return 'inbox-bork-food-beverage'
     case 'basis_report':
-      return 'test-basis-report'
+      return 'inbox-bork-basis-report'
     case 'product_sales_per_hour':
-      return 'test-bork-basis-rapport'
+      return 'inbox-bork-basis-report'
     case 'hours':
-      return 'test-eitje-hours'
+      return 'inbox-eitje-hours'
     case 'contracts':
-      return 'test-eitje-contracts'
+      return 'inbox-eitje-contracts'
     case 'finance':
-      return 'test-eitje-finance'
+      return 'inbox-eitje-finance'
     case 'bi':
       return 'power_bi_exports'
     default:

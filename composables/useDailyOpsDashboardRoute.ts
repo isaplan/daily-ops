@@ -1,7 +1,7 @@
 import { resolveDailyOpsPeriod } from '~/utils/dailyOpsPeriod'
 import { DAILY_OPS_PERIOD_IDS, type DailyOpsPeriodId } from '~/types/daily-ops-dashboard'
 
-export type DailyOpsNavKey = 'overview' | 'revenue' | 'productivity' | 'workload' | 'products' | 'insights'
+export type DailyOpsNavKey = 'overview' | 'revenue' | 'productivity' | 'workload' | 'products' | 'insights' | 'inbox'
 
 const PERIOD_SET = new Set<string>(DAILY_OPS_PERIOD_IDS)
 
@@ -50,6 +50,7 @@ export function useDailyOpsDashboardRoute() {
     if (path.startsWith('/daily-ops/workload')) return 'workload'
     if (path.startsWith('/daily-ops/products')) return 'products'
     if (path.startsWith('/daily-ops/insights')) return 'insights'
+    if (path.startsWith('/daily-ops/inbox')) return 'inbox'
     return 'overview'
   }
 

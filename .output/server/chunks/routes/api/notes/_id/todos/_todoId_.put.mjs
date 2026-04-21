@@ -1,9 +1,8 @@
-import { d as defineEventHandler, C as getRouterParam, c as createError, r as readBody, N as getNotesCollection } from '../../../../../nitro/nitro.mjs';
+import { d as defineEventHandler, C as getRouterParam, c as createError, r as readBody, S as getNotesCollection } from '../../../../../nitro/nitro.mjs';
 import { ObjectId } from 'mongodb';
 import 'papaparse';
-import 'fs';
-import 'path';
 import '/Users/alviniomolina/Documents/GitHub/daily-ops/node_modules/.pnpm/xlsx@0.18.5/node_modules/xlsx/dist/cpexcel.js';
+import 'fs';
 import 'stream';
 import 'node:http';
 import 'node:https';
@@ -12,9 +11,12 @@ import 'node:buffer';
 import 'node:fs';
 import 'node:path';
 import 'node:crypto';
+import 'path';
+import 'googleapis';
 import 'node:url';
 import '@iconify/utils';
 import 'consola';
+import 'node:module';
 
 function isMongoId(str) {
   return /^[0-9a-f]{24}$/i.test(str);

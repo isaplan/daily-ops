@@ -19,14 +19,14 @@
 
 <script setup lang="ts">
 const links = [
-  { to: '/daily-ops/inbox/bork/sales', label: 'Bork sales', collection: 'test-bork-sales' },
-  { to: '/daily-ops/inbox/bork/product-mix', label: 'Product mix', collection: 'test-bork-product-mix' },
-  { to: '/daily-ops/inbox/bork/food-beverage', label: 'Food & beverage', collection: 'test-bork-food-beverage' },
-  { to: '/daily-ops/inbox/bork/basis-report', label: 'Basis report', collection: 'test-basis-report' },
-  { to: '/daily-ops/inbox/bork/sales-per-hour', label: 'Sales per hour', collection: 'test-bork-basis-rapport' },
-  { to: '/daily-ops/inbox/eitje/hours', label: 'Eitje hours', collection: 'test-eitje-hours' },
-  { to: '/daily-ops/inbox/eitje/contracts', label: 'Eitje contracts', collection: 'test-eitje-contracts' },
-  { to: '/daily-ops/inbox/eitje/finance', label: 'Eitje finance', collection: 'test-eitje-finance' },
+  { to: '/daily-ops/inbox/bork/sales', label: 'Bork sales', collection: 'inbox-bork-sales' },
+  { to: '/daily-ops/inbox/bork/product-mix', label: 'Product mix', collection: 'inbox-bork-product-mix' },
+  { to: '/daily-ops/inbox/bork/food-beverage', label: 'Food & beverage', collection: 'inbox-bork-food-beverage' },
+  { to: '/daily-ops/inbox/bork/basis-report', label: 'Basis report', collection: 'inbox-bork-basis-report' },
+  { to: '/daily-ops/inbox/bork/sales-per-hour', label: 'Sales per hour', collection: 'inbox-bork-basis-report' },
+  { to: '/daily-ops/inbox/eitje/hours', label: 'Eitje hours', collection: 'inbox-eitje-hours' },
+  { to: '/daily-ops/inbox/eitje/contracts', label: 'Eitje contracts', collection: 'inbox-eitje-contracts' },
+  { to: '/daily-ops/inbox/eitje/finance', label: 'Eitje finance', collection: 'inbox-eitje-finance' },
   { to: '/daily-ops/inbox/power-bi/reports', label: 'Power BI exports', collection: 'power_bi_exports' },
 ]
 </script>

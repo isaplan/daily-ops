@@ -116,6 +116,9 @@ declare module "nitropack/types" {
     '/api/inbox/process/:emailId': {
       'post': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/inbox/process/[emailId].post').default>>>>
     }
+    '/api/inbox/sync-scheduled': {
+      'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/inbox/sync-scheduled.get').default>>>>
+    }
     '/api/inbox/sync': {
       'post': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/inbox/sync.post').default>>>>
     }

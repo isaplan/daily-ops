@@ -1,0 +1,1 @@
+import{_ as t}from"./B7WZpFJp.js";import{g as e,o as p,f as r}from"./DE-gCVdT.js";import"./CJoOp-yJ.js";import"./CT-DJYdr.js";import"./Bav-6k2j.js";import"./zdF4dkoS.js";import"./DvoYVTK3.js";const l=e({__name:"products",setup(n){return(c,_)=>{const o=t;return p(),r(o,{section:"products"})}}});export{l as default};

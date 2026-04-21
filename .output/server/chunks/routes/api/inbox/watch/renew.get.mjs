@@ -1,10 +1,8 @@
-import { d as defineEventHandler, a as getQuery, c as createError, A as ensureInboxCollections, g as getDb } from '../../../../nitro/nitro.mjs';
-import { g as gmailWatchService } from '../../../../_/gmailWatchService.mjs';
+import { d as defineEventHandler, a as getQuery, c as createError, A as ensureInboxCollections, g as getDb, P as gmailWatchService, M as isInvalidGrantError, L as getGmailOAuthRedirectUri, N as getGmailInvalidGrantHint, O as getGmailOAuthErrorMessage } from '../../../../nitro/nitro.mjs';
 import 'mongodb';
 import 'papaparse';
-import 'fs';
-import 'path';
 import '/Users/alviniomolina/Documents/GitHub/daily-ops/node_modules/.pnpm/xlsx@0.18.5/node_modules/xlsx/dist/cpexcel.js';
+import 'fs';
 import 'stream';
 import 'node:http';
 import 'node:https';
@@ -13,14 +11,16 @@ import 'node:buffer';
 import 'node:fs';
 import 'node:path';
 import 'node:crypto';
+import 'path';
+import 'googleapis';
 import 'node:url';
 import '@iconify/utils';
 import 'consola';
-import 'googleapis';
+import 'node:module';
 
 const GMAIL_WATCH_JOB = { source: "gmail", jobType: "inbox-watch" };
 const renew_get = defineEventHandler(async (event) => {
-  var _a;
+  var _a, _b, _c;
   const secret = process.env.CRON_SECRET;
   const q = getQuery(event);
   if (!secret || String((_a = q.secret) != null ? _a : "") !== secret) {
@@ -86,6 +86,28 @@ const renew_get = defineEventHandler(async (event) => {
       { upsert: true }
     ).catch(() => {
     });
+    if (isInvalidGrantError(error)) {
+      const clientId = (_b = process.env.GMAIL_CLIENT_ID) != null ? _b : "";
+      const clientIdHint = clientId.length > 14 ? `${clientId.slice(0, 8)}\u2026${clientId.slice(-6)}` : clientId || "(unset)";
+      const gmailRedirectUriEnv = ((_c = process.env.GMAIL_REDIRECT_URI) == null ? void 0 : _c.trim()) || "(unset)";
+      let gmailRedirectUriUsedForOAuth;
+      try {
+        gmailRedirectUriUsedForOAuth = getGmailOAuthRedirectUri();
+      } catch (e) {
+        gmailRedirectUriUsedForOAuth = e instanceof Error ? e.message : "unknown";
+      }
+      throw createError({
+        statusCode: 401,
+        statusMessage: "Gmail OAuth invalid_grant: refresh token rejected. Match GMAIL_REDIRECT_URI and OAuth client to the values used when GMAIL_REFRESH_TOKEN was issued; re-authorize and update env.",
+        data: {
+          google: getGmailOAuthErrorMessage(error),
+          gmailRedirectUriEnv,
+          gmailRedirectUriUsedForOAuth,
+          gmailClientIdHint: clientIdHint,
+          hint: getGmailInvalidGrantHint(gmailRedirectUriEnv, gmailRedirectUriUsedForOAuth)
+        }
+      });
+    }
     throw createError({
       statusCode: 500,
       statusMessage: msg

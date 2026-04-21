@@ -39,6 +39,7 @@ export const DailyOpsInboxPageShell: typeof import("../components/daily-ops/inbo
 export const DailyOpsInboxTestDataView: typeof import("../components/daily-ops/inbox/InboxTestDataView.vue")['default']
 export const SettingsCredentialInput: typeof import("../components/settings/CredentialInput.vue")['default']
 export const SettingsCronJobToggle: typeof import("../components/settings/CronJobToggle.vue")['default']
+export const SettingsCronSwitch: typeof import("../components/settings/CronSwitch.vue")['default']
 export const SettingsDataFieldMapper: typeof import("../components/settings/DataFieldMapper.vue")['default']
 export const SettingsEndpointCheckList: typeof import("../components/settings/EndpointCheckList.vue")['default']
 export const SettingsCard: typeof import("../components/settings/SettingsCard.vue")['default']
@@ -214,6 +215,7 @@ export const LazyDailyOpsInboxPageShell: LazyComponent<typeof import("../compone
 export const LazyDailyOpsInboxTestDataView: LazyComponent<typeof import("../components/daily-ops/inbox/InboxTestDataView.vue")['default']>
 export const LazySettingsCredentialInput: LazyComponent<typeof import("../components/settings/CredentialInput.vue")['default']>
 export const LazySettingsCronJobToggle: LazyComponent<typeof import("../components/settings/CronJobToggle.vue")['default']>
+export const LazySettingsCronSwitch: LazyComponent<typeof import("../components/settings/CronSwitch.vue")['default']>
 export const LazySettingsDataFieldMapper: LazyComponent<typeof import("../components/settings/DataFieldMapper.vue")['default']>
 export const LazySettingsEndpointCheckList: LazyComponent<typeof import("../components/settings/EndpointCheckList.vue")['default']>
 export const LazySettingsCard: LazyComponent<typeof import("../components/settings/SettingsCard.vue")['default']>

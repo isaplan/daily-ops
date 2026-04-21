@@ -1,10 +1,8 @@
-import { d as defineEventHandler, A as ensureInboxCollections, r as readBody, c as createError, g as getDb } from '../../../nitro/nitro.mjs';
-import { g as gmailWatchService } from '../../../_/gmailWatchService.mjs';
+import { d as defineEventHandler, A as ensureInboxCollections, r as readBody, c as createError, P as gmailWatchService, g as getDb, O as getGmailOAuthErrorMessage, M as isInvalidGrantError } from '../../../nitro/nitro.mjs';
 import 'mongodb';
 import 'papaparse';
-import 'fs';
-import 'path';
 import '/Users/alviniomolina/Documents/GitHub/daily-ops/node_modules/.pnpm/xlsx@0.18.5/node_modules/xlsx/dist/cpexcel.js';
+import 'fs';
 import 'stream';
 import 'node:http';
 import 'node:https';
@@ -13,10 +11,12 @@ import 'node:buffer';
 import 'node:fs';
 import 'node:path';
 import 'node:crypto';
+import 'path';
+import 'googleapis';
 import 'node:url';
 import '@iconify/utils';
 import 'consola';
-import 'googleapis';
+import 'node:module';
 
 const GMAIL_WATCH_JOB = { source: "gmail", jobType: "inbox-watch" };
 const watch_post = defineEventHandler(async (event) => {
@@ -66,9 +66,17 @@ const watch_post = defineEventHandler(async (event) => {
     };
   } catch (error) {
     if (error && typeof error === "object" && "statusCode" in error) throw error;
+    const msg = getGmailOAuthErrorMessage(error);
+    if (isInvalidGrantError(error)) {
+      throw createError({
+        statusCode: 401,
+        statusMessage: "Gmail OAuth invalid_grant: refresh token rejected. Use the same GMAIL_CLIENT_ID/SECRET as when the token was created; set GMAIL_REDIRECT_URI to the exact authorized redirect URI (e.g. http://localhost:8080). Then re-run OAuth and replace GMAIL_REFRESH_TOKEN.",
+        data: { google: msg }
+      });
+    }
     throw createError({
       statusCode: 500,
-      statusMessage: error instanceof Error ? error.message : "Failed to start Gmail watch"
+      statusMessage: msg
     });
   }
 });

@@ -1,0 +1,1 @@
+import{_ as s,r as t,o,f as a}from"./DE-gCVdT.js";const n={};function r(c,_){const e=t("InboxTestDataView");return o(),a(e,{"test-type":"sales",title:"Bork — Sales",description:"Raw rows in test-bork-sales."})}const l=s(n,[["render",r]]);export{l as default};

@@ -1,13 +1,11 @@
-import { d as defineEventHandler, A as ensureInboxCollections, B as ensureInboxIndexes, r as readBody, c as createError, L as setResponseStatus } from '../../../nitro/nitro.mjs';
+import { P as gmailWatchService, d as defineEventHandler, A as ensureInboxCollections, B as ensureInboxIndexes, r as readBody, c as createError, Q as setResponseStatus } from '../../../nitro/nitro.mjs';
 import { Buffer } from 'node:buffer';
-import { g as gmailWatchService } from '../../../_/gmailWatchService.mjs';
-import { g as gmailApiService } from '../../../_/gmailApiService.mjs';
+import { g as gmailApiService, a as processEmailAttachments } from '../../../_/inboxProcessService.mjs';
 import { c as insertProcessingLog, e as findEmailByMessageId, h as insertEmail, j as insertAttachment } from '../../../_/inboxRepository.mjs';
 import 'mongodb';
 import 'papaparse';
-import 'fs';
-import 'path';
 import '/Users/alviniomolina/Documents/GitHub/daily-ops/node_modules/.pnpm/xlsx@0.18.5/node_modules/xlsx/dist/cpexcel.js';
+import 'fs';
 import 'stream';
 import 'node:http';
 import 'node:https';
@@ -15,10 +13,14 @@ import 'node:events';
 import 'node:fs';
 import 'node:path';
 import 'node:crypto';
+import 'path';
+import 'googleapis';
 import 'node:url';
 import '@iconify/utils';
 import 'consola';
-import 'googleapis';
+import 'node:module';
+import '../../../_/documentParserService.mjs';
+import '../../../_/rawDataStorageService.mjs';
 
 function isPubSubPushBody(body) {
   if (!body || typeof body !== "object") return false;
@@ -127,6 +129,22 @@ async function processNewEmails(notificationHistoryId) {
           status: "success",
           message: `Email fetched via webhook: ${subject}`
         });
+        try {
+          const proc = await processEmailAttachments(String(emailId));
+          await insertProcessingLog({
+            emailId: String(emailId),
+            eventType: "parse",
+            status: proc.success ? "success" : "warning",
+            message: `Auto-process after webhook: ${proc.attachmentsProcessed} attachment(s) ok, ${proc.attachmentsFailed} failed`
+          });
+        } catch (procErr) {
+          await insertProcessingLog({
+            emailId: String(emailId),
+            eventType: "parse",
+            status: "error",
+            message: `Auto-process after webhook failed: ${procErr instanceof Error ? procErr.message : "unknown"}`
+          });
+        }
         emailsCreated++;
       } catch {
         emailsFailed++;

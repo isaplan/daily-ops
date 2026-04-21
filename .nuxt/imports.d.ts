@@ -54,3 +54,4 @@ export { useResizable } from '../node_modules/.pnpm/@nuxt+ui@4.6.0_@tiptap+exten
 export { useScrollShadow } from '../node_modules/.pnpm/@nuxt+ui@4.6.0_@tiptap+extensions@3.21.0_@tiptap+core@3.21.0_@tiptap+pm@3.21.0__@tiptap_0031915eeee23c7bd8bdaceb369561a1/node_modules/@nuxt/ui/dist/runtime/composables/useScrollShadow';
 export { useScrollspy } from '../node_modules/.pnpm/@nuxt+ui@4.6.0_@tiptap+extensions@3.21.0_@tiptap+core@3.21.0_@tiptap+pm@3.21.0__@tiptap_0031915eeee23c7bd8bdaceb369561a1/node_modules/@nuxt/ui/dist/runtime/composables/useScrollspy';
 export { useToast } from '../node_modules/.pnpm/@nuxt+ui@4.6.0_@tiptap+extensions@3.21.0_@tiptap+core@3.21.0_@tiptap+pm@3.21.0__@tiptap_0031915eeee23c7bd8bdaceb369561a1/node_modules/@nuxt/ui/dist/runtime/composables/useToast';
+export { useNuxtDevTools } from '../node_modules/@nuxt/devtools/dist/runtime/use-nuxt-devtools';

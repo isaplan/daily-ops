@@ -1,0 +1,1 @@
+import{_ as e}from"./FiJi4Q9I.js";import{g as t,o as n,f as r}from"./DE-gCVdT.js";import"./CJoOp-yJ.js";import"./CT-DJYdr.js";import"./Bav-6k2j.js";import"./zdF4dkoS.js";import"./DvoYVTK3.js";const l=t({__name:"revenue",setup(p){return(a,m)=>{const o=e;return n(),r(o,{"page-heading-suffix":"Revenue"})}}});export{l as default};

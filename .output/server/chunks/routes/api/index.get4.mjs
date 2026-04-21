@@ -1,9 +1,8 @@
-import { d as defineEventHandler, N as getNotesCollection, O as activeNotesMatch } from '../../nitro/nitro.mjs';
+import { d as defineEventHandler, S as getNotesCollection, T as activeNotesMatch } from '../../nitro/nitro.mjs';
 import 'mongodb';
 import 'papaparse';
-import 'fs';
-import 'path';
 import '/Users/alviniomolina/Documents/GitHub/daily-ops/node_modules/.pnpm/xlsx@0.18.5/node_modules/xlsx/dist/cpexcel.js';
+import 'fs';
 import 'stream';
 import 'node:http';
 import 'node:https';
@@ -12,9 +11,12 @@ import 'node:buffer';
 import 'node:fs';
 import 'node:path';
 import 'node:crypto';
+import 'path';
+import 'googleapis';
 import 'node:url';
 import '@iconify/utils';
 import 'consola';
+import 'node:module';
 
 const index_get = defineEventHandler(async () => {
   const coll = await getNotesCollection();

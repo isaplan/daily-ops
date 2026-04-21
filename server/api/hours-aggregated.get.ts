@@ -77,7 +77,7 @@ export default defineEventHandler(async (event) => {
     })
 
     if (groupBy === 'worker' && source === 'contracts') {
-      const contractDocs = await db.collection('test-eitje-contracts').find({}).toArray()
+      const contractDocs = await db.collection('inbox-eitje-contracts').find({}).toArray()
       const allRows = contractDocs
         .filter((d: { total_worked_hours?: number }) => (d.total_worked_hours ?? 0) > 0)
         .map(
