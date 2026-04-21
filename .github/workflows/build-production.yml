@@ -14,6 +14,9 @@ permissions:
 jobs:
   verify-build:
     runs-on: ubuntu-latest
+    env:
+      # GitHub Actions runner: use Node 24 for @actions/* until default flips (removes Node 20 deprecation noise).
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
       - name: Checkout
         uses: actions/checkout@v4
