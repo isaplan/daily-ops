@@ -1,9 +1,9 @@
 /**
  * @registry-id: inboxSyncScheduledAPI
  * @created: 2026-04-20T00:00:00.000Z
- * @last-modified: 2026-04-20T22:15:00.000Z
+ * @last-modified: 2026-04-21T22:35:00.000Z
  * @description: GET /api/inbox/sync-scheduled — Gmail poll for GitHub Actions (same UTC hours as Bork/Eitje +10m via inbox-daily-sync.yml)
- * @last-fix: [2026-04-20] Map invalid_grant → 401 + redirect/client hints (same as watch/renew)
+ * @last-fix: [2026-04-21] invalid_grant: env vs effective redirect in JSON (DO component override)
  *
  * @exports-to:
  * ✓ .github/workflows/inbox-daily-sync.yml
@@ -11,6 +11,7 @@
 
 import { runInboxGmailSync } from '../../services/inboxSyncService'
 import { getGmailOAuthErrorMessage, isInvalidGrantError } from '../../utils/gmailOAuthError'
+import { getGmailOAuthRedirectUri } from '../../utils/gmailOAuthRedirect'
 
 export default defineEventHandler(async (event) => {
   const secret = process.env.CRON_SECRET
@@ -40,9 +41,17 @@ export default defineEventHandler(async (event) => {
           'Gmail OAuth invalid_grant: refresh token rejected. Match GMAIL_REDIRECT_URI and OAuth client to the values used when GMAIL_REFRESH_TOKEN was issued; re-authorize and update DigitalOcean env.',
         data: {
           google: getGmailOAuthErrorMessage(error),
-          gmailRedirectUri: process.env.GMAIL_REDIRECT_URI ?? '(unset)',
+          gmailRedirectUriEnv: process.env.GMAIL_REDIRECT_URI?.trim() || '(unset)',
+          gmailRedirectUriUsedForOAuth: (() => {
+            try {
+              return getGmailOAuthRedirectUri()
+            } catch (e) {
+              return e instanceof Error ? e.message : 'unknown'
+            }
+          })(),
           gmailClientIdHint: clientIdHint,
-          hint: 'Update GMAIL_REFRESH_TOKEN on DigitalOcean after OAuth with the same client + redirect URI.',
+          hint:
+            'If gmailRedirectUriEnv is localhost but you set Playground in the DO editor, the Web component likely still has an old GMAIL_REDIRECT_URI — edit env on the daily-ops component, save, redeploy. Refresh token must match client + redirect used in OAuth Playground.',
         },
       })
     }

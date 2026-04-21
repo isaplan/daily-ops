@@ -1,9 +1,9 @@
 /**
  * @registry-id: inboxGmailWatchRenewAPI
  * @created: 2026-04-19T12:00:00.000Z
- * @last-modified: 2026-04-20T10:45:00.000Z
+ * @last-modified: 2026-04-21T22:35:00.000Z
  * @description: GET /api/inbox/watch/renew — Gmail users.watch renewal for schedulers (GitHub Actions, DO cron)
- * @last-fix: [2026-04-20] invalid_grant response includes redirect URI + client id hint for DO env debugging
+ * @last-fix: [2026-04-21] invalid_grant: gmailRedirectUriEnv + UsedForOAuth fields
  *
  * @exports-to:
  *   ✓ .github/workflows/gmail-watch-renew.yml
@@ -13,6 +13,7 @@ import { getDb } from '../../../utils/db'
 import { ensureInboxCollections } from '../../../utils/inbox/collections'
 import { gmailWatchService } from '../../../services/gmailWatchService'
 import { getGmailOAuthErrorMessage, isInvalidGrantError } from '../../../utils/gmailOAuthError'
+import { getGmailOAuthRedirectUri } from '../../../utils/gmailOAuthRedirect'
 
 const GMAIL_WATCH_JOB = { source: 'gmail', jobType: 'inbox-watch' } as const
 
@@ -97,9 +98,17 @@ export default defineEventHandler(async (event) => {
           'Gmail OAuth invalid_grant: refresh token rejected. Match GMAIL_REDIRECT_URI and OAuth client to the values used when GMAIL_REFRESH_TOKEN was issued; re-authorize and update env.',
         data: {
           google: getGmailOAuthErrorMessage(error),
-          gmailRedirectUri: process.env.GMAIL_REDIRECT_URI ?? '(unset)',
+          gmailRedirectUriEnv: process.env.GMAIL_REDIRECT_URI?.trim() || '(unset)',
+          gmailRedirectUriUsedForOAuth: (() => {
+            try {
+              return getGmailOAuthRedirectUri()
+            } catch (e) {
+              return e instanceof Error ? e.message : 'unknown'
+            }
+          })(),
           gmailClientIdHint: clientIdHint,
-          hint: 'Update GMAIL_REFRESH_TOKEN (and matching client/redirect) on DigitalOcean, then redeploy.',
+          hint:
+            'If gmailRedirectUriEnv is localhost, check GMAIL_REDIRECT_URI on the daily-ops Web component (not only app-level). Refresh token must match OAuth client + redirect.',
         },
       })
     }

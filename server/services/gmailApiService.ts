@@ -1,9 +1,9 @@
 /**
  * @registry-id: gmailApiService
  * @created: 2026-01-26T00:00:00.000Z
- * @last-modified: 2026-04-18T00:00:00.000Z
+ * @last-modified: 2026-04-21T22:35:00.000Z
  * @description: Gmail API — OAuth2 + fetch (Nuxt Nitro server only)
- * @last-fix: [2026-04-18] Ported from next-js-old
+ * @last-fix: [2026-04-21] Redirect via getGmailOAuthRedirectUri — no silent localhost in production
  *
  * @exports-to:
  * ✓ server/services/emailProcessorService.ts
@@ -13,6 +13,7 @@
 
 import { google } from 'googleapis'
 import type { gmail_v1 } from 'googleapis'
+import { getGmailOAuthRedirectUri } from '../utils/gmailOAuthRedirect'
 
 export type GmailMessage = {
   id: string
@@ -51,7 +52,7 @@ class GmailApiService {
     const clientId = process.env.GMAIL_CLIENT_ID
     const clientSecret = process.env.GMAIL_CLIENT_SECRET
     const refreshToken = process.env.GMAIL_REFRESH_TOKEN
-    const redirectUri = process.env.GMAIL_REDIRECT_URI || 'http://localhost:8080'
+    const redirectUri = getGmailOAuthRedirectUri()
 
     if (!clientId || !clientSecret || !refreshToken) {
       throw new Error(
@@ -167,7 +168,7 @@ class GmailApiService {
   getAuthorizationUrl(): string {
     const clientId = process.env.GMAIL_CLIENT_ID
     const clientSecret = process.env.GMAIL_CLIENT_SECRET
-    const redirectUri = process.env.GMAIL_REDIRECT_URI || 'http://localhost:8080'
+    const redirectUri = getGmailOAuthRedirectUri()
 
     if (!clientId || !clientSecret) {
       throw new Error('Gmail OAuth2 credentials missing')
