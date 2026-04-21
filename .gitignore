@@ -1,6 +1,9 @@
-# Dependencies
+# Dependencies (npm + package-lock.json only — DO rejects multiple lockfiles)
 node_modules/
 yarn.lock
+pnpm-lock.yaml
+bun.lock
+bun.lockb
 
 # Environment
 .env
