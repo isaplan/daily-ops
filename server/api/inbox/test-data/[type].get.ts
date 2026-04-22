@@ -1,5 +1,6 @@
 import { ObjectId } from 'mongodb'
-import { getDb } from '../../../utils/db'
+import { getDb, getMongoDatabaseName } from '../../../utils/db'
+import { INBOX_COLLECTIONS } from '../../../utils/inbox/constants'
 
 type TestDataType = 'sales' | 'product_mix' | 'food_beverage' | 'basis_report' | 'product_sales_per_hour'
 type AllDataType = TestDataType | 'hours' | 'contracts' | 'finance' | 'bi'
@@ -84,9 +85,15 @@ export default defineEventHandler(async (event) => {
     const collectionName = getCollectionName(type)
     const collection = db.collection(collectionName)
 
-    const [data, total] = await Promise.all([
-      collection.find(filters).sort({ parsedAt: -1, created_at: -1 }).skip(skip).limit(limit).toArray(),
+    const [data, total, parsedImportCount] = await Promise.all([
+      collection
+        .find(filters)
+        .sort({ parsedAt: -1, importedAt: -1, created_at: -1, _id: -1 })
+        .skip(skip)
+        .limit(limit)
+        .toArray(),
       collection.countDocuments(filters),
+      db.collection(INBOX_COLLECTIONS.parsedData).countDocuments({ documentType: type }),
     ])
 
     const allColumns = new Set<string>()
@@ -107,6 +114,8 @@ export default defineEventHandler(async (event) => {
       data: {
         type,
         collectionName,
+        mongoDatabase: getMongoDatabaseName(),
+        parsedImportCount,
         rows: data,
         columns: Array.from(allColumns).sort(),
         pagination: {

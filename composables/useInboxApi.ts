@@ -1,9 +1,9 @@
 /**
  * @registry-id: useInboxApi
  * @created: 2026-04-18T00:00:00.000Z
- * @last-modified: 2026-04-19T12:00:00.000Z
+ * @last-modified: 2026-04-23T12:00:00.000Z
  * @description: Typed client helpers for /api/inbox Nitro routes
- * @last-fix: [2026-04-19] getWatchStatus for GET /api/inbox/watch
+ * @last-fix: [2026-04-23] TestDataResponse includes mongoDatabase + parsedImportCount for inbox diagnostics
  *
  * @exports-to:
  * ✓ pages/daily-ops/inbox (all pages)
@@ -27,6 +27,8 @@ export type TestDataResponse = {
   data: {
     type: string
     collectionName: string
+    mongoDatabase: string
+    parsedImportCount: number
     rows: Record<string, unknown>[]
     columns: string[]
     pagination: {

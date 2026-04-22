@@ -14,6 +14,12 @@
             <div>
               <p class="text-sm font-medium text-gray-500">Collection</p>
               <p class="font-mono text-sm">{{ payload.data.collectionName }}</p>
+              <p class="mt-1 text-xs text-gray-500">
+                DB <span class="font-mono text-gray-700">{{ payload.data.mongoDatabase }}</span>
+                <span class="text-gray-400"> · </span>
+                Parsed inbox files (this type):
+                <span class="font-semibold text-gray-700">{{ payload.data.parsedImportCount ?? '—' }}</span>
+              </p>
             </div>
             <div class="text-sm text-gray-600">
               {{ payload.data.pagination.total }} row(s)
@@ -23,8 +29,18 @@
           </div>
         </template>
 
-        <div v-if="payload.data.rows.length === 0" class="py-8 text-center text-gray-500">
-          No rows in this collection yet. Import via Gmail sync or manual upload.
+        <div v-if="payload.data.rows.length === 0" class="space-y-3 py-8 text-center text-sm text-gray-600">
+          <p>No rows in <span class="font-mono text-gray-900">{{ payload.data.collectionName }}</span>.</p>
+          <p v-if="(payload.data.parsedImportCount ?? 0) > 0" class="mx-auto max-w-lg text-amber-900">
+            There are {{ payload.data.parsedImportCount }} parsed inbox attachment(s) of this type in
+            <span class="font-mono">parseddatas</span>, but nothing was written to this collection. That usually
+            means required CSV columns did not match (mapping dropped every row), or an older bug left the
+            attachment marked processed without inserts. Successful attachments are not reprocessed automatically.
+          </p>
+          <p v-else class="mx-auto max-w-lg text-gray-500">
+            No parsed imports of this type in this database (<span class="font-mono">{{ payload.data.mongoDatabase }}</span>).
+            Confirm <span class="font-mono">MONGODB_URI</span> matches the environment where Gmail sync ran, then sync or upload again.
+          </p>
         </div>
 
         <div v-else class="overflow-x-auto">
