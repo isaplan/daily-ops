@@ -2,6 +2,6 @@
   <InboxTestDataView
     test-type="finance"
     title="Eitje — Finance"
-    description="Rows mapped to inbox-eitje-finance."
+    description="Exact attachment columns from parsed imports. Add ?view=mapped for inbox-eitje-finance (normalized)."
   />
 </template>

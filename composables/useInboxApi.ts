@@ -3,7 +3,7 @@
  * @created: 2026-04-18T00:00:00.000Z
  * @last-modified: 2026-04-23T12:00:00.000Z
  * @description: Typed client helpers for /api/inbox Nitro routes
- * @last-fix: [2026-04-23] TestDataResponse includes mongoDatabase + parsedImportCount for inbox diagnostics
+ * @last-fix: [2026-04-23] fetchTestData view=mapped; Eitje default is exact rows from parseddatas (attachment)
  *
  * @exports-to:
  * ✓ pages/daily-ops/inbox (all pages)
@@ -26,6 +26,8 @@ export type TestDataResponse = {
   success: boolean
   data: {
     type: string
+    /** attachment = exact CSV rows from parseddatas (Eitje default); mapped = inbox-eitje-*; collection = inbox-bork-* etc. */
+    viewMode?: 'attachment' | 'mapped' | 'collection'
     collectionName: string
     mongoDatabase: string
     parsedImportCount: number
@@ -135,10 +137,10 @@ export function useInboxApi() {
     }>('/api/inbox/watch')
   }
 
-  const fetchTestData = async (type: TestDataType, page = 1, limit = 50) => {
-    return await $fetch<TestDataResponse>(`/api/inbox/test-data/${type}`, {
-      query: { page: String(page), limit: String(limit) },
-    })
+  const fetchTestData = async (type: TestDataType, page = 1, limit = 50, view?: 'attachment' | 'mapped') => {
+    const query: Record<string, string> = { page: String(page), limit: String(limit) }
+    if (view) query.view = view
+    return await $fetch<TestDataResponse>(`/api/inbox/test-data/${type}`, { query })
   }
 
   return {

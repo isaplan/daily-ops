@@ -15,6 +15,9 @@
               <p class="text-sm font-medium text-gray-500">Collection</p>
               <p class="font-mono text-sm">{{ payload.data.collectionName }}</p>
               <p class="mt-1 text-xs text-gray-500">
+                <span v-if="payload.data.viewMode" class="mr-1 rounded bg-gray-100 px-1.5 py-0.5 font-medium text-gray-700">
+                  {{ payload.data.viewMode }}
+                </span>
                 DB <span class="font-mono text-gray-700">{{ payload.data.mongoDatabase }}</span>
                 <span class="text-gray-400"> · </span>
                 Parsed inbox files (this type):
@@ -31,11 +34,24 @@
 
         <div v-if="payload.data.rows.length === 0" class="space-y-3 py-8 text-center text-sm text-gray-600">
           <p>No rows in <span class="font-mono text-gray-900">{{ payload.data.collectionName }}</span>.</p>
-          <p v-if="(payload.data.parsedImportCount ?? 0) > 0" class="mx-auto max-w-lg text-amber-900">
+          <p
+            v-if="(payload.data.parsedImportCount ?? 0) > 0 && payload.data.viewMode === 'mapped'"
+            class="mx-auto max-w-lg text-amber-900"
+          >
             There are {{ payload.data.parsedImportCount }} parsed inbox attachment(s) of this type in
-            <span class="font-mono">parseddatas</span>, but nothing was written to this collection. That usually
-            means required CSV columns did not match (mapping dropped every row), or an older bug left the
-            attachment marked processed without inserts. Successful attachments are not reprocessed automatically.
+            <span class="font-mono">parseddatas</span>, but nothing was written to the mapped collection. That usually
+            means required CSV columns did not match (mapping dropped every row). Use the default
+            <span class="font-semibold">attachment</span> view for exact file columns.
+          </p>
+          <p
+            v-else-if="(payload.data.parsedImportCount ?? 0) > 0 && payload.data.viewMode === 'attachment'"
+            class="mx-auto max-w-lg text-amber-900"
+          >
+            Parsed imports exist but no row objects were found (check
+            <span class="font-mono">data.rows</span> on parsed documents).
+          </p>
+          <p v-else-if="(payload.data.parsedImportCount ?? 0) > 0" class="mx-auto max-w-lg text-amber-900">
+            There are {{ payload.data.parsedImportCount }} parsed import(s); nothing matched this view yet.
           </p>
           <p v-else class="mx-auto max-w-lg text-gray-500">
             No parsed imports of this type in this database (<span class="font-mono">{{ payload.data.mongoDatabase }}</span>).
@@ -94,13 +110,19 @@ const props = defineProps<{
 }>()
 
 const api = useInboxApi()
+const route = useRoute()
 const page = ref(1)
 const limit = 50
 
+const viewFromQuery = computed(() => {
+  const v = route.query.view
+  return v === 'mapped' ? ('mapped' as const) : undefined
+})
+
 const { data: payload, pending, error } = await useAsyncData(
-  () => `inbox-test-${props.testType}-${page.value}`,
-  () => api.fetchTestData(props.testType, page.value, limit),
-  { watch: [page, () => props.testType] },
+  () => `inbox-test-${props.testType}-${page.value}-${viewFromQuery.value ?? ''}`,
+  () => api.fetchTestData(props.testType, page.value, limit, viewFromQuery.value),
+  { watch: [page, () => props.testType, viewFromQuery] },
 )
 
 const displayColumns = computed(() => payload.value?.data.columns ?? [])
