@@ -1,7 +1,7 @@
 <template>
-  <InboxTestDataView
-    test-type="hours"
+  <InboxImportTableView
+    api-path="/api/inbox/eitje/hours"
     title="Eitje — Hours"
-    description="Exact attachment columns from parsed inbox imports (parseddatas). Add ?view=mapped to see normalized inbox-eitje-hours rows."
+    description="Inbox import table (API: /api/inbox/eitje/hours). Default: exact attachment columns from parseddatas. ?view=mapped for collection inbox-eitje-hours."
   />
 </template>

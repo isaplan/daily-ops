@@ -1,7 +1,7 @@
 <template>
-  <InboxTestDataView
-    test-type="product_mix"
+  <InboxImportTableView
+    api-path="/api/inbox/bork/product-mix"
     title="Bork — Product mix"
-    description="Raw rows in inbox-bork-product-mix."
+    description="Inbox import table (API: /api/inbox/bork/product-mix). Collection inbox-bork-product-mix."
   />
 </template>

@@ -1,7 +1,7 @@
 <template>
-  <InboxTestDataView
-    test-type="product_sales_per_hour"
+  <InboxImportTableView
+    api-path="/api/inbox/bork/sales-per-hour"
     title="Bork — Sales per hour"
-    description="Raw rows in inbox-bork-basis-report (product sales per hour)."
+    description="Inbox import table (API: /api/inbox/bork/sales-per-hour). Collection inbox-bork-basis-report (document type product_sales_per_hour)."
   />
 </template>

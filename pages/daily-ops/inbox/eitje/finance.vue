@@ -1,7 +1,7 @@
 <template>
-  <InboxTestDataView
-    test-type="finance"
+  <InboxImportTableView
+    api-path="/api/inbox/eitje/finance"
     title="Eitje — Finance"
-    description="Exact attachment columns from parsed imports. Add ?view=mapped for inbox-eitje-finance (normalized)."
+    description="Inbox import table (API: /api/inbox/eitje/finance). ?view=mapped for inbox-eitje-finance."
   />
 </template>

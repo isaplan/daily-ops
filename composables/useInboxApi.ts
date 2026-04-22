@@ -1,9 +1,9 @@
 /**
  * @registry-id: useInboxApi
  * @created: 2026-04-18T00:00:00.000Z
- * @last-modified: 2026-04-23T12:00:00.000Z
+ * @last-modified: 2026-04-23T18:00:00.000Z
  * @description: Typed client helpers for /api/inbox Nitro routes
- * @last-fix: [2026-04-23] fetchTestData view=mapped; Eitje default is exact rows from parseddatas (attachment)
+ * @last-fix: [2026-04-23] InboxImportTableApiResponse alias; dedicated /api/inbox/eitje|bork|power-bi routes for import tables
  *
  * @exports-to:
  * ✓ pages/daily-ops/inbox (all pages)
@@ -22,7 +22,7 @@ export type TestDataType =
   | 'finance'
   | 'bi'
 
-export type TestDataResponse = {
+export type InboxImportTableApiResponse = {
   success: boolean
   data: {
     type: string
@@ -42,6 +42,9 @@ export type TestDataResponse = {
     }
   }
 }
+
+/** @deprecated Use InboxImportTableApiResponse */
+export type TestDataResponse = InboxImportTableApiResponse
 
 export function useInboxApi() {
   const listEmails = async (page: number, limit: number, filters?: InboxEmailFilters) => {
@@ -137,10 +140,11 @@ export function useInboxApi() {
     }>('/api/inbox/watch')
   }
 
+  /** Legacy — prefer $fetch on /api/inbox/eitje/*, /api/inbox/bork/*, /api/inbox/power-bi/reports */
   const fetchTestData = async (type: TestDataType, page = 1, limit = 50, view?: 'attachment' | 'mapped') => {
     const query: Record<string, string> = { page: String(page), limit: String(limit) }
     if (view) query.view = view
-    return await $fetch<TestDataResponse>(`/api/inbox/test-data/${type}`, { query })
+    return await $fetch<InboxImportTableApiResponse>(`/api/inbox/test-data/${type}`, { query })
   }
 
   return {
