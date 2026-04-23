@@ -225,7 +225,7 @@ declare global {
   export type { DailyOpsNavKey } from '../../composables/useDailyOpsDashboardRoute'
   import('../../composables/useDailyOpsDashboardRoute')
   // @ts-ignore
-  export type { TestDataType, TestDataResponse } from '../../composables/useInboxApi'
+  export type { TestDataType, InboxImportTableApiResponse, TestDataResponse } from '../../composables/useInboxApi'
   import('../../composables/useInboxApi')
   // @ts-ignore
   export type { MentionMemberItem, MentionTagItem } from '../../composables/useMentionTagSuggestions'

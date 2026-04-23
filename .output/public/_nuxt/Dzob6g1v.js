@@ -1,1 +1,0 @@
-import{_ as t,r as n,o,f as c}from"./DE-gCVdT.js";const a={};function s(i,r){const e=n("InboxTestDataView");return o(),c(e,{"test-type":"finance",title:"Eitje — Finance",description:"Rows mapped to test-eitje-finance."})}const f=t(a,[["render",s]]);export{f as default};

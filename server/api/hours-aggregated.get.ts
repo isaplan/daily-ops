@@ -1,5 +1,6 @@
 import { getDb } from '../utils/db'
 import { EITJE_HOURS_ADD_FIELDS } from '../utils/eitjeHours'
+import { amsterdamTodayYmd, amsterdamYmdForOffset } from '../../utils/inbox/importTableQuickDates'
 import { ObjectId, type Db } from 'mongodb'
 
 const MAX_PAGE_SIZE = 200
@@ -13,10 +14,9 @@ function parseHoursPage(query: ReturnType<typeof getQuery>) {
 }
 
 function normalizeHoursDateRange(startDate: string | undefined, endDate: string | undefined) {
-  const todayStr = new Date().toISOString().split('T')[0]
-  const thirtyBack = new Date()
-  thirtyBack.setDate(thirtyBack.getDate() - 30)
-  const thirtyStr = thirtyBack.toISOString().split('T')[0]
+  const anchor = new Date()
+  const todayStr = amsterdamTodayYmd(anchor)
+  const thirtyStr = amsterdamYmdForOffset(-30, anchor)
   if (!startDate && !endDate) return { start: thirtyStr, end: todayStr }
   if (startDate && !endDate) return { start: startDate, end: todayStr }
   if (!startDate && endDate) {

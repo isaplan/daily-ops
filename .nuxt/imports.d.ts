@@ -35,7 +35,7 @@ export { getLastNDaysRange, getLast30DaysRange } from '../composables/reportingR
 export { useDailyOpsDashboardRoute, DailyOpsNavKey } from '../composables/useDailyOpsDashboardRoute';
 export { useDashboardEurFormat } from '../composables/useDashboardEurFormat';
 export { useEnvironment } from '../composables/useEnvironment';
-export { useInboxApi, TestDataType, TestDataResponse } from '../composables/useInboxApi';
+export { useInboxApi, TestDataType, InboxImportTableApiResponse, TestDataResponse } from '../composables/useInboxApi';
 export { useMentionTagSuggestions, MentionMemberItem, MentionTagItem } from '../composables/useMentionTagSuggestions';
 export { useMenuRowCalculation, parseProductNumber, getCostPerItemFromProduct, getBatchFromProduct, getItemsFromProduct, getSupplierFromProduct, getCostPerItemByBatchType, getCostPer1Cl, MenuRowCalculationInput, MenuRowCalculationResult } from '../composables/useMenuRowCalculation';
 export { useSalesRowProducts, SalesProductLine, SalesRowDetailState } from '../composables/useSalesRowProducts';

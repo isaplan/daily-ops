@@ -1,1 +1,0 @@
-import{_ as t,r as o,o as r,f as s}from"./DE-gCVdT.js";const n={};function c(a,p){const e=o("InboxTestDataView");return r(),s(e,{"test-type":"bi",title:"Power BI — Reports & exports",description:"Documents in power_bi_exports."})}const i=t(n,[["render",c]]);export{i as default};

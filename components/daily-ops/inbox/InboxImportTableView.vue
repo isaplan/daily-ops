@@ -1,5 +1,5 @@
 <template>
-  <InboxPageShell :title="title" :description="description">
+  <InboxPageShell :title="title" :title-after="titleAfterLine" :description="description">
     <UAlert v-if="error" color="error" :title="String(error)" />
 
     <div v-else-if="pending" class="space-y-3">
@@ -28,9 +28,61 @@
               {{ payload.data.pagination.total }} row(s)
               <span class="text-gray-400">·</span>
               page {{ page }} / {{ payload.data.pagination.totalPages || 1 }}
+              <span class="mt-1 block text-xs font-normal text-gray-500">
+                Row count is total stored lines (flattened CSV lines), not “days in the file”. Use report date filters
+                above to narrow by business day.
+              </span>
             </div>
           </div>
         </template>
+
+        <div
+          v-if="showReportDateQuickPick"
+          class="space-y-3 border-b border-gray-100 bg-gray-50/80 px-4 py-3"
+        >
+          <p class="text-xs text-gray-600">
+            Filter by <span class="font-semibold">report date</span> (mapped
+            <span class="font-mono">date</span> column, Europe/Amsterdam calendar day). Rows without
+            <span class="font-mono">date</span> are hidden when a date is selected.
+          </p>
+          <div class="flex flex-wrap items-center gap-2">
+            <UButton
+              size="xs"
+              :variant="!reportDateQuery ? 'solid' : 'outline'"
+              @click="setReportDate(null)"
+            >
+              All dates
+            </UButton>
+            <UButton
+              size="xs"
+              :variant="reportDateQuery === todayYmd ? 'solid' : 'outline'"
+              @click="setReportDate(todayYmd)"
+            >
+              Today
+            </UButton>
+            <UButton
+              size="xs"
+              :variant="reportDateQuery === yesterdayYmd ? 'solid' : 'outline'"
+              @click="setReportDate(yesterdayYmd)"
+            >
+              Yesterday
+            </UButton>
+          </div>
+          <div>
+            <p class="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-500">Last</p>
+            <div class="flex flex-wrap gap-2">
+              <UButton
+                v-for="slot in earlierSlots"
+                :key="slot.ymd"
+                size="xs"
+                :variant="reportDateQuery === slot.ymd ? 'solid' : 'outline'"
+                @click="setReportDate(slot.ymd)"
+              >
+                {{ slot.label }}
+              </UButton>
+            </div>
+          </div>
+        </div>
 
         <div v-if="payload.data.rows.length === 0" class="space-y-3 py-8 text-center text-sm text-gray-600">
           <p>No rows in <span class="font-mono text-gray-900">{{ payload.data.collectionName }}</span>.</p>
@@ -102,6 +154,7 @@
 
 <script setup lang="ts">
 import type { InboxImportTableApiResponse } from '~/composables/useInboxApi'
+import { amsterdamTodayYmd, amsterdamYmdForOffset, weekdayShortForYmd } from '~/utils/inbox/importTableQuickDates'
 
 const props = defineProps<{
   /** Dedicated inbox API path, e.g. /api/inbox/eitje/hours */
@@ -111,6 +164,7 @@ const props = defineProps<{
 }>()
 
 const route = useRoute()
+const router = useRouter()
 const page = ref(1)
 const limit = 50
 
@@ -119,19 +173,67 @@ const viewFromQuery = computed(() => {
   return v === 'mapped' ? ('mapped' as const) : undefined
 })
 
+const reportDateQuery = computed(() => {
+  const r = route.query.reportDate
+  return typeof r === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(r) ? r : ''
+})
+
+/** Eitje hours/contracts/finance default to attachment rows until ?view=mapped — reportDate only applies to mapped collections. */
+const showReportDateQuickPick = computed(() => {
+  if (!props.apiPath.includes('/eitje/')) return true
+  return viewFromQuery.value === 'mapped'
+})
+
+const todayYmd = computed(() => amsterdamTodayYmd())
+const yesterdayYmd = computed(() => amsterdamYmdForOffset(-1))
+
+const earlierSlots = computed(() =>
+  [2, 3, 4, 5, 6, 7].map((off) => {
+    const ymd = amsterdamYmdForOffset(-off)
+    return { ymd, label: weekdayShortForYmd(ymd) }
+  }),
+)
+
+function setReportDate(ymd: string | null) {
+  page.value = 1
+  const next: Record<string, string | string[] | undefined> = { ...route.query }
+  next.page = '1'
+  if (ymd) next.reportDate = ymd
+  else delete next.reportDate
+  void router.replace({ path: route.path, query: next as Record<string, string> })
+}
+
 function importTableQuery(): Record<string, string> {
   const q: Record<string, string> = { page: String(page.value), limit: String(limit) }
   if (viewFromQuery.value) q.view = viewFromQuery.value
+  if (reportDateQuery.value) q.reportDate = reportDateQuery.value
   return q
 }
 
 const { data: payload, pending, error } = await useAsyncData(
-  () => `inbox-import-${props.apiPath}-${page.value}-${viewFromQuery.value ?? ''}`,
+  () => `inbox-import-${props.apiPath}-${page.value}-${viewFromQuery.value ?? ''}-${reportDateQuery.value}`,
   () => $fetch<InboxImportTableApiResponse>(props.apiPath, { query: importTableQuery() }),
-  { watch: [page, () => props.apiPath, viewFromQuery] },
+  { watch: [page, () => props.apiPath, viewFromQuery, reportDateQuery] },
 )
 
 const displayColumns = computed(() => payload.value?.data.columns ?? [])
+
+function formatShortImportDate(iso: string | null | undefined): string {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
+const titleAfterLine = computed(() => {
+  const r = payload.value?.data?.storedRowTimeRange
+  if (!r?.maxParsedAt) return ''
+  const lo = formatShortImportDate(r.minParsedAt)
+  const hi = formatShortImportDate(r.maxParsedAt)
+  if (lo && hi && lo !== hi) return `stored ${lo} – ${hi}`
+  if (hi) return `latest stored ${hi}`
+  return ''
+})
 
 function rowRecord(row: unknown): Record<string, unknown> {
   return row && typeof row === 'object' ? (row as Record<string, unknown>) : {}

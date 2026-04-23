@@ -35,8 +35,8 @@ export const DailyOpsHomeDashboard: typeof import("../components/daily-ops/Daily
 export const DailyOpsSectionPage: typeof import("../components/daily-ops/DailyOpsSectionPage.vue")['default']
 export const DailyOpsDashboardDayHoursShare: typeof import("../components/daily-ops/DashboardDayHoursShare.vue")['default']
 export const DailyOpsWorkerDetailsDrawer: typeof import("../components/daily-ops/WorkerDetailsDrawer.vue")['default']
+export const DailyOpsInboxImportTableView: typeof import("../components/daily-ops/inbox/InboxImportTableView.vue")['default']
 export const DailyOpsInboxPageShell: typeof import("../components/daily-ops/inbox/InboxPageShell.vue")['default']
-export const DailyOpsInboxTestDataView: typeof import("../components/daily-ops/inbox/InboxTestDataView.vue")['default']
 export const SettingsCredentialInput: typeof import("../components/settings/CredentialInput.vue")['default']
 export const SettingsCronJobToggle: typeof import("../components/settings/CronJobToggle.vue")['default']
 export const SettingsCronSwitch: typeof import("../components/settings/CronSwitch.vue")['default']
@@ -211,8 +211,8 @@ export const LazyDailyOpsHomeDashboard: LazyComponent<typeof import("../componen
 export const LazyDailyOpsSectionPage: LazyComponent<typeof import("../components/daily-ops/DailyOpsSectionPage.vue")['default']>
 export const LazyDailyOpsDashboardDayHoursShare: LazyComponent<typeof import("../components/daily-ops/DashboardDayHoursShare.vue")['default']>
 export const LazyDailyOpsWorkerDetailsDrawer: LazyComponent<typeof import("../components/daily-ops/WorkerDetailsDrawer.vue")['default']>
+export const LazyDailyOpsInboxImportTableView: LazyComponent<typeof import("../components/daily-ops/inbox/InboxImportTableView.vue")['default']>
 export const LazyDailyOpsInboxPageShell: LazyComponent<typeof import("../components/daily-ops/inbox/InboxPageShell.vue")['default']>
-export const LazyDailyOpsInboxTestDataView: LazyComponent<typeof import("../components/daily-ops/inbox/InboxTestDataView.vue")['default']>
 export const LazySettingsCredentialInput: LazyComponent<typeof import("../components/settings/CredentialInput.vue")['default']>
 export const LazySettingsCronJobToggle: LazyComponent<typeof import("../components/settings/CronJobToggle.vue")['default']>
 export const LazySettingsCronSwitch: LazyComponent<typeof import("../components/settings/CronSwitch.vue")['default']>

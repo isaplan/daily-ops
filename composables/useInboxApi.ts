@@ -1,9 +1,9 @@
 /**
  * @registry-id: useInboxApi
  * @created: 2026-04-18T00:00:00.000Z
- * @last-modified: 2026-04-23T18:00:00.000Z
+ * @last-modified: 2026-04-23T18:45:00.000Z
  * @description: Typed client helpers for /api/inbox Nitro routes
- * @last-fix: [2026-04-23] InboxImportTableApiResponse alias; dedicated /api/inbox/eitje|bork|power-bi routes for import tables
+ * @last-fix: [2026-04-23] InboxImportTableApiResponse includes storedRowTimeRange for import table UI
  *
  * @exports-to:
  * ✓ pages/daily-ops/inbox (all pages)
@@ -40,6 +40,9 @@ export type InboxImportTableApiResponse = {
       totalPages: number
       hasMore: boolean
     }
+    storedRowTimeRange?: { minParsedAt: string | null; maxParsedAt: string | null }
+    /** Present when API received reportDate (echo for UI); optional */
+    reportDate?: string | null
   }
 }
 

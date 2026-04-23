@@ -1,13 +1,12 @@
 import process from 'node:process';globalThis._importMeta_={url:import.meta.url,env:process.env};import { tmpdir } from 'node:os';
 import { defineEventHandler, handleCacheHeaders, splitCookiesString, createEvent, fetchWithEvent, isEvent, eventHandler, setHeaders, sendRedirect, proxyRequest, getRequestHeader, setResponseHeaders, setResponseStatus, send, getRequestHeaders, setResponseHeader, appendResponseHeader, getRequestURL, getResponseHeader, removeResponseHeader, createError, getQuery as getQuery$1, readBody, getResponseStatus, createApp, createRouter as createRouter$1, toNodeListener, lazyEventHandler, getRouterParam, readMultipartFormData, getResponseStatusText } from 'file:///Users/alviniomolina/Documents/GitHub/daily-ops/node_modules/h3/dist/index.mjs';
-import { Server, request as request$1 } from 'node:http';
+import { request as request$1, Server } from 'node:http';
 import { resolve, dirname, join } from 'node:path';
 import nodeCrypto, { createHash } from 'node:crypto';
 import { parentPort, threadId } from 'node:worker_threads';
 import { escapeHtml } from 'file:///Users/alviniomolina/Documents/GitHub/daily-ops/node_modules/@vue/shared/dist/shared.cjs.js';
 import { Cron } from 'file:///Users/alviniomolina/Documents/GitHub/daily-ops/node_modules/croner/dist/croner.js';
 import { MongoClient, ObjectId } from 'file:///Users/alviniomolina/Documents/GitHub/daily-ops/node_modules/.pnpm/mongodb@7.1.1/node_modules/mongodb/lib/index.js';
-import { request } from 'node:https';
 import { Buffer as Buffer$1 } from 'node:buffer';
 import { google } from 'file:///Users/alviniomolina/Documents/GitHub/daily-ops/node_modules/.pnpm/googleapis@171.4.0/node_modules/googleapis/build/src/index.js';
 import Papa from 'file:///Users/alviniomolina/Documents/GitHub/daily-ops/node_modules/.pnpm/papaparse@5.5.3/node_modules/papaparse/papaparse.js';
@@ -38,6 +37,7 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import { stringify, uneval } from 'file:///Users/alviniomolina/Documents/GitHub/daily-ops/node_modules/devalue/index.js';
 import { captureRawStackTrace, parseRawStackTrace } from 'file:///Users/alviniomolina/Documents/GitHub/daily-ops/node_modules/errx/dist/index.js';
 import { isVNode, isRef, toValue } from 'file:///Users/alviniomolina/Documents/GitHub/daily-ops/node_modules/.pnpm/vue@3.5.31_typescript@5.9.3/node_modules/vue/index.mjs';
+import { request } from 'node:https';
 import { fileURLToPath } from 'node:url';
 import { dirname as dirname$1, resolve as resolve$1, basename } from 'file:///Users/alviniomolina/Documents/GitHub/daily-ops/node_modules/pathe/dist/index.mjs';
 import { createHead as createHead$1, propsToString, renderSSRHead } from 'file:///Users/alviniomolina/Documents/GitHub/daily-ops/node_modules/unhead/dist/server.mjs';
@@ -2576,14 +2576,13 @@ const INBOX_COLLECTIONS = {
   processingLog: "processinglogs"
 };
 const INBOX_TARGET_COLLECTIONS = [
-  "test-eitje-hours",
-  "test-eitje-contracts",
-  "test-eitje-finance",
-  "test-bork-sales",
-  "test-bork-food-beverage",
-  "test-bork-product-mix",
-  "test-bork-basis-rapport",
-  "test-basis-report",
+  "inbox-eitje-hours",
+  "inbox-eitje-contracts",
+  "inbox-eitje-finance",
+  "inbox-bork-sales",
+  "inbox-bork-food-beverage",
+  "inbox-bork-product-mix",
+  "inbox-bork-basis-report",
   "bork_sales",
   "power_bi_exports",
   "other_documents"
@@ -2887,25 +2886,1860 @@ const _nddW4OgTKHcMIQ8mQhekYcJvlrNi40TbQzTLx2yq5MQ = defineNitroPlugin((nitroApp
   });
 });
 
+function borkDateToISO(borkDate) {
+  const s = String(borkDate).padStart(8, "0");
+  const year = s.slice(0, 4);
+  const month = s.slice(4, 6);
+  const day = s.slice(6, 8);
+  return `${year}-${month}-${day}`;
+}
+function extractHour(timeStr) {
+  if (!timeStr) return 0;
+  const match = timeStr.match(/^(\d{1,2}):/);
+  return match ? parseInt(match[1], 10) : 0;
+}
+function addCalendarDaysISO(dateStr, deltaDays) {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d + deltaDays));
+  const yy = dt.getUTCFullYear();
+  const mm = String(dt.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(dt.getUTCDate()).padStart(2, "0");
+  return `${yy}-${mm}-${dd}`;
+}
+function calendarToBusinessDay(calendarDateStr, calendarHour) {
+  if (calendarHour >= 6 && calendarHour <= 23) {
+    return { businessDate: calendarDateStr, businessHour: calendarHour - 6 };
+  }
+  return {
+    businessDate: addCalendarDaysISO(calendarDateStr, -1),
+    businessHour: calendarHour + 18
+  };
+}
+async function rebuildBorkSalesAggregation(db, startDate, endDate, collectionSuffix = "", cronTime = /* @__PURE__ */ new Date()) {
+  const result = {
+    byCron: 0,
+    byHour: 0,
+    byTable: 0,
+    byWorker: 0,
+    byGuestAccount: 0,
+    productsMaster: 0
+  };
+  const [startYear, startMonth, startDay] = startDate.split("-").map(Number);
+  const [endYear, endMonth, endDay] = endDate.split("-").map(Number);
+  const startBorkDate = startYear * 1e4 + startMonth * 100 + startDay;
+  const endBorkDate = endYear * 1e4 + endMonth * 100 + endDay;
+  const locMappings = await db.collection("bork_unified_location_mapping").find({}).toArray();
+  const userMappings = await db.collection("bork_unified_user_mapping").find({}).toArray();
+  const locMap = new Map(locMappings.map((l) => [String(l.borkLocationId), { unifiedId: l.unifiedLocationId, name: l.unifiedLocationName }]));
+  const userMap = new Map(userMappings.map((u) => [u.borkUserId || u.borkUserName, { unifiedId: u.unifiedUserId, name: u.unifiedUserName }]));
+  const cursor = db.collection("bork_raw_data").find({ endpoint: "bork_daily" }).batchSize(32);
+  const byCronMap = /* @__PURE__ */ new Map();
+  const byHourMap = /* @__PURE__ */ new Map();
+  const byTableMap = /* @__PURE__ */ new Map();
+  const byWorkerMap = /* @__PURE__ */ new Map();
+  const byGuestAccountMap = /* @__PURE__ */ new Map();
+  const productsMasterMap = /* @__PURE__ */ new Map();
+  try {
+    for await (const rawDoc of cursor) {
+      const borkLocationId = rawDoc.locationId;
+      const locMapping = locMap.get(String(borkLocationId));
+      if (!locMapping) {
+        console.warn(`No unified location mapping for Bork location ${borkLocationId}`);
+        continue;
+      }
+      const unifiedLocationId = locMapping.unifiedId;
+      const unifiedLocationName = locMapping.name;
+      const tickets = Array.isArray(rawDoc.rawApiResponse) ? rawDoc.rawApiResponse : [rawDoc.rawApiResponse];
+      for (const ticket of tickets) {
+        if (!ticket || typeof ticket !== "object") continue;
+        const borkWorkerName = ticket.UserName || "Unknown";
+        const userMapping = userMap.get(borkWorkerName) || userMap.get(ticket.UserId);
+        const unifiedWorkerId = (userMapping == null ? void 0 : userMapping.unifiedId) || "unknown";
+        const unifiedWorkerName = (userMapping == null ? void 0 : userMapping.name) || borkWorkerName;
+        const orders = Array.isArray(ticket.Orders) ? ticket.Orders : [];
+        for (const order of orders) {
+          if (!order || typeof order !== "object") continue;
+          const orderDate = String(order.Date || order.ActualDate || "").padStart(8, "0");
+          if (!orderDate || orderDate === "00000000") continue;
+          const orderBorkDate = parseInt(orderDate, 10);
+          if (orderBorkDate < startBorkDate || orderBorkDate > endBorkDate) continue;
+          const dateStr = borkDateToISO(orderBorkDate);
+          const tableNumber = String(order.TableNr || "").trim();
+          const hasTable = tableNumber.length > 0;
+          const lines = Array.isArray(order.Lines) ? order.Lines : [];
+          for (const line of lines) {
+            if (!line || typeof line !== "object") continue;
+            const price = Number(line.Price || 0);
+            const qty = Number(line.Qty || 0);
+            const totalPrice = price * qty;
+            const productName = line.ProductName || "Unknown";
+            const productKey = line.ProductKey || "unknown";
+            const hour = extractHour(ticket.Time);
+            const { businessDate, businessHour } = calendarToBusinessDay(dateStr, hour);
+            const cronKey = `${unifiedLocationId}:${dateStr}`;
+            if (!byCronMap.has(cronKey)) {
+              byCronMap.set(cronKey, {
+                cronTime,
+                locationId: unifiedLocationId,
+                locationName: unifiedLocationName,
+                date: dateStr,
+                total_revenue: 0,
+                total_quantity: 0,
+                record_count: 0
+              });
+            }
+            const cronEntry = byCronMap.get(cronKey);
+            cronEntry.total_revenue = cronEntry.total_revenue + totalPrice;
+            cronEntry.total_quantity = cronEntry.total_quantity + qty;
+            cronEntry.record_count = cronEntry.record_count + 1;
+            const hourKey = `${unifiedLocationId}:${dateStr}:${hour}`;
+            if (!byHourMap.has(hourKey)) {
+              byHourMap.set(hourKey, {
+                date: dateStr,
+                hour,
+                business_date: businessDate,
+                business_hour: businessHour,
+                locationId: unifiedLocationId,
+                locationName: unifiedLocationName,
+                total_revenue: 0,
+                total_quantity: 0,
+                record_count: 0,
+                products: /* @__PURE__ */ new Map()
+              });
+            }
+            const hourEntry = byHourMap.get(hourKey);
+            hourEntry.total_revenue = hourEntry.total_revenue + totalPrice;
+            hourEntry.total_quantity = hourEntry.total_quantity + qty;
+            hourEntry.record_count = hourEntry.record_count + 1;
+            if (!hourEntry.products.has(productKey)) {
+              hourEntry.products.set(productKey, {
+                productId: productKey,
+                productName,
+                revenue: 0,
+                quantity: 0
+              });
+            }
+            const prod = hourEntry.products.get(productKey);
+            prod.revenue += totalPrice;
+            prod.quantity += qty;
+            if (hasTable) {
+              const tableKey = `${unifiedLocationId}:${dateStr}:${hour}:${tableNumber}`;
+              if (!byTableMap.has(tableKey)) {
+                byTableMap.set(tableKey, {
+                  date: dateStr,
+                  hour,
+                  business_date: businessDate,
+                  business_hour: businessHour,
+                  locationId: unifiedLocationId,
+                  locationName: unifiedLocationName,
+                  tableNumber,
+                  total_revenue: 0,
+                  total_quantity: 0,
+                  products: /* @__PURE__ */ new Map()
+                });
+              }
+              const tableEntry = byTableMap.get(tableKey);
+              tableEntry.total_revenue = tableEntry.total_revenue + totalPrice;
+              tableEntry.total_quantity = tableEntry.total_quantity + qty;
+              if (!tableEntry.products.has(productKey)) {
+                tableEntry.products.set(productKey, {
+                  productId: productKey,
+                  productName,
+                  revenue: 0,
+                  quantity: 0
+                });
+              }
+              const tableProd = tableEntry.products.get(productKey);
+              tableProd.revenue += totalPrice;
+              tableProd.quantity += qty;
+            }
+            const workerKey = `${unifiedLocationId}:${dateStr}:${hour}:${unifiedWorkerId}`;
+            if (!byWorkerMap.has(workerKey)) {
+              byWorkerMap.set(workerKey, {
+                date: dateStr,
+                hour,
+                business_date: businessDate,
+                business_hour: businessHour,
+                locationId: unifiedLocationId,
+                locationName: unifiedLocationName,
+                workerId: unifiedWorkerId,
+                workerName: unifiedWorkerName,
+                total_revenue: 0,
+                total_quantity: 0,
+                record_count: 0,
+                products: /* @__PURE__ */ new Map()
+              });
+            }
+            const workerEntry = byWorkerMap.get(workerKey);
+            workerEntry.total_revenue = workerEntry.total_revenue + totalPrice;
+            workerEntry.total_quantity = workerEntry.total_quantity + qty;
+            workerEntry.record_count = workerEntry.record_count + 1;
+            if (!workerEntry.products.has(productKey)) {
+              workerEntry.products.set(productKey, {
+                productId: productKey,
+                productName,
+                revenue: 0,
+                quantity: 0
+              });
+            }
+            const workerProd = workerEntry.products.get(productKey);
+            workerProd.revenue += totalPrice;
+            workerProd.quantity += qty;
+            if (!hasTable) {
+              const guestAccountName = ticket.AccountName || "Unknown Account";
+              const guestKey = `${unifiedLocationId}:${dateStr}:${hour}:${guestAccountName}`;
+              if (!byGuestAccountMap.has(guestKey)) {
+                byGuestAccountMap.set(guestKey, {
+                  date: dateStr,
+                  hour,
+                  business_date: businessDate,
+                  business_hour: businessHour,
+                  locationId: unifiedLocationId,
+                  locationName: unifiedLocationName,
+                  accountName: guestAccountName,
+                  workerId: unifiedWorkerId,
+                  workerName: unifiedWorkerName,
+                  total_revenue: 0,
+                  total_quantity: 0,
+                  products: /* @__PURE__ */ new Map()
+                });
+              }
+              const guestEntry = byGuestAccountMap.get(guestKey);
+              guestEntry.total_revenue = guestEntry.total_revenue + totalPrice;
+              guestEntry.total_quantity = guestEntry.total_quantity + qty;
+              if (!guestEntry.products.has(productKey)) {
+                guestEntry.products.set(productKey, {
+                  productId: productKey,
+                  productName,
+                  revenue: 0,
+                  quantity: 0
+                });
+              }
+              const guestProd = guestEntry.products.get(productKey);
+              guestProd.revenue += totalPrice;
+              guestProd.quantity += qty;
+            }
+            if (!productsMasterMap.has(productKey)) {
+              productsMasterMap.set(productKey, {
+                productId: productKey,
+                productName,
+                locationIds: /* @__PURE__ */ new Set(),
+                createdAt: /* @__PURE__ */ new Date(),
+                updatedAt: /* @__PURE__ */ new Date()
+              });
+            }
+            const prodMaster = productsMasterMap.get(productKey);
+            prodMaster.locationIds.add(String(unifiedLocationId));
+            prodMaster.updatedAt = /* @__PURE__ */ new Date();
+          }
+        }
+      }
+    }
+  } finally {
+    await cursor.close();
+  }
+  const cronDocs = Array.from(byCronMap.values());
+  const hourDocs = Array.from(byHourMap.values()).map((doc) => ({
+    ...doc,
+    products: Array.from(doc.products.values())
+  }));
+  const tableDocs = Array.from(byTableMap.values()).map((doc) => ({
+    ...doc,
+    products: Array.from(doc.products.values())
+  }));
+  const workerDocs = Array.from(byWorkerMap.values()).map((doc) => ({
+    ...doc,
+    products: Array.from(doc.products.values())
+  }));
+  const guestAccountDocs = Array.from(byGuestAccountMap.values()).map((doc) => ({
+    ...doc,
+    products: Array.from(doc.products.values())
+  }));
+  const productDocs = Array.from(productsMasterMap.values()).map((doc) => ({
+    ...doc,
+    locationIds: Array.from(doc.locationIds)
+  }));
+  const clearStartDate = borkDateToISO(startBorkDate);
+  const clearEndDate = borkDateToISO(endBorkDate);
+  console.log(`[rebuildBorkSalesAggregation] Clearing existing aggregations for ${clearStartDate} to ${clearEndDate}...`);
+  await db.collection(`bork_sales_by_cron${collectionSuffix}`).deleteMany({ date: { $gte: clearStartDate, $lte: clearEndDate } });
+  await db.collection(`bork_sales_by_hour${collectionSuffix}`).deleteMany({ date: { $gte: clearStartDate, $lte: clearEndDate } });
+  await db.collection(`bork_sales_by_table${collectionSuffix}`).deleteMany({ date: { $gte: clearStartDate, $lte: clearEndDate } });
+  await db.collection(`bork_sales_by_worker${collectionSuffix}`).deleteMany({ date: { $gte: clearStartDate, $lte: clearEndDate } });
+  await db.collection(`bork_sales_by_guest_account${collectionSuffix}`).deleteMany({ date: { $gte: clearStartDate, $lte: clearEndDate } });
+  if (cronDocs.length > 0) {
+    await db.collection(`bork_sales_by_cron${collectionSuffix}`).insertMany(cronDocs);
+    result.byCron = cronDocs.length;
+  }
+  if (hourDocs.length > 0) {
+    await db.collection(`bork_sales_by_hour${collectionSuffix}`).insertMany(hourDocs);
+    result.byHour = hourDocs.length;
+  }
+  if (tableDocs.length > 0) {
+    await db.collection(`bork_sales_by_table${collectionSuffix}`).insertMany(tableDocs);
+    result.byTable = tableDocs.length;
+  }
+  if (workerDocs.length > 0) {
+    await db.collection(`bork_sales_by_worker${collectionSuffix}`).insertMany(workerDocs);
+    result.byWorker = workerDocs.length;
+  }
+  if (guestAccountDocs.length > 0) {
+    await db.collection(`bork_sales_by_guest_account${collectionSuffix}`).insertMany(guestAccountDocs);
+    result.byGuestAccount = guestAccountDocs.length;
+  }
+  for (const prodDoc of productDocs) {
+    await db.collection("bork_products_master").updateOne(
+      { productId: prodDoc.productId },
+      {
+        $set: {
+          productId: prodDoc.productId,
+          productName: prodDoc.productName,
+          updatedAt: prodDoc.updatedAt
+        },
+        $addToSet: { locationIds: { $each: prodDoc.locationIds } },
+        $setOnInsert: { createdAt: prodDoc.createdAt }
+      },
+      { upsert: true }
+    );
+  }
+  result.productsMaster = productDocs.length;
+  return result;
+}
+
+function getDateRangeForJobType(jobType) {
+  if (jobType === "historical-data") return { days: 30 };
+  return { days: 1 };
+}
+async function tryFetchBorkTicketData(baseUrl, apiKey, dateStr) {
+  const base = baseUrl.replace(/\/$/, "");
+  const url = `${base}/ticket/day.json/${dateStr}?appid=${apiKey}&IncOpen=True&IncInternal=True`;
+  try {
+    const res = await fetch(url, {
+      method: "GET",
+      headers: { Accept: "application/json" }
+    });
+    const text = await res.text();
+    let data = text;
+    try {
+      data = text ? JSON.parse(text) : null;
+    } catch {
+    }
+    if (res.ok) return { ok: true, status: res.status, data };
+    return { ok: false, status: res.status, data: null, error: `HTTP ${res.status}` };
+  } catch (err) {
+    const error = err instanceof Error ? err.message : String(err);
+    return { ok: false, status: 0, data: null, error };
+  }
+}
+async function syncLocationDates(db, cred, jobType) {
+  const locationId = cred.locationId;
+  const lid = locationId != null ? String(locationId) : "unknown";
+  const apiKey = typeof cred.apiKey === "string" ? cred.apiKey : "";
+  const baseUrl = typeof cred.baseUrl === "string" ? cred.baseUrl : "";
+  if (!apiKey || !baseUrl) {
+    return { locationId: lid, ok: false, error: "missing baseUrl or apiKey on credential row" };
+  }
+  const config = getDateRangeForJobType(jobType);
+  const now = /* @__PURE__ */ new Date();
+  const dates = [];
+  for (let i = 0; i < config.days; i++) {
+    const d = new Date(now);
+    d.setDate(d.getDate() - i);
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    dates.push(`${year}${month}${day}`);
+  }
+  let lastError = "";
+  let successCount = 0;
+  for (const dateStr of dates) {
+    const r = await tryFetchBorkTicketData(baseUrl, apiKey, dateStr);
+    if (!r.ok) {
+      lastError = r.error || `HTTP ${r.status || "?"}`;
+      continue;
+    }
+    let records = [];
+    if (Array.isArray(r.data)) {
+      records = r.data;
+    } else if (r.data && typeof r.data === "object") {
+      const obj = r.data;
+      for (const v of Object.values(obj)) {
+        if (Array.isArray(v)) {
+          records = v;
+          break;
+        }
+      }
+    }
+    if (records.length === 0) {
+      continue;
+    }
+    const syncDedupKey = `${lid}:bork_daily:${dateStr}`;
+    const upsertDate = /* @__PURE__ */ new Date();
+    await db.collection("bork_raw_data").updateOne(
+      { syncDedupKey },
+      {
+        $set: {
+          endpoint: "bork_daily",
+          locationId: cred.locationId,
+          date: upsertDate,
+          rawApiResponse: records,
+          syncDedupKey,
+          recordCount: records.length,
+          updatedAt: upsertDate
+        },
+        $setOnInsert: { createdAt: upsertDate }
+      },
+      { upsert: true }
+    );
+    successCount++;
+  }
+  if (successCount > 0) {
+    return { locationId: lid, ok: true, path: `/ticket/day.json/{date}` };
+  }
+  return { locationId: lid, ok: false, error: lastError || "no data returned for any date" };
+}
+async function loadBorkCredentials(db) {
+  return db.collection("api_credentials").find({
+    provider: { $in: ["bork", "Bork"] },
+    $nor: [{ isActive: false }]
+  }).sort({ updatedAt: -1, createdAt: -1 }).toArray();
+}
+async function executeBorkJob(db, jobType) {
+  const creds = await loadBorkCredentials(db);
+  if (creds.length === 0) {
+    return {
+      ok: false,
+      jobType,
+      message: "No Bork rows in api_credentials (provider bork, with apiKey)."
+    };
+  }
+  const locations = [];
+  for (const c of creds) {
+    const r = await syncLocationDates(db, c, jobType);
+    locations.push(r);
+  }
+  const okCount = locations.filter((x) => x.ok).length;
+  const syncOk = okCount > 0;
+  const message = syncOk ? `Synced ${okCount}/${creds.length} location(s) into bork_raw_data` : `0/${creds.length} locations succeeded \u2014 check Bork API credentials and network access`;
+  let aggregationResult = {};
+  if (syncOk && jobType === "daily-data") {
+    try {
+      const today = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
+      aggregationResult = await rebuildBorkSalesAggregation(db, today, today);
+    } catch (e) {
+      console.error("[borkSyncService] Aggregation error:", e);
+    }
+  }
+  const finalMessage = aggregationResult.byCron ? `${message}; Aggregated: ${aggregationResult.byCron} cron snapshots, ${aggregationResult.byHour} hours, ${aggregationResult.byTable} tables, ${aggregationResult.byWorker} workers` : message;
+  return {
+    ok: syncOk,
+    jobType,
+    message: finalMessage,
+    locations
+  };
+}
+async function syncBorkSingleLocation(db, locationId, mode) {
+  var _a, _b;
+  const orLoc = [{ locationId }];
+  try {
+    orLoc.push({ locationId: new ObjectId(locationId) });
+  } catch {
+  }
+  const cred = await db.collection("api_credentials").findOne({
+    provider: { $in: ["bork", "Bork"] },
+    $or: orLoc,
+    $nor: [{ isActive: false }]
+  });
+  if (!cred) {
+    return { ok: false, jobType: mode, message: "No Bork credential for this locationId" };
+  }
+  const r = await syncLocationDates(db, cred, mode === "ping" ? "daily-data" : mode === "master" ? "master-data" : "daily-data");
+  return {
+    ok: r.ok,
+    jobType: mode,
+    message: r.ok ? `OK via ${(_a = r.path) != null ? _a : "?"}` : (_b = r.error) != null ? _b : "failed",
+    locations: [r]
+  };
+}
+
+function normalizeEitjeBaseUrl(raw) {
+  const t = raw.trim();
+  const noTrail = t.replace(/\/$/, "");
+  if (!noTrail) return "https://open-api.eitje.app/open_api";
+  try {
+    const href = noTrail.includes("://") ? noTrail : `https://${noTrail}`;
+    const u = new URL(href);
+    const host = u.hostname.toLowerCase();
+    const pathNorm = (u.pathname || "").replace(/\/$/, "") || "";
+    if (host.includes("eitje.app") && pathNorm === "") {
+      return `${u.origin}/open_api`;
+    }
+  } catch {
+  }
+  return noTrail;
+}
+function basicAuth(user, pass) {
+  return `Basic ${Buffer.from(`${user}:${pass}`, "utf8").toString("base64")}`;
+}
+function legacyEitjeV2Headers(creds) {
+  return {
+    "Partner-Username": creds.partner_username,
+    "Partner-Password": creds.partner_password,
+    "Api-Username": creds.api_username,
+    "Api-Password": creds.api_password,
+    "Content-Type": "application/json",
+    Accept: "application/json"
+  };
+}
+async function eitjeFetchJson(creds, pathOrUrl, opts) {
+  var _a, _b;
+  const base = normalizeEitjeBaseUrl(creds.baseUrl).replace(/\/$/, "");
+  const path = pathOrUrl.startsWith("http") ? pathOrUrl : `${base}/${pathOrUrl.replace(/^\//, "")}`;
+  const url = new URL(path);
+  if (opts == null ? void 0 : opts.query) {
+    for (const [k, v] of Object.entries(opts.query)) {
+      if (v != null && v !== "") url.searchParams.set(k, v);
+    }
+  }
+  const hasPartnerValues = Boolean(((_a = creds.partner_username) == null ? void 0 : _a.trim()) && ((_b = creds.partner_password) == null ? void 0 : _b.trim()));
+  const useDualAuth = hasPartnerValues && creds.partnerCredentialsDistinct;
+  const dualHeaders = {
+    Authorization: basicAuth(creds.api_username, creds.api_password),
+    "X-OpenAPI-Partner-Username": creds.partner_username,
+    "X-OpenAPI-Partner-Password": creds.partner_password
+  };
+  const attempts = [
+    { label: "legacy_partner_api_headers", headers: legacyEitjeV2Headers(creds) }
+  ];
+  if (useDualAuth) {
+    attempts.push({ label: "api_basic_plus_partner_headers", headers: dualHeaders });
+  }
+  attempts.push({
+    label: "api_basic_only",
+    headers: {
+      Authorization: basicAuth(creds.api_username, creds.api_password),
+      Accept: "application/json"
+    }
+  });
+  if (useDualAuth) {
+    attempts.push({
+      label: "partner_basic_only",
+      headers: {
+        Authorization: basicAuth(creds.partner_username, creds.partner_password),
+        Accept: "application/json"
+      }
+    });
+  }
+  if (hasPartnerValues && !useDualAuth) {
+    attempts.push({ label: "api_basic_plus_partner_headers_imputed", headers: dualHeaders });
+  }
+  let last = {
+    ok: false,
+    status: 0,
+    data: null,
+    url: url.toString(),
+    authAttempt: "none"
+  };
+  for (const a of attempts) {
+    const res = await fetch(url.toString(), {
+      method: "GET",
+      headers: {
+        Accept: "application/json",
+        ...a.headers
+      }
+    });
+    const text = await res.text();
+    let data = text;
+    try {
+      data = text ? JSON.parse(text) : null;
+    } catch {
+    }
+    last = { ok: res.ok, status: res.status, data, url: url.toString(), authAttempt: a.label };
+    if (res.ok) return last;
+  }
+  return last;
+}
+
+function pickStr(...vals) {
+  for (const v of vals) {
+    if (typeof v === "string" && v.trim()) return v.trim();
+    if (typeof v === "number" && Number.isFinite(v)) return String(v);
+  }
+  return "";
+}
+function nested(row, ...keys) {
+  let cur = row;
+  for (const k of keys) {
+    if (!cur || typeof cur !== "object") return {};
+    cur = cur[k];
+  }
+  return cur && typeof cur === "object" ? cur : {};
+}
+function asObject(v) {
+  if (!v) return {};
+  if (typeof v === "string") {
+    try {
+      const p = JSON.parse(v);
+      return p && typeof p === "object" ? p : {};
+    } catch {
+      return {};
+    }
+  }
+  if (typeof v === "object") return v;
+  return {};
+}
+function mergedCredentialSources(row) {
+  return {
+    ...nested(row, "secrets"),
+    ...nested(row, "envConfig"),
+    ...nested(row, "config"),
+    ...nested(row, "credentials"),
+    ...asObject(row.additional_config),
+    ...asObject(row.additionalConfig)
+  };
+}
+const EITJE_PROVIDER_CLAUSE = {
+  $or: [
+    { provider: { $in: ["eitje", "Eitje", "eitje-open-api", "eitje_open_api", "EITJE"] } },
+    { type: "eitje" },
+    { source: "eitje" },
+    { integration: "eitje" }
+  ]
+};
+async function findEitjeCredentialDocument(db) {
+  const coll = db.collection("api_credentials");
+  const prefer = await coll.findOne(
+    { ...EITJE_PROVIDER_CLAUSE, $nor: [{ isActive: false }] },
+    { sort: { updatedAt: -1, createdAt: -1 } }
+  );
+  if (prefer) return prefer;
+  const any = await coll.findOne(
+    { ...EITJE_PROVIDER_CLAUSE },
+    { sort: { updatedAt: -1, createdAt: -1 } }
+  );
+  if (any) return any;
+  const byUrl = await coll.findOne(
+    {
+      provider: { $nin: ["bork", "Bork"] },
+      baseUrl: { $regex: /eitje\.app/i }
+    },
+    { sort: { updatedAt: -1, createdAt: -1 } }
+  );
+  if (byUrl) return byUrl;
+  const guessed = await coll.findOne(
+    {
+      provider: { $nin: ["bork", "Bork"] },
+      $or: [
+        { "additionalConfig.api_username": { $exists: true } },
+        { "additionalConfig.partner_username": { $exists: true } },
+        { "additional_config.api_username": { $exists: true } },
+        { api_username: { $exists: true } },
+        { partner_username: { $exists: true } }
+      ]
+    },
+    { sort: { updatedAt: -1, createdAt: -1 } }
+  );
+  return guessed;
+}
+function documentToEitjeStoredCredentials(row) {
+  const ac = mergedCredentialSources(row);
+  const api_username = pickStr(
+    ac.api_username,
+    ac.apiUsername,
+    ac.API_USERNAME,
+    ac.api_user,
+    ac.apiUser,
+    ac.venue_username,
+    ac.venueUsername,
+    ac.username,
+    ac.user,
+    row.api_username,
+    row.apiUsername,
+    row.api_user,
+    row.username
+  );
+  const api_password = pickStr(
+    ac.api_password,
+    ac.apiPassword,
+    ac.API_PASSWORD,
+    ac.api_pass,
+    ac.venue_password,
+    ac.venuePassword,
+    ac.password,
+    row.api_password,
+    row.apiPassword,
+    row.api_pass,
+    row.password
+  );
+  const partner_username = pickStr(
+    ac.partner_username,
+    ac.partnerUsername,
+    ac.PARTNER_USERNAME,
+    ac.partner_user,
+    ac.partnerUser,
+    row.partner_username,
+    row.partnerUsername
+  );
+  const partner_password = pickStr(
+    ac.partner_password,
+    ac.partnerPassword,
+    ac.PARTNER_PASSWORD,
+    ac.partner_pass,
+    row.partner_password,
+    row.partnerPassword
+  );
+  const hadRealPartnerInDb = Boolean(partner_username && partner_password);
+  const baseUrlRaw = pickStr(
+    typeof row.baseUrl === "string" ? row.baseUrl : "",
+    typeof ac.baseUrl === "string" ? ac.baseUrl : "",
+    typeof ac.base_url === "string" ? ac.base_url : ""
+  );
+  const baseUrl = normalizeEitjeBaseUrl(baseUrlRaw || "https://open-api.eitje.app/open_api");
+  if (!api_username || !api_password) return null;
+  let pu = partner_username;
+  let pp = partner_password;
+  if (!pu || !pp) {
+    pu = api_username;
+    pp = api_password;
+  }
+  return {
+    baseUrl,
+    partner_username: pu,
+    partner_password: pp,
+    api_username,
+    api_password,
+    partnerCredentialsDistinct: hadRealPartnerInDb
+  };
+}
+function documentToCredentialsApiShape(row) {
+  const ac = mergedCredentialSources(row);
+  const stored = documentToEitjeStoredCredentials(row);
+  const partner_username = pickStr(
+    ac.partner_username,
+    ac.partnerUsername,
+    ac.PARTNER_USERNAME,
+    ac.partner_user,
+    row.partner_username,
+    row.partnerUsername,
+    stored == null ? void 0 : stored.partner_username
+  );
+  const partner_password = pickStr(
+    ac.partner_password,
+    ac.partnerPassword,
+    ac.PARTNER_PASSWORD,
+    ac.partner_pass,
+    row.partner_password,
+    row.partnerPassword,
+    stored == null ? void 0 : stored.partner_password
+  );
+  const api_username = pickStr(
+    ac.api_username,
+    ac.apiUsername,
+    ac.api_user,
+    ac.venue_username,
+    row.api_username,
+    row.apiUsername,
+    stored == null ? void 0 : stored.api_username
+  );
+  const api_password = pickStr(
+    ac.api_password,
+    ac.apiPassword,
+    ac.api_pass,
+    ac.venue_password,
+    row.api_password,
+    row.apiPassword,
+    stored == null ? void 0 : stored.api_password
+  );
+  const baseUrl = normalizeEitjeBaseUrl(
+    pickStr(
+      typeof row.baseUrl === "string" ? row.baseUrl : "",
+      typeof ac.baseUrl === "string" ? ac.baseUrl : "",
+      typeof ac.base_url === "string" ? ac.base_url : "",
+      stored == null ? void 0 : stored.baseUrl
+    ) || "https://open-api.eitje.app/open_api"
+  );
+  return {
+    baseUrl,
+    additionalConfig: {
+      partner_username,
+      partner_password,
+      api_username,
+      api_password
+    }
+  };
+}
+
+const EITJE_HOURS_ADD_FIELDS = {
+  hours: {
+    $ifNull: [
+      { $toDouble: "$extracted.hours" },
+      {
+        $ifNull: [
+          { $toDouble: "$extracted.hoursWorked" },
+          {
+            $ifNull: [
+              { $toDouble: "$rawApiResponse.hours" },
+              {
+                $ifNull: [
+                  { $toDouble: "$rawApiResponse.hours_worked" },
+                  {
+                    $cond: [
+                      {
+                        $and: [
+                          { $ne: ["$rawApiResponse.start", null] },
+                          { $ne: ["$rawApiResponse.end", null] }
+                        ]
+                      },
+                      {
+                        $subtract: [
+                          {
+                            $divide: [
+                              {
+                                $subtract: [
+                                  { $toDate: "$rawApiResponse.end" },
+                                  { $toDate: "$rawApiResponse.start" }
+                                ]
+                              },
+                              36e5
+                            ]
+                          },
+                          { $divide: [{ $ifNull: [{ $toDouble: "$rawApiResponse.break_minutes" }, 0] }, 60] }
+                        ]
+                      },
+                      0
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+};
+function getUtcDayRange(dateStr) {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const dayStart = new Date(Date.UTC(y != null ? y : 0, (m != null ? m : 1) - 1, d != null ? d : 1, 0, 0, 0, 0));
+  const dayEnd = new Date(Date.UTC(y != null ? y : 0, (m != null ? m : 1) - 1, d != null ? d : 1, 23, 59, 59, 999));
+  return { dayStart, dayEnd };
+}
+
+function dayStartUtc(dateStr) {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  return new Date(Date.UTC(y != null ? y : 0, (m != null ? m : 1) - 1, d != null ? d : 1, 0, 0, 0, 0));
+}
+function dayEndUtc(dateStr) {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  return new Date(Date.UTC(y != null ? y : 0, (m != null ? m : 1) - 1, d != null ? d : 1, 23, 59, 59, 999));
+}
+async function rebuildEitjeTimeRegistrationAggregation(db, startDate, endDate) {
+  const collAgg = db.collection("eitje_time_registration_aggregation");
+  const del = await collAgg.deleteMany({
+    period_type: "day",
+    period: { $gte: startDate, $lte: endDate }
+  });
+  const startD = dayStartUtc(startDate);
+  const endD = dayEndUtc(endDate);
+  const pipeline = [
+    {
+      $match: {
+        endpoint: "time_registration_shifts",
+        date: { $gte: startD, $lte: endD }
+      }
+    },
+    {
+      $addFields: {
+        ...EITJE_HOURS_ADD_FIELDS,
+        period: {
+          $dateToString: { format: "%Y-%m-%d", date: "$date", timezone: "UTC" }
+        },
+        userId: { $ifNull: ["$extracted.userId", "$rawApiResponse.user_id"] },
+        teamId: { $ifNull: ["$extracted.teamId", "$rawApiResponse.team_id"] },
+        environmentId: {
+          $ifNull: [
+            "$environmentId",
+            "$extracted.environmentId",
+            "$rawApiResponse.environment_id",
+            "$rawApiResponse.environmentId",
+            "$rawApiResponse.environment.id"
+          ]
+        }
+      }
+    },
+    {
+      $lookup: {
+        from: "unified_location",
+        let: { eid: "$environmentId" },
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $and: [
+                  { $ne: ["$$eid", null] },
+                  { $in: ["$$eid", { $ifNull: ["$eitjeIds", []] }] }
+                ]
+              }
+            }
+          },
+          { $limit: 1 },
+          { $project: { primaryId: 1, primaryName: 1 } }
+        ],
+        as: "loc"
+      }
+    },
+    {
+      $addFields: {
+        locationId: {
+          $ifNull: [
+            { $arrayElemAt: ["$loc.primaryId", 0] },
+            { $toString: { $ifNull: ["$environmentId", "unknown"] } }
+          ]
+        },
+        location_name: {
+          $ifNull: [
+            { $arrayElemAt: ["$loc.primaryName", 0] },
+            {
+              $ifNull: [
+                "$extracted.locationName",
+                { $ifNull: ["$rawApiResponse.location_name", "$rawApiResponse.environment_name"] },
+                { $ifNull: ["$rawApiResponse.environment.name", null] }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      $match: {
+        userId: { $nin: [null, ""] },
+        teamId: { $nin: [null, ""] }
+      }
+    },
+    {
+      $lookup: {
+        from: "members",
+        let: { uid: "$userId" },
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $or: [
+                  { $eq: ["$eitje_id", "$$uid"] },
+                  { $in: ["$$uid", { $ifNull: ["$eitje_ids", []] }] }
+                ]
+              }
+            }
+          },
+          { $limit: 1 },
+          { $project: { hourly_rate: 1 } }
+        ],
+        as: "memberDoc"
+      }
+    },
+    {
+      $lookup: {
+        from: "unified_user",
+        let: { uid: "$userId" },
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $or: [
+                  { $in: ["$$uid", { $ifNull: ["$eitjeIds", []] }] },
+                  { $in: ["$$uid", { $ifNull: ["$allIdValues", []] }] },
+                  { $eq: ["$primaryId", "$$uid"] }
+                ]
+              }
+            }
+          },
+          { $limit: 1 },
+          { $project: { primaryName: 1, hourly_rate: 1 } }
+        ],
+        as: "u"
+      }
+    },
+    {
+      $lookup: {
+        from: "unified_team",
+        let: { tid: "$teamId" },
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $or: [
+                  { $in: ["$$tid", { $ifNull: ["$eitjeIds", []] }] },
+                  { $in: ["$$tid", { $ifNull: ["$allIdValues", []] }] },
+                  { $eq: ["$primaryId", "$$tid"] }
+                ]
+              }
+            }
+          },
+          { $limit: 1 },
+          { $project: { primaryName: 1, canonicalName: 1 } }
+        ],
+        as: "t"
+      }
+    },
+    {
+      $addFields: {
+        user_name: {
+          $ifNull: [
+            { $arrayElemAt: ["$u.primaryName", 0] },
+            {
+              $ifNull: [
+                "$rawApiResponse.user.name",
+                { $ifNull: ["$rawApiResponse.employee_name", "Unknown"] }
+              ]
+            }
+          ]
+        },
+        hourly_rate: {
+          $ifNull: [
+            { $arrayElemAt: ["$memberDoc.hourly_rate", 0] },
+            { $arrayElemAt: ["$u.hourly_rate", 0] }
+          ]
+        },
+        cost: {
+          $cond: [
+            { $and: [{ $ne: ["$hours", null] }, { $ne: [{ $ifNull: [{ $arrayElemAt: ["$memberDoc.hourly_rate", 0] }, { $arrayElemAt: ["$u.hourly_rate", 0] }] }, null] }] },
+            { $multiply: ["$hours", { $ifNull: [{ $arrayElemAt: ["$memberDoc.hourly_rate", 0] }, { $arrayElemAt: ["$u.hourly_rate", 0] }] }] },
+            {
+              $ifNull: [
+                { $divide: [{ $toDouble: "$extracted.amountInCents" }, 100] },
+                { $ifNull: [{ $divide: [{ $toDouble: "$rawApiResponse.amt_in_cents" }, 100] }, 0] }
+              ]
+            }
+          ]
+        },
+        team_name: {
+          $ifNull: [
+            { $arrayElemAt: ["$t.canonicalName", 0] },
+            {
+              $ifNull: [
+                { $arrayElemAt: ["$t.primaryName", 0] },
+                { $ifNull: ["$rawApiResponse.team.name", "Unknown"] }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      $group: {
+        _id: {
+          period: "$period",
+          locationId: "$locationId",
+          userId: "$userId",
+          teamId: "$teamId"
+        },
+        location_name: { $first: "$location_name" },
+        user_name: { $first: "$user_name" },
+        team_name: { $first: "$team_name" },
+        hourly_rate: { $first: "$hourly_rate" },
+        total_hours: { $sum: "$hours" },
+        total_cost: { $sum: "$cost" },
+        record_count: { $sum: 1 }
+      }
+    },
+    {
+      $project: {
+        _id: 0,
+        period: "$_id.period",
+        period_type: "day",
+        locationId: "$_id.locationId",
+        location_name: 1,
+        userId: "$_id.userId",
+        user_name: 1,
+        teamId: "$_id.teamId",
+        team_name: 1,
+        hourly_rate: 1,
+        total_hours: 1,
+        total_cost: 1,
+        record_count: 1
+      }
+    }
+  ];
+  const docs = await db.collection("eitje_raw_data").aggregate(pipeline).toArray();
+  if (docs.length > 0) {
+    await collAgg.insertMany(docs);
+  }
+  return { deletedPeriods: del.deletedCount, inserted: docs.length };
+}
+
+var _a;
+function envInt(name, fallback) {
+  const v = process.env[name];
+  if (!v) return fallback;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : fallback;
+}
+async function loadActiveEitjeCredentials(db) {
+  const row = await findEitjeCredentialDocument(db);
+  if (!row) return null;
+  return documentToEitjeStoredCredentials(row);
+}
+function eitjeCredentialsHintMessage() {
+  const dbn = getMongoDatabaseName();
+  return `No usable Eitje row in api_credentials (database "${dbn}"). Open Settings \u2192 Eitje API \u2192 save all four fields, or align MONGODB_DB_NAME / MONGODB_URI in .env.local with the DB where you store credentials.`;
+}
+function extractRecords(data) {
+  if (Array.isArray(data)) return data;
+  if (data && typeof data === "object") {
+    const o = data;
+    for (const v of Object.values(o)) {
+      if (Array.isArray(v) && v.length > 0 && typeof v[0] === "object" && v[0] !== null) {
+        return v;
+      }
+    }
+  }
+  return [];
+}
+function nextPageUrl(data, currentUrl) {
+  var _a2, _b, _c;
+  if (!data || typeof data !== "object") return null;
+  const o = data;
+  const links = (_a2 = o.links) != null ? _a2 : o._links;
+  if (links && typeof links === "object") {
+    const l = links;
+    const n = (_b = l.next) != null ? _b : l.Next;
+    if (typeof n === "string" && n.startsWith("http")) return n;
+  }
+  const meta = o.meta;
+  if (meta && typeof meta === "object") {
+    const m = meta;
+    const n = (_c = m.next_page_url) != null ? _c : m.next;
+    if (typeof n === "string" && n.startsWith("http")) return n;
+  }
+  return null;
+}
+function stableDedupKey(endpoint, raw) {
+  var _a2, _b;
+  const id = (_b = (_a2 = raw.id) != null ? _a2 : raw.shift_id) != null ? _b : raw.uuid;
+  if (id != null && String(id).length > 0) return `${endpoint}:${String(id)}`;
+  const h = createHash("sha256").update(
+    JSON.stringify([
+      raw.user_id,
+      raw.userId,
+      raw.date,
+      raw.start,
+      raw.start_time,
+      raw.end,
+      raw.end_time,
+      raw.environment_id,
+      raw.environmentId
+    ])
+  ).digest("hex");
+  return `${endpoint}:h:${h.slice(0, 32)}`;
+}
+function toDate(v) {
+  if (v == null) return null;
+  if (v instanceof Date) return Number.isNaN(v.getTime()) ? null : v;
+  const d = new Date(String(v));
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+function num(v) {
+  if (v == null) return void 0;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : void 0;
+}
+function buildRawShiftDoc(raw, endpoint) {
+  var _a2, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v;
+  const start = (_c = (_b = (_a2 = raw.start) != null ? _a2 : raw.start_time) != null ? _b : raw.started_at) != null ? _c : raw.from;
+  const dateRaw = (_g = (_f = (_e = (_d = raw.date) != null ? _d : raw.work_date) != null ? _e : raw.day) != null ? _f : raw.worked_on) != null ? _g : typeof start === "string" ? start.slice(0, 10) : null;
+  let date = toDate(dateRaw);
+  if (!date && start != null) date = toDate(start);
+  if (!date) date = /* @__PURE__ */ new Date();
+  const userObj = raw.user && typeof raw.user === "object" ? raw.user : null;
+  const teamObj = raw.team && typeof raw.team === "object" ? raw.team : null;
+  const userId = (_i = (_h = raw.user_id) != null ? _h : raw.userId) != null ? _i : userObj == null ? void 0 : userObj.id;
+  const supportId = (_k = (_j = raw.support_id) != null ? _j : raw.supportId) != null ? _k : userObj == null ? void 0 : userObj.support_id;
+  const teamId = (_m = (_l = raw.team_id) != null ? _l : raw.teamId) != null ? _m : teamObj == null ? void 0 : teamObj.id;
+  const environmentId = (_p = (_o = (_n = num(raw.environment_id)) != null ? _n : num(raw.environmentId)) != null ? _o : num(raw.location_id)) != null ? _p : num(raw.venue_id);
+  const hoursPre = (_s = (_r = (_q = num(raw.hours)) != null ? _q : num(raw.hours_worked)) != null ? _r : num(raw.hoursWorked)) != null ? _s : void 0;
+  const extracted = {
+    userId,
+    supportId,
+    teamId,
+    environmentId,
+    locationName: (_t = raw.location_name) != null ? _t : raw.environment_name,
+    environmentName: (_u = raw.environment_name) != null ? _u : raw.location_name,
+    hours: hoursPre,
+    amountInCents: (_v = num(raw.amt_in_cents)) != null ? _v : num(raw.amount_in_cents)
+  };
+  const syncDedupKey = stableDedupKey(endpoint, raw);
+  const now = /* @__PURE__ */ new Date();
+  return {
+    endpoint,
+    date,
+    environmentId: environmentId != null ? environmentId : void 0,
+    extracted,
+    rawApiResponse: raw,
+    syncDedupKey,
+    updatedAt: now,
+    createdAt: now
+  };
+}
+function buildListEntityDoc(raw, endpoint) {
+  var _a2, _b, _c;
+  const id = (_b = (_a2 = raw.id) != null ? _a2 : raw.uuid) != null ? _b : raw.slug;
+  const syncDedupKey = id != null ? `${endpoint}:${String(id)}` : stableDedupKey(endpoint, raw);
+  const now = /* @__PURE__ */ new Date();
+  return {
+    endpoint,
+    date: now,
+    extracted: { id: raw.id, name: (_c = raw.name) != null ? _c : raw.title },
+    rawApiResponse: raw,
+    syncDedupKey,
+    updatedAt: now,
+    createdAt: now
+  };
+}
+async function fetchAllList(creds, path, query) {
+  const out = [];
+  let url = path;
+  let lastStatus = 0;
+  let lastError = "";
+  const maxPages = envInt("EITJE_SYNC_MAX_PAGES", 200);
+  for (let page = 0; page < maxPages && url; page++) {
+    const res = await eitjeFetchJson(creds, url, page === 0 ? { query } : void 0);
+    lastStatus = res.status;
+    if (!res.ok) {
+      lastError = typeof res.data === "string" ? res.data : JSON.stringify(res.data);
+      return { records: out, lastError, lastStatus };
+    }
+    const batch = extractRecords(res.data);
+    out.push(...batch);
+    const next = nextPageUrl(res.data, res.url);
+    url = next;
+    if (!next) break;
+  }
+  return { records: out, lastStatus };
+}
+const TR_PATH = (_a = process.env.EITJE_PATH_TIME_REGISTRATION_SHIFTS) != null ? _a : "time_registration_shifts";
+function splitDateRangeForEitje(startDate, endDate, maxDays) {
+  var _a2, _b;
+  const start = /* @__PURE__ */ new Date(`${startDate}T00:00:00.000Z`);
+  const end = /* @__PURE__ */ new Date(`${endDate}T00:00:00.000Z`);
+  const totalDays = Math.ceil((end.getTime() - start.getTime()) / (1e3 * 60 * 60 * 24));
+  if (totalDays <= maxDays) {
+    return [{ startDate, endDate }];
+  }
+  const chunks = [];
+  let currentStart = new Date(start);
+  while (currentStart < end) {
+    const currentEnd = new Date(currentStart);
+    currentEnd.setUTCDate(currentEnd.getUTCDate() + maxDays - 1);
+    if (currentEnd > end) {
+      currentEnd.setTime(end.getTime());
+    }
+    chunks.push({
+      startDate: (_a2 = currentStart.toISOString().split("T")[0]) != null ? _a2 : startDate,
+      endDate: (_b = currentEnd.toISOString().split("T")[0]) != null ? _b : endDate
+    });
+    currentStart = new Date(currentEnd);
+    currentStart.setUTCDate(currentStart.getUTCDate() + 1);
+  }
+  return chunks;
+}
+async function persistRawTimeRegistrationShifts(db, records) {
+  if (records.length === 0) return 0;
+  const coll = db.collection("eitje_raw_data");
+  let upserted = 0;
+  const chunk = 200;
+  for (let i = 0; i < records.length; i += chunk) {
+    const slice = records.slice(i, i + chunk);
+    const ops = slice.map((raw) => {
+      const doc = buildRawShiftDoc(raw, "time_registration_shifts");
+      return {
+        updateOne: {
+          filter: { endpoint: "time_registration_shifts", syncDedupKey: doc.syncDedupKey },
+          update: {
+            $set: {
+              endpoint: doc.endpoint,
+              date: doc.date,
+              environmentId: doc.environmentId,
+              extracted: doc.extracted,
+              rawApiResponse: doc.rawApiResponse,
+              updatedAt: doc.updatedAt
+            },
+            $setOnInsert: { createdAt: doc.createdAt }
+          },
+          upsert: true
+        }
+      };
+    });
+    const res = await coll.bulkWrite(ops, { ordered: false });
+    upserted += res.upsertedCount + res.modifiedCount;
+  }
+  return upserted;
+}
+async function syncTimeRegistrationShiftsWindow(db, creds, startDate, endDate) {
+  const tryLegacyGetWithBody = async () => {
+    const base = normalizeEitjeBaseUrl(creds.baseUrl).replace(/\/$/, "");
+    const rawUrl = `${base}/time_registration_shifts`;
+    const body = JSON.stringify({
+      filters: {
+        start_date: startDate,
+        end_date: endDate,
+        date_filter_type: "resource_date"
+      }
+    });
+    try {
+      const url = new URL(rawUrl);
+      const transport = url.protocol === "https:" ? request : request$1;
+      const headers = {
+        ...legacyEitjeV2Headers(creds),
+        "Content-Length": String(Buffer.byteLength(body, "utf8"))
+      };
+      const response = await new Promise((resolve, reject) => {
+        const req = transport(
+          url,
+          {
+            method: "GET",
+            headers,
+            timeout: 3e4
+          },
+          (res) => {
+            let text = "";
+            res.setEncoding("utf8");
+            res.on("data", (chunk) => {
+              text += chunk;
+            });
+            res.on("end", () => {
+              var _a2;
+              return resolve({ status: (_a2 = res.statusCode) != null ? _a2 : 0, text });
+            });
+          }
+        );
+        req.on("timeout", () => req.destroy(new Error("request timeout")));
+        req.on("error", reject);
+        req.write(body);
+        req.end();
+      });
+      let parsed = response.text;
+      try {
+        parsed = response.text ? JSON.parse(response.text) : null;
+      } catch {
+      }
+      if (response.status >= 200 && response.status < 300) {
+        return { records: extractRecords(parsed), lastStatus: response.status };
+      }
+      const err2 = typeof parsed === "string" ? parsed : JSON.stringify(parsed);
+      return { records: [], lastStatus: response.status, lastError: err2 };
+    } catch (e) {
+      return { records: [], lastStatus: 0, lastError: e instanceof Error ? e.message : String(e) };
+    }
+  };
+  const legacyBodyResult = await tryLegacyGetWithBody();
+  if (legacyBodyResult.records.length > 0) {
+    const upserted2 = await persistRawTimeRegistrationShifts(db, legacyBodyResult.records);
+    return { upserted: upserted2, fetched: legacyBodyResult.records.length };
+  }
+  const queryAttempts = [
+    { from: startDate, to: endDate },
+    { start_date: startDate, end_date: endDate },
+    { date_from: startDate, date_to: endDate }
+  ];
+  let records = [];
+  let err = "";
+  let status = 0;
+  const pathCandidates = [
+    TR_PATH,
+    `v1/${TR_PATH}`,
+    "time-registrations",
+    "time_registrations"
+  ];
+  outer: for (const path of pathCandidates) {
+    for (const q of queryAttempts) {
+      const r = await fetchAllList(creds, path, q);
+      status = r.lastStatus;
+      if (r.records.length > 0) {
+        records = r.records;
+        err = "";
+        break outer;
+      }
+      if (r.lastError) err = r.lastError;
+    }
+  }
+  if (records.length === 0 && err) {
+    const legacyErr = legacyBodyResult.lastError ? `; legacy-body: ${legacyBodyResult.lastError.slice(0, 200)}` : "";
+    return { upserted: 0, fetched: 0, error: `HTTP ${status}: ${err.slice(0, 400)}${legacyErr}` };
+  }
+  const upserted = await persistRawTimeRegistrationShifts(db, records);
+  return { upserted, fetched: records.length };
+}
+const sleepMs = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+async function syncTimeRegistrationShifts(db, creds, startDate, endDate) {
+  const maxDays = envInt("EITJE_TIME_REGISTRATION_MAX_DAYS", 7);
+  const chunkDelayMs = envInt("EITJE_BACKFILL_CHUNK_DELAY_MS", 0);
+  const chunks = splitDateRangeForEitje(startDate, endDate, maxDays);
+  let upserted = 0;
+  let fetched = 0;
+  let i = 0;
+  for (const ch of chunks) {
+    i++;
+    const r = await syncTimeRegistrationShiftsWindow(db, creds, ch.startDate, ch.endDate);
+    if (r.error) {
+      return {
+        upserted,
+        fetched,
+        error: `${r.error} (window ${ch.startDate}\u2013${ch.endDate})`
+      };
+    }
+    upserted += r.upserted;
+    fetched += r.fetched;
+    if (chunkDelayMs > 0 && i < chunks.length) await sleepMs(chunkDelayMs);
+  }
+  return { upserted, fetched };
+}
+async function syncListEndpoint(db, creds, endpoint, pathCandidates) {
+  let records = [];
+  let err = "";
+  let status = 0;
+  for (const path of pathCandidates) {
+    const r = await fetchAllList(creds, path, {});
+    status = r.lastStatus;
+    if (r.records.length > 0) {
+      records = r.records;
+      err = "";
+      break;
+    }
+    if (r.lastError) err = r.lastError;
+  }
+  if (records.length === 0) {
+    return { upserted: 0, fetched: 0, error: err ? `HTTP ${status}: ${err.slice(0, 200)}` : "empty response" };
+  }
+  const coll = db.collection("eitje_raw_data");
+  let upserted = 0;
+  const chunk = 200;
+  for (let i = 0; i < records.length; i += chunk) {
+    const slice = records.slice(i, i + chunk);
+    const ops = slice.map((raw) => {
+      const doc = buildListEntityDoc(raw, endpoint);
+      return {
+        updateOne: {
+          filter: { endpoint, syncDedupKey: doc.syncDedupKey },
+          update: {
+            $set: {
+              endpoint: doc.endpoint,
+              date: doc.date,
+              extracted: doc.extracted,
+              rawApiResponse: doc.rawApiResponse,
+              updatedAt: doc.updatedAt
+            },
+            $setOnInsert: { createdAt: doc.createdAt }
+          },
+          upsert: true
+        }
+      };
+    });
+    const res = await coll.bulkWrite(ops, { ordered: false });
+    upserted += res.upsertedCount + res.modifiedCount;
+  }
+  return { upserted, fetched: records.length };
+}
+function dateRangeDays(days) {
+  const end = /* @__PURE__ */ new Date();
+  const start = /* @__PURE__ */ new Date();
+  start.setUTCDate(start.getUTCDate() - days);
+  const fmt = (d) => {
+    var _a2;
+    return (_a2 = d.toISOString().split("T")[0]) != null ? _a2 : "";
+  };
+  return { start: fmt(start), end: fmt(end) };
+}
+async function pingEitjeApi(creds) {
+  var _a2;
+  const paths = ["environments", "v1/environments", "locations", "v1/locations"];
+  for (const p of paths) {
+    const res = await eitjeFetchJson(creds, p, {});
+    if (res.ok) {
+      const n = extractRecords(res.data).length;
+      return { ok: true, message: `OK (${p}${n ? `, ${n} rows` : ""})` };
+    }
+  }
+  const last = await eitjeFetchJson(creds, (_a2 = paths[0]) != null ? _a2 : "environments", {});
+  const msg = typeof last.data === "string" ? last.data : JSON.stringify(last.data);
+  const base = `HTTP ${last.status} ${msg.slice(0, 240)} (last auth: ${last.authAttempt})`;
+  if (msg.includes("not all required auth keys present")) {
+    return {
+      ok: false,
+      message: `${base} \u2014 Eitje returns this for missing and for rejected credentials. Confirm base URL (often .../open_api), Partner vs API username/password are the ones from Eitje Open API (not your web login), and re-save in Settings.`
+    };
+  }
+  return { ok: false, message: base };
+}
+async function executeEitjeJob(db, jobType) {
+  var _a2, _b;
+  const creds = await loadActiveEitjeCredentials(db);
+  if (!creds) {
+    return {
+      ok: false,
+      jobType,
+      message: eitjeCredentialsHintMessage()
+    };
+  }
+  if (jobType === "master-data") {
+    const endpoints = [
+      { name: "environments", paths: ["environments", "v1/environments", "locations"] },
+      { name: "teams", paths: ["teams", "v1/teams"] },
+      { name: "users", paths: ["users", "v1/users", "employees"] }
+    ];
+    const master = { endpoints: [] };
+    for (const e of endpoints) {
+      const r = await syncListEndpoint(db, creds, e.name, e.paths);
+      master.endpoints.push({ name: e.name, upserted: r.upserted, fetched: r.fetched, error: r.error });
+    }
+    const ok2 = master.endpoints.some((x) => x.fetched > 0);
+    if (ok2) {
+      try {
+        await syncUnifiedMasterDataFromRaw(db);
+      } catch (e) {
+        console.error("[syncUnifiedMasterDataFromRaw]", e);
+      }
+    }
+    return {
+      ok: ok2,
+      jobType,
+      message: ok2 ? "Master data sync finished" : "Master data sync returned no rows (check API paths / credentials)",
+      master
+    };
+  }
+  const dailyDays = envInt("EITJE_DAILY_SYNC_DAYS", 14);
+  const histDays = envInt("EITJE_HISTORICAL_SYNC_DAYS", 30);
+  const days = jobType === "historical-data" ? histDays : dailyDays;
+  const { start, end } = dateRangeDays(days);
+  const tr = await syncTimeRegistrationShifts(db, creds, start, end);
+  let agg;
+  try {
+    agg = await rebuildEitjeTimeRegistrationAggregation(db, start, end);
+    await syncUnifiedCollectionsFromRawData(db);
+  } catch (e) {
+    agg = {
+      deletedPeriods: 0,
+      inserted: 0,
+      error: e instanceof Error ? e.message : String(e)
+    };
+  }
+  const ok = !tr.error && (tr.fetched > 0 || tr.upserted > 0 || ((_a2 = agg == null ? void 0 : agg.inserted) != null ? _a2 : 0) > 0);
+  return {
+    ok,
+    jobType,
+    message: tr.error ? `Time registration: ${tr.error}` : `Synced ${tr.fetched} shifts (${tr.upserted} writes), aggregation +${(_b = agg == null ? void 0 : agg.inserted) != null ? _b : 0} rows`,
+    timeRegistration: tr,
+    aggregation: agg
+  };
+}
+async function syncUnifiedMasterDataFromRaw(db) {
+  try {
+    let locationsUpdated = 0;
+    let teamsUpdated = 0;
+    let usersUpdated = 0;
+    const envDocs = await db.collection("eitje_raw_data").find({ endpoint: "environments" }).toArray();
+    const uniqueEnvs = /* @__PURE__ */ new Map();
+    envDocs.forEach((doc) => {
+      const extracted = doc.extracted;
+      const id = extracted == null ? void 0 : extracted.id;
+      const name = extracted == null ? void 0 : extracted.name;
+      if (id && name) uniqueEnvs.set(id, String(name));
+    });
+    for (const [id, name] of uniqueEnvs) {
+      const result = await db.collection("unified_location").updateOne(
+        { $or: [{ eitjeIds: id }, { allIdValues: id }] },
+        {
+          $set: {
+            eitjeIds: [id],
+            allIdValues: [id],
+            primaryName: name,
+            name,
+            updatedAt: /* @__PURE__ */ new Date()
+          },
+          $setOnInsert: { createdAt: /* @__PURE__ */ new Date() }
+        },
+        { upsert: true }
+      );
+      locationsUpdated += result.upsertedCount + result.modifiedCount;
+    }
+    const teamDocs = await db.collection("eitje_raw_data").find({ endpoint: "teams" }).toArray();
+    const uniqueTeams = /* @__PURE__ */ new Map();
+    teamDocs.forEach((doc) => {
+      const extracted = doc.extracted;
+      const id = extracted == null ? void 0 : extracted.id;
+      const name = extracted == null ? void 0 : extracted.name;
+      if (id && name) uniqueTeams.set(id, String(name));
+    });
+    for (const [id, name] of uniqueTeams) {
+      const result = await db.collection("unified_team").updateOne(
+        { $or: [{ eitjeIds: id }, { allIdValues: id }] },
+        {
+          $set: {
+            eitjeIds: [id],
+            allIdValues: [id],
+            primaryName: name,
+            canonicalName: name,
+            updatedAt: /* @__PURE__ */ new Date()
+          },
+          $setOnInsert: { createdAt: /* @__PURE__ */ new Date() }
+        },
+        { upsert: true }
+      );
+      teamsUpdated += result.upsertedCount + result.modifiedCount;
+    }
+    const userDocs = await db.collection("eitje_raw_data").find({ endpoint: "users" }).toArray();
+    const uniqueUsers = /* @__PURE__ */ new Map();
+    userDocs.forEach((doc) => {
+      const extracted = doc.extracted;
+      const id = extracted == null ? void 0 : extracted.id;
+      const raw = doc.rawApiResponse;
+      const firstName = (raw == null ? void 0 : raw.first_name) ? String(raw.first_name) : "";
+      const lastName = (raw == null ? void 0 : raw.last_name) ? String(raw.last_name) : "";
+      const email = (raw == null ? void 0 : raw.email) ? String(raw.email) : "";
+      const name = firstName && lastName ? `${firstName} ${lastName}` : email || String(id);
+      if (id) uniqueUsers.set(id, name);
+    });
+    for (const [id, name] of uniqueUsers) {
+      const result = await db.collection("unified_user").updateOne(
+        { $or: [{ eitjeIds: id }, { allIdValues: id }] },
+        {
+          $set: {
+            eitjeIds: [id],
+            allIdValues: [id],
+            primaryName: name,
+            canonicalName: name,
+            updatedAt: /* @__PURE__ */ new Date()
+          },
+          $setOnInsert: { createdAt: /* @__PURE__ */ new Date() }
+        },
+        { upsert: true }
+      );
+      usersUpdated += result.upsertedCount + result.modifiedCount;
+    }
+    return { locationsUpdated, teamsUpdated, usersUpdated };
+  } catch (e) {
+    return {
+      locationsUpdated: 0,
+      teamsUpdated: 0,
+      usersUpdated: 0,
+      error: e instanceof Error ? e.message : String(e)
+    };
+  }
+}
+async function syncUnifiedCollectionsFromRawData(db) {
+  try {
+    let usersUpdated = 0;
+    let teamsUpdated = 0;
+    const userAgg = await db.collection("eitje_raw_data").aggregate([
+      { $match: { endpoint: "time_registration_shifts" } },
+      { $addFields: { userId: { $ifNull: ["$extracted.userId", "$rawApiResponse.user_id"] } } },
+      { $group: { _id: "$userId", userName: { $first: "$rawApiResponse.user.name" } } },
+      { $match: { _id: { $nin: [null, ""] } } }
+    ]).toArray();
+    for (const user of userAgg) {
+      const result = await db.collection("unified_user").updateOne(
+        { eitjeIds: user._id },
+        {
+          $addToSet: {
+            eitjeIds: user._id,
+            allIdValues: user._id
+          },
+          $set: { updatedAt: /* @__PURE__ */ new Date() },
+          $setOnInsert: {
+            primaryName: user.userName,
+            canonicalName: user.userName,
+            createdAt: /* @__PURE__ */ new Date()
+          }
+        },
+        { upsert: true }
+      );
+      usersUpdated += result.upsertedCount + result.modifiedCount;
+    }
+    const teamAgg = await db.collection("eitje_raw_data").aggregate([
+      { $match: { endpoint: "time_registration_shifts" } },
+      { $addFields: { teamId: { $ifNull: ["$extracted.teamId", "$rawApiResponse.team_id"] } } },
+      { $group: { _id: "$teamId", teamName: { $first: "$rawApiResponse.team.name" } } },
+      { $match: { _id: { $nin: [null, ""] } } }
+    ]).toArray();
+    for (const team of teamAgg) {
+      const result = await db.collection("unified_team").updateOne(
+        { eitjeIds: team._id },
+        {
+          $addToSet: {
+            eitjeIds: team._id,
+            allIdValues: team._id
+          },
+          $set: { updatedAt: /* @__PURE__ */ new Date() },
+          $setOnInsert: {
+            primaryName: team.teamName,
+            canonicalName: team.teamName,
+            createdAt: /* @__PURE__ */ new Date()
+          }
+        },
+        { upsert: true }
+      );
+      teamsUpdated += result.upsertedCount + result.modifiedCount;
+    }
+    return { usersUpdated, teamsUpdated };
+  } catch (e) {
+    return {
+      usersUpdated: 0,
+      teamsUpdated: 0,
+      error: e instanceof Error ? e.message : String(e)
+    };
+  }
+}
+async function syncEitjeByRequest(db, body) {
+  var _a2, _b, _c, _d, _e;
+  const creds = await loadActiveEitjeCredentials(db);
+  if (!creds) {
+    return { ok: false, jobType: "manual", message: eitjeCredentialsHintMessage() };
+  }
+  const ep = body.endpoint || "environments";
+  if (ep === "environments" || ep === "locations") {
+    const ping = await pingEitjeApi(creds);
+    return { ok: ping.ok, jobType: "manual", message: ping.message };
+  }
+  if (ep === "time_registration_shifts") {
+    const dr = dateRangeDays(envInt("EITJE_DAILY_SYNC_DAYS", 14));
+    const end = (_a2 = body.endDate) != null ? _a2 : dr.end;
+    const start = (_b = body.startDate) != null ? _b : dr.start;
+    const tr = await syncTimeRegistrationShifts(db, creds, start, end);
+    let agg;
+    try {
+      agg = await rebuildEitjeTimeRegistrationAggregation(db, start, end);
+      await syncUnifiedCollectionsFromRawData(db);
+    } catch (e) {
+      agg = { deletedPeriods: 0, inserted: 0, error: e instanceof Error ? e.message : String(e) };
+    }
+    return {
+      ok: !tr.error,
+      jobType: "manual",
+      message: (_d = tr.error) != null ? _d : `OK: ${tr.fetched} fetched, agg +${(_c = agg == null ? void 0 : agg.inserted) != null ? _c : 0}`,
+      timeRegistration: tr,
+      aggregation: agg
+    };
+  }
+  const r = await syncListEndpoint(db, creds, ep, [ep, `v1/${ep}`]);
+  return {
+    ok: !r.error && r.fetched > 0,
+    jobType: "manual",
+    message: (_e = r.error) != null ? _e : `OK: ${r.fetched} rows`,
+    master: { endpoints: [{ name: ep, ...r }] }
+  };
+}
+
+async function runIntegrationCronJob(db, source, jobType) {
+  const runStarted = /* @__PURE__ */ new Date();
+  const query = { source, jobType };
+  await db.collection("integration_cron_jobs").updateOne(
+    query,
+    {
+      $set: {
+        source,
+        jobType,
+        lastRun: runStarted.toISOString(),
+        lastRunUTC: runStarted.toISOString(),
+        updatedAt: runStarted
+      },
+      $setOnInsert: { createdAt: runStarted, isActive: true }
+    },
+    { upsert: true }
+  );
+  const syncResult = source === "bork" ? await executeBorkJob(db, jobType) : await executeEitjeJob(db, jobType);
+  const syncedAt = /* @__PURE__ */ new Date();
+  await db.collection("integration_cron_jobs").updateOne(query, {
+    $set: {
+      lastSyncAt: syncedAt.toISOString(),
+      lastSyncOk: syncResult.ok,
+      lastSyncMessage: syncResult.message,
+      lastSyncDetail: syncResult,
+      updatedAt: syncedAt
+    }
+  });
+  return source === "bork" ? { source: "bork", syncResult } : { source: "eitje", syncResult };
+}
+async function loadIntegrationCronRow(db, source, jobType) {
+  return db.collection("integration_cron_jobs").findOne({ source, jobType });
+}
+function isIntegrationCronStale(row, staleMs) {
+  if (!row) return true;
+  if (row.lastSyncOk === false) return true;
+  const raw = row.lastSyncAt;
+  const t = typeof raw === "string" ? Date.parse(raw) : NaN;
+  if (!Number.isFinite(t)) return true;
+  return Date.now() - t > staleMs;
+}
+
+const JOB_TYPE$1 = "daily-data";
+const PAUSE_MS$1 = 3e4;
+function catchupEnabled() {
+  if (process.env.INTEGRATION_SYNC_CATCHUP_ON_START === "0") return false;
+  if (process.env.INTEGRATION_SYNC_CATCHUP_ON_START === "1") return true;
+  return false;
+}
+function staleMs() {
+  const raw = process.env.INTEGRATION_SYNC_STALE_MS;
+  if (raw) {
+    const n = parseInt(raw, 10);
+    if (Number.isFinite(n) && n > 0) return n;
+  }
+  return 9 * 60 * 60 * 1e3;
+}
+const _bZ9Ni6V2HtIpJeulfSLzyAQaoMJdeQllxN50TS5qNvY = defineNitroPlugin((nitroApp) => {
+  nitroApp.hooks.hook("ready", () => {
+    void (async () => {
+      var _a, _b, _c, _d;
+      if (!catchupEnabled()) return;
+      const ms = staleMs();
+      try {
+        const db = await getDb();
+        const borkRow = await loadIntegrationCronRow(db, "bork", JOB_TYPE$1);
+        const eitjeRow = await loadIntegrationCronRow(db, "eitje", JOB_TYPE$1);
+        const needBork = isIntegrationCronStale(borkRow, ms);
+        const needEitje = isIntegrationCronStale(eitjeRow, ms);
+        if (!needBork && !needEitje) {
+          (_a = nitroApp.logger) == null ? void 0 : _a.info("[integrations-catchup] skip; lastSync within stale window");
+          return;
+        }
+        (_b = nitroApp.logger) == null ? void 0 : _b.info(
+          `[integrations-catchup] running stale jobs bork=${needBork} eitje=${needEitje} staleMs=${ms}`
+        );
+        if (needBork) await runIntegrationCronJob(db, "bork", JOB_TYPE$1);
+        if (needBork && needEitje) {
+          await new Promise((r) => {
+            setTimeout(r, PAUSE_MS$1);
+          });
+        }
+        if (needEitje) await runIntegrationCronJob(db, "eitje", JOB_TYPE$1);
+        (_c = nitroApp.logger) == null ? void 0 : _c.info("[integrations-catchup] finished");
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        (_d = nitroApp.logger) == null ? void 0 : _d.error(`[integrations-catchup] failed: ${msg}`);
+      }
+    })();
+  });
+});
+
 const plugins = [
   _WMkiMnAGnzEjNvUcZC0bHEtCLQbkGtcIYX1QNJbjf8,
 _NQQwYznjgzMMgDoYJzBpUyUK0o2a5iMXK7UmB1AoKs,
-_nddW4OgTKHcMIQ8mQhekYcJvlrNi40TbQzTLx2yq5MQ
+_nddW4OgTKHcMIQ8mQhekYcJvlrNi40TbQzTLx2yq5MQ,
+_bZ9Ni6V2HtIpJeulfSLzyAQaoMJdeQllxN50TS5qNvY
 ];
 
 const assets = {
   "/index.mjs": {
     "type": "text/javascript; charset=utf-8",
-    "etag": "\"15741f-/iGGhxYvKBIv2CU4rN9YUzQUxBk\"",
-    "mtime": "2026-04-21T23:39:58.981Z",
-    "size": 1405983,
+    "etag": "\"15bc93-XtxHbogrpxw3gewOR9Wt01m2Uw8\"",
+    "mtime": "2026-04-23T23:11:16.202Z",
+    "size": 1424531,
     "path": "index.mjs"
   },
   "/index.mjs.map": {
     "type": "application/json",
-    "etag": "\"5669f2-lAKq+rxqYb3/JnJQIiKAq267f/Y\"",
-    "mtime": "2026-04-21T23:39:59.451Z",
-    "size": 5663218,
+    "etag": "\"578f7b-twjwa0gRA3FSEIgUyY4+Hpfx1vE\"",
+    "mtime": "2026-04-23T23:11:16.443Z",
+    "size": 5738363,
     "path": "index.mjs.map"
   }
 };
@@ -3395,7 +5229,7 @@ function defineRenderHandler(render) {
 
 const r=Object.create(null),i=e=>globalThis.process?.env||globalThis._importMeta_.env||globalThis.Deno?.env.toObject()||globalThis.__env__||(e?r:globalThis),o=new Proxy(r,{get(e,s){return i()[s]??r[s]},has(e,s){const E=i();return s in E||s in r},set(e,s,E){const B=i(true);return B[s]=E,true},deleteProperty(e,s){if(!s)return  false;const E=i(true);return delete E[s],true},ownKeys(){const e=i(true);return Object.keys(e)}}),t=typeof process<"u"&&process.env&&"development"||"",f=[["APPVEYOR"],["AWS_AMPLIFY","AWS_APP_ID",{ci:true}],["AZURE_PIPELINES","SYSTEM_TEAMFOUNDATIONCOLLECTIONURI"],["AZURE_STATIC","INPUT_AZURE_STATIC_WEB_APPS_API_TOKEN"],["APPCIRCLE","AC_APPCIRCLE"],["BAMBOO","bamboo_planKey"],["BITBUCKET","BITBUCKET_COMMIT"],["BITRISE","BITRISE_IO"],["BUDDY","BUDDY_WORKSPACE_ID"],["BUILDKITE"],["CIRCLE","CIRCLECI"],["CIRRUS","CIRRUS_CI"],["CLOUDFLARE_PAGES","CF_PAGES",{ci:true}],["CLOUDFLARE_WORKERS","WORKERS_CI",{ci:true}],["CODEBUILD","CODEBUILD_BUILD_ARN"],["CODEFRESH","CF_BUILD_ID"],["DRONE"],["DRONE","DRONE_BUILD_EVENT"],["DSARI"],["GITHUB_ACTIONS"],["GITLAB","GITLAB_CI"],["GITLAB","CI_MERGE_REQUEST_ID"],["GOCD","GO_PIPELINE_LABEL"],["LAYERCI"],["HUDSON","HUDSON_URL"],["JENKINS","JENKINS_URL"],["MAGNUM"],["NETLIFY"],["NETLIFY","NETLIFY_LOCAL",{ci:false}],["NEVERCODE"],["RENDER"],["SAIL","SAILCI"],["SEMAPHORE"],["SCREWDRIVER"],["SHIPPABLE"],["SOLANO","TDDIUM"],["STRIDER"],["TEAMCITY","TEAMCITY_VERSION"],["TRAVIS"],["VERCEL","NOW_BUILDER"],["VERCEL","VERCEL",{ci:false}],["VERCEL","VERCEL_ENV",{ci:false}],["APPCENTER","APPCENTER_BUILD_ID"],["CODESANDBOX","CODESANDBOX_SSE",{ci:false}],["CODESANDBOX","CODESANDBOX_HOST",{ci:false}],["STACKBLITZ"],["STORMKIT"],["CLEAVR"],["ZEABUR"],["CODESPHERE","CODESPHERE_APP_ID",{ci:true}],["RAILWAY","RAILWAY_PROJECT_ID"],["RAILWAY","RAILWAY_SERVICE_ID"],["DENO-DEPLOY","DENO_DEPLOYMENT_ID"],["FIREBASE_APP_HOSTING","FIREBASE_APP_HOSTING",{ci:true}]];function b(){if(globalThis.process?.env)for(const e of f){const s=e[1]||e[0];if(globalThis.process?.env[s])return {name:e[0].toLowerCase(),...e[2]}}return globalThis.process?.env?.SHELL==="/bin/jsh"&&globalThis.process?.versions?.webcontainer?{name:"stackblitz",ci:false}:{name:"",ci:false}}const l=b();l.name;function n(e){return e?e!=="false":false}const I=globalThis.process?.platform||"",T=n(o.CI)||l.ci!==false,R=n(globalThis.process?.stdout&&globalThis.process?.stdout.isTTY);n(o.DEBUG);const a=t==="test"||n(o.TEST);n(o.MINIMAL)||T||a||!R;const A=/^win/i.test(I);!n(o.NO_COLOR)&&(n(o.FORCE_COLOR)||(R||A)&&o.TERM!=="dumb"||T);const C=(globalThis.process?.versions?.node||"").replace(/^v/,"")||null;Number(C?.split(".")[0])||null;const W=globalThis.process||Object.create(null),_={versions:{}};new Proxy(W,{get(e,s){if(s==="env")return o;if(s in e)return e[s];if(s in _)return _[s]}});const O=globalThis.process?.release?.name==="node",c=!!globalThis.Bun||!!globalThis.process?.versions?.bun,D=!!globalThis.Deno,L=!!globalThis.fastly,S=!!globalThis.Netlify,u=!!globalThis.EdgeRuntime,N=globalThis.navigator?.userAgent==="Cloudflare-Workers",F=[[S,"netlify"],[u,"edge-light"],[N,"workerd"],[L,"fastly"],[D,"deno"],[c,"bun"],[O,"node"]];function G(){const e=F.find(s=>s[0]);if(e)return {name:e[1]}}const P=G();P?.name||"";
 
-const scheduledTasks = [{"cron":"0 7 * * *","tasks":["inbox:gmail-sync"]}];
+const scheduledTasks = [{"cron":"0 8 * * *","tasks":["inbox:gmail-sync"]},{"cron":"0 6,13,16,18,20,22 * * *","tasks":["integrations:bork-eitje-daily"]}];
 
 const tasks = {
   "inbox:gmail-sync": {
@@ -3403,6 +5237,12 @@ const tasks = {
             description: "",
           },
           resolve: () => Promise.resolve().then(function () { return gmailSync$1; }).then(r => r.default || r),
+        },
+"integrations:bork-eitje-daily": {
+          meta: {
+            description: "",
+          },
+          resolve: () => Promise.resolve().then(function () { return borkEitjeDaily$1; }).then(r => r.default || r),
         }
 };
 
@@ -4302,369 +6142,6 @@ function buildDailyOpsRevenueBreakdownDto(ctx, cat, hourBundle, revMap, labMap) 
   };
 }
 
-function normalizeEitjeBaseUrl(raw) {
-  const t = raw.trim();
-  const noTrail = t.replace(/\/$/, "");
-  if (!noTrail) return "https://open-api.eitje.app/open_api";
-  try {
-    const href = noTrail.includes("://") ? noTrail : `https://${noTrail}`;
-    const u = new URL(href);
-    const host = u.hostname.toLowerCase();
-    const pathNorm = (u.pathname || "").replace(/\/$/, "") || "";
-    if (host.includes("eitje.app") && pathNorm === "") {
-      return `${u.origin}/open_api`;
-    }
-  } catch {
-  }
-  return noTrail;
-}
-function basicAuth(user, pass) {
-  return `Basic ${Buffer.from(`${user}:${pass}`, "utf8").toString("base64")}`;
-}
-function legacyEitjeV2Headers(creds) {
-  return {
-    "Partner-Username": creds.partner_username,
-    "Partner-Password": creds.partner_password,
-    "Api-Username": creds.api_username,
-    "Api-Password": creds.api_password,
-    "Content-Type": "application/json",
-    Accept: "application/json"
-  };
-}
-async function eitjeFetchJson(creds, pathOrUrl, opts) {
-  var _a, _b;
-  const base = normalizeEitjeBaseUrl(creds.baseUrl).replace(/\/$/, "");
-  const path = pathOrUrl.startsWith("http") ? pathOrUrl : `${base}/${pathOrUrl.replace(/^\//, "")}`;
-  const url = new URL(path);
-  if (opts == null ? void 0 : opts.query) {
-    for (const [k, v] of Object.entries(opts.query)) {
-      if (v != null && v !== "") url.searchParams.set(k, v);
-    }
-  }
-  const hasPartnerValues = Boolean(((_a = creds.partner_username) == null ? void 0 : _a.trim()) && ((_b = creds.partner_password) == null ? void 0 : _b.trim()));
-  const useDualAuth = hasPartnerValues && creds.partnerCredentialsDistinct;
-  const dualHeaders = {
-    Authorization: basicAuth(creds.api_username, creds.api_password),
-    "X-OpenAPI-Partner-Username": creds.partner_username,
-    "X-OpenAPI-Partner-Password": creds.partner_password
-  };
-  const attempts = [
-    { label: "legacy_partner_api_headers", headers: legacyEitjeV2Headers(creds) }
-  ];
-  if (useDualAuth) {
-    attempts.push({ label: "api_basic_plus_partner_headers", headers: dualHeaders });
-  }
-  attempts.push({
-    label: "api_basic_only",
-    headers: {
-      Authorization: basicAuth(creds.api_username, creds.api_password),
-      Accept: "application/json"
-    }
-  });
-  if (useDualAuth) {
-    attempts.push({
-      label: "partner_basic_only",
-      headers: {
-        Authorization: basicAuth(creds.partner_username, creds.partner_password),
-        Accept: "application/json"
-      }
-    });
-  }
-  if (hasPartnerValues && !useDualAuth) {
-    attempts.push({ label: "api_basic_plus_partner_headers_imputed", headers: dualHeaders });
-  }
-  let last = {
-    ok: false,
-    status: 0,
-    data: null,
-    url: url.toString(),
-    authAttempt: "none"
-  };
-  for (const a of attempts) {
-    const res = await fetch(url.toString(), {
-      method: "GET",
-      headers: {
-        Accept: "application/json",
-        ...a.headers
-      }
-    });
-    const text = await res.text();
-    let data = text;
-    try {
-      data = text ? JSON.parse(text) : null;
-    } catch {
-    }
-    last = { ok: res.ok, status: res.status, data, url: url.toString(), authAttempt: a.label };
-    if (res.ok) return last;
-  }
-  return last;
-}
-
-function pickStr(...vals) {
-  for (const v of vals) {
-    if (typeof v === "string" && v.trim()) return v.trim();
-    if (typeof v === "number" && Number.isFinite(v)) return String(v);
-  }
-  return "";
-}
-function nested(row, ...keys) {
-  let cur = row;
-  for (const k of keys) {
-    if (!cur || typeof cur !== "object") return {};
-    cur = cur[k];
-  }
-  return cur && typeof cur === "object" ? cur : {};
-}
-function asObject(v) {
-  if (!v) return {};
-  if (typeof v === "string") {
-    try {
-      const p = JSON.parse(v);
-      return p && typeof p === "object" ? p : {};
-    } catch {
-      return {};
-    }
-  }
-  if (typeof v === "object") return v;
-  return {};
-}
-function mergedCredentialSources(row) {
-  return {
-    ...nested(row, "secrets"),
-    ...nested(row, "envConfig"),
-    ...nested(row, "config"),
-    ...nested(row, "credentials"),
-    ...asObject(row.additional_config),
-    ...asObject(row.additionalConfig)
-  };
-}
-const EITJE_PROVIDER_CLAUSE = {
-  $or: [
-    { provider: { $in: ["eitje", "Eitje", "eitje-open-api", "eitje_open_api", "EITJE"] } },
-    { type: "eitje" },
-    { source: "eitje" },
-    { integration: "eitje" }
-  ]
-};
-async function findEitjeCredentialDocument(db) {
-  const coll = db.collection("api_credentials");
-  const prefer = await coll.findOne(
-    { ...EITJE_PROVIDER_CLAUSE, $nor: [{ isActive: false }] },
-    { sort: { updatedAt: -1, createdAt: -1 } }
-  );
-  if (prefer) return prefer;
-  const any = await coll.findOne(
-    { ...EITJE_PROVIDER_CLAUSE },
-    { sort: { updatedAt: -1, createdAt: -1 } }
-  );
-  if (any) return any;
-  const byUrl = await coll.findOne(
-    {
-      provider: { $nin: ["bork", "Bork"] },
-      baseUrl: { $regex: /eitje\.app/i }
-    },
-    { sort: { updatedAt: -1, createdAt: -1 } }
-  );
-  if (byUrl) return byUrl;
-  const guessed = await coll.findOne(
-    {
-      provider: { $nin: ["bork", "Bork"] },
-      $or: [
-        { "additionalConfig.api_username": { $exists: true } },
-        { "additionalConfig.partner_username": { $exists: true } },
-        { "additional_config.api_username": { $exists: true } },
-        { api_username: { $exists: true } },
-        { partner_username: { $exists: true } }
-      ]
-    },
-    { sort: { updatedAt: -1, createdAt: -1 } }
-  );
-  return guessed;
-}
-function documentToEitjeStoredCredentials(row) {
-  const ac = mergedCredentialSources(row);
-  const api_username = pickStr(
-    ac.api_username,
-    ac.apiUsername,
-    ac.API_USERNAME,
-    ac.api_user,
-    ac.apiUser,
-    ac.venue_username,
-    ac.venueUsername,
-    ac.username,
-    ac.user,
-    row.api_username,
-    row.apiUsername,
-    row.api_user,
-    row.username
-  );
-  const api_password = pickStr(
-    ac.api_password,
-    ac.apiPassword,
-    ac.API_PASSWORD,
-    ac.api_pass,
-    ac.venue_password,
-    ac.venuePassword,
-    ac.password,
-    row.api_password,
-    row.apiPassword,
-    row.api_pass,
-    row.password
-  );
-  const partner_username = pickStr(
-    ac.partner_username,
-    ac.partnerUsername,
-    ac.PARTNER_USERNAME,
-    ac.partner_user,
-    ac.partnerUser,
-    row.partner_username,
-    row.partnerUsername
-  );
-  const partner_password = pickStr(
-    ac.partner_password,
-    ac.partnerPassword,
-    ac.PARTNER_PASSWORD,
-    ac.partner_pass,
-    row.partner_password,
-    row.partnerPassword
-  );
-  const hadRealPartnerInDb = Boolean(partner_username && partner_password);
-  const baseUrlRaw = pickStr(
-    typeof row.baseUrl === "string" ? row.baseUrl : "",
-    typeof ac.baseUrl === "string" ? ac.baseUrl : "",
-    typeof ac.base_url === "string" ? ac.base_url : ""
-  );
-  const baseUrl = normalizeEitjeBaseUrl(baseUrlRaw || "https://open-api.eitje.app/open_api");
-  if (!api_username || !api_password) return null;
-  let pu = partner_username;
-  let pp = partner_password;
-  if (!pu || !pp) {
-    pu = api_username;
-    pp = api_password;
-  }
-  return {
-    baseUrl,
-    partner_username: pu,
-    partner_password: pp,
-    api_username,
-    api_password,
-    partnerCredentialsDistinct: hadRealPartnerInDb
-  };
-}
-function documentToCredentialsApiShape(row) {
-  const ac = mergedCredentialSources(row);
-  const stored = documentToEitjeStoredCredentials(row);
-  const partner_username = pickStr(
-    ac.partner_username,
-    ac.partnerUsername,
-    ac.PARTNER_USERNAME,
-    ac.partner_user,
-    row.partner_username,
-    row.partnerUsername,
-    stored == null ? void 0 : stored.partner_username
-  );
-  const partner_password = pickStr(
-    ac.partner_password,
-    ac.partnerPassword,
-    ac.PARTNER_PASSWORD,
-    ac.partner_pass,
-    row.partner_password,
-    row.partnerPassword,
-    stored == null ? void 0 : stored.partner_password
-  );
-  const api_username = pickStr(
-    ac.api_username,
-    ac.apiUsername,
-    ac.api_user,
-    ac.venue_username,
-    row.api_username,
-    row.apiUsername,
-    stored == null ? void 0 : stored.api_username
-  );
-  const api_password = pickStr(
-    ac.api_password,
-    ac.apiPassword,
-    ac.api_pass,
-    ac.venue_password,
-    row.api_password,
-    row.apiPassword,
-    stored == null ? void 0 : stored.api_password
-  );
-  const baseUrl = normalizeEitjeBaseUrl(
-    pickStr(
-      typeof row.baseUrl === "string" ? row.baseUrl : "",
-      typeof ac.baseUrl === "string" ? ac.baseUrl : "",
-      typeof ac.base_url === "string" ? ac.base_url : "",
-      stored == null ? void 0 : stored.baseUrl
-    ) || "https://open-api.eitje.app/open_api"
-  );
-  return {
-    baseUrl,
-    additionalConfig: {
-      partner_username,
-      partner_password,
-      api_username,
-      api_password
-    }
-  };
-}
-
-const EITJE_HOURS_ADD_FIELDS = {
-  hours: {
-    $ifNull: [
-      { $toDouble: "$extracted.hours" },
-      {
-        $ifNull: [
-          { $toDouble: "$extracted.hoursWorked" },
-          {
-            $ifNull: [
-              { $toDouble: "$rawApiResponse.hours" },
-              {
-                $ifNull: [
-                  { $toDouble: "$rawApiResponse.hours_worked" },
-                  {
-                    $cond: [
-                      {
-                        $and: [
-                          { $ne: ["$rawApiResponse.start", null] },
-                          { $ne: ["$rawApiResponse.end", null] }
-                        ]
-                      },
-                      {
-                        $subtract: [
-                          {
-                            $divide: [
-                              {
-                                $subtract: [
-                                  { $toDate: "$rawApiResponse.end" },
-                                  { $toDate: "$rawApiResponse.start" }
-                                ]
-                              },
-                              36e5
-                            ]
-                          },
-                          { $divide: [{ $ifNull: [{ $toDouble: "$rawApiResponse.break_minutes" }, 0] }, 60] }
-                        ]
-                      },
-                      0
-                    ]
-                  }
-                ]
-              }
-            ]
-          }
-        ]
-      }
-    ]
-  }
-};
-function getUtcDayRange(dateStr) {
-  const [y, m, d] = dateStr.split("-").map(Number);
-  const dayStart = new Date(Date.UTC(y != null ? y : 0, (m != null ? m : 1) - 1, d != null ? d : 1, 0, 0, 0, 0));
-  const dayEnd = new Date(Date.UTC(y != null ? y : 0, (m != null ? m : 1) - 1, d != null ? d : 1, 23, 59, 59, 999));
-  return { dayStart, dayEnd };
-}
-
 function getGmailOAuthErrorMessage(error) {
   var _a;
   if (error instanceof Error) {
@@ -4714,6 +6191,22 @@ function stripLeadingJunk(s) {
   }
   return out;
 }
+const stringCellTransform = (value) => {
+  let trimmed = value.trim();
+  if (trimmed.toLowerCase().includes("excel") && trimmed.toLowerCase().includes("geen data")) {
+    trimmed = trimmed.replace(/\bExcel\b/gi, "bron");
+  }
+  if (trimmed === "") return null;
+  return trimmed;
+};
+function looksLikeTrivecSemicolonSales(csvText, filenameDocumentType) {
+  if (filenameDocumentType !== "sales") return false;
+  const norm = stripLeadingJunk(csvText);
+  if (detectDelimiter(norm) !== ";") return false;
+  const first = (norm.split(/\r?\n/).find((l) => l.trim()) || "").trim();
+  if (/^(date|datum|product)\s*;/i.test(first)) return false;
+  return true;
+}
 async function parseCSV(csvText, options = {}) {
   try {
     let normalized = stripLeadingJunk(csvText);
@@ -4722,15 +6215,13 @@ async function parseCSV(csvText, options = {}) {
       normalized = lines.slice(options.skipLines).join("\n");
     }
     const delimiter = options.autoDetectDelimiter !== false ? detectDelimiter(normalized) : options.delimiter || ",";
-    const parseResult = Papa.parse(normalized, {
-      header: true,
+    const useHeader = options.header !== false;
+    const coerceNumbers = options.coerceNumbers !== false;
+    const parseConfig = {
+      header: useHeader,
       skipEmptyLines: options.skipEmptyLines !== false,
       delimiter,
-      transformHeader: (header, index) => {
-        const trimmed = header.replace(new RegExp(UTF8_BOM, "g"), "").replace(new RegExp(EXPORT_LEAD_IN, "g"), "").trim();
-        return trimmed || `column_${index != null ? index : 0}`;
-      },
-      transform: (value) => {
+      transform: coerceNumbers ? (value) => {
         let trimmed = value.trim();
         if (trimmed.toLowerCase().includes("excel") && trimmed.toLowerCase().includes("geen data")) {
           trimmed = trimmed.replace(/\bExcel\b/gi, "bron");
@@ -4744,9 +6235,15 @@ async function parseCSV(csvText, options = {}) {
           return Number(forNumber);
         }
         return trimmed;
-      }
-    });
-    const headers = parseResult.meta.fields || [];
+      } : stringCellTransform
+    };
+    if (useHeader) {
+      parseConfig.transformHeader = (header, index) => {
+        const trimmed = header.replace(new RegExp(UTF8_BOM, "g"), "").replace(new RegExp(EXPORT_LEAD_IN, "g"), "").trim();
+        return trimmed || `column_${index != null ? index : 0}`;
+      };
+    }
+    const parseResult = Papa.parse(normalized, parseConfig);
     const fatalErrors = parseResult.errors.filter(
       (e) => e.type !== "FieldMismatch"
     );
@@ -4762,9 +6259,25 @@ async function parseCSV(csvText, options = {}) {
         metadata: { delimiter }
       };
     }
-    const rows = parseResult.data.filter(
-      (row) => Object.keys(row).length > 0
-    );
+    let headers;
+    let rows;
+    if (useHeader) {
+      headers = parseResult.meta.fields || [];
+      rows = parseResult.data.filter((row) => Object.keys(row).length > 0);
+    } else {
+      const rawRows = parseResult.data;
+      let maxCols = 0;
+      rows = rawRows.filter((r) => Array.isArray(r) && r.length > 0).map((r) => {
+        const arr = r;
+        maxCols = Math.max(maxCols, arr.length);
+        const o = {};
+        arr.forEach((cell, i) => {
+          o[`column_${i}`] = cell;
+        });
+        return o;
+      });
+      headers = Array.from({ length: maxCols }, (_, i) => `column_${i}`);
+    }
     return {
       success: true,
       format: "csv",
@@ -29418,6 +30931,381 @@ function parseSheet(sheet, format, sheetNames, opts = {}) {
   }
 }
 
+const EURO_SNIP = /[\u20AC\uFFFD\u0080]/g;
+function parseDdMmYyyyToNoonUtc(ddmmyyyy) {
+  const m = String(ddmmyyyy).trim().match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!m) return null;
+  const day = Number.parseInt(m[1], 10);
+  const month = Number.parseInt(m[2], 10);
+  const year = Number.parseInt(m[3], 10);
+  return new Date(Date.UTC(year, month - 1, day, 12, 0, 0, 0));
+}
+function parseYmdToNoonUtc(ymd) {
+  const m = String(ymd).trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return null;
+  const year = Number.parseInt(m[1], 10);
+  const month = Number.parseInt(m[2], 10);
+  const day = Number.parseInt(m[3], 10);
+  return new Date(Date.UTC(year, month - 1, day, 12, 0, 0, 0));
+}
+function parseEuroInbox(s) {
+  if (s == null) return 0;
+  if (typeof s === "number") return Number.isNaN(s) ? 0 : s;
+  const str = String(s).trim();
+  if (!str) return 0;
+  let cleaned = str.replace(EURO_SNIP, "").replace(/\s/g, "").trim();
+  if (cleaned.toLowerCase().includes("n.v.t")) return 0;
+  cleaned = cleaned.replace(",", ".");
+  const num = Number(cleaned);
+  return Number.isNaN(num) ? 0 : num;
+}
+function canonicalInboxSalesRow(row) {
+  const o = { ...row };
+  if (o.date instanceof Date && !Number.isNaN(o.date.getTime())) ; else {
+    const fromDdMm = typeof o.date === "string" ? parseDdMmYyyyToNoonUtc(o.date) : null;
+    if (fromDdMm) o.date = fromDdMm;
+    else if (typeof o.date === "string") {
+      const ymd = parseYmdToNoonUtc(o.date);
+      if (ymd) o.date = ymd;
+    }
+    if (!(o.date instanceof Date) || Number.isNaN(o.date.getTime())) {
+      const capDate = o.Date != null ? String(o.Date).trim() : "";
+      const datum = o.Datum != null ? String(o.Datum).trim() : "";
+      const parsed = parseDdMmYyyyToNoonUtc(capDate || datum);
+      if (parsed) o.date = parsed;
+    }
+  }
+  delete o.Date;
+  delete o.Datum;
+  if (o.product_name == null && o.Product != null) o.product_name = o.Product;
+  if (o.product_name == null && o.Productnaam != null) o.product_name = o.Productnaam;
+  delete o.Product;
+  delete o.Productnaam;
+  if (o.revenue == null && o.Revenue != null) {
+    o.revenue = typeof o.Revenue === "number" ? o.Revenue : parseEuroInbox(o.Revenue);
+  }
+  delete o.Revenue;
+  if (o.revenue == null && o.Omzet != null) {
+    o.revenue = typeof o.Omzet === "number" ? o.Omzet : parseEuroInbox(o.Omzet);
+  }
+  delete o.Omzet;
+  if (o.quantity == null && o.Quantity != null) o.quantity = Number(o.Quantity) || 0;
+  delete o.Quantity;
+  if (o.quantity == null && o.Aantal != null) o.quantity = Number(o.Aantal) || 0;
+  delete o.Aantal;
+  return o;
+}
+
+function toIso(d) {
+  if (d == null) return null;
+  const t = d instanceof Date ? d.getTime() : new Date(String(d)).getTime();
+  return Number.isNaN(t) ? null : new Date(t).toISOString();
+}
+const YMD_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+function utcDayBounds(ymd, end) {
+  const [y, m, d] = ymd.split("-").map((x) => parseInt(x, 10));
+  if (!y || !m || !d) throw new Error(`Invalid ymd: ${ymd}`);
+  if (end) return new Date(Date.UTC(y, m - 1, d, 23, 59, 59, 999));
+  return new Date(Date.UTC(y, m - 1, d, 0, 0, 0, 0));
+}
+function parseQueryDateBoundary(s, endOfDay) {
+  const t = s.trim();
+  if (YMD_ONLY.test(t)) return utcDayBounds(t, endOfDay);
+  const d = new Date(t);
+  if (Number.isNaN(d.getTime())) throw new Error(`Invalid date: ${s}`);
+  return d;
+}
+async function attachmentViewTimeRange(parsedCol, match) {
+  const [row] = await parsedCol.aggregate([
+    { $match: match },
+    { $group: { _id: null, minC: { $min: "$created_at" }, maxC: { $max: "$created_at" } } }
+  ]).toArray();
+  return { minParsedAt: toIso(row == null ? void 0 : row.minC), maxParsedAt: toIso(row == null ? void 0 : row.maxC) };
+}
+async function collectionViewTimeRange(collection, filters) {
+  const [row] = await collection.aggregate([
+    { $match: filters },
+    {
+      $group: {
+        _id: null,
+        minP: {
+          $min: {
+            $ifNull: ["$parsedAt", { $ifNull: ["$importedAt", "$created_at"] }]
+          }
+        },
+        maxP: {
+          $max: {
+            $ifNull: ["$parsedAt", { $ifNull: ["$importedAt", "$created_at"] }]
+          }
+        }
+      }
+    }
+  ]).toArray();
+  return { minParsedAt: toIso(row == null ? void 0 : row.minP), maxParsedAt: toIso(row == null ? void 0 : row.maxP) };
+}
+const EITJE_ATTACHMENT_VIEW_TYPES = /* @__PURE__ */ new Set(["hours", "contracts", "finance"]);
+function sortDisplayColumns(cols) {
+  const meta = cols.filter((c) => c.startsWith("_")).sort((a, b) => a.localeCompare(b));
+  const rest = cols.filter((c) => !c.startsWith("_")).sort((a, b) => a.localeCompare(b));
+  return [...rest, ...meta];
+}
+function storageCollectionName(type) {
+  switch (type) {
+    case "sales":
+      return "inbox-bork-sales";
+    case "product_mix":
+      return "inbox-bork-product-mix";
+    case "food_beverage":
+      return "inbox-bork-food-beverage";
+    case "basis_report":
+      return "inbox-bork-basis-report";
+    case "product_sales_per_hour":
+      return "inbox-bork-basis-report";
+    case "hours":
+      return "inbox-eitje-hours";
+    case "contracts":
+      return "inbox-eitje-contracts";
+    case "finance":
+      return "inbox-eitje-finance";
+    case "bi":
+      return "power_bi_exports";
+    default:
+      return "unknown";
+  }
+}
+function parseInboxImportTableQuery(q) {
+  const page = Math.max(1, parseInt(String(q.page || "1"), 10));
+  const limit = Math.min(200, Math.max(1, parseInt(String(q.limit || "50"), 10)));
+  const viewRaw = q.view ? String(q.view).toLowerCase() : "";
+  const view = viewRaw === "mapped" ? "mapped" : viewRaw === "attachment" ? "attachment" : void 0;
+  return {
+    page,
+    limit,
+    view,
+    sourceEmailId: q.sourceEmailId ? String(q.sourceEmailId) : null,
+    dateFrom: q.dateFrom ? String(q.dateFrom) : null,
+    dateTo: q.dateTo ? String(q.dateTo) : null,
+    reportDate: q.reportDate ? String(q.reportDate) : null
+  };
+}
+async function getInboxImportTablePayload(documentType, input) {
+  var _a, _b, _c, _d, _e;
+  const page = input.page;
+  const limit = input.limit;
+  const skip = (page - 1) * limit;
+  const useMappedEitje = input.view === "mapped";
+  const filters = {};
+  let sourceEmailOid = null;
+  if (input.sourceEmailId) {
+    try {
+      sourceEmailOid = new ObjectId(input.sourceEmailId);
+      filters.sourceEmailId = sourceEmailOid;
+    } catch {
+      throw createError({ statusCode: 400, statusMessage: "Invalid sourceEmailId format" });
+    }
+  }
+  let dateFromD = null;
+  let dateToD = null;
+  if (input.dateFrom || input.dateTo) {
+    filters.parsedAt = {};
+    try {
+      if (input.dateFrom) {
+        dateFromD = parseQueryDateBoundary(input.dateFrom, false);
+        filters.parsedAt.$gte = dateFromD;
+      }
+      if (input.dateTo) {
+        dateToD = parseQueryDateBoundary(input.dateTo, true);
+        filters.parsedAt.$lte = dateToD;
+      }
+    } catch {
+      throw createError({ statusCode: 400, statusMessage: "Invalid dateFrom or dateTo" });
+    }
+  }
+  if (input.reportDate) {
+    const rd = input.reportDate.trim();
+    if (!YMD_ONLY.test(rd)) {
+      throw createError({ statusCode: 400, statusMessage: "reportDate must be YYYY-MM-DD" });
+    }
+    filters.$expr = {
+      $let: {
+        vars: {
+          effectiveDate: {
+            $switch: {
+              branches: [
+                {
+                  case: { $eq: [{ $type: "$date" }, "date"] },
+                  then: "$date"
+                },
+                {
+                  case: { $eq: [{ $type: "$date" }, "string"] },
+                  then: {
+                    $dateFromString: {
+                      dateString: "$date",
+                      format: "%d/%m/%Y",
+                      timezone: "Europe/Amsterdam",
+                      onError: null,
+                      onNull: null
+                    }
+                  }
+                }
+              ],
+              default: {
+                $dateFromString: {
+                  dateString: {
+                    $trim: {
+                      input: {
+                        $toString: {
+                          $ifNull: ["$Date", { $ifNull: ["$Datum", ""] }]
+                        }
+                      }
+                    }
+                  },
+                  format: "%d/%m/%Y",
+                  timezone: "Europe/Amsterdam",
+                  onError: null,
+                  onNull: null
+                }
+              }
+            }
+          }
+        },
+        in: {
+          $and: [
+            { $ne: ["$$effectiveDate", null] },
+            {
+              $eq: [
+                {
+                  $dateToString: {
+                    format: "%Y-%m-%d",
+                    date: "$$effectiveDate",
+                    timezone: "Europe/Amsterdam"
+                  }
+                },
+                rd
+              ]
+            }
+          ]
+        }
+      }
+    };
+  }
+  const db = await getDb();
+  const parsedCol = db.collection(INBOX_COLLECTIONS.parsedData);
+  const parsedImportCount = await parsedCol.countDocuments({ documentType });
+  const useAttachmentView = EITJE_ATTACHMENT_VIEW_TYPES.has(documentType) && !useMappedEitje;
+  if (useAttachmentView) {
+    if (input.reportDate) {
+      throw createError({
+        statusCode: 400,
+        statusMessage: "reportDate applies to mapped collection view only. Open this type without ?view=attachment or clear reportDate."
+      });
+    }
+    const match = {
+      documentType,
+      "data.rows.0": { $exists: true }
+    };
+    if (sourceEmailOid) match.emailId = sourceEmailOid;
+    if (dateFromD || dateToD) {
+      match.created_at = {};
+      if (dateFromD) match.created_at.$gte = dateFromD;
+      if (dateToD) match.created_at.$lte = dateToD;
+    }
+    const [facetResult, storedRowTimeRange2] = await Promise.all([
+      parsedCol.aggregate([
+        { $match: match },
+        { $sort: { created_at: -1 } },
+        { $unwind: { path: "$data.rows" } },
+        { $match: { "data.rows": { $type: "object" } } },
+        {
+          $replaceRoot: {
+            newRoot: {
+              $mergeObjects: [
+                "$data.rows",
+                {
+                  _parsedDataId: "$_id",
+                  _inboxEmailId: "$emailId",
+                  _inboxAttachmentId: "$attachmentId",
+                  _parsedAt: "$created_at"
+                }
+              ]
+            }
+          }
+        },
+        {
+          $facet: {
+            rows: [{ $sort: { _parsedAt: -1 } }, { $skip: skip }, { $limit: limit }],
+            count: [{ $count: "n" }]
+          }
+        }
+      ]).toArray(),
+      attachmentViewTimeRange(parsedCol, match)
+    ]);
+    const facet = facetResult[0];
+    const data2 = (_a = facet == null ? void 0 : facet.rows) != null ? _a : [];
+    const total2 = (_d = (_c = (_b = facet == null ? void 0 : facet.count) == null ? void 0 : _b[0]) == null ? void 0 : _c.n) != null ? _d : 0;
+    const allColumns2 = /* @__PURE__ */ new Set();
+    data2.forEach((doc) => {
+      Object.keys(doc).forEach((key) => {
+        if (key !== "_id") allColumns2.add(key);
+      });
+    });
+    return {
+      type: documentType,
+      viewMode: "attachment",
+      collectionName: `parseddatas (documentType=${documentType}, exact rows)`,
+      mongoDatabase: getMongoDatabaseName(),
+      parsedImportCount,
+      reportDate: null,
+      storedRowTimeRange: storedRowTimeRange2,
+      rows: data2,
+      columns: sortDisplayColumns(Array.from(allColumns2)),
+      pagination: {
+        page,
+        limit,
+        total: total2,
+        totalPages: Math.ceil(total2 / limit),
+        hasMore: skip + limit < total2
+      }
+    };
+  }
+  const collectionName = storageCollectionName(documentType);
+  const collection = db.collection(collectionName);
+  const [data, total, storedRowTimeRange] = await Promise.all([
+    collection.find(filters).sort({ parsedAt: -1, importedAt: -1, created_at: -1, _id: -1 }).skip(skip).limit(limit).toArray(),
+    collection.countDocuments(filters),
+    collectionViewTimeRange(collection, filters)
+  ]);
+  const allColumns = /* @__PURE__ */ new Set();
+  data.forEach((doc) => {
+    Object.keys(doc).forEach((key) => {
+      if (!["_id", "sourceEmailId", "sourceAttachmentId", "sourceFileName", "fileFormat", "parsedAt", "created_at", "updated_at", "__v"].includes(
+        key
+      )) {
+        allColumns.add(key);
+      }
+    });
+  });
+  const viewMode = useMappedEitje && EITJE_ATTACHMENT_VIEW_TYPES.has(documentType) ? "mapped" : "collection";
+  return {
+    type: documentType,
+    viewMode,
+    collectionName,
+    mongoDatabase: getMongoDatabaseName(),
+    parsedImportCount,
+    reportDate: ((_e = input.reportDate) == null ? void 0 : _e.trim()) || null,
+    storedRowTimeRange,
+    rows: data,
+    columns: Array.from(allColumns).sort(),
+    pagination: {
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit),
+      hasMore: skip + limit < total
+    }
+  };
+}
+
 let pdfjsLib$1 = null;
 async function getPdfJsLib() {
   if (!pdfjsLib$1) {
@@ -29494,6 +31382,103 @@ async function parsePDF(pdfBuffer, options = {}) {
       error: error instanceof Error ? error.message : "Unknown PDF parsing error"
     };
   }
+}
+
+const EUROISH = /[\u20AC\uFFFD\u0080]/;
+function extractReportDateDdMmYyyy(csvText) {
+  const range = csvText.match(/(\d{2}\/\d{2}\/\d{4})\s*-\s*\d{2}\/\d{2}\/\d{4}/);
+  if (range) return range[1];
+  const one = csvText.match(/(\d{2}\/\d{2}\/\d{4})/);
+  return one ? one[1] : null;
+}
+function extractLocationFromTrivecCsv(parseResult) {
+  if (!parseResult.rows || parseResult.rows.length < 2) return null;
+  const columnValues = {};
+  for (const row of parseResult.rows.slice(0, 10)) {
+    for (const [k, v] of Object.entries(row)) {
+      if (/^column_\d+$/.test(k) && v != null && String(v).trim().length > 2) {
+        if (!columnValues[k]) columnValues[k] = /* @__PURE__ */ new Set();
+        columnValues[k].add(String(v).trim());
+      }
+    }
+  }
+  for (const [_col, values] of Object.entries(columnValues)) {
+    if (values.size === 1) {
+      const [locName] = values;
+      if (locName && !/sales?|total|amount|count|quantit/i.test(locName)) {
+        return locName;
+      }
+    }
+  }
+  return null;
+}
+function rowToOrderedCells(row) {
+  const entries = Object.entries(row).filter(([k]) => /^column_\d+$/i.test(k));
+  entries.sort((a, b) => {
+    const na = Number(a[0].replace(/^column_/i, ""));
+    const nb = Number(b[0].replace(/^column_/i, ""));
+    return na - nb;
+  });
+  return entries.map(([, v]) => String(v != null ? v : "").trim());
+}
+function firstAmountColumnIndex(cells) {
+  for (let i = 0; i < cells.length; i++) {
+    const c = cells[i] || "";
+    if (EUROISH.test(c)) return i;
+    const compact = c.replace(/\s/g, "");
+    if (/^\d{1,3}(\.\d{3})*,\d{2}$/.test(compact)) return i;
+  }
+  return -1;
+}
+function isPlainIntegerCell(s) {
+  return /^\d+$/.test(s.trim());
+}
+function normalizeTrivecSemicolonSalesParse(parseResult, rawCsvText) {
+  if (!parseResult.success) return parseResult;
+  const reportDateStr = extractReportDateDdMmYyyy(rawCsvText);
+  const reportDate = reportDateStr ? parseDdMmYyyyToNoonUtc(reportDateStr) : null;
+  const locationName = extractLocationFromTrivecCsv(parseResult);
+  const outRows = [];
+  for (const row of parseResult.rows) {
+    const cells = rowToOrderedCells(row);
+    if (cells.length === 0) continue;
+    const amountIdx = firstAmountColumnIndex(cells);
+    let product = "";
+    let revenueRaw = "0";
+    let quantity = 0;
+    if (amountIdx >= 0) {
+      const before = cells.slice(0, amountIdx);
+      product = [...before].reverse().find((c) => c.length > 0) || "";
+      revenueRaw = cells[amountIdx] || "0";
+      if (amountIdx > 0 && isPlainIntegerCell(cells[amountIdx - 1])) {
+        quantity = Number.parseInt(cells[amountIdx - 1], 10) || 0;
+      }
+    } else {
+      product = cells.filter((c) => c.length > 0).join(" | ");
+    }
+    const trimmedProduct = product.trim() || "(row)";
+    const qtyNum = typeof quantity === "number" ? quantity : Number(quantity) || 0;
+    outRows.push({
+      date: reportDate,
+      location_name: locationName,
+      product_name: trimmedProduct,
+      revenue: parseEuroInbox(revenueRaw),
+      quantity: qtyNum
+    });
+  }
+  return {
+    ...parseResult,
+    success: true,
+    headers: ["date", "location_name", "product_name", "revenue", "quantity"],
+    rows: outRows,
+    rowCount: outRows.length,
+    metadata: {
+      ...parseResult.metadata,
+      trivecSalesNormalized: true,
+      trivecReportDate: reportDateStr,
+      trivecLocation: locationName
+    }
+  };
 }
 
 function eitjeUserIdCandidates(supportId) {
@@ -30264,7 +32249,7 @@ const _lazy_ddvbvh = () => Promise.resolve().then(function () { return overview_
 const _lazy_b9OPGV = () => Promise.resolve().then(function () { return productivity_get$1; });
 const _lazy_PkLaTv = () => Promise.resolve().then(function () { return products_get$1; });
 const _lazy_JmL3hN = () => Promise.resolve().then(function () { return revenue_get$1; });
-const _lazy_xkC3wT = () => Promise.resolve().then(function () { return sales_get$1; });
+const _lazy_xkC3wT = () => Promise.resolve().then(function () { return sales_get$3; });
 const _lazy_6ws9ek = () => Promise.resolve().then(function () { return workload_get$1; });
 const _lazy_vALsC_ = () => Promise.resolve().then(function () { return run_get$1; });
 const _lazy_4juWGc = () => Promise.resolve().then(function () { return fieldMapping_get$1; });
@@ -30282,8 +32267,17 @@ const _lazy_YbJ2l7 = () => Promise.resolve().then(function () { return hoursCons
 const _lazy_FFzJl2 = () => Promise.resolve().then(function () { return hoursRowDetail_get$1; });
 const _lazy_r81Cx2 = () => Promise.resolve().then(function () { return hoursRowRecords_get$1; });
 const _lazy_K_T_pb = () => Promise.resolve().then(function () { return _id__get$7; });
+const _lazy_t9l008 = () => Promise.resolve().then(function () { return basisReport_get$1; });
+const _lazy_5uSL73 = () => Promise.resolve().then(function () { return foodBeverage_get$1; });
+const _lazy_1Py5Rg = () => Promise.resolve().then(function () { return productMix_get$1; });
+const _lazy_xKhjZi = () => Promise.resolve().then(function () { return salesPerHour_get$1; });
+const _lazy_cOPVhi = () => Promise.resolve().then(function () { return sales_get$1; });
+const _lazy_74gf57 = () => Promise.resolve().then(function () { return contracts_get$1; });
+const _lazy_6hI7Mq = () => Promise.resolve().then(function () { return finance_get$1; });
+const _lazy_OQ7Ga7 = () => Promise.resolve().then(function () { return hours_get$1; });
 const _lazy_NCD9cK = () => Promise.resolve().then(function () { return list_get$1; });
 const _lazy_qL75kA = () => Promise.resolve().then(function () { return parse_post$1; });
+const _lazy_ly3CSO = () => Promise.resolve().then(function () { return reports_get$1; });
 const _lazy_BTczVc = () => Promise.resolve().then(function () { return processAll_post$1; });
 const _lazy_J1_a1w = () => Promise.resolve().then(function () { return _emailId__post$1; });
 const _lazy_gQHuwM = () => Promise.resolve().then(function () { return syncScheduled_get$1; });
@@ -30376,8 +32370,17 @@ const handlers = [
   { route: '/api/hours-row-detail', handler: _lazy_FFzJl2, lazy: true, middleware: false, method: "get" },
   { route: '/api/hours-row-records', handler: _lazy_r81Cx2, lazy: true, middleware: false, method: "get" },
   { route: '/api/inbox/:id', handler: _lazy_K_T_pb, lazy: true, middleware: false, method: "get" },
+  { route: '/api/inbox/bork/basis-report', handler: _lazy_t9l008, lazy: true, middleware: false, method: "get" },
+  { route: '/api/inbox/bork/food-beverage', handler: _lazy_5uSL73, lazy: true, middleware: false, method: "get" },
+  { route: '/api/inbox/bork/product-mix', handler: _lazy_1Py5Rg, lazy: true, middleware: false, method: "get" },
+  { route: '/api/inbox/bork/sales-per-hour', handler: _lazy_xKhjZi, lazy: true, middleware: false, method: "get" },
+  { route: '/api/inbox/bork/sales', handler: _lazy_cOPVhi, lazy: true, middleware: false, method: "get" },
+  { route: '/api/inbox/eitje/contracts', handler: _lazy_74gf57, lazy: true, middleware: false, method: "get" },
+  { route: '/api/inbox/eitje/finance', handler: _lazy_6hI7Mq, lazy: true, middleware: false, method: "get" },
+  { route: '/api/inbox/eitje/hours', handler: _lazy_OQ7Ga7, lazy: true, middleware: false, method: "get" },
   { route: '/api/inbox/list', handler: _lazy_NCD9cK, lazy: true, middleware: false, method: "get" },
   { route: '/api/inbox/parse', handler: _lazy_qL75kA, lazy: true, middleware: false, method: "post" },
+  { route: '/api/inbox/power-bi/reports', handler: _lazy_ly3CSO, lazy: true, middleware: false, method: "get" },
   { route: '/api/inbox/process-all', handler: _lazy_BTczVc, lazy: true, middleware: false, method: "post" },
   { route: '/api/inbox/process/:emailId', handler: _lazy_J1_a1w, lazy: true, middleware: false, method: "post" },
   { route: '/api/inbox/sync-scheduled', handler: _lazy_gQHuwM, lazy: true, middleware: false, method: "get" },
@@ -30979,7 +32982,19 @@ class DocumentParserService {
           }
           const filenameHint = classifyByFilename(options.fileName);
           const skipLines = filenameHint.type === "product_mix" ? 10 : filenameHint.type === "food_beverage" ? 8 : void 0;
-          parseResult = await parseCSV(options.data, { autoDetectDelimiter: true, skipLines });
+          const trivecSales = filenameHint.type === "sales" && looksLikeTrivecSemicolonSales(options.data, filenameHint.type);
+          if (trivecSales) {
+            parseResult = await parseCSV(options.data, {
+              autoDetectDelimiter: true,
+              header: false,
+              coerceNumbers: false
+            });
+            if (parseResult.success) {
+              parseResult = normalizeTrivecSemicolonSalesParse(parseResult, options.data);
+            }
+          } else {
+            parseResult = await parseCSV(options.data, { autoDetectDelimiter: true, skipLines });
+          }
           break;
         }
         case "xlsx": {
@@ -31128,13 +33143,19 @@ const FIELD_MAPPINGS = {
     { sourceColumn: "Category", targetField: "category" }
   ],
   sales: [
-    // Bork Sales CSV columns (expected structure - to be confirmed with first file)
-    { sourceColumn: "Date", targetField: "date", required: true, transform: (v) => parseDate(v) },
-    { sourceColumn: "Datum", targetField: "date", required: true, transform: (v) => parseDate(v) },
+    // Bork Sales CSV columns (Trivec format + normalized shape)
+    { sourceColumn: "date", targetField: "date", required: false },
+    { sourceColumn: "Date", targetField: "date", required: false, transform: (v) => parseDate(v) },
+    { sourceColumn: "Datum", targetField: "date", required: false, transform: (v) => parseDate(v) },
+    { sourceColumn: "location_name", targetField: "location_name" },
+    { sourceColumn: "location", targetField: "location_name" },
+    { sourceColumn: "product_name", targetField: "product_name" },
     { sourceColumn: "Product", targetField: "product_name" },
     { sourceColumn: "Productnaam", targetField: "product_name" },
+    { sourceColumn: "quantity", targetField: "quantity", transform: (v) => Number(v) || 0 },
     { sourceColumn: "Quantity", targetField: "quantity", transform: (v) => Number(v) || 0 },
     { sourceColumn: "Aantal", targetField: "quantity", transform: (v) => Number(v) || 0 },
+    { sourceColumn: "revenue", targetField: "revenue", transform: (v) => typeof v === "number" ? v : parseEuro(v) },
     { sourceColumn: "Revenue", targetField: "revenue", transform: (v) => parseEuro(v) || Number(v) || 0 },
     { sourceColumn: "Omzet", targetField: "revenue", transform: (v) => parseEuro(v) || Number(v) || 0 },
     { sourceColumn: "Salesperson", targetField: "salesperson_name" },
@@ -31154,9 +33175,9 @@ const FIELD_MAPPINGS = {
   product_sales_per_hour: []
 };
 const COLLECTION_NAMES = {
-  hours: "test-eitje-hours",
-  contracts: "test-eitje-contracts",
-  finance: "test-eitje-finance",
+  hours: "inbox-eitje-hours",
+  contracts: "inbox-eitje-contracts",
+  finance: "inbox-eitje-finance",
   sales: "bork_sales",
   payroll: "payroll",
   bi: "power_bi_exports",
@@ -31164,10 +33185,10 @@ const COLLECTION_NAMES = {
   formitabele: "formitabele",
   pasy: "pasy",
   coming_soon: "coming_soon",
-  product_mix: "test-bork-product-mix",
-  food_beverage: "test-bork-food-beverage",
-  basis_report: "test-basis-report",
-  product_sales_per_hour: "test-bork-basis-rapport"
+  product_mix: "inbox-bork-product-mix",
+  food_beverage: "inbox-bork-food-beverage",
+  basis_report: "inbox-bork-basis-report",
+  product_sales_per_hour: "inbox-bork-basis-report"
 };
 function parseDate(dateStr) {
   if (!dateStr || dateStr.trim() === "") return null;
@@ -31366,6 +33387,7 @@ class DataMappingService {
       case "sales":
         return {
           date: row.date,
+          location_name: row.location_name,
           product_name: row.product_name
         };
       case "finance":
@@ -31409,18 +33431,18 @@ class DataMappingService {
 }
 const dataMappingService = new DataMappingService();
 
-function getCollectionName$1(documentType) {
+function getCollectionName(documentType) {
   switch (documentType) {
     case "sales":
-      return "test-bork-sales";
+      return "inbox-bork-sales";
     case "product_mix":
-      return "test-bork-product-mix";
+      return "inbox-bork-product-mix";
     case "food_beverage":
-      return "test-bork-food-beverage";
+      return "inbox-bork-food-beverage";
     case "basis_report":
-      return "test-basis-report";
+      return "inbox-bork-basis-report";
     case "product_sales_per_hour":
-      return "test-bork-basis-rapport";
+      return "inbox-bork-basis-report";
     default:
       return "unknown";
   }
@@ -31443,7 +33465,7 @@ async function storeRawData(parsedData, documentType, options) {
       ]
     };
   }
-  const collectionName = getCollectionName$1(documentType);
+  const collectionName = getCollectionName(documentType);
   const errors = [];
   let recordsCreated = 0;
   try {
@@ -31453,8 +33475,9 @@ async function storeRawData(parsedData, documentType, options) {
     const attachmentId = new ObjectId(parsedData.attachmentId);
     const documentsToInsert = parsedData.data.rows.map((row, index) => {
       try {
+        const baseRow = documentType === "sales" ? canonicalInboxSalesRow(row) : row;
         return {
-          ...row,
+          ...baseRow,
           sourceEmailId: emailId,
           sourceAttachmentId: attachmentId,
           sourceFileName: (options == null ? void 0 : options.fileName) || "",
@@ -31493,6 +33516,58 @@ async function storeRawData(parsedData, documentType, options) {
         }
       ]
     };
+  }
+}
+
+async function aggregateDailySalesForEmail(emailId, db) {
+  const database = await getDb();
+  const salesRows = await database.collection("bork_sales").find({ source: "inbox", sourceEmailId: emailId }).toArray();
+  if (salesRows.length === 0) return;
+  const groupKey = {};
+  for (const row of salesRows) {
+    const dateStr = row.date instanceof Date ? row.date.toISOString().split("T")[0] : String(row.date);
+    const locStr = String(row.location_name || "unknown");
+    const key = `${dateStr}|${locStr}`;
+    if (!groupKey[key]) groupKey[key] = [];
+    groupKey[key].push(row);
+  }
+  const dailyDocs = [];
+  const now = /* @__PURE__ */ new Date();
+  for (const [key, rows] of Object.entries(groupKey)) {
+    const [dateStr, locationName] = key.split("|");
+    const [year, month, day] = dateStr.split("-").map((x) => parseInt(x, 10));
+    const date = new Date(Date.UTC(year, month - 1, day, 12, 0, 0, 0));
+    const totalRevenue = rows.reduce((sum, r) => sum + (Number(r.revenue) || 0), 0);
+    const itemCount = rows.length;
+    dailyDocs.push({
+      date,
+      location_name: locationName === "unknown" ? null : locationName,
+      total_revenue: Math.round(totalRevenue * 100) / 100,
+      item_count: itemCount,
+      email_received_at: now,
+      source_emails: [emailId],
+      created_at: now,
+      updated_at: now
+    });
+  }
+  const dailyCollection = database.collection("bork_sales_daily");
+  for (const doc of dailyDocs) {
+    await dailyCollection.updateOne(
+      { date: doc.date, location_name: doc.location_name },
+      {
+        $set: {
+          total_revenue: doc.total_revenue,
+          item_count: doc.item_count,
+          email_received_at: doc.email_received_at,
+          updated_at: now
+        },
+        $addToSet: { source_emails: emailId },
+        $setOnInsert: {
+          created_at: now
+        }
+      },
+      { upsert: true }
+    );
   }
 }
 
@@ -31837,6 +33912,14 @@ async function handleParsedMapping(parseResult, attachmentId, emailId, parsedDat
         error: e.error
       }))
     });
+    if (parseResult.documentType === "sales") {
+      try {
+        const emailOid = new ObjectId(emailId);
+        await aggregateDailySalesForEmail(emailOid);
+      } catch (error) {
+        console.error("[inboxProcessService] Failed to aggregate daily sales:", error);
+      }
+    }
   }
 }
 async function processEmailAttachments(emailId) {
@@ -32293,6 +34376,35 @@ const gmailSync$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.definePropert
   default: gmailSync
 }, Symbol.toStringTag, { value: 'Module' }));
 
+const JOB_TYPE = "daily-data";
+const PAUSE_MS = 3e4;
+const borkEitjeDaily = defineTask({
+  meta: {
+    name: "integrations:bork-eitje-daily",
+    description: "Scheduled Bork + Eitje daily-data raw fetch (matches GitHub daily-ops-sync.yml)"
+  },
+  async run() {
+    const db = await getDb();
+    const bork = await runIntegrationCronJob(db, "bork", JOB_TYPE);
+    await new Promise((resolve) => {
+      setTimeout(resolve, PAUSE_MS);
+    });
+    const eitje = await runIntegrationCronJob(db, "eitje", JOB_TYPE);
+    return {
+      result: {
+        ok: bork.syncResult.ok && eitje.syncResult.ok,
+        bork: bork.syncResult,
+        eitje: eitje.syncResult
+      }
+    };
+  }
+});
+
+const borkEitjeDaily$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+  __proto__: null,
+  default: borkEitjeDaily
+}, Symbol.toStringTag, { value: 'Module' }));
+
 const credentials_get$2 = defineEventHandler(async () => {
   var _a;
   const db = await getDb();
@@ -32418,482 +34530,6 @@ const cron_get$3 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty
   default: cron_get$2
 }, Symbol.toStringTag, { value: 'Module' }));
 
-function borkDateToISO(borkDate) {
-  const s = String(borkDate).padStart(8, "0");
-  const year = s.slice(0, 4);
-  const month = s.slice(4, 6);
-  const day = s.slice(6, 8);
-  return `${year}-${month}-${day}`;
-}
-function extractHour(timeStr) {
-  if (!timeStr) return 0;
-  const match = timeStr.match(/^(\d{1,2}):/);
-  return match ? parseInt(match[1], 10) : 0;
-}
-function addCalendarDaysISO(dateStr, deltaDays) {
-  const [y, m, d] = dateStr.split("-").map(Number);
-  const dt = new Date(Date.UTC(y, m - 1, d + deltaDays));
-  const yy = dt.getUTCFullYear();
-  const mm = String(dt.getUTCMonth() + 1).padStart(2, "0");
-  const dd = String(dt.getUTCDate()).padStart(2, "0");
-  return `${yy}-${mm}-${dd}`;
-}
-function calendarToBusinessDay(calendarDateStr, calendarHour) {
-  if (calendarHour >= 6 && calendarHour <= 23) {
-    return { businessDate: calendarDateStr, businessHour: calendarHour - 6 };
-  }
-  return {
-    businessDate: addCalendarDaysISO(calendarDateStr, -1),
-    businessHour: calendarHour + 18
-  };
-}
-async function rebuildBorkSalesAggregation(db, startDate, endDate, collectionSuffix = "", cronTime = /* @__PURE__ */ new Date()) {
-  const result = {
-    byCron: 0,
-    byHour: 0,
-    byTable: 0,
-    byWorker: 0,
-    byGuestAccount: 0,
-    productsMaster: 0
-  };
-  const [startYear, startMonth, startDay] = startDate.split("-").map(Number);
-  const [endYear, endMonth, endDay] = endDate.split("-").map(Number);
-  const startBorkDate = startYear * 1e4 + startMonth * 100 + startDay;
-  const endBorkDate = endYear * 1e4 + endMonth * 100 + endDay;
-  const locMappings = await db.collection("bork_unified_location_mapping").find({}).toArray();
-  const userMappings = await db.collection("bork_unified_user_mapping").find({}).toArray();
-  const locMap = new Map(locMappings.map((l) => [String(l.borkLocationId), { unifiedId: l.unifiedLocationId, name: l.unifiedLocationName }]));
-  const userMap = new Map(userMappings.map((u) => [u.borkUserId || u.borkUserName, { unifiedId: u.unifiedUserId, name: u.unifiedUserName }]));
-  const cursor = db.collection("bork_raw_data").find({ endpoint: "bork_daily" }).batchSize(32);
-  const byCronMap = /* @__PURE__ */ new Map();
-  const byHourMap = /* @__PURE__ */ new Map();
-  const byTableMap = /* @__PURE__ */ new Map();
-  const byWorkerMap = /* @__PURE__ */ new Map();
-  const byGuestAccountMap = /* @__PURE__ */ new Map();
-  const productsMasterMap = /* @__PURE__ */ new Map();
-  try {
-    for await (const rawDoc of cursor) {
-      const borkLocationId = rawDoc.locationId;
-      const locMapping = locMap.get(String(borkLocationId));
-      if (!locMapping) {
-        console.warn(`No unified location mapping for Bork location ${borkLocationId}`);
-        continue;
-      }
-      const unifiedLocationId = locMapping.unifiedId;
-      const unifiedLocationName = locMapping.name;
-      const tickets = Array.isArray(rawDoc.rawApiResponse) ? rawDoc.rawApiResponse : [rawDoc.rawApiResponse];
-      for (const ticket of tickets) {
-        if (!ticket || typeof ticket !== "object") continue;
-        const borkWorkerName = ticket.UserName || "Unknown";
-        const userMapping = userMap.get(borkWorkerName) || userMap.get(ticket.UserId);
-        const unifiedWorkerId = (userMapping == null ? void 0 : userMapping.unifiedId) || "unknown";
-        const unifiedWorkerName = (userMapping == null ? void 0 : userMapping.name) || borkWorkerName;
-        const orders = Array.isArray(ticket.Orders) ? ticket.Orders : [];
-        for (const order of orders) {
-          if (!order || typeof order !== "object") continue;
-          const orderDate = String(order.Date || order.ActualDate || "").padStart(8, "0");
-          if (!orderDate || orderDate === "00000000") continue;
-          const orderBorkDate = parseInt(orderDate, 10);
-          if (orderBorkDate < startBorkDate || orderBorkDate > endBorkDate) continue;
-          const dateStr = borkDateToISO(orderBorkDate);
-          const tableNumber = String(order.TableNr || "").trim();
-          const hasTable = tableNumber.length > 0;
-          const lines = Array.isArray(order.Lines) ? order.Lines : [];
-          for (const line of lines) {
-            if (!line || typeof line !== "object") continue;
-            const price = Number(line.Price || 0);
-            const qty = Number(line.Qty || 0);
-            const totalPrice = price * qty;
-            const productName = line.ProductName || "Unknown";
-            const productKey = line.ProductKey || "unknown";
-            const hour = extractHour(ticket.Time);
-            const { businessDate, businessHour } = calendarToBusinessDay(dateStr, hour);
-            const cronKey = `${unifiedLocationId}:${dateStr}`;
-            if (!byCronMap.has(cronKey)) {
-              byCronMap.set(cronKey, {
-                cronTime,
-                locationId: unifiedLocationId,
-                locationName: unifiedLocationName,
-                date: dateStr,
-                total_revenue: 0,
-                total_quantity: 0,
-                record_count: 0
-              });
-            }
-            const cronEntry = byCronMap.get(cronKey);
-            cronEntry.total_revenue = cronEntry.total_revenue + totalPrice;
-            cronEntry.total_quantity = cronEntry.total_quantity + qty;
-            cronEntry.record_count = cronEntry.record_count + 1;
-            const hourKey = `${unifiedLocationId}:${dateStr}:${hour}`;
-            if (!byHourMap.has(hourKey)) {
-              byHourMap.set(hourKey, {
-                date: dateStr,
-                hour,
-                business_date: businessDate,
-                business_hour: businessHour,
-                locationId: unifiedLocationId,
-                locationName: unifiedLocationName,
-                total_revenue: 0,
-                total_quantity: 0,
-                record_count: 0,
-                products: /* @__PURE__ */ new Map()
-              });
-            }
-            const hourEntry = byHourMap.get(hourKey);
-            hourEntry.total_revenue = hourEntry.total_revenue + totalPrice;
-            hourEntry.total_quantity = hourEntry.total_quantity + qty;
-            hourEntry.record_count = hourEntry.record_count + 1;
-            if (!hourEntry.products.has(productKey)) {
-              hourEntry.products.set(productKey, {
-                productId: productKey,
-                productName,
-                revenue: 0,
-                quantity: 0
-              });
-            }
-            const prod = hourEntry.products.get(productKey);
-            prod.revenue += totalPrice;
-            prod.quantity += qty;
-            if (hasTable) {
-              const tableKey = `${unifiedLocationId}:${dateStr}:${hour}:${tableNumber}`;
-              if (!byTableMap.has(tableKey)) {
-                byTableMap.set(tableKey, {
-                  date: dateStr,
-                  hour,
-                  business_date: businessDate,
-                  business_hour: businessHour,
-                  locationId: unifiedLocationId,
-                  locationName: unifiedLocationName,
-                  tableNumber,
-                  total_revenue: 0,
-                  total_quantity: 0,
-                  products: /* @__PURE__ */ new Map()
-                });
-              }
-              const tableEntry = byTableMap.get(tableKey);
-              tableEntry.total_revenue = tableEntry.total_revenue + totalPrice;
-              tableEntry.total_quantity = tableEntry.total_quantity + qty;
-              if (!tableEntry.products.has(productKey)) {
-                tableEntry.products.set(productKey, {
-                  productId: productKey,
-                  productName,
-                  revenue: 0,
-                  quantity: 0
-                });
-              }
-              const tableProd = tableEntry.products.get(productKey);
-              tableProd.revenue += totalPrice;
-              tableProd.quantity += qty;
-            }
-            const workerKey = `${unifiedLocationId}:${dateStr}:${hour}:${unifiedWorkerId}`;
-            if (!byWorkerMap.has(workerKey)) {
-              byWorkerMap.set(workerKey, {
-                date: dateStr,
-                hour,
-                business_date: businessDate,
-                business_hour: businessHour,
-                locationId: unifiedLocationId,
-                locationName: unifiedLocationName,
-                workerId: unifiedWorkerId,
-                workerName: unifiedWorkerName,
-                total_revenue: 0,
-                total_quantity: 0,
-                record_count: 0,
-                products: /* @__PURE__ */ new Map()
-              });
-            }
-            const workerEntry = byWorkerMap.get(workerKey);
-            workerEntry.total_revenue = workerEntry.total_revenue + totalPrice;
-            workerEntry.total_quantity = workerEntry.total_quantity + qty;
-            workerEntry.record_count = workerEntry.record_count + 1;
-            if (!workerEntry.products.has(productKey)) {
-              workerEntry.products.set(productKey, {
-                productId: productKey,
-                productName,
-                revenue: 0,
-                quantity: 0
-              });
-            }
-            const workerProd = workerEntry.products.get(productKey);
-            workerProd.revenue += totalPrice;
-            workerProd.quantity += qty;
-            if (!hasTable) {
-              const guestAccountName = ticket.AccountName || "Unknown Account";
-              const guestKey = `${unifiedLocationId}:${dateStr}:${hour}:${guestAccountName}`;
-              if (!byGuestAccountMap.has(guestKey)) {
-                byGuestAccountMap.set(guestKey, {
-                  date: dateStr,
-                  hour,
-                  business_date: businessDate,
-                  business_hour: businessHour,
-                  locationId: unifiedLocationId,
-                  locationName: unifiedLocationName,
-                  accountName: guestAccountName,
-                  workerId: unifiedWorkerId,
-                  workerName: unifiedWorkerName,
-                  total_revenue: 0,
-                  total_quantity: 0,
-                  products: /* @__PURE__ */ new Map()
-                });
-              }
-              const guestEntry = byGuestAccountMap.get(guestKey);
-              guestEntry.total_revenue = guestEntry.total_revenue + totalPrice;
-              guestEntry.total_quantity = guestEntry.total_quantity + qty;
-              if (!guestEntry.products.has(productKey)) {
-                guestEntry.products.set(productKey, {
-                  productId: productKey,
-                  productName,
-                  revenue: 0,
-                  quantity: 0
-                });
-              }
-              const guestProd = guestEntry.products.get(productKey);
-              guestProd.revenue += totalPrice;
-              guestProd.quantity += qty;
-            }
-            if (!productsMasterMap.has(productKey)) {
-              productsMasterMap.set(productKey, {
-                productId: productKey,
-                productName,
-                locationIds: /* @__PURE__ */ new Set(),
-                createdAt: /* @__PURE__ */ new Date(),
-                updatedAt: /* @__PURE__ */ new Date()
-              });
-            }
-            const prodMaster = productsMasterMap.get(productKey);
-            prodMaster.locationIds.add(String(unifiedLocationId));
-            prodMaster.updatedAt = /* @__PURE__ */ new Date();
-          }
-        }
-      }
-    }
-  } finally {
-    await cursor.close();
-  }
-  const cronDocs = Array.from(byCronMap.values());
-  const hourDocs = Array.from(byHourMap.values()).map((doc) => ({
-    ...doc,
-    products: Array.from(doc.products.values())
-  }));
-  const tableDocs = Array.from(byTableMap.values()).map((doc) => ({
-    ...doc,
-    products: Array.from(doc.products.values())
-  }));
-  const workerDocs = Array.from(byWorkerMap.values()).map((doc) => ({
-    ...doc,
-    products: Array.from(doc.products.values())
-  }));
-  const guestAccountDocs = Array.from(byGuestAccountMap.values()).map((doc) => ({
-    ...doc,
-    products: Array.from(doc.products.values())
-  }));
-  const productDocs = Array.from(productsMasterMap.values()).map((doc) => ({
-    ...doc,
-    locationIds: Array.from(doc.locationIds)
-  }));
-  const clearStartDate = borkDateToISO(startBorkDate);
-  const clearEndDate = borkDateToISO(endBorkDate);
-  console.log(`[rebuildBorkSalesAggregation] Clearing existing aggregations for ${clearStartDate} to ${clearEndDate}...`);
-  await db.collection(`bork_sales_by_cron${collectionSuffix}`).deleteMany({ date: { $gte: clearStartDate, $lte: clearEndDate } });
-  await db.collection(`bork_sales_by_hour${collectionSuffix}`).deleteMany({ date: { $gte: clearStartDate, $lte: clearEndDate } });
-  await db.collection(`bork_sales_by_table${collectionSuffix}`).deleteMany({ date: { $gte: clearStartDate, $lte: clearEndDate } });
-  await db.collection(`bork_sales_by_worker${collectionSuffix}`).deleteMany({ date: { $gte: clearStartDate, $lte: clearEndDate } });
-  await db.collection(`bork_sales_by_guest_account${collectionSuffix}`).deleteMany({ date: { $gte: clearStartDate, $lte: clearEndDate } });
-  if (cronDocs.length > 0) {
-    await db.collection(`bork_sales_by_cron${collectionSuffix}`).insertMany(cronDocs);
-    result.byCron = cronDocs.length;
-  }
-  if (hourDocs.length > 0) {
-    await db.collection(`bork_sales_by_hour${collectionSuffix}`).insertMany(hourDocs);
-    result.byHour = hourDocs.length;
-  }
-  if (tableDocs.length > 0) {
-    await db.collection(`bork_sales_by_table${collectionSuffix}`).insertMany(tableDocs);
-    result.byTable = tableDocs.length;
-  }
-  if (workerDocs.length > 0) {
-    await db.collection(`bork_sales_by_worker${collectionSuffix}`).insertMany(workerDocs);
-    result.byWorker = workerDocs.length;
-  }
-  if (guestAccountDocs.length > 0) {
-    await db.collection(`bork_sales_by_guest_account${collectionSuffix}`).insertMany(guestAccountDocs);
-    result.byGuestAccount = guestAccountDocs.length;
-  }
-  for (const prodDoc of productDocs) {
-    await db.collection("bork_products_master").updateOne(
-      { productId: prodDoc.productId },
-      {
-        $set: {
-          productId: prodDoc.productId,
-          productName: prodDoc.productName,
-          updatedAt: prodDoc.updatedAt
-        },
-        $addToSet: { locationIds: { $each: prodDoc.locationIds } },
-        $setOnInsert: { createdAt: prodDoc.createdAt }
-      },
-      { upsert: true }
-    );
-  }
-  result.productsMaster = productDocs.length;
-  return result;
-}
-
-function getDateRangeForJobType(jobType) {
-  if (jobType === "historical-data") return { days: 30 };
-  return { days: 1 };
-}
-async function tryFetchBorkTicketData(baseUrl, apiKey, dateStr) {
-  const base = baseUrl.replace(/\/$/, "");
-  const url = `${base}/ticket/day.json/${dateStr}?appid=${apiKey}&IncOpen=True&IncInternal=True`;
-  try {
-    const res = await fetch(url, {
-      method: "GET",
-      headers: { Accept: "application/json" }
-    });
-    const text = await res.text();
-    let data = text;
-    try {
-      data = text ? JSON.parse(text) : null;
-    } catch {
-    }
-    if (res.ok) return { ok: true, status: res.status, data };
-    return { ok: false, status: res.status, data: null, error: `HTTP ${res.status}` };
-  } catch (err) {
-    const error = err instanceof Error ? err.message : String(err);
-    return { ok: false, status: 0, data: null, error };
-  }
-}
-async function syncLocationDates(db, cred, jobType) {
-  const locationId = cred.locationId;
-  const lid = locationId != null ? String(locationId) : "unknown";
-  const apiKey = typeof cred.apiKey === "string" ? cred.apiKey : "";
-  const baseUrl = typeof cred.baseUrl === "string" ? cred.baseUrl : "";
-  if (!apiKey || !baseUrl) {
-    return { locationId: lid, ok: false, error: "missing baseUrl or apiKey on credential row" };
-  }
-  const config = getDateRangeForJobType(jobType);
-  const now = /* @__PURE__ */ new Date();
-  const dates = [];
-  for (let i = 0; i < config.days; i++) {
-    const d = new Date(now);
-    d.setDate(d.getDate() - i);
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, "0");
-    const day = String(d.getDate()).padStart(2, "0");
-    dates.push(`${year}${month}${day}`);
-  }
-  let lastError = "";
-  let successCount = 0;
-  for (const dateStr of dates) {
-    const r = await tryFetchBorkTicketData(baseUrl, apiKey, dateStr);
-    if (!r.ok) {
-      lastError = r.error || `HTTP ${r.status || "?"}`;
-      continue;
-    }
-    let records = [];
-    if (Array.isArray(r.data)) {
-      records = r.data;
-    } else if (r.data && typeof r.data === "object") {
-      const obj = r.data;
-      for (const v of Object.values(obj)) {
-        if (Array.isArray(v)) {
-          records = v;
-          break;
-        }
-      }
-    }
-    if (records.length === 0) {
-      continue;
-    }
-    const syncDedupKey = `${lid}:bork_daily:${dateStr}`;
-    const upsertDate = /* @__PURE__ */ new Date();
-    await db.collection("bork_raw_data").updateOne(
-      { syncDedupKey },
-      {
-        $set: {
-          endpoint: "bork_daily",
-          locationId: cred.locationId,
-          date: upsertDate,
-          rawApiResponse: records,
-          syncDedupKey,
-          recordCount: records.length,
-          updatedAt: upsertDate
-        },
-        $setOnInsert: { createdAt: upsertDate }
-      },
-      { upsert: true }
-    );
-    successCount++;
-  }
-  if (successCount > 0) {
-    return { locationId: lid, ok: true, path: `/ticket/day.json/{date}` };
-  }
-  return { locationId: lid, ok: false, error: lastError || "no data returned for any date" };
-}
-async function loadBorkCredentials(db) {
-  return db.collection("api_credentials").find({
-    provider: { $in: ["bork", "Bork"] },
-    $nor: [{ isActive: false }]
-  }).sort({ updatedAt: -1, createdAt: -1 }).toArray();
-}
-async function executeBorkJob(db, jobType) {
-  const creds = await loadBorkCredentials(db);
-  if (creds.length === 0) {
-    return {
-      ok: false,
-      jobType,
-      message: "No Bork rows in api_credentials (provider bork, with apiKey)."
-    };
-  }
-  const locations = [];
-  for (const c of creds) {
-    const r = await syncLocationDates(db, c, jobType);
-    locations.push(r);
-  }
-  const okCount = locations.filter((x) => x.ok).length;
-  const syncOk = okCount > 0;
-  const message = syncOk ? `Synced ${okCount}/${creds.length} location(s) into bork_raw_data` : `0/${creds.length} locations succeeded \u2014 check Bork API credentials and network access`;
-  let aggregationResult = {};
-  if (syncOk && jobType === "daily-data") {
-    try {
-      const today = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
-      aggregationResult = await rebuildBorkSalesAggregation(db, today, today);
-    } catch (e) {
-      console.error("[borkSyncService] Aggregation error:", e);
-    }
-  }
-  const finalMessage = aggregationResult.byCron ? `${message}; Aggregated: ${aggregationResult.byCron} cron snapshots, ${aggregationResult.byHour} hours, ${aggregationResult.byTable} tables, ${aggregationResult.byWorker} workers` : message;
-  return {
-    ok: syncOk,
-    jobType,
-    message: finalMessage,
-    locations
-  };
-}
-async function syncBorkSingleLocation(db, locationId, mode) {
-  var _a, _b;
-  const orLoc = [{ locationId }];
-  try {
-    orLoc.push({ locationId: new ObjectId(locationId) });
-  } catch {
-  }
-  const cred = await db.collection("api_credentials").findOne({
-    provider: { $in: ["bork", "Bork"] },
-    $or: orLoc,
-    $nor: [{ isActive: false }]
-  });
-  if (!cred) {
-    return { ok: false, jobType: mode, message: "No Bork credential for this locationId" };
-  }
-  const r = await syncLocationDates(db, cred, mode === "ping" ? "daily-data" : mode === "master" ? "master-data" : "daily-data");
-  return {
-    ok: r.ok,
-    jobType: mode,
-    message: r.ok ? `OK via ${(_a = r.path) != null ? _a : "?"}` : (_b = r.error) != null ? _b : "failed",
-    locations: [r]
-  };
-}
-
 const cron_post$2 = defineEventHandler(async (event) => {
   const body = await readBody(event);
   if (!(body == null ? void 0 : body.jobType) || !(body == null ? void 0 : body.action)) {
@@ -32919,30 +34555,7 @@ const cron_post$2 = defineEventHandler(async (event) => {
     return { success: true, message: "Cron config updated" };
   }
   if (body.action === "run-now") {
-    await db.collection("integration_cron_jobs").updateOne(
-      query,
-      {
-        $set: {
-          source: "bork",
-          jobType: body.jobType,
-          lastRun: now.toISOString(),
-          lastRunUTC: now.toISOString(),
-          updatedAt: now
-        },
-        $setOnInsert: { createdAt: now, isActive: true }
-      },
-      { upsert: true }
-    );
-    const syncResult = await executeBorkJob(db, body.jobType);
-    await db.collection("integration_cron_jobs").updateOne(query, {
-      $set: {
-        lastSyncAt: now.toISOString(),
-        lastSyncOk: syncResult.ok,
-        lastSyncMessage: syncResult.message,
-        lastSyncDetail: syncResult,
-        updatedAt: /* @__PURE__ */ new Date()
-      }
-    });
+    const { syncResult } = await runIntegrationCronJob(db, "bork", body.jobType);
     return {
       success: syncResult.ok,
       message: syncResult.message,
@@ -33885,7 +35498,7 @@ const revenue_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.definePrope
   default: revenue_get
 }, Symbol.toStringTag, { value: 'Module' }));
 
-const sales_get = defineEventHandler((event) => {
+const sales_get$2 = defineEventHandler((event) => {
   const q = getQuery$1(event);
   const period = typeof q.period === "string" ? q.period : "today";
   const anchor = typeof q.anchor === "string" ? q.anchor : void 0;
@@ -33902,9 +35515,9 @@ const sales_get = defineEventHandler((event) => {
   };
 });
 
-const sales_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+const sales_get$3 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
   __proto__: null,
-  default: sales_get
+  default: sales_get$2
 }, Symbol.toStringTag, { value: 'Module' }));
 
 const workload_get = defineEventHandler((event) => {
@@ -34199,909 +35812,6 @@ const cron_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty
   default: cron_get
 }, Symbol.toStringTag, { value: 'Module' }));
 
-function dayStartUtc(dateStr) {
-  const [y, m, d] = dateStr.split("-").map(Number);
-  return new Date(Date.UTC(y != null ? y : 0, (m != null ? m : 1) - 1, d != null ? d : 1, 0, 0, 0, 0));
-}
-function dayEndUtc(dateStr) {
-  const [y, m, d] = dateStr.split("-").map(Number);
-  return new Date(Date.UTC(y != null ? y : 0, (m != null ? m : 1) - 1, d != null ? d : 1, 23, 59, 59, 999));
-}
-async function rebuildEitjeTimeRegistrationAggregation(db, startDate, endDate) {
-  const collAgg = db.collection("eitje_time_registration_aggregation");
-  const del = await collAgg.deleteMany({
-    period_type: "day",
-    period: { $gte: startDate, $lte: endDate }
-  });
-  const startD = dayStartUtc(startDate);
-  const endD = dayEndUtc(endDate);
-  const pipeline = [
-    {
-      $match: {
-        endpoint: "time_registration_shifts",
-        date: { $gte: startD, $lte: endD }
-      }
-    },
-    {
-      $addFields: {
-        ...EITJE_HOURS_ADD_FIELDS,
-        period: {
-          $dateToString: { format: "%Y-%m-%d", date: "$date", timezone: "UTC" }
-        },
-        userId: { $ifNull: ["$extracted.userId", "$rawApiResponse.user_id"] },
-        teamId: { $ifNull: ["$extracted.teamId", "$rawApiResponse.team_id"] },
-        environmentId: {
-          $ifNull: [
-            "$environmentId",
-            "$extracted.environmentId",
-            "$rawApiResponse.environment_id",
-            "$rawApiResponse.environmentId",
-            "$rawApiResponse.environment.id"
-          ]
-        }
-      }
-    },
-    {
-      $lookup: {
-        from: "unified_location",
-        let: { eid: "$environmentId" },
-        pipeline: [
-          {
-            $match: {
-              $expr: {
-                $and: [
-                  { $ne: ["$$eid", null] },
-                  { $in: ["$$eid", { $ifNull: ["$eitjeIds", []] }] }
-                ]
-              }
-            }
-          },
-          { $limit: 1 },
-          { $project: { primaryId: 1, primaryName: 1 } }
-        ],
-        as: "loc"
-      }
-    },
-    {
-      $addFields: {
-        locationId: {
-          $ifNull: [
-            { $arrayElemAt: ["$loc.primaryId", 0] },
-            { $toString: { $ifNull: ["$environmentId", "unknown"] } }
-          ]
-        },
-        location_name: {
-          $ifNull: [
-            { $arrayElemAt: ["$loc.primaryName", 0] },
-            {
-              $ifNull: [
-                "$extracted.locationName",
-                { $ifNull: ["$rawApiResponse.location_name", "$rawApiResponse.environment_name"] },
-                { $ifNull: ["$rawApiResponse.environment.name", null] }
-              ]
-            }
-          ]
-        }
-      }
-    },
-    {
-      $match: {
-        userId: { $nin: [null, ""] },
-        teamId: { $nin: [null, ""] }
-      }
-    },
-    {
-      $lookup: {
-        from: "members",
-        let: { uid: "$userId" },
-        pipeline: [
-          {
-            $match: {
-              $expr: {
-                $or: [
-                  { $eq: ["$eitje_id", "$$uid"] },
-                  { $in: ["$$uid", { $ifNull: ["$eitje_ids", []] }] }
-                ]
-              }
-            }
-          },
-          { $limit: 1 },
-          { $project: { hourly_rate: 1 } }
-        ],
-        as: "memberDoc"
-      }
-    },
-    {
-      $lookup: {
-        from: "unified_user",
-        let: { uid: "$userId" },
-        pipeline: [
-          {
-            $match: {
-              $expr: {
-                $or: [
-                  { $in: ["$$uid", { $ifNull: ["$eitjeIds", []] }] },
-                  { $in: ["$$uid", { $ifNull: ["$allIdValues", []] }] },
-                  { $eq: ["$primaryId", "$$uid"] }
-                ]
-              }
-            }
-          },
-          { $limit: 1 },
-          { $project: { primaryName: 1, hourly_rate: 1 } }
-        ],
-        as: "u"
-      }
-    },
-    {
-      $lookup: {
-        from: "unified_team",
-        let: { tid: "$teamId" },
-        pipeline: [
-          {
-            $match: {
-              $expr: {
-                $or: [
-                  { $in: ["$$tid", { $ifNull: ["$eitjeIds", []] }] },
-                  { $in: ["$$tid", { $ifNull: ["$allIdValues", []] }] },
-                  { $eq: ["$primaryId", "$$tid"] }
-                ]
-              }
-            }
-          },
-          { $limit: 1 },
-          { $project: { primaryName: 1, canonicalName: 1 } }
-        ],
-        as: "t"
-      }
-    },
-    {
-      $addFields: {
-        user_name: {
-          $ifNull: [
-            { $arrayElemAt: ["$u.primaryName", 0] },
-            {
-              $ifNull: [
-                "$rawApiResponse.user.name",
-                { $ifNull: ["$rawApiResponse.employee_name", "Unknown"] }
-              ]
-            }
-          ]
-        },
-        hourly_rate: {
-          $ifNull: [
-            { $arrayElemAt: ["$memberDoc.hourly_rate", 0] },
-            { $arrayElemAt: ["$u.hourly_rate", 0] }
-          ]
-        },
-        cost: {
-          $cond: [
-            { $and: [{ $ne: ["$hours", null] }, { $ne: [{ $ifNull: [{ $arrayElemAt: ["$memberDoc.hourly_rate", 0] }, { $arrayElemAt: ["$u.hourly_rate", 0] }] }, null] }] },
-            { $multiply: ["$hours", { $ifNull: [{ $arrayElemAt: ["$memberDoc.hourly_rate", 0] }, { $arrayElemAt: ["$u.hourly_rate", 0] }] }] },
-            {
-              $ifNull: [
-                { $divide: [{ $toDouble: "$extracted.amountInCents" }, 100] },
-                { $ifNull: [{ $divide: [{ $toDouble: "$rawApiResponse.amt_in_cents" }, 100] }, 0] }
-              ]
-            }
-          ]
-        },
-        team_name: {
-          $ifNull: [
-            { $arrayElemAt: ["$t.canonicalName", 0] },
-            {
-              $ifNull: [
-                { $arrayElemAt: ["$t.primaryName", 0] },
-                { $ifNull: ["$rawApiResponse.team.name", "Unknown"] }
-              ]
-            }
-          ]
-        }
-      }
-    },
-    {
-      $group: {
-        _id: {
-          period: "$period",
-          locationId: "$locationId",
-          userId: "$userId",
-          teamId: "$teamId"
-        },
-        location_name: { $first: "$location_name" },
-        user_name: { $first: "$user_name" },
-        team_name: { $first: "$team_name" },
-        hourly_rate: { $first: "$hourly_rate" },
-        total_hours: { $sum: "$hours" },
-        total_cost: { $sum: "$cost" },
-        record_count: { $sum: 1 }
-      }
-    },
-    {
-      $project: {
-        _id: 0,
-        period: "$_id.period",
-        period_type: "day",
-        locationId: "$_id.locationId",
-        location_name: 1,
-        userId: "$_id.userId",
-        user_name: 1,
-        teamId: "$_id.teamId",
-        team_name: 1,
-        hourly_rate: 1,
-        total_hours: 1,
-        total_cost: 1,
-        record_count: 1
-      }
-    }
-  ];
-  const docs = await db.collection("eitje_raw_data").aggregate(pipeline).toArray();
-  if (docs.length > 0) {
-    await collAgg.insertMany(docs);
-  }
-  return { deletedPeriods: del.deletedCount, inserted: docs.length };
-}
-
-var _a;
-function envInt(name, fallback) {
-  const v = process.env[name];
-  if (!v) return fallback;
-  const n = Number(v);
-  return Number.isFinite(n) ? n : fallback;
-}
-async function loadActiveEitjeCredentials(db) {
-  const row = await findEitjeCredentialDocument(db);
-  if (!row) return null;
-  return documentToEitjeStoredCredentials(row);
-}
-function eitjeCredentialsHintMessage() {
-  const dbn = getMongoDatabaseName();
-  return `No usable Eitje row in api_credentials (database "${dbn}"). Open Settings \u2192 Eitje API \u2192 save all four fields, or align MONGODB_DB_NAME / MONGODB_URI in .env.local with the DB where you store credentials.`;
-}
-function extractRecords(data) {
-  if (Array.isArray(data)) return data;
-  if (data && typeof data === "object") {
-    const o = data;
-    for (const v of Object.values(o)) {
-      if (Array.isArray(v) && v.length > 0 && typeof v[0] === "object" && v[0] !== null) {
-        return v;
-      }
-    }
-  }
-  return [];
-}
-function nextPageUrl(data, currentUrl) {
-  var _a2, _b, _c;
-  if (!data || typeof data !== "object") return null;
-  const o = data;
-  const links = (_a2 = o.links) != null ? _a2 : o._links;
-  if (links && typeof links === "object") {
-    const l = links;
-    const n = (_b = l.next) != null ? _b : l.Next;
-    if (typeof n === "string" && n.startsWith("http")) return n;
-  }
-  const meta = o.meta;
-  if (meta && typeof meta === "object") {
-    const m = meta;
-    const n = (_c = m.next_page_url) != null ? _c : m.next;
-    if (typeof n === "string" && n.startsWith("http")) return n;
-  }
-  return null;
-}
-function stableDedupKey(endpoint, raw) {
-  var _a2, _b;
-  const id = (_b = (_a2 = raw.id) != null ? _a2 : raw.shift_id) != null ? _b : raw.uuid;
-  if (id != null && String(id).length > 0) return `${endpoint}:${String(id)}`;
-  const h = createHash("sha256").update(
-    JSON.stringify([
-      raw.user_id,
-      raw.userId,
-      raw.date,
-      raw.start,
-      raw.start_time,
-      raw.end,
-      raw.end_time,
-      raw.environment_id,
-      raw.environmentId
-    ])
-  ).digest("hex");
-  return `${endpoint}:h:${h.slice(0, 32)}`;
-}
-function toDate(v) {
-  if (v == null) return null;
-  if (v instanceof Date) return Number.isNaN(v.getTime()) ? null : v;
-  const d = new Date(String(v));
-  return Number.isNaN(d.getTime()) ? null : d;
-}
-function num(v) {
-  if (v == null) return void 0;
-  const n = Number(v);
-  return Number.isFinite(n) ? n : void 0;
-}
-function buildRawShiftDoc(raw, endpoint) {
-  var _a2, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p, _q, _r, _s, _t, _u, _v;
-  const start = (_c = (_b = (_a2 = raw.start) != null ? _a2 : raw.start_time) != null ? _b : raw.started_at) != null ? _c : raw.from;
-  const dateRaw = (_g = (_f = (_e = (_d = raw.date) != null ? _d : raw.work_date) != null ? _e : raw.day) != null ? _f : raw.worked_on) != null ? _g : typeof start === "string" ? start.slice(0, 10) : null;
-  let date = toDate(dateRaw);
-  if (!date && start != null) date = toDate(start);
-  if (!date) date = /* @__PURE__ */ new Date();
-  const userObj = raw.user && typeof raw.user === "object" ? raw.user : null;
-  const teamObj = raw.team && typeof raw.team === "object" ? raw.team : null;
-  const userId = (_i = (_h = raw.user_id) != null ? _h : raw.userId) != null ? _i : userObj == null ? void 0 : userObj.id;
-  const supportId = (_k = (_j = raw.support_id) != null ? _j : raw.supportId) != null ? _k : userObj == null ? void 0 : userObj.support_id;
-  const teamId = (_m = (_l = raw.team_id) != null ? _l : raw.teamId) != null ? _m : teamObj == null ? void 0 : teamObj.id;
-  const environmentId = (_p = (_o = (_n = num(raw.environment_id)) != null ? _n : num(raw.environmentId)) != null ? _o : num(raw.location_id)) != null ? _p : num(raw.venue_id);
-  const hoursPre = (_s = (_r = (_q = num(raw.hours)) != null ? _q : num(raw.hours_worked)) != null ? _r : num(raw.hoursWorked)) != null ? _s : void 0;
-  const extracted = {
-    userId,
-    supportId,
-    teamId,
-    environmentId,
-    locationName: (_t = raw.location_name) != null ? _t : raw.environment_name,
-    environmentName: (_u = raw.environment_name) != null ? _u : raw.location_name,
-    hours: hoursPre,
-    amountInCents: (_v = num(raw.amt_in_cents)) != null ? _v : num(raw.amount_in_cents)
-  };
-  const syncDedupKey = stableDedupKey(endpoint, raw);
-  const now = /* @__PURE__ */ new Date();
-  return {
-    endpoint,
-    date,
-    environmentId: environmentId != null ? environmentId : void 0,
-    extracted,
-    rawApiResponse: raw,
-    syncDedupKey,
-    updatedAt: now,
-    createdAt: now
-  };
-}
-function buildListEntityDoc(raw, endpoint) {
-  var _a2, _b, _c;
-  const id = (_b = (_a2 = raw.id) != null ? _a2 : raw.uuid) != null ? _b : raw.slug;
-  const syncDedupKey = id != null ? `${endpoint}:${String(id)}` : stableDedupKey(endpoint, raw);
-  const now = /* @__PURE__ */ new Date();
-  return {
-    endpoint,
-    date: now,
-    extracted: { id: raw.id, name: (_c = raw.name) != null ? _c : raw.title },
-    rawApiResponse: raw,
-    syncDedupKey,
-    updatedAt: now,
-    createdAt: now
-  };
-}
-async function fetchAllList(creds, path, query) {
-  const out = [];
-  let url = path;
-  let lastStatus = 0;
-  let lastError = "";
-  const maxPages = envInt("EITJE_SYNC_MAX_PAGES", 200);
-  for (let page = 0; page < maxPages && url; page++) {
-    const res = await eitjeFetchJson(creds, url, page === 0 ? { query } : void 0);
-    lastStatus = res.status;
-    if (!res.ok) {
-      lastError = typeof res.data === "string" ? res.data : JSON.stringify(res.data);
-      return { records: out, lastError, lastStatus };
-    }
-    const batch = extractRecords(res.data);
-    out.push(...batch);
-    const next = nextPageUrl(res.data, res.url);
-    url = next;
-    if (!next) break;
-  }
-  return { records: out, lastStatus };
-}
-const TR_PATH = (_a = process.env.EITJE_PATH_TIME_REGISTRATION_SHIFTS) != null ? _a : "time_registration_shifts";
-function splitDateRangeForEitje(startDate, endDate, maxDays) {
-  var _a2, _b;
-  const start = /* @__PURE__ */ new Date(`${startDate}T00:00:00.000Z`);
-  const end = /* @__PURE__ */ new Date(`${endDate}T00:00:00.000Z`);
-  const totalDays = Math.ceil((end.getTime() - start.getTime()) / (1e3 * 60 * 60 * 24));
-  if (totalDays <= maxDays) {
-    return [{ startDate, endDate }];
-  }
-  const chunks = [];
-  let currentStart = new Date(start);
-  while (currentStart < end) {
-    const currentEnd = new Date(currentStart);
-    currentEnd.setUTCDate(currentEnd.getUTCDate() + maxDays - 1);
-    if (currentEnd > end) {
-      currentEnd.setTime(end.getTime());
-    }
-    chunks.push({
-      startDate: (_a2 = currentStart.toISOString().split("T")[0]) != null ? _a2 : startDate,
-      endDate: (_b = currentEnd.toISOString().split("T")[0]) != null ? _b : endDate
-    });
-    currentStart = new Date(currentEnd);
-    currentStart.setUTCDate(currentStart.getUTCDate() + 1);
-  }
-  return chunks;
-}
-async function persistRawTimeRegistrationShifts(db, records) {
-  if (records.length === 0) return 0;
-  const coll = db.collection("eitje_raw_data");
-  let upserted = 0;
-  const chunk = 200;
-  for (let i = 0; i < records.length; i += chunk) {
-    const slice = records.slice(i, i + chunk);
-    const ops = slice.map((raw) => {
-      const doc = buildRawShiftDoc(raw, "time_registration_shifts");
-      return {
-        updateOne: {
-          filter: { endpoint: "time_registration_shifts", syncDedupKey: doc.syncDedupKey },
-          update: {
-            $set: {
-              endpoint: doc.endpoint,
-              date: doc.date,
-              environmentId: doc.environmentId,
-              extracted: doc.extracted,
-              rawApiResponse: doc.rawApiResponse,
-              updatedAt: doc.updatedAt
-            },
-            $setOnInsert: { createdAt: doc.createdAt }
-          },
-          upsert: true
-        }
-      };
-    });
-    const res = await coll.bulkWrite(ops, { ordered: false });
-    upserted += res.upsertedCount + res.modifiedCount;
-  }
-  return upserted;
-}
-async function syncTimeRegistrationShiftsWindow(db, creds, startDate, endDate) {
-  const tryLegacyGetWithBody = async () => {
-    const base = normalizeEitjeBaseUrl(creds.baseUrl).replace(/\/$/, "");
-    const rawUrl = `${base}/time_registration_shifts`;
-    const body = JSON.stringify({
-      filters: {
-        start_date: startDate,
-        end_date: endDate,
-        date_filter_type: "resource_date"
-      }
-    });
-    try {
-      const url = new URL(rawUrl);
-      const transport = url.protocol === "https:" ? request : request$1;
-      const headers = {
-        ...legacyEitjeV2Headers(creds),
-        "Content-Length": String(Buffer.byteLength(body, "utf8"))
-      };
-      const response = await new Promise((resolve, reject) => {
-        const req = transport(
-          url,
-          {
-            method: "GET",
-            headers,
-            timeout: 3e4
-          },
-          (res) => {
-            let text = "";
-            res.setEncoding("utf8");
-            res.on("data", (chunk) => {
-              text += chunk;
-            });
-            res.on("end", () => {
-              var _a2;
-              return resolve({ status: (_a2 = res.statusCode) != null ? _a2 : 0, text });
-            });
-          }
-        );
-        req.on("timeout", () => req.destroy(new Error("request timeout")));
-        req.on("error", reject);
-        req.write(body);
-        req.end();
-      });
-      let parsed = response.text;
-      try {
-        parsed = response.text ? JSON.parse(response.text) : null;
-      } catch {
-      }
-      if (response.status >= 200 && response.status < 300) {
-        return { records: extractRecords(parsed), lastStatus: response.status };
-      }
-      const err2 = typeof parsed === "string" ? parsed : JSON.stringify(parsed);
-      return { records: [], lastStatus: response.status, lastError: err2 };
-    } catch (e) {
-      return { records: [], lastStatus: 0, lastError: e instanceof Error ? e.message : String(e) };
-    }
-  };
-  const legacyBodyResult = await tryLegacyGetWithBody();
-  if (legacyBodyResult.records.length > 0) {
-    const upserted2 = await persistRawTimeRegistrationShifts(db, legacyBodyResult.records);
-    return { upserted: upserted2, fetched: legacyBodyResult.records.length };
-  }
-  const queryAttempts = [
-    { from: startDate, to: endDate },
-    { start_date: startDate, end_date: endDate },
-    { date_from: startDate, date_to: endDate }
-  ];
-  let records = [];
-  let err = "";
-  let status = 0;
-  const pathCandidates = [
-    TR_PATH,
-    `v1/${TR_PATH}`,
-    "time-registrations",
-    "time_registrations"
-  ];
-  outer: for (const path of pathCandidates) {
-    for (const q of queryAttempts) {
-      const r = await fetchAllList(creds, path, q);
-      status = r.lastStatus;
-      if (r.records.length > 0) {
-        records = r.records;
-        err = "";
-        break outer;
-      }
-      if (r.lastError) err = r.lastError;
-    }
-  }
-  if (records.length === 0 && err) {
-    const legacyErr = legacyBodyResult.lastError ? `; legacy-body: ${legacyBodyResult.lastError.slice(0, 200)}` : "";
-    return { upserted: 0, fetched: 0, error: `HTTP ${status}: ${err.slice(0, 400)}${legacyErr}` };
-  }
-  const upserted = await persistRawTimeRegistrationShifts(db, records);
-  return { upserted, fetched: records.length };
-}
-const sleepMs = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-async function syncTimeRegistrationShifts(db, creds, startDate, endDate) {
-  const maxDays = envInt("EITJE_TIME_REGISTRATION_MAX_DAYS", 7);
-  const chunkDelayMs = envInt("EITJE_BACKFILL_CHUNK_DELAY_MS", 0);
-  const chunks = splitDateRangeForEitje(startDate, endDate, maxDays);
-  let upserted = 0;
-  let fetched = 0;
-  let i = 0;
-  for (const ch of chunks) {
-    i++;
-    const r = await syncTimeRegistrationShiftsWindow(db, creds, ch.startDate, ch.endDate);
-    if (r.error) {
-      return {
-        upserted,
-        fetched,
-        error: `${r.error} (window ${ch.startDate}\u2013${ch.endDate})`
-      };
-    }
-    upserted += r.upserted;
-    fetched += r.fetched;
-    if (chunkDelayMs > 0 && i < chunks.length) await sleepMs(chunkDelayMs);
-  }
-  return { upserted, fetched };
-}
-async function syncListEndpoint(db, creds, endpoint, pathCandidates) {
-  let records = [];
-  let err = "";
-  let status = 0;
-  for (const path of pathCandidates) {
-    const r = await fetchAllList(creds, path, {});
-    status = r.lastStatus;
-    if (r.records.length > 0) {
-      records = r.records;
-      err = "";
-      break;
-    }
-    if (r.lastError) err = r.lastError;
-  }
-  if (records.length === 0) {
-    return { upserted: 0, fetched: 0, error: err ? `HTTP ${status}: ${err.slice(0, 200)}` : "empty response" };
-  }
-  const coll = db.collection("eitje_raw_data");
-  let upserted = 0;
-  const chunk = 200;
-  for (let i = 0; i < records.length; i += chunk) {
-    const slice = records.slice(i, i + chunk);
-    const ops = slice.map((raw) => {
-      const doc = buildListEntityDoc(raw, endpoint);
-      return {
-        updateOne: {
-          filter: { endpoint, syncDedupKey: doc.syncDedupKey },
-          update: {
-            $set: {
-              endpoint: doc.endpoint,
-              date: doc.date,
-              extracted: doc.extracted,
-              rawApiResponse: doc.rawApiResponse,
-              updatedAt: doc.updatedAt
-            },
-            $setOnInsert: { createdAt: doc.createdAt }
-          },
-          upsert: true
-        }
-      };
-    });
-    const res = await coll.bulkWrite(ops, { ordered: false });
-    upserted += res.upsertedCount + res.modifiedCount;
-  }
-  return { upserted, fetched: records.length };
-}
-function dateRangeDays(days) {
-  const end = /* @__PURE__ */ new Date();
-  const start = /* @__PURE__ */ new Date();
-  start.setUTCDate(start.getUTCDate() - days);
-  const fmt = (d) => {
-    var _a2;
-    return (_a2 = d.toISOString().split("T")[0]) != null ? _a2 : "";
-  };
-  return { start: fmt(start), end: fmt(end) };
-}
-async function pingEitjeApi(creds) {
-  var _a2;
-  const paths = ["environments", "v1/environments", "locations", "v1/locations"];
-  for (const p of paths) {
-    const res = await eitjeFetchJson(creds, p, {});
-    if (res.ok) {
-      const n = extractRecords(res.data).length;
-      return { ok: true, message: `OK (${p}${n ? `, ${n} rows` : ""})` };
-    }
-  }
-  const last = await eitjeFetchJson(creds, (_a2 = paths[0]) != null ? _a2 : "environments", {});
-  const msg = typeof last.data === "string" ? last.data : JSON.stringify(last.data);
-  const base = `HTTP ${last.status} ${msg.slice(0, 240)} (last auth: ${last.authAttempt})`;
-  if (msg.includes("not all required auth keys present")) {
-    return {
-      ok: false,
-      message: `${base} \u2014 Eitje returns this for missing and for rejected credentials. Confirm base URL (often .../open_api), Partner vs API username/password are the ones from Eitje Open API (not your web login), and re-save in Settings.`
-    };
-  }
-  return { ok: false, message: base };
-}
-async function executeEitjeJob(db, jobType) {
-  var _a2, _b;
-  const creds = await loadActiveEitjeCredentials(db);
-  if (!creds) {
-    return {
-      ok: false,
-      jobType,
-      message: eitjeCredentialsHintMessage()
-    };
-  }
-  if (jobType === "master-data") {
-    const endpoints = [
-      { name: "environments", paths: ["environments", "v1/environments", "locations"] },
-      { name: "teams", paths: ["teams", "v1/teams"] },
-      { name: "users", paths: ["users", "v1/users", "employees"] }
-    ];
-    const master = { endpoints: [] };
-    for (const e of endpoints) {
-      const r = await syncListEndpoint(db, creds, e.name, e.paths);
-      master.endpoints.push({ name: e.name, upserted: r.upserted, fetched: r.fetched, error: r.error });
-    }
-    const ok2 = master.endpoints.some((x) => x.fetched > 0);
-    if (ok2) {
-      try {
-        await syncUnifiedMasterDataFromRaw(db);
-      } catch (e) {
-        console.error("[syncUnifiedMasterDataFromRaw]", e);
-      }
-    }
-    return {
-      ok: ok2,
-      jobType,
-      message: ok2 ? "Master data sync finished" : "Master data sync returned no rows (check API paths / credentials)",
-      master
-    };
-  }
-  const dailyDays = envInt("EITJE_DAILY_SYNC_DAYS", 14);
-  const histDays = envInt("EITJE_HISTORICAL_SYNC_DAYS", 30);
-  const days = jobType === "historical-data" ? histDays : dailyDays;
-  const { start, end } = dateRangeDays(days);
-  const tr = await syncTimeRegistrationShifts(db, creds, start, end);
-  let agg;
-  try {
-    agg = await rebuildEitjeTimeRegistrationAggregation(db, start, end);
-    await syncUnifiedCollectionsFromRawData(db);
-  } catch (e) {
-    agg = {
-      deletedPeriods: 0,
-      inserted: 0,
-      error: e instanceof Error ? e.message : String(e)
-    };
-  }
-  const ok = !tr.error && (tr.fetched > 0 || tr.upserted > 0 || ((_a2 = agg == null ? void 0 : agg.inserted) != null ? _a2 : 0) > 0);
-  return {
-    ok,
-    jobType,
-    message: tr.error ? `Time registration: ${tr.error}` : `Synced ${tr.fetched} shifts (${tr.upserted} writes), aggregation +${(_b = agg == null ? void 0 : agg.inserted) != null ? _b : 0} rows`,
-    timeRegistration: tr,
-    aggregation: agg
-  };
-}
-async function syncUnifiedMasterDataFromRaw(db) {
-  try {
-    let locationsUpdated = 0;
-    let teamsUpdated = 0;
-    let usersUpdated = 0;
-    const envDocs = await db.collection("eitje_raw_data").find({ endpoint: "environments" }).toArray();
-    const uniqueEnvs = /* @__PURE__ */ new Map();
-    envDocs.forEach((doc) => {
-      const extracted = doc.extracted;
-      const id = extracted == null ? void 0 : extracted.id;
-      const name = extracted == null ? void 0 : extracted.name;
-      if (id && name) uniqueEnvs.set(id, String(name));
-    });
-    for (const [id, name] of uniqueEnvs) {
-      const result = await db.collection("unified_location").updateOne(
-        { $or: [{ eitjeIds: id }, { allIdValues: id }] },
-        {
-          $set: {
-            eitjeIds: [id],
-            allIdValues: [id],
-            primaryName: name,
-            name,
-            updatedAt: /* @__PURE__ */ new Date()
-          },
-          $setOnInsert: { createdAt: /* @__PURE__ */ new Date() }
-        },
-        { upsert: true }
-      );
-      locationsUpdated += result.upsertedCount + result.modifiedCount;
-    }
-    const teamDocs = await db.collection("eitje_raw_data").find({ endpoint: "teams" }).toArray();
-    const uniqueTeams = /* @__PURE__ */ new Map();
-    teamDocs.forEach((doc) => {
-      const extracted = doc.extracted;
-      const id = extracted == null ? void 0 : extracted.id;
-      const name = extracted == null ? void 0 : extracted.name;
-      if (id && name) uniqueTeams.set(id, String(name));
-    });
-    for (const [id, name] of uniqueTeams) {
-      const result = await db.collection("unified_team").updateOne(
-        { $or: [{ eitjeIds: id }, { allIdValues: id }] },
-        {
-          $set: {
-            eitjeIds: [id],
-            allIdValues: [id],
-            primaryName: name,
-            canonicalName: name,
-            updatedAt: /* @__PURE__ */ new Date()
-          },
-          $setOnInsert: { createdAt: /* @__PURE__ */ new Date() }
-        },
-        { upsert: true }
-      );
-      teamsUpdated += result.upsertedCount + result.modifiedCount;
-    }
-    const userDocs = await db.collection("eitje_raw_data").find({ endpoint: "users" }).toArray();
-    const uniqueUsers = /* @__PURE__ */ new Map();
-    userDocs.forEach((doc) => {
-      const extracted = doc.extracted;
-      const id = extracted == null ? void 0 : extracted.id;
-      const raw = doc.rawApiResponse;
-      const firstName = (raw == null ? void 0 : raw.first_name) ? String(raw.first_name) : "";
-      const lastName = (raw == null ? void 0 : raw.last_name) ? String(raw.last_name) : "";
-      const email = (raw == null ? void 0 : raw.email) ? String(raw.email) : "";
-      const name = firstName && lastName ? `${firstName} ${lastName}` : email || String(id);
-      if (id) uniqueUsers.set(id, name);
-    });
-    for (const [id, name] of uniqueUsers) {
-      const result = await db.collection("unified_user").updateOne(
-        { $or: [{ eitjeIds: id }, { allIdValues: id }] },
-        {
-          $set: {
-            eitjeIds: [id],
-            allIdValues: [id],
-            primaryName: name,
-            canonicalName: name,
-            updatedAt: /* @__PURE__ */ new Date()
-          },
-          $setOnInsert: { createdAt: /* @__PURE__ */ new Date() }
-        },
-        { upsert: true }
-      );
-      usersUpdated += result.upsertedCount + result.modifiedCount;
-    }
-    return { locationsUpdated, teamsUpdated, usersUpdated };
-  } catch (e) {
-    return {
-      locationsUpdated: 0,
-      teamsUpdated: 0,
-      usersUpdated: 0,
-      error: e instanceof Error ? e.message : String(e)
-    };
-  }
-}
-async function syncUnifiedCollectionsFromRawData(db) {
-  try {
-    let usersUpdated = 0;
-    let teamsUpdated = 0;
-    const userAgg = await db.collection("eitje_raw_data").aggregate([
-      { $match: { endpoint: "time_registration_shifts" } },
-      { $addFields: { userId: { $ifNull: ["$extracted.userId", "$rawApiResponse.user_id"] } } },
-      { $group: { _id: "$userId", userName: { $first: "$rawApiResponse.user.name" } } },
-      { $match: { _id: { $nin: [null, ""] } } }
-    ]).toArray();
-    for (const user of userAgg) {
-      const result = await db.collection("unified_user").updateOne(
-        { eitjeIds: user._id },
-        {
-          $addToSet: {
-            eitjeIds: user._id,
-            allIdValues: user._id
-          },
-          $set: { updatedAt: /* @__PURE__ */ new Date() },
-          $setOnInsert: {
-            primaryName: user.userName,
-            canonicalName: user.userName,
-            createdAt: /* @__PURE__ */ new Date()
-          }
-        },
-        { upsert: true }
-      );
-      usersUpdated += result.upsertedCount + result.modifiedCount;
-    }
-    const teamAgg = await db.collection("eitje_raw_data").aggregate([
-      { $match: { endpoint: "time_registration_shifts" } },
-      { $addFields: { teamId: { $ifNull: ["$extracted.teamId", "$rawApiResponse.team_id"] } } },
-      { $group: { _id: "$teamId", teamName: { $first: "$rawApiResponse.team.name" } } },
-      { $match: { _id: { $nin: [null, ""] } } }
-    ]).toArray();
-    for (const team of teamAgg) {
-      const result = await db.collection("unified_team").updateOne(
-        { eitjeIds: team._id },
-        {
-          $addToSet: {
-            eitjeIds: team._id,
-            allIdValues: team._id
-          },
-          $set: { updatedAt: /* @__PURE__ */ new Date() },
-          $setOnInsert: {
-            primaryName: team.teamName,
-            canonicalName: team.teamName,
-            createdAt: /* @__PURE__ */ new Date()
-          }
-        },
-        { upsert: true }
-      );
-      teamsUpdated += result.upsertedCount + result.modifiedCount;
-    }
-    return { usersUpdated, teamsUpdated };
-  } catch (e) {
-    return {
-      usersUpdated: 0,
-      teamsUpdated: 0,
-      error: e instanceof Error ? e.message : String(e)
-    };
-  }
-}
-async function syncEitjeByRequest(db, body) {
-  var _a2, _b, _c, _d, _e;
-  const creds = await loadActiveEitjeCredentials(db);
-  if (!creds) {
-    return { ok: false, jobType: "manual", message: eitjeCredentialsHintMessage() };
-  }
-  const ep = body.endpoint || "environments";
-  if (ep === "environments" || ep === "locations") {
-    const ping = await pingEitjeApi(creds);
-    return { ok: ping.ok, jobType: "manual", message: ping.message };
-  }
-  if (ep === "time_registration_shifts") {
-    const dr = dateRangeDays(envInt("EITJE_DAILY_SYNC_DAYS", 14));
-    const end = (_a2 = body.endDate) != null ? _a2 : dr.end;
-    const start = (_b = body.startDate) != null ? _b : dr.start;
-    const tr = await syncTimeRegistrationShifts(db, creds, start, end);
-    let agg;
-    try {
-      agg = await rebuildEitjeTimeRegistrationAggregation(db, start, end);
-      await syncUnifiedCollectionsFromRawData(db);
-    } catch (e) {
-      agg = { deletedPeriods: 0, inserted: 0, error: e instanceof Error ? e.message : String(e) };
-    }
-    return {
-      ok: !tr.error,
-      jobType: "manual",
-      message: (_d = tr.error) != null ? _d : `OK: ${tr.fetched} fetched, agg +${(_c = agg == null ? void 0 : agg.inserted) != null ? _c : 0}`,
-      timeRegistration: tr,
-      aggregation: agg
-    };
-  }
-  const r = await syncListEndpoint(db, creds, ep, [ep, `v1/${ep}`]);
-  return {
-    ok: !r.error && r.fetched > 0,
-    jobType: "manual",
-    message: (_e = r.error) != null ? _e : `OK: ${r.fetched} rows`,
-    master: { endpoints: [{ name: ep, ...r }] }
-  };
-}
-
 const cron_post = defineEventHandler(async (event) => {
   const body = await readBody(event);
   if (!(body == null ? void 0 : body.jobType) || !(body == null ? void 0 : body.action)) {
@@ -35127,33 +35837,10 @@ const cron_post = defineEventHandler(async (event) => {
     return { success: true, message: "Cron config updated" };
   }
   if (body.action === "run-now") {
-    await db.collection("integration_cron_jobs").updateOne(
-      query,
-      {
-        $set: {
-          source: "eitje",
-          jobType: body.jobType,
-          lastRun: now.toISOString(),
-          lastRunUTC: now.toISOString(),
-          updatedAt: now
-        },
-        $setOnInsert: { createdAt: now, isActive: true }
-      },
-      { upsert: true }
-    );
-    const syncResult = await executeEitjeJob(db, body.jobType);
-    await db.collection("integration_cron_jobs").updateOne(query, {
-      $set: {
-        lastSyncAt: now.toISOString(),
-        lastSyncOk: syncResult.ok,
-        lastSyncMessage: syncResult.message,
-        lastSyncDetail: syncResult,
-        updatedAt: /* @__PURE__ */ new Date()
-      }
-    });
+    const { syncResult } = await runIntegrationCronJob(db, "eitje", body.jobType);
     return {
       success: syncResult.ok,
-      message: syncResult.ok ? syncResult.message : syncResult.message,
+      message: syncResult.message,
       sync: syncResult
     };
   }
@@ -35254,6 +35941,23 @@ const sync_post$3 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.definePropert
   default: sync_post$2
 }, Symbol.toStringTag, { value: 'Module' }));
 
+const AMS = "Europe/Amsterdam";
+function ymdSvSe(d) {
+  return new Intl.DateTimeFormat("sv-SE", {
+    timeZone: AMS,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).format(d);
+}
+function amsterdamTodayYmd(anchor = /* @__PURE__ */ new Date()) {
+  return ymdSvSe(anchor);
+}
+function amsterdamYmdForOffset(offsetDays, anchor = /* @__PURE__ */ new Date()) {
+  const d = new Date(anchor.getTime() + offsetDays * 24 * 60 * 60 * 1e3);
+  return ymdSvSe(d);
+}
+
 const MAX_PAGE_SIZE$1 = 200;
 const DEFAULT_PAGE_SIZE$1 = 50;
 function parseHoursPage(query) {
@@ -35264,10 +35968,9 @@ function parseHoursPage(query) {
   return { page, pageSize, skip: (page - 1) * pageSize };
 }
 function normalizeHoursDateRange(startDate, endDate) {
-  const todayStr = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
-  const thirtyBack = /* @__PURE__ */ new Date();
-  thirtyBack.setDate(thirtyBack.getDate() - 30);
-  const thirtyStr = thirtyBack.toISOString().split("T")[0];
+  const anchor = /* @__PURE__ */ new Date();
+  const todayStr = amsterdamTodayYmd(anchor);
+  const thirtyStr = amsterdamYmdForOffset(-30, anchor);
   if (!startDate && !endDate) return { start: thirtyStr, end: todayStr };
   if (startDate && !endDate) return { start: startDate, end: todayStr };
   if (!startDate && endDate) {
@@ -35323,7 +36026,7 @@ const hoursAggregated_get = defineEventHandler(async (event) => {
       locations: locations2
     });
     if (groupBy === "worker" && source === "contracts") {
-      const contractDocs = await db.collection("test-eitje-contracts").find({}).toArray();
+      const contractDocs = await db.collection("inbox-eitje-contracts").find({}).toArray();
       const allRows = contractDocs.filter((d) => {
         var _a2;
         return ((_a2 = d.total_worked_hours) != null ? _a2 : 0) > 0;
@@ -36201,6 +36904,158 @@ const _id__get$7 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty
   default: _id__get$6
 }, Symbol.toStringTag, { value: 'Module' }));
 
+const basisReport_get = defineEventHandler(async (event) => {
+  try {
+    const q = getQuery$1(event);
+    const data = await getInboxImportTablePayload("basis_report", parseInboxImportTableQuery(q));
+    return { success: true, data };
+  } catch (error) {
+    if (error && typeof error === "object" && "statusCode" in error) throw error;
+    throw createError({
+      statusCode: 500,
+      statusMessage: error instanceof Error ? error.message : "Failed to load inbox Bork basis report"
+    });
+  }
+});
+
+const basisReport_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+  __proto__: null,
+  default: basisReport_get
+}, Symbol.toStringTag, { value: 'Module' }));
+
+const foodBeverage_get = defineEventHandler(async (event) => {
+  try {
+    const q = getQuery$1(event);
+    const data = await getInboxImportTablePayload("food_beverage", parseInboxImportTableQuery(q));
+    return { success: true, data };
+  } catch (error) {
+    if (error && typeof error === "object" && "statusCode" in error) throw error;
+    throw createError({
+      statusCode: 500,
+      statusMessage: error instanceof Error ? error.message : "Failed to load inbox Bork food & beverage"
+    });
+  }
+});
+
+const foodBeverage_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+  __proto__: null,
+  default: foodBeverage_get
+}, Symbol.toStringTag, { value: 'Module' }));
+
+const productMix_get = defineEventHandler(async (event) => {
+  try {
+    const q = getQuery$1(event);
+    const data = await getInboxImportTablePayload("product_mix", parseInboxImportTableQuery(q));
+    return { success: true, data };
+  } catch (error) {
+    if (error && typeof error === "object" && "statusCode" in error) throw error;
+    throw createError({
+      statusCode: 500,
+      statusMessage: error instanceof Error ? error.message : "Failed to load inbox Bork product mix"
+    });
+  }
+});
+
+const productMix_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+  __proto__: null,
+  default: productMix_get
+}, Symbol.toStringTag, { value: 'Module' }));
+
+const salesPerHour_get = defineEventHandler(async (event) => {
+  try {
+    const q = getQuery$1(event);
+    const data = await getInboxImportTablePayload("product_sales_per_hour", parseInboxImportTableQuery(q));
+    return { success: true, data };
+  } catch (error) {
+    if (error && typeof error === "object" && "statusCode" in error) throw error;
+    throw createError({
+      statusCode: 500,
+      statusMessage: error instanceof Error ? error.message : "Failed to load inbox Bork sales per hour"
+    });
+  }
+});
+
+const salesPerHour_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+  __proto__: null,
+  default: salesPerHour_get
+}, Symbol.toStringTag, { value: 'Module' }));
+
+const sales_get = defineEventHandler(async (event) => {
+  try {
+    const q = getQuery$1(event);
+    const data = await getInboxImportTablePayload("sales", parseInboxImportTableQuery(q));
+    return { success: true, data };
+  } catch (error) {
+    if (error && typeof error === "object" && "statusCode" in error) throw error;
+    throw createError({
+      statusCode: 500,
+      statusMessage: error instanceof Error ? error.message : "Failed to load inbox Bork sales"
+    });
+  }
+});
+
+const sales_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+  __proto__: null,
+  default: sales_get
+}, Symbol.toStringTag, { value: 'Module' }));
+
+const contracts_get = defineEventHandler(async (event) => {
+  try {
+    const q = getQuery$1(event);
+    const data = await getInboxImportTablePayload("contracts", parseInboxImportTableQuery(q));
+    return { success: true, data };
+  } catch (error) {
+    if (error && typeof error === "object" && "statusCode" in error) throw error;
+    throw createError({
+      statusCode: 500,
+      statusMessage: error instanceof Error ? error.message : "Failed to load inbox Eitje contracts"
+    });
+  }
+});
+
+const contracts_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+  __proto__: null,
+  default: contracts_get
+}, Symbol.toStringTag, { value: 'Module' }));
+
+const finance_get = defineEventHandler(async (event) => {
+  try {
+    const q = getQuery$1(event);
+    const data = await getInboxImportTablePayload("finance", parseInboxImportTableQuery(q));
+    return { success: true, data };
+  } catch (error) {
+    if (error && typeof error === "object" && "statusCode" in error) throw error;
+    throw createError({
+      statusCode: 500,
+      statusMessage: error instanceof Error ? error.message : "Failed to load inbox Eitje finance"
+    });
+  }
+});
+
+const finance_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+  __proto__: null,
+  default: finance_get
+}, Symbol.toStringTag, { value: 'Module' }));
+
+const hours_get = defineEventHandler(async (event) => {
+  try {
+    const q = getQuery$1(event);
+    const data = await getInboxImportTablePayload("hours", parseInboxImportTableQuery(q));
+    return { success: true, data };
+  } catch (error) {
+    if (error && typeof error === "object" && "statusCode" in error) throw error;
+    throw createError({
+      statusCode: 500,
+      statusMessage: error instanceof Error ? error.message : "Failed to load inbox Eitje hours"
+    });
+  }
+});
+
+const hours_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+  __proto__: null,
+  default: hours_get
+}, Symbol.toStringTag, { value: 'Module' }));
+
 const list_get = defineEventHandler(async (event) => {
   try {
     await ensureInboxCollections();
@@ -36255,6 +37110,25 @@ const parse_post = defineEventHandler(async (event) => {
 const parse_post$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
   __proto__: null,
   default: parse_post
+}, Symbol.toStringTag, { value: 'Module' }));
+
+const reports_get = defineEventHandler(async (event) => {
+  try {
+    const q = getQuery$1(event);
+    const data = await getInboxImportTablePayload("bi", parseInboxImportTableQuery(q));
+    return { success: true, data };
+  } catch (error) {
+    if (error && typeof error === "object" && "statusCode" in error) throw error;
+    throw createError({
+      statusCode: 500,
+      statusMessage: error instanceof Error ? error.message : "Failed to load inbox Power BI exports"
+    });
+  }
+});
+
+const reports_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+  __proto__: null,
+  default: reports_get
 }, Symbol.toStringTag, { value: 'Module' }));
 
 const processAll_post = defineEventHandler(async (event) => {
@@ -36371,107 +37245,29 @@ const sync_post$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.definePropert
   default: sync_post
 }, Symbol.toStringTag, { value: 'Module' }));
 
-function getCollectionName(type) {
-  switch (type) {
-    case "sales":
-      return "inbox-bork-sales";
-    case "product_mix":
-      return "inbox-bork-product-mix";
-    case "food_beverage":
-      return "inbox-bork-food-beverage";
-    case "basis_report":
-      return "inbox-bork-basis-report";
-    case "product_sales_per_hour":
-      return "inbox-bork-basis-report";
-    case "hours":
-      return "inbox-eitje-hours";
-    case "contracts":
-      return "inbox-eitje-contracts";
-    case "finance":
-      return "inbox-eitje-finance";
-    case "bi":
-      return "power_bi_exports";
-    default:
-      return "unknown";
-  }
-}
+const VALID = [
+  "sales",
+  "product_mix",
+  "food_beverage",
+  "basis_report",
+  "product_sales_per_hour",
+  "hours",
+  "contracts",
+  "finance",
+  "bi"
+];
 const _type__get = defineEventHandler(async (event) => {
   try {
     const type = getRouterParam(event, "type");
-    const validTypes = [
-      "sales",
-      "product_mix",
-      "food_beverage",
-      "basis_report",
-      "product_sales_per_hour",
-      "hours",
-      "contracts",
-      "finance",
-      "bi"
-    ];
-    if (!validTypes.includes(type)) {
+    if (!VALID.includes(type)) {
       throw createError({
         statusCode: 400,
-        statusMessage: `Invalid data type. Valid types: ${validTypes.join(", ")}`
+        statusMessage: `Invalid data type. Valid types: ${VALID.join(", ")}`
       });
     }
     const q = getQuery$1(event);
-    const page = Math.max(1, parseInt(String(q.page || "1"), 10));
-    const limit = Math.min(200, Math.max(1, parseInt(String(q.limit || "50"), 10)));
-    const skip = (page - 1) * limit;
-    const filters = {};
-    const sourceEmailId = q.sourceEmailId ? String(q.sourceEmailId) : null;
-    if (sourceEmailId) {
-      try {
-        filters.sourceEmailId = new ObjectId(sourceEmailId);
-      } catch {
-        throw createError({ statusCode: 400, statusMessage: "Invalid sourceEmailId format" });
-      }
-    }
-    const dateFrom = q.dateFrom ? String(q.dateFrom) : null;
-    const dateTo = q.dateTo ? String(q.dateTo) : null;
-    if (dateFrom || dateTo) {
-      filters.parsedAt = {};
-      if (dateFrom) {
-        filters.parsedAt.$gte = new Date(dateFrom);
-      }
-      if (dateTo) {
-        filters.parsedAt.$lte = new Date(dateTo);
-      }
-    }
-    const db = await getDb();
-    const collectionName = getCollectionName(type);
-    const collection = db.collection(collectionName);
-    const [data, total] = await Promise.all([
-      collection.find(filters).sort({ parsedAt: -1, created_at: -1 }).skip(skip).limit(limit).toArray(),
-      collection.countDocuments(filters)
-    ]);
-    const allColumns = /* @__PURE__ */ new Set();
-    data.forEach((doc) => {
-      Object.keys(doc).forEach((key) => {
-        if (!["_id", "sourceEmailId", "sourceAttachmentId", "sourceFileName", "fileFormat", "parsedAt", "created_at", "updated_at", "__v"].includes(
-          key
-        )) {
-          allColumns.add(key);
-        }
-      });
-    });
-    return {
-      success: true,
-      data: {
-        type,
-        collectionName,
-        rows: data,
-        columns: Array.from(allColumns).sort(),
-        pagination: {
-          page,
-          limit,
-          total,
-          totalPages: Math.ceil(total / limit),
-          hasMore: skip + limit < total
-        }
-      }
-    };
+    const data = await getInboxImportTablePayload(type, parseInboxImportTableQuery(q));
+    return { success: true, data };
   } catch (error) {
     if (error && typeof error === "object" && "statusCode" in error) throw error;
     throw createError({

@@ -1,5 +1,8 @@
 name: Daily Ops - Bork & Eitje Sync & Aggregation
 
+# If Nitro `scheduledTasks` runs `integrations:bork-eitje-daily` on your DO app (see nuxt.config.ts), comment out
+# `on.schedule` below to avoid duplicate Bork/Eitje pulls; keep `workflow_dispatch` for manual runs.
+
 # Nitro URLs are path WITHOUT method suffix: POST /api/bork/v2/cron (not cron.post — that falls through to SPA HTML).
 # Aggregation runs inside executeBorkJob / executeEitjeJob after raw sync; there is no separate aggregation route.
 

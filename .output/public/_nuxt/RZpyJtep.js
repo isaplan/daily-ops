@@ -1,1 +1,0 @@
-import{g as a,i as n,o,c as r,ap as s}from"./DE-gCVdT.js";const m=a({__name:"new",async setup(c){let e,t;return[e,t]=n(()=>s("/notes/projects/create",{replace:!0})),await e,t(),(_,p)=>(o(),r("div"))}});export{m as default};

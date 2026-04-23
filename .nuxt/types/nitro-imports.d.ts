@@ -21,6 +21,7 @@ declare global {
   const cachedEventHandler: typeof import('../../node_modules/nitropack/dist/runtime/internal/cache').cachedEventHandler
   const cachedFunction: typeof import('../../node_modules/nitropack/dist/runtime/internal/cache').cachedFunction
   const callNodeListener: typeof import('../../node_modules/h3').callNodeListener
+  const canonicalInboxSalesRow: typeof import('../../server/utils/inbox/inbox-sales-row-canonical').canonicalInboxSalesRow
   const classifyByContent: typeof import('../../server/utils/inbox/document-classifier').classifyByContent
   const classifyByFilename: typeof import('../../server/utils/inbox/document-classifier').classifyByFilename
   const classifyDocument: typeof import('../../server/utils/inbox/document-classifier').classifyDocument
@@ -96,6 +97,7 @@ declare global {
   const getGmailOAuthRedirectUri: typeof import('../../server/utils/gmailOAuthRedirect').getGmailOAuthRedirectUri
   const getHeader: typeof import('../../node_modules/h3').getHeader
   const getHeaders: typeof import('../../node_modules/h3').getHeaders
+  const getInboxImportTablePayload: typeof import('../../server/utils/inbox/inboxImportTableQuery').getInboxImportTablePayload
   const getMenuItemsCollection: typeof import('../../server/utils/db').getMenuItemsCollection
   const getMenuVersionsCollection: typeof import('../../server/utils/db').getMenuVersionsCollection
   const getMenusCollection: typeof import('../../server/utils/db').getMenusCollection
@@ -140,19 +142,25 @@ declare global {
   const isWebResponse: typeof import('../../node_modules/h3').isWebResponse
   const lazyEventHandler: typeof import('../../node_modules/h3').lazyEventHandler
   const locationDayKey: typeof import('../../server/utils/dailyOpsDashboardMetrics').locationDayKey
+  const looksLikeTrivecSemicolonSales: typeof import('../../server/utils/inbox/csv-parser').looksLikeTrivecSemicolonSales
   const mapWijnkaartRowToItem: typeof import('../../server/utils/parseMenuFile').mapWijnkaartRowToItem
   const mergeWorkedAndPlanned: typeof import('../../server/utils/memberEitjeContext').mergeWorkedAndPlanned
   const nitroPlugin: typeof import('../../node_modules/nitropack/dist/runtime/internal/plugin').nitroPlugin
+  const normalizeTrivecSemicolonSalesParse: typeof import('../../server/utils/inbox/trivec-sales-csv').normalizeTrivecSemicolonSalesParse
   const parseCSV: typeof import('../../server/utils/inbox/csv-parser').parseCSV
   const parseCookies: typeof import('../../node_modules/h3').parseCookies
   const parseCsvToRows: typeof import('../../server/utils/parseMenuFile').parseCsvToRows
   const parseDailyOpsMetricsQuery: typeof import('../../server/utils/dailyOpsDashboardMetrics').parseDailyOpsMetricsQuery
+  const parseDdMmYyyyToNoonUtc: typeof import('../../server/utils/inbox/inbox-sales-row-canonical').parseDdMmYyyyToNoonUtc
+  const parseEuroInbox: typeof import('../../server/utils/inbox/inbox-sales-row-canonical').parseEuroInbox
   const parseExcel: typeof import('../../server/utils/inbox/excel-parser').parseExcel
   const parseExcelToRows: typeof import('../../server/utils/parseMenuFile').parseExcelToRows
+  const parseInboxImportTableQuery: typeof import('../../server/utils/inbox/inboxImportTableQuery').parseInboxImportTableQuery
   const parseLocationDayKey: typeof import('../../server/utils/dailyOpsDashboardMetrics').parseLocationDayKey
   const parseMenuFileToRows: typeof import('../../server/utils/parseMenuFile').parseMenuFileToRows
   const parsePDF: typeof import('../../server/utils/inbox/pdf-parser').parsePDF
   const parsePdfToRows: typeof import('../../server/utils/parsePdf').parsePdfToRows
+  const parseYmdToNoonUtc: typeof import('../../server/utils/inbox/inbox-sales-row-canonical').parseYmdToNoonUtc
   const productGroupFromFilename: typeof import('../../server/utils/parseMenuDump').productGroupFromFilename
   const promisifyNodeListener: typeof import('../../node_modules/h3').promisifyNodeListener
   const proxyRequest: typeof import('../../node_modules/h3').proxyRequest
@@ -232,6 +240,9 @@ declare global {
   export type { GmailWatchAutostartResult } from '../../server/utils/inbox/gmailWatchAutostart'
   import('../../server/utils/inbox/gmailWatchAutostart')
   // @ts-ignore
+  export type { InboxImportDocumentType, InboxImportTableQuery, InboxImportTablePayload } from '../../server/utils/inbox/inboxImportTableQuery'
+  import('../../server/utils/inbox/inboxImportTableQuery')
+  // @ts-ignore
   export type { PdfParseOptions } from '../../server/utils/inbox/pdf-parser'
   import('../../server/utils/inbox/pdf-parser')
   // @ts-ignore
@@ -270,11 +281,14 @@ export { getGmailOAuthErrorMessage, isInvalidGrantError, getGmailInvalidGrantHin
 export { getGmailOAuthRedirectUri } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/gmailOAuthRedirect';
 export { ensureInboxCollections, ensureInboxIndexes } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/inbox/collections';
 export { INBOX_COLLECTIONS, INBOX_TARGET_COLLECTIONS } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/inbox/constants';
-export { parseCSV } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/inbox/csv-parser';
+export { looksLikeTrivecSemicolonSales, parseCSV } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/inbox/csv-parser';
 export { classifyByFilename, classifyByContent, classifyDocument } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/inbox/document-classifier';
 export { parseExcel, getSheetNames } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/inbox/excel-parser';
 export { ensureGmailWatchIfNeeded } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/inbox/gmailWatchAutostart';
+export { parseDdMmYyyyToNoonUtc, parseYmdToNoonUtc, parseEuroInbox, canonicalInboxSalesRow } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/inbox/inbox-sales-row-canonical';
+export { parseInboxImportTableQuery, getInboxImportTablePayload } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/inbox/inboxImportTableQuery';
 export { parsePDF } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/inbox/pdf-parser';
+export { normalizeTrivecSemicolonSalesParse } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/inbox/trivec-sales-csv';
 export { eitjeUserIdCandidates, resolveEitjeAggregationUserCandidates, fetchAggregationActivityByLocationTeam, mergeWorkedAndPlanned, fetchMemberEitjePlaces } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/memberEitjeContext';
 export { activeNotesMatch, trashedNotesMatch } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/noteDeletedFilter';
 export { extractMentionSlug, collectMentionSlugsFromContent, resolveSlugsToUnifiedUserIds } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/noteMentions';

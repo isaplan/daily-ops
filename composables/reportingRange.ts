@@ -1,11 +1,11 @@
-/** Shared default date window for report pages (last N calendar days through today). */
+import { amsterdamTodayYmd, amsterdamYmdForOffset } from '~/utils/inbox/importTableQuickDates'
+
+/** Shared default date window for report pages (last ~N days through today, Europe/Amsterdam calendar). */
 export function getLastNDaysRange(days: number): { startDate: string; endDate: string } {
-  const end = new Date()
-  const start = new Date()
-  start.setDate(start.getDate() - days)
-   return {
-    startDate: start.toISOString().split('T')[0] ?? '',
-    endDate: end.toISOString().split('T')[0] ?? '',
+  const anchor = new Date()
+  return {
+    startDate: amsterdamYmdForOffset(-days, anchor),
+    endDate: amsterdamTodayYmd(anchor),
   }
 }
 
