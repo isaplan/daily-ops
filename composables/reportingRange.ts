@@ -12,3 +12,11 @@ export function getLastNDaysRange(days: number): { startDate: string; endDate: s
 export function getLast30DaysRange(): { startDate: string; endDate: string } {
   return getLastNDaysRange(30)
 }
+
+/** Last 30 Amsterdam calendar days ending yesterday (excludes partial “today”) — for Sales-V2 defaults. */
+export function getLast30DaysEndingYesterday(anchor = new Date()): { startDate: string; endDate: string } {
+  return {
+    startDate: amsterdamYmdForOffset(-30, anchor),
+    endDate: amsterdamYmdForOffset(-1, anchor),
+  }
+}

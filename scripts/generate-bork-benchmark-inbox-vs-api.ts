@@ -114,6 +114,15 @@ function dashNum(n: number | null | undefined, empty = '—'): string {
   return eur(n)
 }
 
+/** CSV vs Daily (Basis) — should match when both from same Bork close. */
+function matchCsvDaily(csv: number | null | undefined, daily: number | null | undefined): string {
+  if (csv == null && daily == null) return '—'
+  if (csv == null || daily == null) return 'incomplete'
+  const diff = Math.abs(csv - daily)
+  if (diff <= 1) return 'OK'
+  return `Δ${eur(diff)}`
+}
+
 // --- Basis Rapport (inbox-bork-basis-report) ---
 
 type BasisRow = {
@@ -350,82 +359,85 @@ async function main() {
   const locs = ['Bar Bea', 'Van Kinsbergen', "l'Amour Toujours"]
 
   let md = ''
-  md += '## Inbox benchmark vs Bork API (last days in Mongo)\n\n'
+  md += '## Benchmark: Bork API vs inbox CSV vs Basis Rapport (readable columns)\n\n'
   md +=
-    '**Idea:** The morning inbox (**~08:00 Europe/Amsterdam**) carries Bork’s **calendar-day** export for “yesterday” (same date as in Sales.csv / Basis Rapport). Treat **`inbox-bork-basis-report`** (Basis Rapport Netto) and **`inbox-bork-sales`** (Sales.csv hierarchy Grand Total) as the **benchmark**; **`inbox-bork-basis-report` − `inbox-bork-sales`** should be near **€0** when both files are from the same close.\n\n'
+    'Morning inbox (~**08:00 Europe/Amsterdam**) = Bork’s **calendar-day** export for “yesterday”. **CSV** and **Daily** should agree (same close); **Bork** is the API line-total aggregate for comparison.\n\n'
+  md += '**Column meanings (short header → source):**\n\n'
+  md += '| Header | Mongo / meaning |\n'
+  md += '|:-------|----------------|\n'
+  md += '| **Bork** | `' + apiCol + '` — Σ `total_revenue` (closed tickets, from **`bork_raw_data`** rebuild) |\n'
+  md += '| **CSV** | `inbox-bork-sales` — Sales.csv hierarchy **Grand Total** (inc BTW) |\n'
+  md += '| **Daily** | `inbox-bork-basis-report` — Basis Rapport **Netto Sales** Grand Total **Totale prijs** (inc BTW) |\n'
+  md += '| **Match** | CSV vs Daily: **OK** if both present and within **€1**; **incomplete** if one side missing; **Δ€…** if they disagree |\n\n'
   md +=
-    '**Bork API side:** Line revenue is aggregated from tickets in **`bork_raw_data`** into **`' +
-    apiCol +
-    '`** (V2-style register buckets). That is **not** the raw collection itself — it is the **hour table** built from the API pull.\n\n'
+    '**Why so many dashes?** Rows are **—** when that **venue + day** has **no** parsed rows in that collection. In this database snapshot, **Van Kinsbergen** inbox files dominate; **Bar Bea** / **l’Amour** need the same daily email bundle (Sales + Basis) ingested for those dates.\n\n'
   md +=
     '**Refresh:** `node --experimental-strip-types scripts/generate-bork-benchmark-inbox-vs-api.ts`  \n'
   md += `**Generated:** ${new Date().toISOString()}  \n`
-  md += `**Window:** **${last14[0] ?? '—'}** … **${last14[last14.length - 1] ?? '—'}** (${last14.length} day(s)). **Default** \`BORK_AGG_V2_SUFFIX\` = \`_test\` (override in env if needed).\n\n`
+  md += `**Window:** **${last14[0] ?? '—'}** … **${last14[last14.length - 1] ?? '—'}** (${last14.length} days). API suffix: \`${suffix || '(none)'}\` (env \`BORK_AGG_V2_SUFFIX\`; default \`_test\`).\n\n`
   const anyApiInWindow = last14.some((d) => apiDayHasRows.has(d))
   if (!anyApiInWindow) {
     md +=
-      '> **Note:** No rows in **`' +
+      '> **Bork column empty:** no documents in `' +
       apiCol +
-      '`** for these `business_date` values (test aggregate empty or suffix mismatch). API columns show **—**. Point `BORK_AGG_V2_SUFFIX` at the collection that actually holds your rebuild (e.g. empty string for production `bork_sales_hours`).\n\n'
+      '` for these dates — rebuild test aggregates or set `BORK_AGG_V2_SUFFIX=` to use production `bork_sales_hours`.\n\n'
   }
-  md += '### Organisation total (sum of rows that exist — incomplete if a venue has no inbox file that day)\n\n'
-  md +=
-    '| business_date | `inbox-bork-basis-report` Netto inc | `inbox-bork-basis-report` Correcties € | `inbox-bork-sales` Grand Total inc | basis − sales | `' +
-    apiCol +
-    '` Σ (from `bork_raw_data`) | basis − API | sales − API |\n'
-  md +=
-    '|:--------------|---------------------------------------:|----------------------------------------:|-----------------------------------:|---------------:|---------------------------:|--------------:|--------------:|\n'
+
+  md += '### Organisation total (sum over venues that have inbox rows that day)\n\n'
+  md += '| date | Bork | CSV | Daily | Match |\n'
+  md += '|:-----|-----:|----:|------:|:------|\n'
 
   for (const d of last14) {
-    let sumBasis = 0
-    let hasBasis = false
-    let sumCorr = 0
-    let hasCorr = false
-    let sumSales = 0
-    let hasSales = false
+    let sumDaily = 0
+    let hasDaily = false
+    let sumCsv = 0
+    let hasCsv = false
     for (const loc of locs) {
       const b = basisMap.get(`${d}|${loc}`)
       if (b) {
-        sumBasis += b.nettoInc
-        hasBasis = true
-        if (b.corr != null) {
-          sumCorr += b.corr
-          hasCorr = true
-        }
+        sumDaily += b.nettoInc
+        hasDaily = true
       }
       const s = salesMap.get(`${d}|${loc}`)
       if (s != null) {
-        sumSales += s
-        hasSales = true
+        sumCsv += s
+        hasCsv = true
       }
     }
     const api = apiDayHasRows.has(d) ? (apiByDay.get(d) ?? 0) : null
-    const basisMinusSales = hasBasis && hasSales ? sumBasis - sumSales : null
-    const basisMinusApi = hasBasis && api != null ? sumBasis - api : null
-    const salesMinusApi = hasSales && api != null ? sumSales - api : null
-    md += `| ${d} | ${hasBasis ? eur(sumBasis) : '—'} | ${hasCorr ? eur(sumCorr) : '—'} | ${hasSales ? eur(sumSales) : '—'} | ${dashNum(basisMinusSales)} | ${api != null ? eur(api) : '—'} | ${dashNum(basisMinusApi)} | ${dashNum(salesMinusApi)} |\n`
+    md += `| ${d} | ${api != null ? eur(api) : '—'} | ${hasCsv ? eur(sumCsv) : '—'} | ${hasDaily ? eur(sumDaily) : '—'} | ${matchCsvDaily(hasCsv ? sumCsv : null, hasDaily ? sumDaily : null)} |\n`
   }
 
   md += '\n### Per location\n\n'
-  md +=
-    '| business_date | location | `inbox-bork-basis-report` Netto inc | `inbox-bork-basis-report` Correcties € | `inbox-bork-sales` Grand Total inc | basis − sales | `' +
-    apiCol +
-    '` Σ | basis − API | sales − API |\n'
-  md +=
-    '|:--------------|:---------|-------------------------------------:|----------------------------------------:|----------------------------------:|---------------:|--------:|------------:|------------:|\n'
+  md += '| date | location | Bork | CSV | Daily | Match |\n'
+  md += '|:-----|:---------|-----:|----:|------:|:------|\n'
 
   for (const d of last14) {
     for (const loc of locs) {
       const b = basisMap.get(`${d}|${loc}`)
       const s = salesMap.get(`${d}|${loc}`)
       const api = apiDayHasRows.has(d) ? apiByDayLoc.get(`${d}|${loc}`) : undefined
-      const bn = b?.nettoInc
-      const corr = b?.corr
-      const basisMinusSales = bn != null && s != null ? bn - s : null
-      const basisMinusApi = bn != null && api != null ? bn - api : null
-      const salesMinusApi = s != null && api != null ? s - api : null
-      md += `| ${d} | ${loc} | ${dashNum(bn)} | ${corr != null ? eur(corr) : '—'} | ${dashNum(s)} | ${dashNum(basisMinusSales)} | ${dashNum(api)} | ${dashNum(basisMinusApi)} | ${dashNum(salesMinusApi)} |\n`
+      const daily = b?.nettoInc
+      const csv = s ?? undefined
+      const apiN = api != null ? api : null
+      md += `| ${d} | ${loc} | ${dashNum(apiN)} | ${dashNum(csv)} | ${dashNum(daily)} | ${matchCsvDaily(csv, daily)} |\n`
     }
+  }
+
+  let corrMd = ''
+  for (const d of last14) {
+    for (const loc of locs) {
+      const b = basisMap.get(`${d}|${loc}`)
+      const c = b?.corr
+      if (c == null) continue
+      corrMd += `| ${d} | ${loc} | ${eur(c)} |\n`
+    }
+  }
+  if (corrMd) {
+    md += '\n### Correcties (Basis Rapport only)\n\n'
+    md += '| date | location | Correcties € |\n'
+    md += '|:-----|:---------|-------------:|\n'
+    md += corrMd
   }
 
   const path = resolve(process.cwd(), 'DEBUG_BUSINESS_HOUR_MAPPING.md')

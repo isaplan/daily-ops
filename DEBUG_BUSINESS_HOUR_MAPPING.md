@@ -634,82 +634,108 @@ Stop the Bork backfill and investigate the raw API responses to understand why t
 <!-- BORK_DAILY_OMZET_CSV_END -->
 
 <!-- BORK_BENCHMARK_INBOX_VS_API_START -->
-## Inbox benchmark vs Bork API (last days in Mongo)
+## Benchmark: Bork API vs inbox CSV vs Basis Rapport (readable columns)
 
-**Idea:** The morning inbox (**~08:00 Europe/Amsterdam**) carries Bork’s **calendar-day** export for “yesterday” (same date as in Sales.csv / Basis Rapport). Treat **`inbox-bork-basis-report`** (Basis Rapport Netto) and **`inbox-bork-sales`** (Sales.csv hierarchy Grand Total) as the **benchmark**; **`inbox-bork-basis-report` − `inbox-bork-sales`** should be near **€0** when both files are from the same close.
+Morning inbox (~**08:00 Europe/Amsterdam**) = Bork’s **calendar-day** export for “yesterday”. **CSV** and **Daily** should agree (same close); **Bork** is the API line-total aggregate for comparison.
 
-**Bork API side:** Line revenue is aggregated from tickets in **`bork_raw_data`** into **`bork_sales_hours_test`** (V2-style register buckets). That is **not** the raw collection itself — it is the **hour table** built from the API pull.
+**Column meanings (short header → source):**
+
+| Header | Mongo / meaning |
+|:-------|----------------|
+| **Bork** | `bork_sales_hours_test` — Σ `total_revenue` (closed tickets, from **`bork_raw_data`** rebuild) |
+| **CSV** | `inbox-bork-sales` — Sales.csv hierarchy **Grand Total** (inc BTW) |
+| **Daily** | `inbox-bork-basis-report` — Basis Rapport **Netto Sales** Grand Total **Totale prijs** (inc BTW) |
+| **Match** | CSV vs Daily: **OK** if both present and within **€1**; **incomplete** if one side missing; **Δ€…** if they disagree |
+
+**Why so many dashes?** Rows are **—** when that **venue + day** has **no** parsed rows in that collection. In this database snapshot, **Van Kinsbergen** inbox files dominate; **Bar Bea** / **l’Amour** need the same daily email bundle (Sales + Basis) ingested for those dates.
 
 **Refresh:** `node --experimental-strip-types scripts/generate-bork-benchmark-inbox-vs-api.ts`  
-**Generated:** 2026-04-23T22:48:46.627Z  
-**Window:** **2026-04-09** … **2026-04-22** (14 day(s)). **Default** `BORK_AGG_V2_SUFFIX` = `_test` (override in env if needed).
+**Generated:** 2026-04-23T23:16:08.159Z  
+**Window:** **2026-04-09** … **2026-04-22** (14 days). API suffix: `_test` (env `BORK_AGG_V2_SUFFIX`; default `_test`).
 
-> **Note:** No rows in **`bork_sales_hours_test`** for these `business_date` values (test aggregate empty or suffix mismatch). API columns show **—**. Point `BORK_AGG_V2_SUFFIX` at the collection that actually holds your rebuild (e.g. empty string for production `bork_sales_hours`).
+> **Bork column empty:** no documents in `bork_sales_hours_test` for these dates — rebuild test aggregates or set `BORK_AGG_V2_SUFFIX=` to use production `bork_sales_hours`.
 
-### Organisation total (sum of rows that exist — incomplete if a venue has no inbox file that day)
+### Organisation total (sum over venues that have inbox rows that day)
 
-| business_date | `inbox-bork-basis-report` Netto inc | `inbox-bork-basis-report` Correcties € | `inbox-bork-sales` Grand Total inc | basis − sales | `bork_sales_hours_test` Σ (from `bork_raw_data`) | basis − API | sales − API |
-|:--------------|---------------------------------------:|----------------------------------------:|-----------------------------------:|---------------:|---------------------------:|--------------:|--------------:|
-| 2026-04-09 | — | — | — | — | — | — | — |
-| 2026-04-10 | — | — | — | — | — | — | — |
-| 2026-04-11 | €8137.34 | €-1499.17 | €8137.34 | €0.00 | — | — | — |
-| 2026-04-12 | €7371.80 | €-411.28 | €7371.80 | €0.00 | — | — | — |
-| 2026-04-13 | €5734.43 | €-481.90 | €5734.43 | €0.00 | — | — | — |
-| 2026-04-14 | €6871.90 | €-631.97 | €6871.90 | €0.00 | — | — | — |
-| 2026-04-15 | €7235.20 | €-961.17 | €7235.20 | €0.00 | — | — | — |
-| 2026-04-16 | €6810.04 | €-376.80 | €6810.04 | €0.00 | — | — | — |
-| 2026-04-17 | €7611.84 | €-380.60 | €7611.84 | €0.00 | — | — | — |
-| 2026-04-18 | €9762.44 | €-974.82 | €9762.44 | €0.00 | — | — | — |
-| 2026-04-19 | €8876.34 | €-796.80 | €8876.34 | €0.00 | — | — | — |
-| 2026-04-20 | €6903.48 | €-830.40 | €6903.48 | €0.00 | — | — | — |
-| 2026-04-21 | €3511.18 | €-307.90 | €3511.18 | €0.00 | — | — | — |
-| 2026-04-22 | €3680.61 | €-318.60 | €3680.61 | €0.00 | — | — | — |
+| date | Bork | CSV | Daily | Match |
+|:-----|-----:|----:|------:|:------|
+| 2026-04-09 | — | — | — | — |
+| 2026-04-10 | — | — | — | — |
+| 2026-04-11 | — | €8137.34 | €8137.34 | OK |
+| 2026-04-12 | — | €7371.80 | €7371.80 | OK |
+| 2026-04-13 | — | €5734.43 | €5734.43 | OK |
+| 2026-04-14 | — | €6871.90 | €6871.90 | OK |
+| 2026-04-15 | — | €7235.20 | €7235.20 | OK |
+| 2026-04-16 | — | €6810.04 | €6810.04 | OK |
+| 2026-04-17 | — | €7611.84 | €7611.84 | OK |
+| 2026-04-18 | — | €9762.44 | €9762.44 | OK |
+| 2026-04-19 | — | €8876.34 | €8876.34 | OK |
+| 2026-04-20 | — | €6903.48 | €6903.48 | OK |
+| 2026-04-21 | — | €3511.18 | €3511.18 | OK |
+| 2026-04-22 | — | €3680.61 | €3680.61 | OK |
 
 ### Per location
 
-| business_date | location | `inbox-bork-basis-report` Netto inc | `inbox-bork-basis-report` Correcties € | `inbox-bork-sales` Grand Total inc | basis − sales | `bork_sales_hours_test` Σ | basis − API | sales − API |
-|:--------------|:---------|-------------------------------------:|----------------------------------------:|----------------------------------:|---------------:|--------:|------------:|------------:|
-| 2026-04-09 | Bar Bea | — | — | — | — | — | — | — |
-| 2026-04-09 | Van Kinsbergen | — | — | — | — | — | — | — |
-| 2026-04-09 | l'Amour Toujours | — | — | — | — | — | — | — |
-| 2026-04-10 | Bar Bea | — | — | — | — | — | — | — |
-| 2026-04-10 | Van Kinsbergen | — | — | — | — | — | — | — |
-| 2026-04-10 | l'Amour Toujours | — | — | — | — | — | — | — |
-| 2026-04-11 | Bar Bea | — | — | — | — | — | — | — |
-| 2026-04-11 | Van Kinsbergen | €8137.34 | €-1499.17 | €8137.34 | €0.00 | — | — | — |
-| 2026-04-11 | l'Amour Toujours | — | — | — | — | — | — | — |
-| 2026-04-12 | Bar Bea | — | — | — | — | — | — | — |
-| 2026-04-12 | Van Kinsbergen | €7371.80 | €-411.28 | €7371.80 | €0.00 | — | — | — |
-| 2026-04-12 | l'Amour Toujours | — | — | — | — | — | — | — |
-| 2026-04-13 | Bar Bea | — | — | — | — | — | — | — |
-| 2026-04-13 | Van Kinsbergen | €5734.43 | €-481.90 | €5734.43 | €0.00 | — | — | — |
-| 2026-04-13 | l'Amour Toujours | — | — | — | — | — | — | — |
-| 2026-04-14 | Bar Bea | — | — | — | — | — | — | — |
-| 2026-04-14 | Van Kinsbergen | €6871.90 | €-631.97 | €6871.90 | €0.00 | — | — | — |
-| 2026-04-14 | l'Amour Toujours | — | — | — | — | — | — | — |
-| 2026-04-15 | Bar Bea | — | — | — | — | — | — | — |
-| 2026-04-15 | Van Kinsbergen | €7235.20 | €-961.17 | €7235.20 | €0.00 | — | — | — |
-| 2026-04-15 | l'Amour Toujours | — | — | — | — | — | — | — |
-| 2026-04-16 | Bar Bea | — | — | — | — | — | — | — |
-| 2026-04-16 | Van Kinsbergen | €6810.04 | €-376.80 | €6810.04 | €0.00 | — | — | — |
-| 2026-04-16 | l'Amour Toujours | — | — | — | — | — | — | — |
-| 2026-04-17 | Bar Bea | — | — | — | — | — | — | — |
-| 2026-04-17 | Van Kinsbergen | €7611.84 | €-380.60 | €7611.84 | €0.00 | — | — | — |
-| 2026-04-17 | l'Amour Toujours | — | — | — | — | — | — | — |
-| 2026-04-18 | Bar Bea | — | — | — | — | — | — | — |
-| 2026-04-18 | Van Kinsbergen | €9762.44 | €-974.82 | €9762.44 | €0.00 | — | — | — |
-| 2026-04-18 | l'Amour Toujours | — | — | — | — | — | — | — |
-| 2026-04-19 | Bar Bea | — | — | — | — | — | — | — |
-| 2026-04-19 | Van Kinsbergen | €8876.34 | €-796.80 | €8876.34 | €0.00 | — | — | — |
-| 2026-04-19 | l'Amour Toujours | — | — | — | — | — | — | — |
-| 2026-04-20 | Bar Bea | — | — | — | — | — | — | — |
-| 2026-04-20 | Van Kinsbergen | €6903.48 | €-830.40 | €6903.48 | €0.00 | — | — | — |
-| 2026-04-20 | l'Amour Toujours | — | — | — | — | — | — | — |
-| 2026-04-21 | Bar Bea | — | — | — | — | — | — | — |
-| 2026-04-21 | Van Kinsbergen | €3511.18 | €-307.90 | €3511.18 | €0.00 | — | — | — |
-| 2026-04-21 | l'Amour Toujours | — | — | — | — | — | — | — |
-| 2026-04-22 | Bar Bea | — | — | — | — | — | — | — |
-| 2026-04-22 | Van Kinsbergen | €3680.61 | €-318.60 | €3680.61 | €0.00 | — | — | — |
-| 2026-04-22 | l'Amour Toujours | — | — | — | — | — | — | — |
+| date | location | Bork | CSV | Daily | Match |
+|:-----|:---------|-----:|----:|------:|:------|
+| 2026-04-09 | Bar Bea | — | — | — | — |
+| 2026-04-09 | Van Kinsbergen | — | — | — | — |
+| 2026-04-09 | l'Amour Toujours | — | — | — | — |
+| 2026-04-10 | Bar Bea | — | — | — | — |
+| 2026-04-10 | Van Kinsbergen | — | — | — | — |
+| 2026-04-10 | l'Amour Toujours | — | — | — | — |
+| 2026-04-11 | Bar Bea | — | — | — | — |
+| 2026-04-11 | Van Kinsbergen | — | €8137.34 | €8137.34 | OK |
+| 2026-04-11 | l'Amour Toujours | — | — | — | — |
+| 2026-04-12 | Bar Bea | — | — | — | — |
+| 2026-04-12 | Van Kinsbergen | — | €7371.80 | €7371.80 | OK |
+| 2026-04-12 | l'Amour Toujours | — | — | — | — |
+| 2026-04-13 | Bar Bea | — | — | — | — |
+| 2026-04-13 | Van Kinsbergen | — | €5734.43 | €5734.43 | OK |
+| 2026-04-13 | l'Amour Toujours | — | — | — | — |
+| 2026-04-14 | Bar Bea | — | — | — | — |
+| 2026-04-14 | Van Kinsbergen | — | €6871.90 | €6871.90 | OK |
+| 2026-04-14 | l'Amour Toujours | — | — | — | — |
+| 2026-04-15 | Bar Bea | — | — | — | — |
+| 2026-04-15 | Van Kinsbergen | — | €7235.20 | €7235.20 | OK |
+| 2026-04-15 | l'Amour Toujours | — | — | — | — |
+| 2026-04-16 | Bar Bea | — | — | — | — |
+| 2026-04-16 | Van Kinsbergen | — | €6810.04 | €6810.04 | OK |
+| 2026-04-16 | l'Amour Toujours | — | — | — | — |
+| 2026-04-17 | Bar Bea | — | — | — | — |
+| 2026-04-17 | Van Kinsbergen | — | €7611.84 | €7611.84 | OK |
+| 2026-04-17 | l'Amour Toujours | — | — | — | — |
+| 2026-04-18 | Bar Bea | — | — | — | — |
+| 2026-04-18 | Van Kinsbergen | — | €9762.44 | €9762.44 | OK |
+| 2026-04-18 | l'Amour Toujours | — | — | — | — |
+| 2026-04-19 | Bar Bea | — | — | — | — |
+| 2026-04-19 | Van Kinsbergen | — | €8876.34 | €8876.34 | OK |
+| 2026-04-19 | l'Amour Toujours | — | — | — | — |
+| 2026-04-20 | Bar Bea | — | — | — | — |
+| 2026-04-20 | Van Kinsbergen | — | €6903.48 | €6903.48 | OK |
+| 2026-04-20 | l'Amour Toujours | — | — | — | — |
+| 2026-04-21 | Bar Bea | — | — | — | — |
+| 2026-04-21 | Van Kinsbergen | — | €3511.18 | €3511.18 | OK |
+| 2026-04-21 | l'Amour Toujours | — | — | — | — |
+| 2026-04-22 | Bar Bea | — | — | — | — |
+| 2026-04-22 | Van Kinsbergen | — | €3680.61 | €3680.61 | OK |
+| 2026-04-22 | l'Amour Toujours | — | — | — | — |
+
+### Correcties (Basis Rapport only)
+
+| date | location | Correcties € |
+|:-----|:---------|-------------:|
+| 2026-04-11 | Van Kinsbergen | €-1499.17 |
+| 2026-04-12 | Van Kinsbergen | €-411.28 |
+| 2026-04-13 | Van Kinsbergen | €-481.90 |
+| 2026-04-14 | Van Kinsbergen | €-631.97 |
+| 2026-04-15 | Van Kinsbergen | €-961.17 |
+| 2026-04-16 | Van Kinsbergen | €-376.80 |
+| 2026-04-17 | Van Kinsbergen | €-380.60 |
+| 2026-04-18 | Van Kinsbergen | €-974.82 |
+| 2026-04-19 | Van Kinsbergen | €-796.80 |
+| 2026-04-20 | Van Kinsbergen | €-830.40 |
+| 2026-04-21 | Van Kinsbergen | €-307.90 |
+| 2026-04-22 | Van Kinsbergen | €-318.60 |
 
 <!-- BORK_BENCHMARK_INBOX_VS_API_END -->

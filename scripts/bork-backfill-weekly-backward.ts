@@ -353,7 +353,7 @@ async function main(): Promise<void> {
             const v2Suffix = process.env.BORK_AGG_V2_SUFFIX ?? ''
             const v2 = await rebuildBorkSalesAggregationV2(db, aggStart, aggEnd, v2Suffix)
             console.log(
-              `    ✅ V2 (business days): ${v2.businessDays} bork_business_days${v2Suffix || ''}, ${v2.salesHours} bork_sales_hours${v2Suffix || ''}`
+              `    ✅ V2: days ${v2.businessDays}, hours ${v2.salesHours}, tables ${v2.tables}, workers ${v2.workers}, guests ${v2.guestAccounts}, product lines ${v2.productLines} (suffix: ${v2Suffix || '(none)'})`
             )
           }
           totalWeeksSynced++

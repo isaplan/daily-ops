@@ -67,7 +67,7 @@ async function main() {
   }
 
   console.log(
-    `[rebuild-bork-v2-date-range] ${startDate} .. ${endDate} → bork_sales_hours${suffix} / bork_business_days${suffix}`
+    `[rebuild-bork-v2-date-range] ${startDate} .. ${endDate} → V2 collections (suffix: ${suffix || '(none)'})`
   )
 
   const client = new MongoClient(uri)
@@ -76,7 +76,7 @@ async function main() {
 
   const result = await rebuildBorkSalesAggregationV2(db, startDate, endDate, suffix)
   console.log(
-    `[rebuild-bork-v2-date-range] Done: salesHours docs=${result.salesHours}, businessDays docs=${result.businessDays}`
+    `[rebuild-bork-v2-date-range] Done: days=${result.businessDays}, hours=${result.salesHours}, tables=${result.tables}, workers=${result.workers}, guests=${result.guestAccounts}, productLines=${result.productLines}`
   )
 
   await client.close()
