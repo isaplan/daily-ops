@@ -6,13 +6,10 @@ name: Daily Ops - Bork & Eitje Sync & Aggregation
 # Nitro URLs are path WITHOUT method suffix: POST /api/bork/v2/cron (not cron.post — that falls through to SPA HTML).
 # Aggregation runs inside executeBorkJob / executeEitjeJob after raw sync; there is no separate aggregation route.
 
-# GitHub `schedule` is UTC-only. Times below match Europe/Amsterdam in CEST (UTC+2, ~late Mar–late Oct).
-# 08:00 CEST = 06:00 UTC, 15:00 → 13 UTC, 18:00 → 16 UTC, 20:00 → 18 UTC, 22:00 → 20 UTC, 00:00 → 22 UTC.
-# In CET (winter, UTC+1) these runs land one hour earlier in local wall time — adjust if you need exact winter slots.
+# GitHub `schedule` disabled — Bork/Eitje runs on the DO Nitro process (nuxt.config → integrations:bork-eitje-daily).
+# Previous UTC cron (for reference if re-enabling): 0 6,13,16,18,20,22 * * *
+# 08:00 CEST = 06:00 UTC, 15:00 → 13 UTC, etc. In CET (winter) these land one hour earlier locally.
 on:
-  schedule:
-    - cron: '0 6,13,16,18,20,22 * * *'
-
   workflow_dispatch:
 
 jobs:
