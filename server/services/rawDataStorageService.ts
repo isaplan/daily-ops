@@ -1,9 +1,9 @@
 /**
  * @registry-id: rawDataStorageService
  * @created: 2026-01-27T00:00:00.000Z
- * @last-modified: 2026-04-18T00:00:00.000Z
+ * @last-modified: 2026-04-23T00:00:00.000Z
  * @description: Raw parsed rows for Bork test document types (Nuxt port — native driver)
- * @last-fix: [2026-04-18] Replaced Mongoose with getDb + insertMany
+ * @last-fix: [2026-04-23] Canonical inbox sales rows (BSON date) for reportDate API filter
  *
  * @exports-to:
  * ✓ server/services/inboxProcessService.ts
@@ -12,6 +12,7 @@
 
 import { ObjectId } from 'mongodb'
 import { getDb } from '../utils/db'
+import { canonicalInboxSalesRow } from '../utils/inbox/inbox-sales-row-canonical'
 import type { DocumentType, CreateParsedDataDto } from '~/types/inbox'
 
 export type RawStorageResult = {
@@ -29,15 +30,15 @@ export type StoreRawDataOptions = {
 function getCollectionName(documentType: DocumentType): string {
   switch (documentType) {
     case 'sales':
-      return 'test-bork-sales'
+      return 'inbox-bork-sales'
     case 'product_mix':
-      return 'test-bork-product-mix'
+      return 'inbox-bork-product-mix'
     case 'food_beverage':
-      return 'test-bork-food-beverage'
+      return 'inbox-bork-food-beverage'
     case 'basis_report':
-      return 'test-basis-report'
+      return 'inbox-bork-basis-report'
     case 'product_sales_per_hour':
-      return 'test-bork-basis-rapport'
+      return 'inbox-bork-basis-report'
     default:
       return 'unknown'
   }
@@ -80,8 +81,9 @@ export async function storeRawData(
     const documentsToInsert = parsedData.data.rows
       .map((row, index) => {
         try {
+          const baseRow = documentType === 'sales' ? canonicalInboxSalesRow(row) : row
           return {
-            ...row,
+            ...baseRow,
             sourceEmailId: emailId,
             sourceAttachmentId: attachmentId,
             sourceFileName: options?.fileName || '',

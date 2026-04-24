@@ -1,13 +1,14 @@
 /**
  * @registry-id: eitjeSyncService
  * @created: 2026-04-05T12:00:00.000Z
- * @last-modified: 2026-04-19T12:00:00.000Z
+ * @last-modified: 2026-04-24T12:00:00.000Z
  * @description: Fetches Eitje Open API resources and upserts eitje_raw_data; drives cron/sync handlers
- * @last-fix: [2026-04-19] Credentials hint uses getMongoDatabaseName() (same resolution as server/utils/db.ts)
+ * @last-fix: [2026-04-24] Consumer integrationCronRunner for Nitro schedule + catch-up
  *
  * @exports-to:
  * ✓ server/api/eitje/v2/cron.post.ts
  * ✓ server/api/eitje/v2/sync.post.ts
+ * ✓ server/services/integrationCronRunner.ts
  */
 
 import { createHash } from 'node:crypto'

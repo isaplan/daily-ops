@@ -1,7 +1,7 @@
 <template>
-  <InboxTestDataView
-    test-type="contracts"
+  <DailyOpsInboxImportTableView
+    api-path="/api/inbox/eitje/contracts"
     title="Eitje — Contracts"
-    description="Rows mapped to test-eitje-contracts."
+    description="Inbox import table (API: /api/inbox/eitje/contracts). ?view=mapped for inbox-eitje-contracts."
   />
 </template>

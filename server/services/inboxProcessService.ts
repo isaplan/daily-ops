@@ -1,9 +1,9 @@
 /**
  * @registry-id: inboxProcessService
  * @created: 2026-04-18T00:00:00.000Z
- * @last-modified: 2026-04-20T00:00:00.000Z
+ * @last-modified: 2026-04-24T00:00:00.000Z
  * @description: Parse Gmail/manual attachments, map to collections (from next-js-old process routes)
- * @last-fix: [2026-04-20] Called from webhook + sync after ingest
+ * @last-fix: [2026-04-24] Aggregate daily sales after mapping + location extraction
  *
  * @exports-to:
  * ✓ server/api/inbox/process/[emailId].post.ts
@@ -17,6 +17,7 @@ import { documentParserService } from './documentParserService'
 import { dataMappingService } from './dataMappingService'
 import { storeRawData, isTestDataType, updateSourceFileName } from './rawDataStorageService'
 import { gmailApiService } from './gmailApiService'
+import { aggregateDailySalesForEmail } from './borkSalesDailyAggregation'
 import * as inboxRepo from './inboxRepository'
 import type { CreateParsedDataDto, DocumentType, EmailAttachmentDoc, FileFormat } from '~/types/inbox'
 import { Buffer } from 'node:buffer'
@@ -96,6 +97,16 @@ async function handleParsedMapping(
         error: e.error,
       })),
     })
+
+    // Aggregate daily sales if this is a sales document
+    if (parseResult.documentType === 'sales') {
+      try {
+        const emailOid = new ObjectId(emailId)
+        await aggregateDailySalesForEmail(emailOid)
+      } catch (error) {
+        console.error('[inboxProcessService] Failed to aggregate daily sales:', error)
+      }
+    }
   }
 }
 

@@ -1,1 +1,0 @@
-import{g as a,i as r,o,c as n,ap as s}from"./D0tx336m.js";const m=a({__name:"by-worker",async setup(c){let e,t;return[e,t]=r(()=>s("/workers",{replace:!0})),await e,t(),(_,p)=>(o(),n("div"))}});export{m as default};

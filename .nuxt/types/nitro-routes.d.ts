@@ -104,17 +104,47 @@ declare module "nitropack/types" {
     '/api/inbox/:id': {
       'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/inbox/[id].get').default>>>>
     }
+    '/api/inbox/bork/basis-report': {
+      'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/inbox/bork/basis-report.get').default>>>>
+    }
+    '/api/inbox/bork/food-beverage': {
+      'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/inbox/bork/food-beverage.get').default>>>>
+    }
+    '/api/inbox/bork/product-mix': {
+      'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/inbox/bork/product-mix.get').default>>>>
+    }
+    '/api/inbox/bork/sales-per-hour': {
+      'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/inbox/bork/sales-per-hour.get').default>>>>
+    }
+    '/api/inbox/bork/sales': {
+      'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/inbox/bork/sales.get').default>>>>
+    }
+    '/api/inbox/eitje/contracts': {
+      'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/inbox/eitje/contracts.get').default>>>>
+    }
+    '/api/inbox/eitje/finance': {
+      'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/inbox/eitje/finance.get').default>>>>
+    }
+    '/api/inbox/eitje/hours': {
+      'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/inbox/eitje/hours.get').default>>>>
+    }
     '/api/inbox/list': {
       'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/inbox/list.get').default>>>>
     }
     '/api/inbox/parse': {
       'post': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/inbox/parse.post').default>>>>
     }
+    '/api/inbox/power-bi/reports': {
+      'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/inbox/power-bi/reports.get').default>>>>
+    }
     '/api/inbox/process-all': {
       'post': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/inbox/process-all.post').default>>>>
     }
     '/api/inbox/process/:emailId': {
       'post': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/inbox/process/[emailId].post').default>>>>
+    }
+    '/api/inbox/sync-scheduled': {
+      'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/inbox/sync-scheduled.get').default>>>>
     }
     '/api/inbox/sync': {
       'post': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/inbox/sync.post').default>>>>

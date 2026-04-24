@@ -126,6 +126,7 @@ const navItems = [
   { key: 'productivity' as const, label: 'Productivity', path: '/daily-ops/productivity' },
   { key: 'products' as const, label: 'Products', path: '/daily-ops/products' },
   { key: 'insights' as const, label: 'Insights', path: '/daily-ops/insights' },
+  { key: 'inbox' as const, label: 'Inbox', path: '/daily-ops/inbox' },
 ]
 
 const { data: locationsRes } = await useFetch<{ success: boolean; data: LocationRow[] }>('/api/daily-ops/locations')

@@ -1,7 +1,7 @@
 <template>
-  <InboxTestDataView
-    test-type="basis_report"
+  <DailyOpsInboxImportTableView
+    api-path="/api/inbox/bork/basis-report"
     title="Bork — Basis report"
-    description="Raw rows in test-basis-report."
+    description="Inbox import table (API: /api/inbox/bork/basis-report). Collection inbox-bork-basis-report."
   />
 </template>

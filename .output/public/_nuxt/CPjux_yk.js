@@ -1,1 +1,0 @@
-import{_ as o,r,o as t,f as s}from"./D0tx336m.js";const a={};function n(c,p){const e=r("InboxTestDataView");return t(),s(e,{"test-type":"product_sales_per_hour",title:"Bork — Sales per hour",description:"Raw rows in test-bork-basis-rapport (product sales per hour)."})}const i=o(a,[["render",n]]);export{i as default};

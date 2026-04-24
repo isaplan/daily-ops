@@ -15,14 +15,13 @@ export const INBOX_COLLECTIONS = {
 
 /** Target collections created by ensureInboxCollections (from next-js-old inbox-collections) */
 export const INBOX_TARGET_COLLECTIONS = [
-  'test-eitje-hours',
-  'test-eitje-contracts',
-  'test-eitje-finance',
-  'test-bork-sales',
-  'test-bork-food-beverage',
-  'test-bork-product-mix',
-  'test-bork-basis-rapport',
-  'test-basis-report',
+  'inbox-eitje-hours',
+  'inbox-eitje-contracts',
+  'inbox-eitje-finance',
+  'inbox-bork-sales',
+  'inbox-bork-food-beverage',
+  'inbox-bork-product-mix',
+  'inbox-bork-basis-report',
   'bork_sales',
   'power_bi_exports',
   'other_documents',

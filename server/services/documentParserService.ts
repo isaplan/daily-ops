@@ -1,9 +1,9 @@
 /**
  * @registry-id: documentParserService
  * @created: 2026-01-26T00:00:00.000Z
- * @last-modified: 2026-04-18T00:00:00.000Z
+ * @last-modified: 2026-04-24T00:00:00.000Z
  * @description: Document parser — routes CSV/XLSX/PDF and classifies document type (Nuxt port)
- * @last-fix: [2026-04-18] Ported from next-js-old
+ * @last-fix: [2026-04-24] Extract location + emit location_name field
  *
  * @exports-to:
  * ✓ server/services/inboxProcessService.ts
@@ -11,7 +11,8 @@
  * ✓ server/api/inbox/upload.post.ts
  */
 
-import { parseCSV } from '../utils/inbox/csv-parser'
+import { looksLikeTrivecSemicolonSales, parseCSV } from '../utils/inbox/csv-parser'
+import { normalizeTrivecSemicolonSalesParse } from '../utils/inbox/trivec-sales-csv'
 import { parseExcel } from '../utils/inbox/excel-parser'
 import { parsePDF } from '../utils/inbox/pdf-parser'
 import { classifyDocument, classifyByFilename } from '../utils/inbox/document-classifier'
@@ -76,7 +77,20 @@ class DocumentParserService {
           const filenameHint = classifyByFilename(options.fileName)
           const skipLines =
             filenameHint.type === 'product_mix' ? 10 : filenameHint.type === 'food_beverage' ? 8 : undefined
-          parseResult = await parseCSV(options.data, { autoDetectDelimiter: true, skipLines })
+          const trivecSales =
+            filenameHint.type === 'sales' && looksLikeTrivecSemicolonSales(options.data, filenameHint.type)
+          if (trivecSales) {
+            parseResult = await parseCSV(options.data, {
+              autoDetectDelimiter: true,
+              header: false,
+              coerceNumbers: false,
+            })
+            if (parseResult.success) {
+              parseResult = normalizeTrivecSemicolonSalesParse(parseResult, options.data)
+            }
+          } else {
+            parseResult = await parseCSV(options.data, { autoDetectDelimiter: true, skipLines })
+          }
           break
         }
 

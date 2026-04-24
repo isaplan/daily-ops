@@ -1,14 +1,15 @@
 /**
  * @registry-id: borkSyncService
  * @created: 2026-04-06T12:00:00.000Z
- * @last-modified: 2026-04-09T15:00:00.000Z
+ * @last-modified: 2026-04-24T12:00:00.000Z
  * @description: Bork/Trivec gateway fetch + bork_raw_data upserts; drives Bork cron/sync; calls borkRebuildAggregationService after sync
- * @last-fix: [2026-04-09] Integrated aggregation trigger on daily-data sync completion
+ * @last-fix: [2026-04-24] Consumer integrationCronRunner for Nitro schedule + catch-up
  *
  * @exports-to:
  * ✓ server/api/bork/v2/cron.post.ts
  * ✓ server/api/bork/v2/sync.post.ts
  * ✓ server/services/borkRebuildAggregationService.ts
+ * ✓ server/services/integrationCronRunner.ts
  */
 
 import { ObjectId, type Db, type Document } from 'mongodb'

@@ -1,9 +1,9 @@
 /**
  * @registry-id: dataMappingService
  * @created: 2026-01-26T00:00:00.000Z
- * @last-modified: 2026-04-18T00:00:00.000Z
+ * @last-modified: 2026-04-24T00:00:00.000Z
  * @description: Data mapping service - maps parsed document data to MongoDB collections
- * @last-fix: [2026-04-18] Nuxt port — getDb instead of getDatabase
+ * @last-fix: [2026-04-24] Add location_name to sales; normalize date/location/revenue fields
  *
  * @exports-to:
  * ✓ server/services/inboxProcessService.ts
@@ -100,13 +100,19 @@ const FIELD_MAPPINGS: Record<DocumentType, FieldMapping[]> = {
     { sourceColumn: 'Category', targetField: 'category' },
   ],
   sales: [
-    // Bork Sales CSV columns (expected structure - to be confirmed with first file)
-    { sourceColumn: 'Date', targetField: 'date', required: true, transform: (v) => parseDate(v as string) },
-    { sourceColumn: 'Datum', targetField: 'date', required: true, transform: (v) => parseDate(v as string) },
+    // Bork Sales CSV columns (Trivec format + normalized shape)
+    { sourceColumn: 'date', targetField: 'date', required: false },
+    { sourceColumn: 'Date', targetField: 'date', required: false, transform: (v) => parseDate(v as string) },
+    { sourceColumn: 'Datum', targetField: 'date', required: false, transform: (v) => parseDate(v as string) },
+    { sourceColumn: 'location_name', targetField: 'location_name' },
+    { sourceColumn: 'location', targetField: 'location_name' },
+    { sourceColumn: 'product_name', targetField: 'product_name' },
     { sourceColumn: 'Product', targetField: 'product_name' },
     { sourceColumn: 'Productnaam', targetField: 'product_name' },
+    { sourceColumn: 'quantity', targetField: 'quantity', transform: (v) => Number(v) || 0 },
     { sourceColumn: 'Quantity', targetField: 'quantity', transform: (v) => Number(v) || 0 },
     { sourceColumn: 'Aantal', targetField: 'quantity', transform: (v) => Number(v) || 0 },
+    { sourceColumn: 'revenue', targetField: 'revenue', transform: (v) => (typeof v === 'number' ? v : parseEuro(v as string)) },
     { sourceColumn: 'Revenue', targetField: 'revenue', transform: (v) => parseEuro(v as string) || Number(v) || 0 },
     { sourceColumn: 'Omzet', targetField: 'revenue', transform: (v) => parseEuro(v as string) || Number(v) || 0 },
     { sourceColumn: 'Salesperson', targetField: 'salesperson_name' },
@@ -130,9 +136,9 @@ const FIELD_MAPPINGS: Record<DocumentType, FieldMapping[]> = {
  * Collection names for each document type
  */
 const COLLECTION_NAMES: Record<DocumentType, string> = {
-  hours: 'test-eitje-hours',
-  contracts: 'test-eitje-contracts',
-  finance: 'test-eitje-finance',
+  hours: 'inbox-eitje-hours',
+  contracts: 'inbox-eitje-contracts',
+  finance: 'inbox-eitje-finance',
   sales: 'bork_sales',
   payroll: 'payroll',
   bi: 'power_bi_exports',
@@ -140,10 +146,10 @@ const COLLECTION_NAMES: Record<DocumentType, string> = {
   formitabele: 'formitabele',
   pasy: 'pasy',
   coming_soon: 'coming_soon',
-  product_mix: 'test-bork-product-mix',
-  food_beverage: 'test-bork-food-beverage',
-  basis_report: 'test-basis-report',
-  product_sales_per_hour: 'test-bork-basis-rapport',
+  product_mix: 'inbox-bork-product-mix',
+  food_beverage: 'inbox-bork-food-beverage',
+  basis_report: 'inbox-bork-basis-report',
+  product_sales_per_hour: 'inbox-bork-basis-report',
 }
 
 /**
@@ -404,9 +410,10 @@ class DataMappingService {
           support_id: row.support_id,
         }
       case 'sales':
-        // Unique by date + product_name (Bork format - to be confirmed)
+        // Unique by date + location_name + product_name (Bork format)
         return {
           date: row.date,
+          location_name: row.location_name,
           product_name: row.product_name,
         }
       case 'finance':

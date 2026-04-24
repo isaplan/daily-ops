@@ -1,7 +1,7 @@
 <template>
-  <InboxTestDataView
-    test-type="bi"
+  <DailyOpsInboxImportTableView
+    api-path="/api/inbox/power-bi/reports"
     title="Power BI — Reports &amp; exports"
-    description="Documents in power_bi_exports."
+    description="Inbox import table (API: /api/inbox/power-bi/reports). Collection power_bi_exports."
   />
 </template>

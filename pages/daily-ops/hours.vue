@@ -65,7 +65,10 @@
             @update:model-value="() => fetchHours(true)"
           />
         </div>
-        <UButton variant="outline" class="mt-6" @click="resetFilters">Reset Filters</UButton>
+        <div class="mt-6 flex flex-wrap gap-2">
+          <UButton variant="outline" @click="resetFilters">Reset Filters</UButton>
+          <UButton :loading="loading" @click="() => fetchHours(true)">Refresh data</UButton>
+        </div>
       </div>
     </UCard>
 
@@ -95,6 +98,9 @@
         <h2 class="font-semibold">Hours by Day and Location</h2>
         <p class="text-sm text-gray-500">
           {{ loading ? 'Loading...' : `${paginationTotal} record(s) total · ${hoursData.length} on this page` }}
+        </p>
+        <p v-if="!loading" class="text-xs text-gray-500">
+          Rows are grouped by each shift's work day (Europe/Amsterdam), not by when sync ran. Use Refresh after a sync if this tab was already open.
         </p>
       </template>
       <div v-if="loading" class="py-8 text-center text-gray-500">Loading hours data...</div>

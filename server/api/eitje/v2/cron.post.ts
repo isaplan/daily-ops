@@ -1,5 +1,5 @@
 import { getDb } from '../../../utils/db'
-import { executeEitjeJob } from '../../../services/eitjeSyncService'
+import { runIntegrationCronJob } from '../../../services/integrationCronRunner'
 
 type Body = {
   action: 'start' | 'stop' | 'run-now' | 'update'
@@ -35,35 +35,10 @@ export default defineEventHandler(async (event) => {
   }
 
   if (body.action === 'run-now') {
-    await db.collection('integration_cron_jobs').updateOne(
-      query,
-      {
-        $set: {
-          source: 'eitje',
-          jobType: body.jobType,
-          lastRun: now.toISOString(),
-          lastRunUTC: now.toISOString(),
-          updatedAt: now,
-        },
-        $setOnInsert: { createdAt: now, isActive: true },
-      },
-      { upsert: true },
-    )
-
-    const syncResult = await executeEitjeJob(db, body.jobType)
-    await db.collection('integration_cron_jobs').updateOne(query, {
-      $set: {
-        lastSyncAt: now.toISOString(),
-        lastSyncOk: syncResult.ok,
-        lastSyncMessage: syncResult.message,
-        lastSyncDetail: syncResult,
-        updatedAt: new Date(),
-      },
-    })
-
+    const { syncResult } = await runIntegrationCronJob(db, 'eitje', body.jobType)
     return {
       success: syncResult.ok,
-      message: syncResult.ok ? syncResult.message : syncResult.message,
+      message: syncResult.message,
       sync: syncResult,
     }
   }

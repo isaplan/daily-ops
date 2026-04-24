@@ -19,10 +19,10 @@
 
 <script setup lang="ts">
 const links = [
-  { to: '/daily-ops/inbox/bork/sales', label: 'Sales', hint: 'test-bork-sales' },
-  { to: '/daily-ops/inbox/bork/product-mix', label: 'Product mix', hint: 'test-bork-product-mix' },
-  { to: '/daily-ops/inbox/bork/food-beverage', label: 'Food & beverage', hint: 'test-bork-food-beverage' },
-  { to: '/daily-ops/inbox/bork/basis-report', label: 'Basis report', hint: 'test-basis-report' },
-  { to: '/daily-ops/inbox/bork/sales-per-hour', label: 'Sales per hour', hint: 'test-bork-basis-rapport' },
+  { to: '/daily-ops/inbox/bork/sales', label: 'Sales', hint: 'inbox-bork-sales' },
+  { to: '/daily-ops/inbox/bork/product-mix', label: 'Product mix', hint: 'inbox-bork-product-mix' },
+  { to: '/daily-ops/inbox/bork/food-beverage', label: 'Food & beverage', hint: 'inbox-bork-food-beverage' },
+  { to: '/daily-ops/inbox/bork/basis-report', label: 'Basis report', hint: 'inbox-bork-basis-report' },
+  { to: '/daily-ops/inbox/bork/sales-per-hour', label: 'Sales per hour', hint: 'inbox-bork-basis-report' },
 ]
 </script>
