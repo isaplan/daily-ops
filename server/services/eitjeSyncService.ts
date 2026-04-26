@@ -1,9 +1,9 @@
 /**
  * @registry-id: eitjeSyncService
  * @created: 2026-04-05T12:00:00.000Z
- * @last-modified: 2026-04-26T20:00:00.000Z
+ * @last-modified: 2026-04-26T20:05:00.000Z
  * @description: Fetches Eitje Open API resources and upserts eitje_raw_data; drives cron/sync handlers
- * @last-fix: [2026-04-26] Daily cron now fetches only 2 days and aggregates TODAY ONLY (incremental); historical-data rebuilds full range
+ * @last-fix: [2026-04-26] Daily cron fetches TODAY ONLY (service 10:00-05:59 UTC), aggregates TODAY in real-time
  *
  * @exports-to:
  * ✓ server/api/eitje/v2/cron.post.ts
@@ -530,18 +530,16 @@ export async function executeEitjeJob (db: Db, jobType: string): Promise<EitjeSy
   }
 
   if (jobType === 'daily-data') {
-    // Daily incremental sync: fetch only last 2 days (catch yesterday's late entries + today's new)
-    // then rebuild aggregation for TODAY'S BUSINESS DAY ONLY
-    const { start, end } = dateRangeDays(2)
+    // Daily incremental sync: fetch only TODAY (service runs 10:00-05:59:59 UTC)
+    // Cron runs at: 06:00 (pre-service), 13:00, 16:00, 18:00, 20:00, 22:00 (all during service hours)
+    // Aggregate TODAY ONLY - continuous updates throughout the business day
+    const now = new Date()
+    const todayUtc = now.toISOString().split('T')[0] ?? ''
     
-    const tr = await syncTimeRegistrationShifts(db, creds, start, end)
+    const tr = await syncTimeRegistrationShifts(db, creds, todayUtc, todayUtc)
     let agg: { deletedPeriods: number; inserted: number; error?: string } | undefined
     try {
-      // Get today's business date (YYYY-MM-DD, where business day = 06:00 UTC this day through 05:59:59 UTC next day)
-      const now = new Date()
-      const todayUtc = now.toISOString().split('T')[0] ?? ''
-      
-      // Rebuild aggregation for TODAY ONLY (not entire range)
+      // Rebuild aggregation for TODAY ONLY
       // This deletes old aggregation for today and rebuilds from fresh raw data
       agg = await rebuildEitjeTimeRegistrationAggregation(db, todayUtc, todayUtc)
       
