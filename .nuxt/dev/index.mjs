@@ -3208,6 +3208,965 @@ async function rebuildBorkSalesAggregation(db, startDate, endDate, collectionSuf
   return result;
 }
 
+function getBusinessDate(date = /* @__PURE__ */ new Date()) {
+  var _a;
+  const utcDate = new Date(date);
+  const hour = utcDate.getUTCHours();
+  if (hour < 6) {
+    utcDate.setUTCDate(utcDate.getUTCDate() - 1);
+  }
+  return (_a = utcDate.toISOString().split("T")[0]) != null ? _a : "";
+}
+function getBusinessDayStart(businessDate) {
+  const [year, month, day] = businessDate.split("-").map(Number);
+  return new Date(Date.UTC(year, (month != null ? month : 1) - 1, day != null ? day : 1, 6, 0, 0, 0));
+}
+function getBusinessDayEnd(businessDate) {
+  const [year, month, day] = businessDate.split("-").map(Number);
+  const endDate = new Date(Date.UTC(year, (month != null ? month : 1) - 1, (day != null ? day : 1) + 1, 5, 59, 59, 999));
+  return endDate;
+}
+function getBusinessDayPart1Date(businessDate) {
+  const [year, month, day] = businessDate.split("-").map(Number);
+  return new Date(Date.UTC(year, (month != null ? month : 1) - 1, day != null ? day : 1, 0, 0, 0, 0));
+}
+function getBusinessDayPart2Date(businessDate) {
+  const [year, month, day] = businessDate.split("-").map(Number);
+  const part2Date = new Date(Date.UTC(year, (month != null ? month : 1) - 1, (day != null ? day : 1) + 1, 0, 0, 0, 0));
+  return part2Date;
+}
+function getCurrentBusinessDate() {
+  return getBusinessDate(/* @__PURE__ */ new Date());
+}
+
+const V3_COLLECTIONS = {
+  // V3 Working Day Snapshots (updated 6x daily)
+  SALES_WORKING_DAY_SNAPSHOT: "v3_sales_working_day_snapshots",
+  LABOR_WORKING_DAY_SNAPSHOT: "v3_labor_working_day_snapshots",
+  DASHBOARD_SNAPSHOT: "v3_daily_ops_dashboard_snapshots",
+  // V3 Aggregation metadata (for tracking sync runs)
+  AGGREGATION_METADATA: "v3_aggregation_metadata"
+};
+
+async function getSalesSnapshot(db, locationId, businessDate) {
+  return db.collection(V3_COLLECTIONS.SALES_WORKING_DAY_SNAPSHOT).findOne({ locationId, businessDate });
+}
+async function getLaborSnapshot(db, locationId, businessDate) {
+  return db.collection(V3_COLLECTIONS.LABOR_WORKING_DAY_SNAPSHOT).findOne({ locationId, businessDate });
+}
+async function upsertSalesSnapshot(db, snapshot) {
+  const result = await db.collection(V3_COLLECTIONS.SALES_WORKING_DAY_SNAPSHOT).updateOne(
+    { locationId: snapshot.locationId, businessDate: snapshot.businessDate },
+    { $set: snapshot },
+    { upsert: true }
+  );
+  return snapshot._id || result.upsertedId || new ObjectId();
+}
+async function upsertLaborSnapshot(db, snapshot) {
+  const result = await db.collection(V3_COLLECTIONS.LABOR_WORKING_DAY_SNAPSHOT).updateOne(
+    { locationId: snapshot.locationId, businessDate: snapshot.businessDate },
+    { $set: snapshot },
+    { upsert: true }
+  );
+  return snapshot._id || result.upsertedId || new ObjectId();
+}
+async function upsertDashboardSnapshot(db, snapshot) {
+  const result = await db.collection(V3_COLLECTIONS.DASHBOARD_SNAPSHOT).updateOne(
+    { locationId: snapshot.locationId, businessDate: snapshot.businessDate },
+    { $set: snapshot },
+    { upsert: true }
+  );
+  return snapshot._id || result.upsertedId || new ObjectId();
+}
+async function recordAggregationMetadata(db, result) {
+  await db.collection(V3_COLLECTIONS.AGGREGATION_METADATA).insertOne({
+    ...result,
+    recordedAt: /* @__PURE__ */ new Date()
+  });
+}
+function shouldUpdateSnapshot(snapshot, maxAgeMins = 15) {
+  if (!snapshot) return true;
+  const now = /* @__PURE__ */ new Date();
+  const lastUpdate = new Date(snapshot.lastUpdatedAt);
+  const ageMs = now.getTime() - lastUpdate.getTime();
+  const ageMins = ageMs / (1e3 * 60);
+  return ageMins > maxAgeMins;
+}
+
+async function rebuildV3SaleSnapshot(db, locationId, locationName, businessDate) {
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p;
+  const startTime = Date.now();
+  const stepsExecuted = [];
+  try {
+    stepsExecuted.push("starting_aggregation");
+    const workingDayStart = getBusinessDayStart(businessDate);
+    const workingDayEnd = getBusinessDayEnd(businessDate);
+    const part1Date = getBusinessDayPart1Date(businessDate);
+    const part2Date = getBusinessDayPart2Date(businessDate);
+    stepsExecuted.push("fetched_business_day_boundaries");
+    const existingSnapshot = await getSalesSnapshot(db, locationId, businessDate);
+    const shouldUpdate = shouldUpdateSnapshot(existingSnapshot, 15);
+    if (!shouldUpdate && existingSnapshot) {
+      stepsExecuted.push("snapshot_recent_skipped_update");
+      return {
+        success: true,
+        message: "Snapshot already up-to-date",
+        locationId,
+        locationName,
+        businessDate,
+        timestamp: /* @__PURE__ */ new Date(),
+        syncCount: existingSnapshot.syncCount + 1,
+        durationMs: Date.now() - startTime,
+        stepsExecuted,
+        salesSnapshot: existingSnapshot
+      };
+    }
+    stepsExecuted.push("querying_raw_sales_data");
+    const part1Pipeline = [
+      {
+        $match: {
+          locationId,
+          date: {
+            $gte: workingDayStart,
+            $lt: new Date(part1Date.getTime() + 24 * 60 * 60 * 1e3)
+            // End of part1Date
+          }
+        }
+      },
+      {
+        $addFields: {
+          isoDate: {
+            $dateToString: { format: "%Y-%m-%d", date: "$date", timezone: "UTC" }
+          },
+          hour: { $hour: { date: "$date", timezone: "UTC" } }
+        }
+      },
+      {
+        $group: {
+          _id: {
+            isoDate: "$isoDate",
+            hour: "$hour"
+          },
+          totalRevenue: { $sum: "$lineTotal" },
+          totalRevenueExVat: { $sum: { $ifNull: ["$lineTotalExVat", "$lineTotal"] } },
+          totalRevenueIncVat: { $sum: { $ifNull: ["$lineTotalIncVat", "$lineTotal"] } },
+          totalVat: { $sum: { $subtract: [{ $ifNull: ["$lineTotalIncVat", "$lineTotal"] }, "$lineTotal"] } },
+          totalQuantity: { $sum: "$quantity" },
+          drinksRevenue: {
+            $sum: {
+              $cond: [
+                { $regexMatch: { input: "$productName", regex: /drink|beverage|coffee|tea|juice|water/i } },
+                "$lineTotal",
+                0
+              ]
+            }
+          },
+          transactions: { $addToSet: "$transactionId" },
+          waiters: { $addToSet: "$waiterName" },
+          tables: { $addToSet: "$tableNumber" },
+          categories: { $push: { category: "$productCategory", revenue: "$lineTotal" } }
+        }
+      }
+    ];
+    const part1Data = await db.collection("bork_raw_sales").aggregate(part1Pipeline).toArray();
+    stepsExecuted.push("aggregated_part1_data");
+    const part2Pipeline = [
+      {
+        $match: {
+          locationId,
+          date: {
+            $gte: part2Date,
+            $lt: workingDayEnd
+          }
+        }
+      },
+      {
+        $addFields: {
+          isoDate: {
+            $dateToString: { format: "%Y-%m-%d", date: "$date", timezone: "UTC" }
+          },
+          hour: { $hour: { date: "$date", timezone: "UTC" } }
+        }
+      },
+      {
+        $group: {
+          _id: {
+            isoDate: "$isoDate",
+            hour: "$hour"
+          },
+          totalRevenue: { $sum: "$lineTotal" },
+          totalRevenueExVat: { $sum: { $ifNull: ["$lineTotalExVat", "$lineTotal"] } },
+          totalRevenueIncVat: { $sum: { $ifNull: ["$lineTotalIncVat", "$lineTotal"] } },
+          totalVat: { $sum: { $subtract: [{ $ifNull: ["$lineTotalIncVat", "$lineTotal"] }, "$lineTotal"] } },
+          totalQuantity: { $sum: "$quantity" },
+          drinksRevenue: {
+            $sum: {
+              $cond: [
+                { $regexMatch: { input: "$productName", regex: /drink|beverage|coffee|tea|juice|water/i } },
+                "$lineTotal",
+                0
+              ]
+            }
+          },
+          transactions: { $addToSet: "$transactionId" },
+          waiters: { $addToSet: "$waiterName" },
+          tables: { $addToSet: "$tableNumber" },
+          categories: { $push: { category: "$productCategory", revenue: "$lineTotal" } }
+        }
+      }
+    ];
+    const part2Data = await db.collection("bork_raw_sales").aggregate(part2Pipeline).toArray();
+    stepsExecuted.push("aggregated_part2_data");
+    const part1 = buildDayPartSummary(part1Data, part1Date);
+    stepsExecuted.push("built_part1_summary");
+    const part2 = buildDayPartSummary(part2Data, part2Date);
+    stepsExecuted.push("built_part2_summary");
+    const allData = [...part1Data, ...part2Data];
+    const hourlyBreakdown = buildHourlyBreakdown(allData);
+    stepsExecuted.push("built_hourly_breakdown");
+    const totalRevenue = ((_a = part1 == null ? void 0 : part1.totalRevenue) != null ? _a : 0) + ((_b = part2 == null ? void 0 : part2.totalRevenue) != null ? _b : 0);
+    const totalRevenueExVat = ((_c = part1 == null ? void 0 : part1.totalRevenueExVat) != null ? _c : 0) + ((_d = part2 == null ? void 0 : part2.totalRevenueExVat) != null ? _d : 0);
+    const totalRevenueIncVat = ((_e = part1 == null ? void 0 : part1.totalRevenueIncVat) != null ? _e : 0) + ((_f = part2 == null ? void 0 : part2.totalRevenueIncVat) != null ? _f : 0);
+    const totalVat = ((_g = part1 == null ? void 0 : part1.totalVat) != null ? _g : 0) + ((_h = part2 == null ? void 0 : part2.totalVat) != null ? _h : 0);
+    const totalQuantity = ((_i = part1 == null ? void 0 : part1.totalQuantity) != null ? _i : 0) + ((_j = part2 == null ? void 0 : part2.totalQuantity) != null ? _j : 0);
+    const totalTransactions = ((_k = part1 == null ? void 0 : part1.totalTransactions) != null ? _k : 0) + ((_l = part2 == null ? void 0 : part2.totalTransactions) != null ? _l : 0);
+    const drinksRevenue = ((_m = part1 == null ? void 0 : part1.drinksRevenue) != null ? _m : 0) + ((_n = part2 == null ? void 0 : part2.drinksRevenue) != null ? _n : 0);
+    const foodRevenue = totalRevenue - drinksRevenue;
+    stepsExecuted.push("calculated_combined_totals");
+    const revenueByCategory = {};
+    for (const entry of allData) {
+      if (entry.categories) {
+        for (const cat of entry.categories) {
+          revenueByCategory[cat.category] = ((_o = revenueByCategory[cat.category]) != null ? _o : 0) + cat.revenue;
+        }
+      }
+    }
+    const byWaiter = await buildWaiterBreakdown(db, locationId, businessDate);
+    stepsExecuted.push("built_waiter_breakdown");
+    const byTable = await buildTableBreakdown(db, locationId, businessDate);
+    stepsExecuted.push("built_table_breakdown");
+    const byPaymentMethod = await buildPaymentMethodBreakdown(db, locationId, businessDate);
+    stepsExecuted.push("built_payment_method_breakdown");
+    const snapshot = {
+      locationId,
+      locationName,
+      businessDate,
+      workingDayStart,
+      workingDayEnd,
+      workingDayStarted: true,
+      workingDayFinished: getBusinessDate(/* @__PURE__ */ new Date()) !== businessDate,
+      // True if past this business day
+      part1: (part1 == null ? void 0 : part1.totalRevenue) > 0 ? part1 : void 0,
+      part2: (part2 == null ? void 0 : part2.totalRevenue) > 0 ? part2 : void 0,
+      totalRevenue,
+      totalRevenueExVat,
+      totalRevenueIncVat,
+      totalVat,
+      totalQuantity,
+      totalTransactions,
+      avgRevenuePerTransaction: totalTransactions > 0 ? totalRevenue / totalTransactions : 0,
+      revenueByCategory,
+      drinksRevenue,
+      foodRevenue,
+      drinksRevenuePercent: totalRevenue > 0 ? drinksRevenue / totalRevenue * 100 : 0,
+      hourlyBreakdown,
+      byWaiter,
+      byTable,
+      byPaymentMethod,
+      lastUpdatedAt: /* @__PURE__ */ new Date(),
+      syncCount: ((_p = existingSnapshot == null ? void 0 : existingSnapshot.syncCount) != null ? _p : 0) + 1,
+      version: 3
+    };
+    stepsExecuted.push("created_snapshot_object");
+    await upsertSalesSnapshot(db, snapshot);
+    stepsExecuted.push("upserted_snapshot");
+    return {
+      success: true,
+      message: "Sales snapshot updated successfully",
+      locationId,
+      locationName,
+      businessDate,
+      timestamp: /* @__PURE__ */ new Date(),
+      syncCount: snapshot.syncCount,
+      durationMs: Date.now() - startTime,
+      stepsExecuted,
+      salesSnapshot: snapshot
+    };
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    return {
+      success: false,
+      message: "Sales snapshot aggregation failed",
+      locationId,
+      locationName,
+      businessDate,
+      timestamp: /* @__PURE__ */ new Date(),
+      syncCount: 0,
+      durationMs: Date.now() - startTime,
+      stepsExecuted,
+      error: errorMsg
+    };
+  }
+}
+function buildDayPartSummary(data, date) {
+  var _a, _b, _c, _d, _e, _f;
+  let totalRevenue = 0;
+  let totalRevenueExVat = 0;
+  let totalRevenueIncVat = 0;
+  let totalVat = 0;
+  let totalQuantity = 0;
+  let transactions = /* @__PURE__ */ new Set();
+  let drinksRevenue = 0;
+  for (const entry of data) {
+    totalRevenue += (_a = entry.totalRevenue) != null ? _a : 0;
+    totalRevenueExVat += (_b = entry.totalRevenueExVat) != null ? _b : 0;
+    totalRevenueIncVat += (_c = entry.totalRevenueIncVat) != null ? _c : 0;
+    totalVat += (_d = entry.totalVat) != null ? _d : 0;
+    totalQuantity += (_e = entry.totalQuantity) != null ? _e : 0;
+    drinksRevenue += (_f = entry.drinksRevenue) != null ? _f : 0;
+    if (entry.transactions) {
+      for (const txn of entry.transactions) {
+        transactions.add(txn);
+      }
+    }
+  }
+  return {
+    date,
+    totalRevenue,
+    totalRevenueExVat,
+    totalRevenueIncVat,
+    totalVat,
+    totalQuantity,
+    totalTransactions: transactions.size,
+    revenueByCategory: {},
+    drinksRevenue,
+    foodRevenue: totalRevenue - drinksRevenue
+  };
+}
+function buildHourlyBreakdown(data) {
+  var _a, _b, _c, _d;
+  const hourMap = /* @__PURE__ */ new Map();
+  for (const entry of data) {
+    const hour = entry._id.hour;
+    if (!hourMap.has(hour)) {
+      hourMap.set(hour, {
+        hour,
+        totalRevenue: 0,
+        totalQuantity: 0,
+        totalTransactions: 0
+      });
+    }
+    const hourEntry = hourMap.get(hour);
+    hourEntry.totalRevenue += (_a = entry.totalRevenue) != null ? _a : 0;
+    hourEntry.totalQuantity += (_b = entry.totalQuantity) != null ? _b : 0;
+    hourEntry.totalTransactions += (_d = (_c = entry.transactions) == null ? void 0 : _c.length) != null ? _d : 0;
+  }
+  const sortedHours = Array.from(hourMap.entries()).sort(([a], [b]) => a - b).map(([, data2]) => data2);
+  let cumulativeRevenue = 0;
+  const breakdown = [];
+  for (const hourEntry of sortedHours) {
+    cumulativeRevenue += hourEntry.totalRevenue;
+    breakdown.push({
+      hour: hourEntry.hour,
+      isoDate: /* @__PURE__ */ new Date(),
+      totalRevenue: cumulativeRevenue,
+      totalQuantity: hourEntry.totalQuantity,
+      totalTransactions: hourEntry.totalTransactions
+    });
+  }
+  return breakdown;
+}
+async function buildWaiterBreakdown(db, locationId, businessDate) {
+  const workingDayStart = getBusinessDayStart(businessDate);
+  const workingDayEnd = getBusinessDayEnd(businessDate);
+  const pipeline = [
+    {
+      $match: {
+        locationId,
+        date: { $gte: workingDayStart, $lt: workingDayEnd }
+      }
+    },
+    {
+      $group: {
+        _id: "$waiterName",
+        revenue: { $sum: "$lineTotal" },
+        transactions: { $addToSet: "$transactionId" },
+        itemsSold: { $sum: "$quantity" }
+      }
+    },
+    { $sort: { revenue: -1 } },
+    { $limit: 20 }
+  ];
+  const results = await db.collection("bork_raw_sales").aggregate(pipeline).toArray();
+  return results.map((r) => {
+    var _a, _b, _c, _d, _e;
+    return {
+      name: (_a = r._id) != null ? _a : "Unknown",
+      revenue: (_b = r.revenue) != null ? _b : 0,
+      transactions: (_d = (_c = r.transactions) == null ? void 0 : _c.length) != null ? _d : 0,
+      itemsSold: (_e = r.itemsSold) != null ? _e : 0
+    };
+  });
+}
+async function buildTableBreakdown(db, locationId, businessDate) {
+  const workingDayStart = getBusinessDayStart(businessDate);
+  const workingDayEnd = getBusinessDayEnd(businessDate);
+  const pipeline = [
+    {
+      $match: {
+        locationId,
+        date: { $gte: workingDayStart, $lt: workingDayEnd }
+      }
+    },
+    {
+      $group: {
+        _id: "$tableNumber",
+        revenue: { $sum: "$lineTotal" },
+        transactions: { $addToSet: "$transactionId" }
+      }
+    },
+    { $sort: { revenue: -1 } },
+    { $limit: 50 }
+  ];
+  const results = await db.collection("bork_raw_sales").aggregate(pipeline).toArray();
+  return results.map((r) => {
+    var _a, _b, _c, _d;
+    return {
+      tableNumber: (_a = r._id) != null ? _a : "Unknown",
+      revenue: (_b = r.revenue) != null ? _b : 0,
+      transactions: (_d = (_c = r.transactions) == null ? void 0 : _c.length) != null ? _d : 0
+    };
+  });
+}
+async function buildPaymentMethodBreakdown(db, locationId, businessDate) {
+  const workingDayStart = getBusinessDayStart(businessDate);
+  const workingDayEnd = getBusinessDayEnd(businessDate);
+  const pipeline = [
+    {
+      $match: {
+        locationId,
+        date: { $gte: workingDayStart, $lt: workingDayEnd }
+      }
+    },
+    {
+      $group: {
+        _id: "$paymentMethod",
+        revenue: { $sum: "$lineTotal" },
+        transactions: { $addToSet: "$transactionId" }
+      }
+    },
+    { $sort: { revenue: -1 } }
+  ];
+  const results = await db.collection("bork_raw_sales").aggregate(pipeline).toArray();
+  return results.map((r) => {
+    var _a, _b, _c, _d;
+    return {
+      method: (_a = r._id) != null ? _a : "Unknown",
+      revenue: (_b = r.revenue) != null ? _b : 0,
+      transactions: (_d = (_c = r.transactions) == null ? void 0 : _c.length) != null ? _d : 0
+    };
+  });
+}
+
+async function rebuildV3LaborSnapshot(db, locationId, locationName, businessDate) {
+  var _a, _b, _c, _d, _e, _f, _g;
+  const startTime = Date.now();
+  const stepsExecuted = [];
+  try {
+    stepsExecuted.push("starting_aggregation");
+    const workingDayStart = getBusinessDayStart(businessDate);
+    const workingDayEnd = getBusinessDayEnd(businessDate);
+    stepsExecuted.push("fetched_business_day_boundaries");
+    const existingSnapshot = await getLaborSnapshot(db, locationId, businessDate);
+    const shouldUpdate = shouldUpdateSnapshot(existingSnapshot, 15);
+    if (!shouldUpdate && existingSnapshot) {
+      stepsExecuted.push("snapshot_recent_skipped_update");
+      return {
+        success: true,
+        message: "Snapshot already up-to-date",
+        locationId,
+        locationName,
+        businessDate,
+        timestamp: /* @__PURE__ */ new Date(),
+        syncCount: existingSnapshot.syncCount + 1,
+        durationMs: Date.now() - startTime,
+        stepsExecuted,
+        laborSnapshot: existingSnapshot
+      };
+    }
+    stepsExecuted.push("querying_raw_labor_data");
+    const laborPipeline = [
+      {
+        $match: {
+          locationId,
+          date: { $gte: workingDayStart, $lt: workingDayEnd }
+        }
+      },
+      {
+        $addFields: {
+          hour: { $hour: { date: "$date", timezone: "UTC" } }
+        }
+      },
+      {
+        $group: {
+          _id: {
+            workerId: "$workerId",
+            team: "$team",
+            contract: "$contractType"
+          },
+          totalHours: { $sum: "$hours" },
+          totalCost: { $sum: "$cost" },
+          hourlyBreakdown: {
+            $push: {
+              hour: "$hour",
+              hours: "$hours",
+              cost: "$cost"
+            }
+          }
+        }
+      }
+    ];
+    const laborData = await db.collection("eitje_raw_time_registrations").aggregate(laborPipeline).toArray();
+    stepsExecuted.push("aggregated_labor_data");
+    let totalHours = 0;
+    let totalCost = 0;
+    const workersSet = /* @__PURE__ */ new Set();
+    const teamsMap = /* @__PURE__ */ new Map();
+    const contractsMap = /* @__PURE__ */ new Map();
+    const hourlyMap = /* @__PURE__ */ new Map();
+    for (const entry of laborData) {
+      const hours = (_a = entry.totalHours) != null ? _a : 0;
+      const cost = (_b = entry.totalCost) != null ? _b : 0;
+      const team = (_c = entry._id.team) != null ? _c : "Unassigned";
+      const contract = (_d = entry._id.contract) != null ? _d : "Unknown";
+      totalHours += hours;
+      totalCost += cost;
+      workersSet.add(entry._id.workerId);
+      if (!teamsMap.has(team)) {
+        teamsMap.set(team, {
+          teamId: entry._id.workerId,
+          teamName: team,
+          workerCount: 0,
+          totalHours: 0,
+          totalCost: 0,
+          pctOfTotalHours: 0
+        });
+      }
+      const teamSummary = teamsMap.get(team);
+      teamSummary.workerCount += 1;
+      teamSummary.totalHours += hours;
+      teamSummary.totalCost += cost;
+      if (!contractsMap.has(contract)) {
+        contractsMap.set(contract, {
+          contractType: contract,
+          workerCount: 0,
+          totalHours: 0,
+          totalCost: 0,
+          pctOfTotalHours: 0
+        });
+      }
+      const contractSummary = contractsMap.get(contract);
+      contractSummary.workerCount += 1;
+      contractSummary.totalHours += hours;
+      contractSummary.totalCost += cost;
+      if (entry.hourlyBreakdown) {
+        for (const hourEntry of entry.hourlyBreakdown) {
+          const hour = hourEntry.hour;
+          if (!hourlyMap.has(hour)) {
+            hourlyMap.set(hour, { hours: 0, cost: 0 });
+          }
+          const hourData = hourlyMap.get(hour);
+          hourData.hours += (_e = hourEntry.hours) != null ? _e : 0;
+          hourData.cost += (_f = hourEntry.cost) != null ? _f : 0;
+        }
+      }
+    }
+    stepsExecuted.push("aggregated_by_team_contract");
+    for (const team of teamsMap.values()) {
+      team.pctOfTotalHours = totalHours > 0 ? team.totalHours / totalHours * 100 : 0;
+    }
+    for (const contract of contractsMap.values()) {
+      contract.pctOfTotalHours = totalHours > 0 ? contract.totalHours / totalHours * 100 : 0;
+    }
+    stepsExecuted.push("calculated_percentages");
+    const hourlyBreakdown = Array.from(hourlyMap.entries()).sort(([a], [b]) => a - b).map(([hour, data]) => ({
+      hour,
+      isoDate: /* @__PURE__ */ new Date(),
+      totalRevenue: 0,
+      // Will be filled in from sales snapshot
+      totalHours: data.hours,
+      totalCost: data.cost
+    }));
+    stepsExecuted.push("built_hourly_breakdown");
+    const productivity = calculateProductivityMetrics(
+      laborData,
+      totalHours,
+      totalCost,
+      hourlyBreakdown
+    );
+    stepsExecuted.push("calculated_productivity_metrics");
+    const snapshot = {
+      locationId,
+      locationName,
+      businessDate,
+      workingDayStart,
+      workingDayEnd,
+      workingDayStarted: true,
+      workingDayFinished: getBusinessDate(/* @__PURE__ */ new Date()) !== businessDate,
+      totalHours,
+      totalCost,
+      totalWorkers: workersSet.size,
+      costPerHour: totalHours > 0 ? totalCost / totalHours : 0,
+      teams: Array.from(teamsMap.values()).sort((a, b) => b.totalHours - a.totalHours),
+      contracts: Array.from(contractsMap.values()).sort((a, b) => b.totalHours - a.totalHours),
+      productivity,
+      hourlyBreakdown,
+      lastUpdatedAt: /* @__PURE__ */ new Date(),
+      syncCount: ((_g = existingSnapshot == null ? void 0 : existingSnapshot.syncCount) != null ? _g : 0) + 1,
+      version: 3
+    };
+    stepsExecuted.push("created_snapshot_object");
+    await upsertLaborSnapshot(db, snapshot);
+    stepsExecuted.push("upserted_snapshot");
+    return {
+      success: true,
+      message: "Labor snapshot updated successfully",
+      locationId,
+      locationName,
+      businessDate,
+      timestamp: /* @__PURE__ */ new Date(),
+      syncCount: snapshot.syncCount,
+      durationMs: Date.now() - startTime,
+      stepsExecuted,
+      laborSnapshot: snapshot
+    };
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    return {
+      success: false,
+      message: "Labor snapshot aggregation failed",
+      locationId,
+      locationName,
+      businessDate,
+      timestamp: /* @__PURE__ */ new Date(),
+      syncCount: 0,
+      durationMs: Date.now() - startTime,
+      stepsExecuted,
+      error: errorMsg
+    };
+  }
+}
+function calculateProductivityMetrics(laborData, totalHours, totalCost, hourlyBreakdown) {
+  var _a;
+  const metrics = {};
+  metrics.laborCostPctOfRevenue = void 0;
+  metrics.revenuePerLaborHour = void 0;
+  let bestHour;
+  let worstHour;
+  let bestEfficiency = Infinity;
+  let worstEfficiency = 0;
+  for (const entry of hourlyBreakdown) {
+    if (entry.totalHours && entry.totalHours > 0) {
+      const costPerHour = ((_a = entry.totalCost) != null ? _a : 0) / entry.totalHours;
+      if (costPerHour < bestEfficiency) {
+        bestEfficiency = costPerHour;
+        bestHour = entry.hour;
+      }
+      if (costPerHour > worstEfficiency) {
+        worstEfficiency = costPerHour;
+        worstHour = entry.hour;
+      }
+    }
+  }
+  metrics.bestHour = bestHour;
+  metrics.bestHourEfficiency = bestEfficiency === Infinity ? void 0 : bestEfficiency;
+  metrics.worstHour = worstHour;
+  metrics.worstHourEfficiency = worstEfficiency === 0 ? void 0 : worstEfficiency;
+  return metrics;
+}
+
+async function rebuildV3DashboardSnapshot(db, locationId, locationName, businessDate) {
+  var _a, _b;
+  const startTime = Date.now();
+  const stepsExecuted = [];
+  try {
+    stepsExecuted.push("starting_aggregation");
+    const salesSnapshot = await getSalesSnapshot(db, locationId, businessDate);
+    stepsExecuted.push("fetched_sales_snapshot");
+    const laborSnapshot = await getLaborSnapshot(db, locationId, businessDate);
+    stepsExecuted.push("fetched_labor_snapshot");
+    if (!salesSnapshot || !laborSnapshot) {
+      stepsExecuted.push("missing_source_snapshots");
+      return {
+        success: false,
+        message: "Sales or labor snapshot not found - cannot build dashboard",
+        locationId,
+        locationName,
+        businessDate,
+        timestamp: /* @__PURE__ */ new Date(),
+        syncCount: 0,
+        durationMs: Date.now() - startTime,
+        stepsExecuted,
+        error: "Missing source data"
+      };
+    }
+    stepsExecuted.push("building_dashboard_snapshot");
+    const revenuePerLaborHour = laborSnapshot.totalHours > 0 ? salesSnapshot.totalRevenue / laborSnapshot.totalHours : 0;
+    const laborCostPctOfRevenue = salesSnapshot.totalRevenue > 0 ? laborSnapshot.totalCost / salesSnapshot.totalRevenue * 100 : 0;
+    stepsExecuted.push("calculated_combined_metrics");
+    const topProducts = buildTopProducts(salesSnapshot);
+    stepsExecuted.push("built_top_products");
+    const topTeams = laborSnapshot.teams.slice(0, 10).map((team) => ({
+      teamName: team.teamName,
+      workerCount: team.workerCount,
+      totalHours: team.totalHours,
+      totalCost: team.totalCost
+    }));
+    stepsExecuted.push("built_top_teams");
+    const topContracts = laborSnapshot.contracts.slice(0, 10).map((contract) => ({
+      contractType: contract.contractType,
+      workerCount: contract.workerCount,
+      totalHours: contract.totalHours
+    }));
+    stepsExecuted.push("built_top_contracts");
+    const hourlyRevenue = salesSnapshot.hourlyBreakdown || [];
+    const hourlyLabor = laborSnapshot.hourlyBreakdown || [];
+    for (const laborEntry of hourlyLabor) {
+      const revenueEntry = hourlyRevenue.find((r) => r.hour === laborEntry.hour);
+      if (revenueEntry) {
+        laborEntry.totalRevenue = revenueEntry.totalRevenue;
+      }
+    }
+    stepsExecuted.push("merged_hourly_data");
+    const snapshot = {
+      locationId,
+      locationName,
+      businessDate,
+      workingDayFinished: getBusinessDate(/* @__PURE__ */ new Date()) !== businessDate,
+      currentHour: (/* @__PURE__ */ new Date()).getUTCHours(),
+      cards: {
+        totalRevenue: salesSnapshot.totalRevenue,
+        totalLaborCost: laborSnapshot.totalCost,
+        laborCostPctOfRevenue,
+        revenuePerLaborHour
+      },
+      revenue: {
+        totalRevenue: salesSnapshot.totalRevenue,
+        totalRevenueExVat: salesSnapshot.totalRevenueExVat,
+        totalTransactions: salesSnapshot.totalTransactions,
+        avgTransactionValue: salesSnapshot.totalTransactions > 0 ? salesSnapshot.totalRevenue / salesSnapshot.totalTransactions : 0,
+        drinksRevenue: salesSnapshot.drinksRevenue,
+        foodRevenue: salesSnapshot.foodRevenue,
+        drinksRevenuePercent: salesSnapshot.drinksRevenuePercent
+      },
+      labor: {
+        totalHours: laborSnapshot.totalHours,
+        totalCost: laborSnapshot.totalCost,
+        totalWorkers: laborSnapshot.totalWorkers,
+        costPerHour: laborSnapshot.costPerHour,
+        revenuePerLaborHour,
+        laborCostPctOfRevenue
+      },
+      productivity: {
+        revenuePerLaborHour,
+        laborCostPctOfRevenue,
+        bestHour: laborSnapshot.productivity.bestHour !== void 0 ? {
+          hour: laborSnapshot.productivity.bestHour,
+          efficiency: (_a = laborSnapshot.productivity.bestHourEfficiency) != null ? _a : 0
+        } : void 0,
+        worstHour: laborSnapshot.productivity.worstHour !== void 0 ? {
+          hour: laborSnapshot.productivity.worstHour,
+          efficiency: (_b = laborSnapshot.productivity.worstHourEfficiency) != null ? _b : 0
+        } : void 0
+      },
+      topProducts,
+      topTeams,
+      topContracts,
+      hourlyRevenue,
+      hourlyLabor,
+      lastUpdatedAt: /* @__PURE__ */ new Date(),
+      syncCount: Math.max(salesSnapshot.syncCount, laborSnapshot.syncCount),
+      version: 3
+    };
+    stepsExecuted.push("created_dashboard_snapshot_object");
+    await upsertDashboardSnapshot(db, snapshot);
+    stepsExecuted.push("upserted_snapshot");
+    return {
+      success: true,
+      message: "Dashboard snapshot updated successfully",
+      locationId,
+      locationName,
+      businessDate,
+      timestamp: /* @__PURE__ */ new Date(),
+      syncCount: snapshot.syncCount,
+      durationMs: Date.now() - startTime,
+      stepsExecuted,
+      dashboardSnapshot: snapshot
+    };
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    return {
+      success: false,
+      message: "Dashboard snapshot aggregation failed",
+      locationId,
+      locationName,
+      businessDate,
+      timestamp: /* @__PURE__ */ new Date(),
+      syncCount: 0,
+      durationMs: Date.now() - startTime,
+      stepsExecuted,
+      error: errorMsg
+    };
+  }
+}
+function buildTopProducts(salesSnapshot) {
+  const products = [];
+  for (const [category, revenue] of Object.entries(salesSnapshot.revenueByCategory)) {
+    products.push({
+      name: category,
+      quantity: 0,
+      // Would need raw data to calculate properly
+      revenue,
+      profitPercent: void 0
+    });
+  }
+  return products.sort((a, b) => b.revenue - a.revenue).slice(0, 20);
+}
+
+async function runV3AggregationPipeline(db, businessDate, logFn) {
+  const startTime = Date.now();
+  const log = logFn || console.log;
+  try {
+    const targetBusinessDate = businessDate || getCurrentBusinessDate();
+    log(`[V3 Aggregation] Starting pipeline for business date: ${targetBusinessDate}`);
+    const locations = await db.collection("locations").find({}).toArray();
+    log(`[V3 Aggregation] Found ${locations.length} locations`);
+    if (locations.length === 0) {
+      return {
+        success: false,
+        startedAt: /* @__PURE__ */ new Date(),
+        completedAt: /* @__PURE__ */ new Date(),
+        durationMs: 0,
+        locations: [],
+        totalLocations: 0,
+        successCount: 0,
+        failureCount: 0,
+        businessDate: targetBusinessDate,
+        workingDayFinished: false,
+        syncCount: 0,
+        message: "No locations found",
+        error: "No locations"
+      };
+    }
+    const results = [];
+    let successCount = 0;
+    let failureCount = 0;
+    const allSteps = [];
+    for (const location of locations) {
+      const locationId = location._id;
+      const locationName = location.name || `Location ${locationId}`;
+      try {
+        log(`[V3 Aggregation] Processing location: ${locationName}`);
+        log(`  \u2192 Building sales snapshot...`);
+        const salesResult = await rebuildV3SaleSnapshot(db, locationId, locationName, targetBusinessDate);
+        allSteps.push(...salesResult.stepsExecuted);
+        if (!salesResult.success) {
+          log(`  \u2717 Sales snapshot failed: ${salesResult.error}`);
+          results.push(salesResult);
+          failureCount += 1;
+          continue;
+        }
+        log(`  \u2713 Sales snapshot completed (${salesResult.durationMs}ms, sync #${salesResult.syncCount})`);
+        log(`  \u2192 Building labor snapshot...`);
+        const laborResult = await rebuildV3LaborSnapshot(db, locationId, locationName, targetBusinessDate);
+        allSteps.push(...laborResult.stepsExecuted);
+        if (!laborResult.success) {
+          log(`  \u2717 Labor snapshot failed: ${laborResult.error}`);
+          results.push(laborResult);
+          failureCount += 1;
+          continue;
+        }
+        log(`  \u2713 Labor snapshot completed (${laborResult.durationMs}ms, sync #${laborResult.syncCount})`);
+        log(`  \u2192 Building dashboard snapshot...`);
+        const dashboardResult = await rebuildV3DashboardSnapshot(
+          db,
+          locationId,
+          locationName,
+          targetBusinessDate
+        );
+        allSteps.push(...dashboardResult.stepsExecuted);
+        if (!dashboardResult.success) {
+          log(`  \u2717 Dashboard snapshot failed: ${dashboardResult.error}`);
+          results.push(dashboardResult);
+          failureCount += 1;
+          continue;
+        }
+        log(
+          `  \u2713 Dashboard snapshot completed (${dashboardResult.durationMs}ms, sync #${dashboardResult.syncCount})`
+        );
+        await recordAggregationMetadata(db, dashboardResult);
+        results.push(dashboardResult);
+        successCount += 1;
+        log(`  \u2705 Location complete: ${locationName}`);
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        log(`  \u2717 Location failed: ${errorMsg}`);
+        failureCount += 1;
+        results.push({
+          success: false,
+          message: "Unexpected error in aggregation",
+          locationId,
+          locationName,
+          businessDate: targetBusinessDate,
+          timestamp: /* @__PURE__ */ new Date(),
+          syncCount: 0,
+          durationMs: Date.now() - startTime,
+          stepsExecuted: allSteps,
+          error: errorMsg
+        });
+      }
+    }
+    const completedAt = /* @__PURE__ */ new Date();
+    const totalDurationMs = completedAt.getTime() - startTime;
+    log(`[V3 Aggregation] Pipeline completed`);
+    log(`  \u2192 Success: ${successCount}/${locations.length}`);
+    log(`  \u2192 Failed: ${failureCount}/${locations.length}`);
+    log(`  \u2192 Total time: ${totalDurationMs}ms`);
+    return {
+      success: successCount === locations.length,
+      startedAt: new Date(startTime),
+      completedAt,
+      durationMs: totalDurationMs,
+      locations: results,
+      totalLocations: locations.length,
+      successCount,
+      failureCount,
+      businessDate: targetBusinessDate,
+      workingDayFinished: false,
+      syncCount: Math.max(...results.map((r) => r.syncCount), 0),
+      message: `V3 aggregation completed: ${successCount} success, ${failureCount} failed`
+    };
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    log(`[V3 Aggregation] Pipeline failed: ${errorMsg}`);
+    return {
+      success: false,
+      startedAt: new Date(startTime),
+      completedAt: /* @__PURE__ */ new Date(),
+      durationMs: Date.now() - startTime,
+      locations: [],
+      totalLocations: 0,
+      successCount: 0,
+      failureCount: 1,
+      businessDate: businessDate || getCurrentBusinessDate(),
+      workingDayFinished: false,
+      syncCount: 0,
+      message: "V3 aggregation pipeline failed",
+      error: errorMsg
+    };
+  }
+}
+
 function getDateRangeForJobType(jobType) {
   if (jobType === "historical-data") return { days: 30 };
   return { days: 1 };
@@ -3324,15 +4283,19 @@ async function executeBorkJob(db, jobType) {
   const syncOk = okCount > 0;
   const message = syncOk ? `Synced ${okCount}/${creds.length} location(s) into bork_raw_data` : `0/${creds.length} locations succeeded \u2014 check Bork API credentials and network access`;
   let aggregationResult = {};
+  let v3AggregationResult = null;
   if (syncOk && jobType === "daily-data") {
     try {
       const today = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
       aggregationResult = await rebuildBorkSalesAggregation(db, today, today);
+      console.log("[borkSyncService] Triggering V3 aggregation pipeline...");
+      v3AggregationResult = await runV3AggregationPipeline(db, today, (msg) => console.log(`[V3] ${msg}`));
     } catch (e) {
       console.error("[borkSyncService] Aggregation error:", e);
     }
   }
-  const finalMessage = aggregationResult.byCron ? `${message}; Aggregated: ${aggregationResult.byCron} cron snapshots, ${aggregationResult.byHour} hours, ${aggregationResult.byTable} tables, ${aggregationResult.byWorker} workers` : message;
+  const v3Message = v3AggregationResult ? `; V3: ${v3AggregationResult.successCount}/${v3AggregationResult.totalLocations} locations (${v3AggregationResult.durationMs}ms)` : "";
+  const finalMessage = aggregationResult.byCron ? `${message}; V2 Aggregated: ${aggregationResult.byCron} cron snapshots, ${aggregationResult.byHour} hours, ${aggregationResult.byTable} tables, ${aggregationResult.byWorker} workers${v3Message}` : message + v3Message;
   return {
     ok: syncOk,
     jobType,
@@ -4442,9 +5405,12 @@ async function executeEitjeJob(db, jobType) {
     const todayUtc = (_a2 = now.toISOString().split("T")[0]) != null ? _a2 : "";
     const tr2 = await syncTimeRegistrationShifts(db, creds, todayUtc, todayUtc);
     let agg2;
+    let v3AggResult = null;
     try {
       agg2 = await rebuildEitjeTimeRegistrationAggregation(db, todayUtc, todayUtc);
       await syncUnifiedCollectionsFromRawData(db);
+      console.log("[eitjeSyncService] Triggering V3 aggregation pipeline for daily data...");
+      v3AggResult = await runV3AggregationPipeline(db, todayUtc, (msg) => console.log(`[V3] ${msg}`));
     } catch (e) {
       agg2 = {
         deletedPeriods: 0,
@@ -4453,10 +5419,11 @@ async function executeEitjeJob(db, jobType) {
       };
     }
     const ok2 = !tr2.error && (tr2.fetched > 0 || tr2.upserted > 0 || ((_b = agg2 == null ? void 0 : agg2.inserted) != null ? _b : 0) > 0);
+    const v3Message = v3AggResult ? `; V3: ${v3AggResult.successCount}/${v3AggResult.totalLocations} locations` : "";
     return {
       ok: ok2,
       jobType,
-      message: tr2.error ? `Time registration: ${tr2.error}` : `Synced ${tr2.fetched} shifts (${tr2.upserted} writes), aggregation +${(_c = agg2 == null ? void 0 : agg2.inserted) != null ? _c : 0} rows for today`,
+      message: tr2.error ? `Time registration: ${tr2.error}` : `Synced ${tr2.fetched} shifts (${tr2.upserted} writes), aggregation +${(_c = agg2 == null ? void 0 : agg2.inserted) != null ? _c : 0} rows for today${v3Message}`,
       timeRegistration: tr2,
       aggregation: agg2
     };
@@ -4783,16 +5750,16 @@ _bZ9Ni6V2HtIpJeulfSLzyAQaoMJdeQllxN50TS5qNvY
 const assets = {
   "/index.mjs": {
     "type": "text/javascript; charset=utf-8",
-    "etag": "\"1621d3-lCJVynmdRfdiYgGbW+xUyymVS7U\"",
-    "mtime": "2026-04-28T16:44:58.211Z",
-    "size": 1450451,
+    "etag": "\"16d6fe-aIW8Hkr5kk7rTI0WipJfhw2Hkec\"",
+    "mtime": "2026-04-28T17:34:15.590Z",
+    "size": 1496830,
     "path": "index.mjs"
   },
   "/index.mjs.map": {
     "type": "application/json",
-    "etag": "\"58e941-UrlyQgP7NvEnoFPKK2sJftnGB6E\"",
-    "mtime": "2026-04-28T16:44:58.235Z",
-    "size": 5826881,
+    "etag": "\"5bbc3f-+eWK36asagVG8UGuD2PncG/7IT8\"",
+    "mtime": "2026-04-28T17:34:15.613Z",
+    "size": 6011967,
     "path": "index.mjs.map"
   }
 };

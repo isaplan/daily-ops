@@ -1,14 +1,15 @@
 /**
  * @registry-id: eitjeSyncService
  * @created: 2026-04-05T12:00:00.000Z
- * @last-modified: 2026-04-26T20:05:00.000Z
- * @description: Fetches Eitje Open API resources and upserts eitje_raw_data; drives cron/sync handlers
- * @last-fix: [2026-04-26] Daily cron fetches TODAY ONLY (service 10:00-05:59 UTC), aggregates TODAY in real-time
+ * @last-modified: 2026-04-28T20:15:00.000Z
+ * @description: Fetches Eitje Open API resources and upserts eitje_raw_data; drives cron/sync handlers; triggers V3 aggregation
+ * @last-fix: [2026-04-28] Added V3 aggregation trigger after daily-data and historical-data sync
  *
  * @exports-to:
  * ✓ server/api/eitje/v2/cron.post.ts
  * ✓ server/api/eitje/v2/sync.post.ts
  * ✓ server/services/integrationCronRunner.ts
+ * ✓ server/services/v3Aggregation/v3AggregationOrchestrator.ts
  */
 
 import { createHash } from 'node:crypto'
@@ -19,6 +20,7 @@ import { getMongoDatabaseName } from '../utils/db'
 import { documentToEitjeStoredCredentials, findEitjeCredentialDocument } from '../utils/eitjeApiCredentials'
 import { eitjeFetchJson, legacyEitjeV2Headers, normalizeEitjeBaseUrl, type EitjeStoredCredentials } from './eitjeOpenApiFetch'
 import { rebuildEitjeTimeRegistrationAggregation } from './eitjeRebuildAggregationService'
+import { runV3AggregationPipeline } from './v3Aggregation/v3AggregationOrchestrator'
 
 function envInt (name: string, fallback: number): number {
   const v = process.env[name]
@@ -538,6 +540,8 @@ export async function executeEitjeJob (db: Db, jobType: string): Promise<EitjeSy
     
     const tr = await syncTimeRegistrationShifts(db, creds, todayUtc, todayUtc)
     let agg: { deletedPeriods: number; inserted: number; error?: string } | undefined
+    let v3AggResult: any = null
+    
     try {
       // Rebuild aggregation for TODAY ONLY
       // This deletes old aggregation for today and rebuilds from fresh raw data
@@ -545,6 +549,10 @@ export async function executeEitjeJob (db: Db, jobType: string): Promise<EitjeSy
       
       // Map Eitje IDs to unified collections after aggregation
       await syncUnifiedCollectionsFromRawData(db)
+      
+      // Trigger V3 aggregation pipeline
+      console.log('[eitjeSyncService] Triggering V3 aggregation pipeline for daily data...')
+      v3AggResult = await runV3AggregationPipeline(db, todayUtc, (msg) => console.log(`[V3] ${msg}`))
     } catch (e) {
       agg = {
         deletedPeriods: 0,
@@ -554,12 +562,16 @@ export async function executeEitjeJob (db: Db, jobType: string): Promise<EitjeSy
     }
 
     const ok = !tr.error && (tr.fetched > 0 || tr.upserted > 0 || (agg?.inserted ?? 0) > 0)
+    const v3Message = v3AggResult 
+      ? `; V3: ${v3AggResult.successCount}/${v3AggResult.totalLocations} locations`
+      : ''
+    
     return {
       ok,
       jobType,
       message: tr.error
         ? `Time registration: ${tr.error}`
-        : `Synced ${tr.fetched} shifts (${tr.upserted} writes), aggregation +${agg?.inserted ?? 0} rows for today`,
+        : `Synced ${tr.fetched} shifts (${tr.upserted} writes), aggregation +${agg?.inserted ?? 0} rows for today${v3Message}`,
       timeRegistration: tr,
       aggregation: agg,
     }
@@ -571,10 +583,16 @@ export async function executeEitjeJob (db: Db, jobType: string): Promise<EitjeSy
 
   const tr = await syncTimeRegistrationShifts(db, creds, start, end)
   let agg: { deletedPeriods: number; inserted: number; error?: string } | undefined
+  let v3AggResult: any = null
+  
   try {
     agg = await rebuildEitjeTimeRegistrationAggregation(db, start, end)
     // Map Eitje IDs to unified collections after aggregation
     await syncUnifiedCollectionsFromRawData(db)
+    
+    // Trigger V3 aggregation pipeline for entire range
+    console.log('[eitjeSyncService] Triggering V3 aggregation pipeline for historical data...')
+    v3AggResult = await runV3AggregationPipeline(db, end, (msg) => console.log(`[V3] ${msg}`))
   } catch (e) {
     agg = {
       deletedPeriods: 0,
@@ -584,12 +602,16 @@ export async function executeEitjeJob (db: Db, jobType: string): Promise<EitjeSy
   }
 
   const ok = !tr.error && (tr.fetched > 0 || tr.upserted > 0 || (agg?.inserted ?? 0) > 0)
+  const v3Message = v3AggResult 
+    ? `; V3: ${v3AggResult.successCount}/${v3AggResult.totalLocations} locations`
+    : ''
+  
   return {
     ok,
     jobType,
     message: tr.error
       ? `Time registration: ${tr.error}`
-      : `Synced ${tr.fetched} shifts (${tr.upserted} writes), aggregation +${agg?.inserted ?? 0} rows (${jobType})`,
+      : `Synced ${tr.fetched} shifts (${tr.upserted} writes), aggregation +${agg?.inserted ?? 0} rows (${jobType})${v3Message}`,
     timeRegistration: tr,
     aggregation: agg,
   }

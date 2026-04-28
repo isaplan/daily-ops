@@ -1,19 +1,21 @@
 /**
  * @registry-id: borkSyncService
  * @created: 2026-04-06T12:00:00.000Z
- * @last-modified: 2026-04-24T12:00:00.000Z
- * @description: Bork/Trivec gateway fetch + bork_raw_data upserts; drives Bork cron/sync; calls borkRebuildAggregationService after sync
- * @last-fix: [2026-04-24] Consumer integrationCronRunner for Nitro schedule + catch-up
+ * @last-modified: 2026-04-28T20:10:00.000Z
+ * @description: Bork/Trivec gateway fetch + bork_raw_data upserts; drives Bork cron/sync; calls V2 and V3 aggregations after sync
+ * @last-fix: [2026-04-28] Added V3 aggregation trigger after daily-data sync
  *
  * @exports-to:
  * ✓ server/api/bork/v2/cron.post.ts
  * ✓ server/api/bork/v2/sync.post.ts
  * ✓ server/services/borkRebuildAggregationService.ts
+ * ✓ server/services/v3Aggregation/v3AggregationOrchestrator.ts
  * ✓ server/services/integrationCronRunner.ts
  */
 
 import { ObjectId, type Db, type Document } from 'mongodb'
 import { rebuildBorkSalesAggregation } from './borkRebuildAggregationService'
+import { runV3AggregationPipeline } from './v3Aggregation/v3AggregationOrchestrator'
 
 export type BorkLocationSyncResult = {
   locationId: string
@@ -188,19 +190,31 @@ export async function executeBorkJob (db: Db, jobType: string): Promise<BorkSync
 
   // After sync completes, trigger aggregation for daily data
   let aggregationResult: Partial<{ byCron: number; byHour: number; byTable: number; byWorker: number }> = {}
+  let v3AggregationResult: any = null
+  
   if (syncOk && jobType === 'daily-data') {
     try {
       const today = new Date().toISOString().split('T')[0]
+      
+      // Trigger V2 aggregation
       aggregationResult = await rebuildBorkSalesAggregation(db, today, today)
+      
+      // Trigger V3 aggregation pipeline
+      console.log('[borkSyncService] Triggering V3 aggregation pipeline...')
+      v3AggregationResult = await runV3AggregationPipeline(db, today, (msg) => console.log(`[V3] ${msg}`))
     } catch (e) {
       console.error('[borkSyncService] Aggregation error:', e)
       // Don't fail the sync if aggregation fails
     }
   }
 
+  const v3Message = v3AggregationResult 
+    ? `; V3: ${v3AggregationResult.successCount}/${v3AggregationResult.totalLocations} locations (${v3AggregationResult.durationMs}ms)`
+    : ''
+  
   const finalMessage = aggregationResult.byCron 
-    ? `${message}; Aggregated: ${aggregationResult.byCron} cron snapshots, ${aggregationResult.byHour} hours, ${aggregationResult.byTable} tables, ${aggregationResult.byWorker} workers`
-    : message
+    ? `${message}; V2 Aggregated: ${aggregationResult.byCron} cron snapshots, ${aggregationResult.byHour} hours, ${aggregationResult.byTable} tables, ${aggregationResult.byWorker} workers${v3Message}`
+    : message + v3Message
 
   return {
     ok: syncOk,
