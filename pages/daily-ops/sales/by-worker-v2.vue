@@ -2,7 +2,7 @@
   <div class="space-y-6">
     <div>
       <h1 class="text-3xl font-bold text-gray-900">Sales by Worker (V2)</h1>
-      <p class="text-gray-500">From <code class="text-xs">bork_sales_workers</code> (unified worker mapping)</p>
+      <p class="text-gray-500">From <code class="text-xs">bork_sales_by_worker</code> (unified worker mapping)</p>
     </div>
 
     <UCard v-if="collectionHint" class="border-amber-200 bg-amber-50/50">

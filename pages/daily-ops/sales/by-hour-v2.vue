@@ -3,7 +3,7 @@
     <div>
       <h1 class="text-3xl font-bold text-gray-900">Sales by Hour (V2)</h1>
       <p class="text-gray-500">
-        Register business-hour buckets from <code class="text-xs">bork_sales_hours</code>. Range filters <strong>business_date</strong> (ends yesterday by default).
+        Register business-hour buckets from <code class="text-xs">bork_sales_by_hour</code>. Range filters <strong>business_date</strong> (ends yesterday by default).
       </p>
     </div>
 
@@ -136,7 +136,7 @@
           <UPagination :page="page" :total="paginationTotal" :items-per-page="pageSize" @update:page="onPageChange" />
         </div>
         <p v-if="data.length === 0 && !loading" class="mt-4 text-center text-sm text-gray-500">
-          No data. Run a V2 rebuild and set <code class="text-xs">BORK_AGG_V2_SUFFIX</code> if you use test collections.
+          No data. Run a V2 rebuild and align <code class="text-xs">BORK_AGG_VERSION_SUFFIX</code> to your V2 collection suffix.
         </p>
       </template>
     </UCard>

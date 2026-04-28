@@ -1,13 +1,31 @@
+/**
+ * @registry-id: salesAggregatedV2Api
+ * @created: 2026-04-13T00:00:00.000Z
+ * @last-modified: 2026-04-28T18:40:00.000Z
+ * @description: Sales V2 API reader with version suffix resolver
+ * @last-fix: [2026-04-28] Uses bork_business_days + bork_sales_by_{hour,table,worker,guest_account,product} with version suffix (default _v2)
+ *
+ * @exports-to:
+ * ✓ pages/daily-ops/sales/by-day-v2.vue
+ * ✓ pages/daily-ops/sales/by-hour-v2.vue
+ * ✓ pages/daily-ops/sales/by-table-v2.vue
+ * ✓ pages/daily-ops/sales/by-worker-v2.vue
+ * ✓ pages/daily-ops/sales/by-product-v2.vue
+ * ✓ pages/daily-ops/sales/by-guest-account-v2.vue
+ * ✓ pages/daily-ops/sales-v2/by-day.vue
+ * ✓ pages/daily-ops/sales-v2/by-hour.vue
+ * ✓ pages/daily-ops/sales-v2/by-table.vue
+ * ✓ pages/daily-ops/sales-v2/by-worker.vue
+ * ✓ pages/daily-ops/sales-v2/by-product.vue
+ * ✓ pages/daily-ops/sales-v2/by-guest-account.vue
+ */
 import { getDb } from '../utils/db'
 import { ObjectId, type Db } from 'mongodb'
 import { amsterdamTodayYmd, amsterdamYmdForOffset } from '~/utils/inbox/importTableQuickDates'
+import { resolveBorkAggReadSuffix } from '../utils/borkAggVersionSuffix'
 
 const MAX_PAGE_SIZE = 200
 const DEFAULT_PAGE_SIZE = 50
-
-function borkV2Suffix(): string {
-  return process.env.BORK_AGG_V2_SUFFIX ?? ''
-}
 
 function parsePageParams(query: Record<string, unknown>) {
   const page = Math.max(1, parseInt(String(query.page ?? '1'), 10) || 1)
@@ -96,7 +114,7 @@ export default defineEventHandler(async (event) => {
     const db = await getDb()
     const query = getQuery(event)
     const { page, pageSize, skip } = parsePageParams(query as Record<string, unknown>)
-    const suffix = borkV2Suffix()
+    const suffix = resolveBorkAggReadSuffix()
 
     const rawStart = typeof query.startDate === 'string' ? query.startDate : undefined
     const rawEnd = typeof query.endDate === 'string' ? query.endDate : undefined
@@ -124,7 +142,8 @@ export default defineEventHandler(async (event) => {
         ? Math.max(0, Number(minRevenueRaw) || 0)
         : 0
 
-    const fullDaysOnly = query.fullDaysOnly !== 'false' && query.fullDaysOnly !== '0'
+    /** Opt-in strict filter (24 distinct register hour buckets with line data). Default off — many real days have fewer than 24 active hours. */
+    const fullDaysOnly = query.fullDaysOnly === 'true' || query.fullDaysOnly === '1'
 
     const dateFilter: Record<string, unknown> = {
       $gte: rangeStart,
@@ -178,36 +197,37 @@ export default defineEventHandler(async (event) => {
 
     if (groupBy === 'day') {
       collectionName = `bork_business_days${suffix}`
-      const out = await findPaged(db, collectionName, q, sortObj, skip, pageSize, true)
+      const out = await findPaged(db, collectionName, q, sortObj, skip, pageSize, false)
       results = out.results
       totalCount = out.totalCount
       totals = out.totals
     } else if (groupBy === 'hour') {
-      collectionName = `bork_sales_hours${suffix}`
+      collectionName = `bork_sales_by_hour${suffix}`
       const out = await findPaged(db, collectionName, q, sortObj, skip, pageSize, excludeProducts)
       results = out.results
       totalCount = out.totalCount
       totals = out.totals
     } else if (groupBy === 'table') {
-      collectionName = `bork_sales_tables${suffix}`
+      collectionName = `bork_sales_by_table${suffix}`
       const out = await findPaged(db, collectionName, q, sortObj, skip, pageSize, excludeProducts)
       results = out.results
       totalCount = out.totalCount
       totals = out.totals
     } else if (groupBy === 'worker') {
-      collectionName = `bork_sales_workers${suffix}`
+      collectionName = `bork_sales_by_worker${suffix}`
       const out = await findPaged(db, collectionName, q, sortObj, skip, pageSize, excludeProducts)
       results = out.results
       totalCount = out.totalCount
       totals = out.totals
     } else if (groupBy === 'guestAccount') {
-      collectionName = `bork_sales_guest_accounts${suffix}`
+      collectionName = `bork_sales_by_guest_account${suffix}`
       const out = await findPaged(db, collectionName, q, sortObj, skip, pageSize, excludeProducts)
       results = out.results
       totalCount = out.totalCount
       totals = out.totals
     } else if (groupBy === 'product') {
-      collectionName = `bork_sales_products${suffix}`
+      // For products, use bork_sales_by_table with product-specific grouping/filtering
+      collectionName = `bork_sales_by_table${suffix}`
       const pq: Record<string, unknown> = { ...q }
       if (productSearch) {
         pq.productName = { $regex: productSearch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: 'i' }
@@ -221,7 +241,7 @@ export default defineEventHandler(async (event) => {
       totals = out.totals
     } else {
       collectionName = `bork_business_days${suffix}`
-      const out = await findPaged(db, collectionName, q, sortObj, skip, pageSize, true)
+      const out = await findPaged(db, collectionName, q, sortObj, skip, pageSize, false)
       results = out.results
       totalCount = out.totalCount
       totals = out.totals

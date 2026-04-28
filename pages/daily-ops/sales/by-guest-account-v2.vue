@@ -2,7 +2,7 @@
   <div class="space-y-6">
     <div>
       <h1 class="text-3xl font-bold text-gray-900">Sales by Guest Account (V2)</h1>
-      <p class="text-gray-500">Orders without table from <code class="text-xs">bork_sales_guest_accounts</code></p>
+      <p class="text-gray-500">Orders without table from <code class="text-xs">bork_sales_by_guest_account</code></p>
     </div>
 
     <UCard v-if="collectionHint" class="border-amber-200 bg-amber-50/50">

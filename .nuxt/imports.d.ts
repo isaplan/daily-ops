@@ -31,7 +31,8 @@ export { requestIdleCallback, cancelIdleCallback } from '#app/compat/idle-callba
 export { setInterval } from '#app/compat/interval';
 export { definePageMeta, PageMeta } from '#app/composables/pages';
 export { defineLazyHydrationComponent } from '#app/composables/lazy-hydration';
-export { getLastNDaysRange, getLast30DaysRange } from '../composables/reportingRange';
+export { getLastNDaysRange, getLast30DaysRange, getLast30DaysEndingYesterday } from '../composables/reportingRange';
+export { formatRegisterHourLabel } from '../composables/salesV2RegisterHour';
 export { useDailyOpsDashboardRoute, DailyOpsNavKey } from '../composables/useDailyOpsDashboardRoute';
 export { useDashboardEurFormat } from '../composables/useDashboardEurFormat';
 export { useEnvironment } from '../composables/useEnvironment';

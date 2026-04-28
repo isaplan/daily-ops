@@ -1,5 +1,5 @@
 /**
- * Rebuild V2 aggregates (`bork_sales_hours`, `bork_business_days`) from existing `bork_raw_data` only.
+ * Rebuild V2 aggregates (`bork_sales_by_hour`, `bork_business_days`, etc.) from existing `bork_raw_data` only.
  * Does NOT read or write `bork_raw_data` content — only scans it for aggregation.
  *
  * Default window: last **2 calendar months** from today (UTC) through today.
@@ -8,13 +8,16 @@
  * Usage:
  *   BORK_V2_REBUILD_CONFIRM=1 node --experimental-strip-types scripts/rebuild-bork-v2-date-range.ts
  *
- * Optional: `BORK_AGG_V2_SUFFIX` (e.g. `_test`) for collection names.
+ * **Write suffix (rebuild):** `BORK_AGG_REBUILD_SUFFIX` (defaults `_v2`).
+ * **Read suffix (API):** `BORK_AGG_VERSION_SUFFIX` (defaults `_v2`).
+ * Legacy vars are still supported: `BORK_AGG_V2_REBUILD_SUFFIX`, `BORK_AGG_V2_SUFFIX`.
  */
 
 import { readFileSync, existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { MongoClient } from 'mongodb'
 import { rebuildBorkSalesAggregationV2 } from '../server/services/borkRebuildAggregationV2Service.ts'
+import { resolveV2RebuildCollectionSuffix } from '../server/utils/borkV2RebuildSuffix.ts'
 
 function loadDotEnv() {
   for (const file of ['.env.local', '.env']) {
@@ -50,7 +53,7 @@ async function main() {
     process.exit(1)
   }
 
-  const suffix = process.env.BORK_AGG_V2_SUFFIX || ''
+  const suffix = resolveV2RebuildCollectionSuffix()
 
   let startDate: string
   let endDate: string
@@ -67,7 +70,7 @@ async function main() {
   }
 
   console.log(
-    `[rebuild-bork-v2-date-range] ${startDate} .. ${endDate} → V2 collections (suffix: ${suffix || '(none)'})`
+    `[rebuild-bork-v2-date-range] ${startDate} .. ${endDate} → V2 WRITE suffix: ${JSON.stringify(suffix || '')}. Reads use BORK_AGG_VERSION_SUFFIX (fallback BORK_AGG_V2_SUFFIX). Rebuild uses BORK_AGG_REBUILD_SUFFIX (fallback BORK_AGG_V2_REBUILD_SUFFIX).`
   )
 
   const client = new MongoClient(uri)
@@ -76,7 +79,7 @@ async function main() {
 
   const result = await rebuildBorkSalesAggregationV2(db, startDate, endDate, suffix)
   console.log(
-    `[rebuild-bork-v2-date-range] Done: days=${result.businessDays}, hours=${result.salesHours}, tables=${result.tables}, workers=${result.workers}, guests=${result.guestAccounts}, productLines=${result.productLines}`
+    `[rebuild-bork-v2-date-range] Done: sales_by_day=${result.salesByDay}, business_days=${result.businessDays}, hours=${result.salesHours}, tables=${result.tables}, workers=${result.workers}, guests=${result.guestAccounts}, productLines=${result.productLines}`
   )
 
   await client.close()

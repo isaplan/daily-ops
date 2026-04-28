@@ -32,6 +32,7 @@ declare global {
   const extendLocale: typeof import('../../node_modules/.pnpm/@nuxt+ui@4.6.0_@tiptap+extensions@3.21.0_@tiptap+core@3.21.0_@tiptap+pm@3.21.0__@tiptap_0031915eeee23c7bd8bdaceb369561a1/node_modules/@nuxt/ui/dist/runtime/composables/defineLocale').extendLocale
   const extractShortcuts: typeof import('../../node_modules/.pnpm/@nuxt+ui@4.6.0_@tiptap+extensions@3.21.0_@tiptap+core@3.21.0_@tiptap+pm@3.21.0__@tiptap_0031915eeee23c7bd8bdaceb369561a1/node_modules/@nuxt/ui/dist/runtime/composables/defineShortcuts').extractShortcuts
   const formatDayHoursSharePlain: typeof import('../../utils/dailyOpsHoursShare').formatDayHoursSharePlain
+  const formatRegisterHourLabel: typeof import('../../composables/salesV2RegisterHour').formatRegisterHourLabel
   const getAppManifest: typeof import('../../node_modules/.pnpm/nuxt@4.4.2_@babel+core@7.29.0_@babel+plugin-syntax-jsx@7.28.6_@babel+core@7.29.0__@emna_17b042fbec102db6cfc876b0c60ffb5d/node_modules/nuxt/dist/app/composables/manifest').getAppManifest
   const getBatchFromProduct: typeof import('../../composables/useMenuRowCalculation').getBatchFromProduct
   const getCostPer1Cl: typeof import('../../composables/useMenuRowCalculation').getCostPer1Cl
@@ -41,6 +42,7 @@ declare global {
   const getCurrentScope: typeof import('vue').getCurrentScope
   const getDayHoursShareParts: typeof import('../../utils/dailyOpsHoursShare').getDayHoursShareParts
   const getItemsFromProduct: typeof import('../../composables/useMenuRowCalculation').getItemsFromProduct
+  const getLast30DaysEndingYesterday: typeof import('../../composables/reportingRange').getLast30DaysEndingYesterday
   const getLast30DaysRange: typeof import('../../composables/reportingRange').getLast30DaysRange
   const getLastNDaysRange: typeof import('../../composables/reportingRange').getLastNDaysRange
   const getRouteRules: typeof import('../../node_modules/.pnpm/nuxt@4.4.2_@babel+core@7.29.0_@babel+plugin-syntax-jsx@7.28.6_@babel+core@7.29.0__@emna_17b042fbec102db6cfc876b0c60ffb5d/node_modules/nuxt/dist/app/composables/manifest').getRouteRules
@@ -278,6 +280,7 @@ declare module 'vue' {
     readonly extendLocale: UnwrapRef<typeof import('../../node_modules/.pnpm/@nuxt+ui@4.6.0_@tiptap+extensions@3.21.0_@tiptap+core@3.21.0_@tiptap+pm@3.21.0__@tiptap_0031915eeee23c7bd8bdaceb369561a1/node_modules/@nuxt/ui/dist/runtime/composables/defineLocale')['extendLocale']>
     readonly extractShortcuts: UnwrapRef<typeof import('../../node_modules/.pnpm/@nuxt+ui@4.6.0_@tiptap+extensions@3.21.0_@tiptap+core@3.21.0_@tiptap+pm@3.21.0__@tiptap_0031915eeee23c7bd8bdaceb369561a1/node_modules/@nuxt/ui/dist/runtime/composables/defineShortcuts')['extractShortcuts']>
     readonly formatDayHoursSharePlain: UnwrapRef<typeof import('../../utils/dailyOpsHoursShare')['formatDayHoursSharePlain']>
+    readonly formatRegisterHourLabel: UnwrapRef<typeof import('../../composables/salesV2RegisterHour')['formatRegisterHourLabel']>
     readonly getAppManifest: UnwrapRef<typeof import('../../node_modules/.pnpm/nuxt@4.4.2_@babel+core@7.29.0_@babel+plugin-syntax-jsx@7.28.6_@babel+core@7.29.0__@emna_17b042fbec102db6cfc876b0c60ffb5d/node_modules/nuxt/dist/app/composables/manifest')['getAppManifest']>
     readonly getBatchFromProduct: UnwrapRef<typeof import('../../composables/useMenuRowCalculation')['getBatchFromProduct']>
     readonly getCostPer1Cl: UnwrapRef<typeof import('../../composables/useMenuRowCalculation')['getCostPer1Cl']>
@@ -287,6 +290,7 @@ declare module 'vue' {
     readonly getCurrentScope: UnwrapRef<typeof import('vue')['getCurrentScope']>
     readonly getDayHoursShareParts: UnwrapRef<typeof import('../../utils/dailyOpsHoursShare')['getDayHoursShareParts']>
     readonly getItemsFromProduct: UnwrapRef<typeof import('../../composables/useMenuRowCalculation')['getItemsFromProduct']>
+    readonly getLast30DaysEndingYesterday: UnwrapRef<typeof import('../../composables/reportingRange')['getLast30DaysEndingYesterday']>
     readonly getLast30DaysRange: UnwrapRef<typeof import('../../composables/reportingRange')['getLast30DaysRange']>
     readonly getLastNDaysRange: UnwrapRef<typeof import('../../composables/reportingRange')['getLastNDaysRange']>
     readonly getRouteRules: UnwrapRef<typeof import('../../node_modules/.pnpm/nuxt@4.4.2_@babel+core@7.29.0_@babel+plugin-syntax-jsx@7.28.6_@babel+core@7.29.0__@emna_17b042fbec102db6cfc876b0c60ffb5d/node_modules/nuxt/dist/app/composables/manifest')['getRouteRules']>

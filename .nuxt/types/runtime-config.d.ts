@@ -10,6 +10,10 @@ import { RuntimeConfig as UserRuntimeConfig, PublicRuntimeConfig as UserPublicRu
       cdnURL: string,
    },
 
+   borkAggVersionSuffix: string,
+
+   borkAggV2Suffix: string,
+
    nitro: {
       envPrefix: string,
    },

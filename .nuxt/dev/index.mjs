@@ -971,6 +971,8 @@ const _inlineRuntimeConfig = {
     }
   },
   "public": {},
+  "borkAggVersionSuffix": "_v2",
+  "borkAggV2Suffix": "",
   "icon": {
     "serverKnownCssClasses": []
   }
@@ -3751,8 +3753,11 @@ async function rebuildEitjeTimeRegistrationAggregation(db, startDate, endDate) {
     {
       $addFields: {
         ...EITJE_HOURS_ADD_FIELDS,
-        period: {
+        calendarDate: {
           $dateToString: { format: "%Y-%m-%d", date: "$date", timezone: "UTC" }
+        },
+        calendarHour: {
+          $hour: { date: "$date", timezone: "UTC" }
         },
         userId: { $ifNull: ["$extracted.userId", "$rawApiResponse.user_id"] },
         teamId: { $ifNull: ["$extracted.teamId", "$rawApiResponse.team_id"] },
@@ -3763,6 +3768,32 @@ async function rebuildEitjeTimeRegistrationAggregation(db, startDate, endDate) {
             "$rawApiResponse.environment_id",
             "$rawApiResponse.environmentId",
             "$rawApiResponse.environment.id"
+          ]
+        }
+      }
+    },
+    {
+      $addFields: {
+        period: {
+          $cond: [
+            { $and: [{ $gte: ["$calendarHour", 6] }, { $lte: ["$calendarHour", 23] }] },
+            "$calendarDate",
+            {
+              $dateToString: {
+                format: "%Y-%m-%d",
+                date: {
+                  $subtract: [{ $toDate: "$calendarDate" }, 864e5]
+                },
+                timezone: "UTC"
+              }
+            }
+          ]
+        },
+        business_hour: {
+          $cond: [
+            { $and: [{ $gte: ["$calendarHour", 6] }, { $lte: ["$calendarHour", 23] }] },
+            { $subtract: ["$calendarHour", 6] },
+            { $add: ["$calendarHour", 18] }
           ]
         }
       }
@@ -4371,7 +4402,7 @@ async function pingEitjeApi(creds) {
   return { ok: false, message: base };
 }
 async function executeEitjeJob(db, jobType) {
-  var _a2, _b;
+  var _a2, _b, _c, _d, _e;
   const creds = await loadActiveEitjeCredentials(db);
   if (!creds) {
     return {
@@ -4406,10 +4437,32 @@ async function executeEitjeJob(db, jobType) {
       master
     };
   }
-  const dailyDays = envInt("EITJE_DAILY_SYNC_DAYS", 14);
+  if (jobType === "daily-data") {
+    const now = /* @__PURE__ */ new Date();
+    const todayUtc = (_a2 = now.toISOString().split("T")[0]) != null ? _a2 : "";
+    const tr2 = await syncTimeRegistrationShifts(db, creds, todayUtc, todayUtc);
+    let agg2;
+    try {
+      agg2 = await rebuildEitjeTimeRegistrationAggregation(db, todayUtc, todayUtc);
+      await syncUnifiedCollectionsFromRawData(db);
+    } catch (e) {
+      agg2 = {
+        deletedPeriods: 0,
+        inserted: 0,
+        error: e instanceof Error ? e.message : String(e)
+      };
+    }
+    const ok2 = !tr2.error && (tr2.fetched > 0 || tr2.upserted > 0 || ((_b = agg2 == null ? void 0 : agg2.inserted) != null ? _b : 0) > 0);
+    return {
+      ok: ok2,
+      jobType,
+      message: tr2.error ? `Time registration: ${tr2.error}` : `Synced ${tr2.fetched} shifts (${tr2.upserted} writes), aggregation +${(_c = agg2 == null ? void 0 : agg2.inserted) != null ? _c : 0} rows for today`,
+      timeRegistration: tr2,
+      aggregation: agg2
+    };
+  }
   const histDays = envInt("EITJE_HISTORICAL_SYNC_DAYS", 30);
-  const days = jobType === "historical-data" ? histDays : dailyDays;
-  const { start, end } = dateRangeDays(days);
+  const { start, end } = dateRangeDays(histDays);
   const tr = await syncTimeRegistrationShifts(db, creds, start, end);
   let agg;
   try {
@@ -4422,11 +4475,11 @@ async function executeEitjeJob(db, jobType) {
       error: e instanceof Error ? e.message : String(e)
     };
   }
-  const ok = !tr.error && (tr.fetched > 0 || tr.upserted > 0 || ((_a2 = agg == null ? void 0 : agg.inserted) != null ? _a2 : 0) > 0);
+  const ok = !tr.error && (tr.fetched > 0 || tr.upserted > 0 || ((_d = agg == null ? void 0 : agg.inserted) != null ? _d : 0) > 0);
   return {
     ok,
     jobType,
-    message: tr.error ? `Time registration: ${tr.error}` : `Synced ${tr.fetched} shifts (${tr.upserted} writes), aggregation +${(_b = agg == null ? void 0 : agg.inserted) != null ? _b : 0} rows`,
+    message: tr.error ? `Time registration: ${tr.error}` : `Synced ${tr.fetched} shifts (${tr.upserted} writes), aggregation +${(_e = agg == null ? void 0 : agg.inserted) != null ? _e : 0} rows (${jobType})`,
     timeRegistration: tr,
     aggregation: agg
   };
@@ -4730,16 +4783,16 @@ _bZ9Ni6V2HtIpJeulfSLzyAQaoMJdeQllxN50TS5qNvY
 const assets = {
   "/index.mjs": {
     "type": "text/javascript; charset=utf-8",
-    "etag": "\"15bc93-XtxHbogrpxw3gewOR9Wt01m2Uw8\"",
-    "mtime": "2026-04-23T23:11:16.202Z",
-    "size": 1424531,
+    "etag": "\"1621d3-lCJVynmdRfdiYgGbW+xUyymVS7U\"",
+    "mtime": "2026-04-28T16:44:58.211Z",
+    "size": 1450451,
     "path": "index.mjs"
   },
   "/index.mjs.map": {
     "type": "application/json",
-    "etag": "\"578f7b-twjwa0gRA3FSEIgUyY4+Hpfx1vE\"",
-    "mtime": "2026-04-23T23:11:16.443Z",
-    "size": 5738363,
+    "etag": "\"58e941-UrlyQgP7NvEnoFPKK2sJftnGB6E\"",
+    "mtime": "2026-04-28T16:44:58.235Z",
+    "size": 5826881,
     "path": "index.mjs.map"
   }
 };
@@ -5308,6 +5361,14 @@ function startScheduleRunner() {
       );
     });
   }
+}
+
+function resolveBorkAggReadSuffix() {
+  var _a, _b;
+  const cfg = useRuntimeConfig();
+  const fromCfg = typeof cfg.borkAggVersionSuffix === "string" ? cfg.borkAggVersionSuffix : typeof cfg.borkAggV2Suffix === "string" ? cfg.borkAggV2Suffix : "";
+  if (fromCfg !== "") return fromCfg;
+  return (_b = (_a = process.env.BORK_AGG_VERSION_SUFFIX) != null ? _a : process.env.BORK_AGG_V2_SUFFIX) != null ? _b : "_v2";
 }
 
 const DAILY_OPS_PERIODS = [
@@ -31309,6 +31370,30 @@ async function getInboxImportTablePayload(documentType, input) {
 let pdfjsLib$1 = null;
 async function getPdfJsLib() {
   if (!pdfjsLib$1) {
+    if (typeof globalThis.DOMMatrix === "undefined") {
+      globalThis.DOMMatrix = class DOMMatrix {
+        constructor(values = []) {
+          this.values = values;
+        }
+        static fromMatrix() {
+          return new DOMMatrix();
+        }
+        static fromFloat32Array() {
+          return new DOMMatrix();
+        }
+        static fromFloat64Array() {
+          return new DOMMatrix();
+        }
+      };
+    }
+    if (typeof globalThis.DOMPoint === "undefined") {
+      globalThis.DOMPoint = class DOMPoint {
+        constructor(x = 0, y = 0) {
+          this.x = x;
+          this.y = y;
+        }
+      };
+    }
     pdfjsLib$1 = await import('file:///Users/alviniomolina/Documents/GitHub/daily-ops/node_modules/.pnpm/pdfjs-dist@5.6.205/node_modules/pdfjs-dist/build/pdf.mjs');
     pdfjsLib$1.GlobalWorkerOptions.workerSrc = "";
   }
@@ -32234,11 +32319,13 @@ const _lazy_rpoMxL = () => Promise.resolve().then(function () { return credentia
 const _lazy_Fk11Zg = () => Promise.resolve().then(function () { return credentials_post$3; });
 const _lazy_0fNa4b = () => Promise.resolve().then(function () { return cron_get$3; });
 const _lazy_56hgXw = () => Promise.resolve().then(function () { return cron_post$3; });
+const _lazy_XUGIDA = () => Promise.resolve().then(function () { return dayBreakdownV2_get$1; });
 const _lazy_9B1hFx = () => Promise.resolve().then(function () { return dayBreakdown_get$1; });
 const _lazy_VkZeTR = () => Promise.resolve().then(function () { return locations_get$3; });
 const _lazy_GrR807 = () => Promise.resolve().then(function () { return runScheduled_get$3; });
 const _lazy_2sV_oe = () => Promise.resolve().then(function () { return sync_post$5; });
 const _lazy_ir2wis = () => Promise.resolve().then(function () { return dataIntegrity_get$1; });
+const _lazy_YSAaAO = () => Promise.resolve().then(function () { return bundle_get$3; });
 const _lazy_fiyqpy = () => Promise.resolve().then(function () { return insights_get$1; });
 const _lazy_gJJ0yZ = () => Promise.resolve().then(function () { return locations_get$1; });
 const _lazy_7ki8Q4 = () => Promise.resolve().then(function () { return bundle_get$1; });
@@ -32321,6 +32408,7 @@ const _lazy_cTKOaU = () => Promise.resolve().then(function () { return _todoId__
 const _lazy_aPaNV5 = () => Promise.resolve().then(function () { return index_get$9; });
 const _lazy_GiLNIi = () => Promise.resolve().then(function () { return index_post$3; });
 const _lazy_8bAYYr = () => Promise.resolve().then(function () { return salesAggregatedProducts_get$1; });
+const _lazy_Efi6wb = () => Promise.resolve().then(function () { return salesAggregatedV2_get$1; });
 const _lazy_MxW0tk = () => Promise.resolve().then(function () { return salesAggregated_get$1; });
 const _lazy_Mwgp_z = () => Promise.resolve().then(function () { return index_get$7; });
 const _lazy_l24SXQ = () => Promise.resolve().then(function () { return _id__delete$1; });
@@ -32337,11 +32425,13 @@ const handlers = [
   { route: '/api/bork/v2/credentials', handler: _lazy_Fk11Zg, lazy: true, middleware: false, method: "post" },
   { route: '/api/bork/v2/cron', handler: _lazy_0fNa4b, lazy: true, middleware: false, method: "get" },
   { route: '/api/bork/v2/cron', handler: _lazy_56hgXw, lazy: true, middleware: false, method: "post" },
+  { route: '/api/bork/v2/day-breakdown-v2', handler: _lazy_XUGIDA, lazy: true, middleware: false, method: "get" },
   { route: '/api/bork/v2/day-breakdown', handler: _lazy_9B1hFx, lazy: true, middleware: false, method: "get" },
   { route: '/api/bork/v2/locations', handler: _lazy_VkZeTR, lazy: true, middleware: false, method: "get" },
   { route: '/api/bork/v2/run-scheduled', handler: _lazy_GrR807, lazy: true, middleware: false, method: "get" },
   { route: '/api/bork/v2/sync', handler: _lazy_2sV_oe, lazy: true, middleware: false, method: "post" },
   { route: '/api/cron/data-integrity', handler: _lazy_ir2wis, lazy: true, middleware: false, method: "get" },
+  { route: '/api/daily-ops-v2/metrics/bundle', handler: _lazy_YSAaAO, lazy: true, middleware: false, method: "get" },
   { route: '/api/daily-ops/insights', handler: _lazy_fiyqpy, lazy: true, middleware: false, method: "get" },
   { route: '/api/daily-ops/locations', handler: _lazy_gJJ0yZ, lazy: true, middleware: false, method: "get" },
   { route: '/api/daily-ops/metrics/bundle', handler: _lazy_7ki8Q4, lazy: true, middleware: false, method: "get" },
@@ -32424,6 +32514,7 @@ const handlers = [
   { route: '/api/notes', handler: _lazy_aPaNV5, lazy: true, middleware: false, method: "get" },
   { route: '/api/notes', handler: _lazy_GiLNIi, lazy: true, middleware: false, method: "post" },
   { route: '/api/sales-aggregated-products', handler: _lazy_8bAYYr, lazy: true, middleware: false, method: "get" },
+  { route: '/api/sales-aggregated-v2', handler: _lazy_Efi6wb, lazy: true, middleware: false, method: "get" },
   { route: '/api/sales-aggregated', handler: _lazy_MxW0tk, lazy: true, middleware: false, method: "get" },
   { route: '/api/tags', handler: _lazy_Mwgp_z, lazy: true, middleware: false, method: "get" },
   { route: '/api/teams/:id', handler: _lazy_l24SXQ, lazy: true, middleware: false, method: "delete" },
@@ -34583,6 +34674,76 @@ const cron_post$3 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.definePropert
   default: cron_post$2
 }, Symbol.toStringTag, { value: 'Module' }));
 
+const dayBreakdownV2_get = defineEventHandler(async (event) => {
+  const query = getQuery$1(event);
+  const dateStr = query.date;
+  const location = query.location || "all";
+  const suffix = resolveBorkAggReadSuffix();
+  if (!dateStr) {
+    throw createError({ statusCode: 400, statusMessage: "date parameter required (YYYY-MM-DD)" });
+  }
+  const db = await getDb();
+  const hourlyCollection = `bork_sales_by_hour${suffix}`;
+  const workerCollection = `bork_sales_by_worker${suffix}`;
+  const tableCollection = `bork_sales_by_table${suffix}`;
+  try {
+    const baseQuery = { business_date: dateStr };
+    if (location !== "all") baseQuery.locationName = location;
+    const [hourly, worker, table, product] = await Promise.all([
+      db.collection(hourlyCollection).find(baseQuery).sort({ business_hour: 1 }).toArray(),
+      db.collection(workerCollection).find(baseQuery).sort({ total_revenue: -1 }).toArray(),
+      db.collection(tableCollection).find(baseQuery).sort({ total_revenue: -1 }).toArray(),
+      db.collection(tableCollection).aggregate([
+        { $match: baseQuery },
+        { $unwind: { path: "$products", preserveNullAndEmptyArrays: false } },
+        {
+          $group: {
+            _id: {
+              productId: "$products.productId",
+              productName: "$products.productName"
+            },
+            total_revenue: { $sum: { $ifNull: ["$products.revenue", 0] } },
+            total_quantity: { $sum: { $ifNull: ["$products.quantity", 0] } }
+          }
+        },
+        {
+          $project: {
+            _id: 0,
+            productId: "$_id.productId",
+            productName: "$_id.productName",
+            total_revenue: 1,
+            total_quantity: 1
+          }
+        },
+        { $sort: { total_revenue: -1 } }
+      ]).toArray()
+    ]);
+    return {
+      businessDate: dateStr,
+      location,
+      collectionSuffix: suffix || null,
+      collections: {
+        hourly: hourlyCollection,
+        worker: workerCollection,
+        table: tableCollection,
+        product: tableCollection
+      },
+      hourly,
+      worker,
+      table,
+      product
+    };
+  } catch (e) {
+    console.error("[borkDayBreakdownV2Api]", e);
+    throw createError({ statusCode: 500, statusMessage: String(e) });
+  }
+});
+
+const dayBreakdownV2_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+  __proto__: null,
+  default: dayBreakdownV2_get
+}, Symbol.toStringTag, { value: 'Module' }));
+
 const dayBreakdown_get = defineEventHandler(async (event) => {
   const query = getQuery$1(event);
   const dateStr = query.date;
@@ -35237,6 +35398,212 @@ const dataIntegrity_get = defineEventHandler(async (event) => {
 const dataIntegrity_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
   __proto__: null,
   default: dataIntegrity_get
+}, Symbol.toStringTag, { value: 'Module' }));
+
+function borkDayMatch(ctx) {
+  const q = {
+    business_date: { $gte: ctx.startDate, $lte: ctx.endDate }
+  };
+  if (ctx.locationId !== void 0) q.locationId = ctx.locationId;
+  return q;
+}
+async function fetchV2RevenueByDate(db, ctx, suffix) {
+  const rows = await db.collection(`bork_business_days${suffix}`).aggregate([
+    { $match: borkDayMatch(ctx) },
+    { $group: { _id: "$business_date", revenue: { $sum: { $ifNull: ["$total_revenue", 0] } } } }
+  ]).toArray();
+  return new Map(rows.map((r) => [r._id, r.revenue]));
+}
+async function fetchV2RevenueByDateAndLocation(db, ctx, suffix) {
+  var _a;
+  const rows = await db.collection(`bork_business_days${suffix}`).aggregate([
+    { $match: borkDayMatch(ctx) },
+    {
+      $group: {
+        _id: { date: "$business_date", locationId: "$locationId" },
+        revenue: { $sum: { $ifNull: ["$total_revenue", 0] } }
+      }
+    }
+  ]).toArray();
+  const map = /* @__PURE__ */ new Map();
+  for (const r of rows) map.set(`${r._id.date}${String((_a = r._id.locationId) != null ? _a : "unknown")}`, r.revenue);
+  return map;
+}
+async function fetchV2RevenueByCategory(db, ctx, suffix) {
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k;
+  const DRINK_NAME_PATTERN = /wine|wijn|beer|bier|gint|gin |vodka|whisk|whiskey|rum|cocktail|cola|sprite|fanta|coffee|koffie|thee|tea|sap|juice|fris|prosecco|champagne|cider|tonic|latte|cappuccino|espresso|pils|stelz|borrel|aperol|campari|martini|soda|limonade/i;
+  const [facetRow] = await db.collection(`bork_sales_by_hour${suffix}`).aggregate([
+    { $match: borkDayMatch(ctx) },
+    {
+      $facet: {
+        categoryFromLines: [
+          { $unwind: { path: "$products", preserveNullAndEmptyArrays: false } },
+          {
+            $addFields: {
+              productName: { $ifNull: ["$products.productName", ""] },
+              lineValue: { $toDouble: { $ifNull: ["$products.revenue", 0] } }
+            }
+          },
+          {
+            $addFields: {
+              bucket: {
+                $cond: {
+                  if: { $regexMatch: { input: "$productName", regex: DRINK_NAME_PATTERN } },
+                  then: "drinks",
+                  else: "food"
+                }
+              }
+            }
+          },
+          { $group: { _id: "$bucket", amount: { $sum: "$lineValue" } } }
+        ],
+        hourRevenueTotal: [{ $group: { _id: null, total: { $sum: { $ifNull: ["$total_revenue", 0] } } } }],
+        productLinesTotal: [
+          { $unwind: { path: "$products", preserveNullAndEmptyArrays: false } },
+          { $group: { _id: null, total: { $sum: { $toDouble: { $ifNull: ["$products.revenue", 0] } } } } }
+        ]
+      }
+    }
+  ]).toArray();
+  const byCat = (_a = facetRow == null ? void 0 : facetRow.categoryFromLines) != null ? _a : [];
+  let drinks = (_c = (_b = byCat.find((x) => x._id === "drinks")) == null ? void 0 : _b.amount) != null ? _c : 0;
+  let food = (_e = (_d = byCat.find((x) => x._id === "food")) == null ? void 0 : _d.amount) != null ? _e : 0;
+  const hourGrand = (_h = (_g = (_f = facetRow == null ? void 0 : facetRow.hourRevenueTotal) == null ? void 0 : _f[0]) == null ? void 0 : _g.total) != null ? _h : 0;
+  const lineGrand = (_k = (_j = (_i = facetRow == null ? void 0 : facetRow.productLinesTotal) == null ? void 0 : _i[0]) == null ? void 0 : _j.total) != null ? _k : 0;
+  food += Math.max(0, hourGrand - lineGrand);
+  return { drinks, food };
+}
+async function fetchV2HourBundle(db, ctx, suffix) {
+  var _a, _b;
+  const [row] = await db.collection(`bork_sales_by_hour${suffix}`).aggregate([
+    { $match: borkDayMatch(ctx) },
+    {
+      $facet: {
+        byHourOnly: [{ $group: { _id: "$business_hour", amount: { $sum: { $ifNull: ["$total_revenue", 0] } } } }],
+        byDayHour: [{ $group: { _id: { d: "$business_date", h: "$business_hour" }, revenue: { $sum: { $ifNull: ["$total_revenue", 0] } } } }]
+      }
+    }
+  ]).toArray();
+  return { byHourOnly: (_a = row == null ? void 0 : row.byHourOnly) != null ? _a : [], byDayHour: (_b = row == null ? void 0 : row.byDayHour) != null ? _b : [] };
+}
+async function fetchV2Inventory(db, ctx, suffix) {
+  const notes = [];
+  const q = borkDayMatch(ctx);
+  const days = await db.collection(`bork_business_days${suffix}`).countDocuments(q, { limit: 1 });
+  const hours = await db.collection(`bork_sales_by_hour${suffix}`).countDocuments(q, { limit: 1 });
+  const eitje = await db.collection("eitje_time_registration_aggregation").countDocuments(
+    { period_type: "day", period: { $gte: ctx.startDate, $lte: ctx.endDate }, ...ctx.locationId !== void 0 ? { locationId: ctx.locationId } : {} },
+    { limit: 1 }
+  );
+  if (days === 0) notes.push(`No rows in bork_business_days${suffix} for this range.`);
+  if (hours === 0) notes.push(`No rows in bork_sales_by_hour${suffix} for this range.`);
+  if (eitje === 0) notes.push("No rows in eitje_time_registration_aggregation for this range.");
+  return { hasBorkCronData: days > 0, hasBorkHourData: hours > 0, hasEitjeAggData: eitje > 0, notes };
+}
+async function fetchV2ProductivityByLocationDay(db, borkCtx, laborCtx, suffix) {
+  var _a, _b;
+  const revRows = await db.collection(`bork_business_days${suffix}`).aggregate([
+    { $match: borkDayMatch(borkCtx) },
+    { $group: { _id: { date: "$business_date", locationId: "$locationId", locationName: "$locationName" }, revenue: { $sum: { $ifNull: ["$total_revenue", 0] } } } }
+  ]).toArray();
+  const labRows = await db.collection("eitje_time_registration_aggregation").aggregate([
+    { $match: { period_type: "day", period: { $gte: laborCtx.startDate, $lte: laborCtx.endDate }, ...laborCtx.locationId !== void 0 ? { locationId: laborCtx.locationId } : {} } },
+    { $group: { _id: { period: "$period", locationId: "$locationId", location_name: "$location_name" }, hours: { $sum: { $ifNull: ["$total_hours", 0] } }, laborCost: { $sum: { $ifNull: ["$total_cost", 0] } } } }
+  ]).toArray();
+  const byLoc = /* @__PURE__ */ new Map();
+  const locKey = (id) => id != null ? String(id) : "unknown";
+  for (const r of revRows) {
+    const lk = locKey(r._id.locationId);
+    if (!byLoc.has(lk)) byLoc.set(lk, { name: (_a = r._id.locationName) != null ? _a : lk, days: [] });
+    const entry = byLoc.get(lk);
+    let d = entry.days.find((x) => x.date === r._id.date);
+    if (!d) {
+      d = { date: r._id.date, revenuePerLaborHour: 0, revenue: 0, hours: 0 };
+      entry.days.push(d);
+    }
+    d.revenue += r.revenue;
+  }
+  for (const r of labRows) {
+    const lk = locKey(r._id.locationId);
+    if (!byLoc.has(lk)) byLoc.set(lk, { name: (_b = r._id.location_name) != null ? _b : lk, days: [] });
+    const entry = byLoc.get(lk);
+    let d = entry.days.find((x) => x.date === r._id.period);
+    if (!d) {
+      d = { date: r._id.period, revenuePerLaborHour: 0, revenue: 0, hours: 0 };
+      entry.days.push(d);
+    }
+    d.hours += r.hours;
+  }
+  const out = [];
+  for (const [lid, { name, days }] of byLoc) {
+    const finite = days.map((d) => ({ ...d, revenuePerLaborHour: d.hours > 0 ? d.revenue / d.hours : 0 })).filter((d) => d.hours > 0 || d.revenue > 0);
+    let highest = null;
+    let lowest = null;
+    for (const d of finite) {
+      if (!highest || d.revenuePerLaborHour > highest.revenuePerLaborHour) highest = d;
+      if (!lowest || d.revenuePerLaborHour < lowest.revenuePerLaborHour) lowest = d;
+    }
+    out.push({ locationId: lid, locationName: name, highest, lowest });
+  }
+  out.sort((a, b) => a.locationName.localeCompare(b.locationName));
+  return out;
+}
+const bundle_get$2 = defineEventHandler(async (event) => {
+  var _a;
+  setResponseHeader(event, "Cache-Control", "private, max-age=30, stale-while-revalidate=120");
+  const baseCtx = parseDailyOpsMetricsQuery(getQuery$1(event));
+  const db = await getDb();
+  const suffix = resolveBorkAggReadSuffix();
+  const borkCtx = { ...baseCtx };
+  const laborCtx = { ...baseCtx };
+  if (baseCtx.locationId && typeof baseCtx.locationId !== "string") {
+    const unifiedDoc = await db.collection("unified_location").findOne({ _id: baseCtx.locationId });
+    if (((_a = unifiedDoc == null ? void 0 : unifiedDoc.eitjeIds) == null ? void 0 : _a[0]) != null) laborCtx.locationId = String(unifiedDoc.eitjeIds[0]);
+  }
+  const [
+    workersByTeamLocation,
+    workersByTeamLocationByDayRaw,
+    hoursCostByContractType,
+    contractTypeByDay,
+    productivityByLocationDay,
+    inventory,
+    revMap,
+    revByDateLocation,
+    labMap,
+    cat,
+    hourBundle
+  ] = await Promise.all([
+    fetchWorkersByTeamLocation(db, laborCtx),
+    fetchWorkersByTeamLocationByDay(db, laborCtx),
+    fetchHoursCostByContractType(db, laborCtx),
+    fetchHoursCostByContractTypeByDay(db, laborCtx),
+    fetchV2ProductivityByLocationDay(db, borkCtx, laborCtx, suffix),
+    fetchV2Inventory(db, borkCtx, suffix),
+    fetchV2RevenueByDate(db, borkCtx, suffix),
+    fetchV2RevenueByDateAndLocation(db, borkCtx, suffix),
+    fetchLaborByDate(db, laborCtx),
+    fetchV2RevenueByCategory(db, borkCtx, suffix),
+    fetchV2HourBundle(db, borkCtx, suffix)
+  ]);
+  const summary = buildDailyOpsSummaryDto(borkCtx, revMap, labMap);
+  const revenue = buildDailyOpsRevenueBreakdownDto(borkCtx, cat, hourBundle, revMap, labMap);
+  const labor = assembleDailyOpsLaborMetricsDto(borkCtx, {
+    workersByTeamLocation,
+    workersByTeamLocationByDayRaw,
+    hoursCostByContractType,
+    contractTypeByDay,
+    productivityByLocationDay,
+    inventory,
+    revMap,
+    revByDateLocation,
+    labMap
+  });
+  return { summary, revenue, labor };
+});
+
+const bundle_get$3 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+  __proto__: null,
+  default: bundle_get$2
 }, Symbol.toStringTag, { value: 'Module' }));
 
 const insights_get = defineEventHandler((event) => {
@@ -35958,13 +36325,13 @@ function amsterdamYmdForOffset(offsetDays, anchor = /* @__PURE__ */ new Date()) 
   return ymdSvSe(d);
 }
 
-const MAX_PAGE_SIZE$1 = 200;
-const DEFAULT_PAGE_SIZE$1 = 50;
+const MAX_PAGE_SIZE$2 = 200;
+const DEFAULT_PAGE_SIZE$2 = 50;
 function parseHoursPage(query) {
   var _a, _b;
   const page = Math.max(1, parseInt(String((_a = query.page) != null ? _a : "1"), 10) || 1);
-  const rawSize = parseInt(String((_b = query.pageSize) != null ? _b : String(DEFAULT_PAGE_SIZE$1)), 10) || DEFAULT_PAGE_SIZE$1;
-  const pageSize = Math.min(MAX_PAGE_SIZE$1, Math.max(1, rawSize));
+  const rawSize = parseInt(String((_b = query.pageSize) != null ? _b : String(DEFAULT_PAGE_SIZE$2)), 10) || DEFAULT_PAGE_SIZE$2;
+  const pageSize = Math.min(MAX_PAGE_SIZE$2, Math.max(1, rawSize));
   return { page, pageSize, skip: (page - 1) * pageSize };
 }
 function normalizeHoursDateRange(startDate, endDate) {
@@ -39463,6 +39830,208 @@ const salesAggregatedProducts_get = defineEventHandler(async (event) => {
 const salesAggregatedProducts_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
   __proto__: null,
   default: salesAggregatedProducts_get
+}, Symbol.toStringTag, { value: 'Module' }));
+
+const MAX_PAGE_SIZE$1 = 200;
+const DEFAULT_PAGE_SIZE$1 = 50;
+function parsePageParams$1(query) {
+  var _a, _b;
+  const page = Math.max(1, parseInt(String((_a = query.page) != null ? _a : "1"), 10) || 1);
+  const rawSize = parseInt(String((_b = query.pageSize) != null ? _b : String(DEFAULT_PAGE_SIZE$1)), 10) || DEFAULT_PAGE_SIZE$1;
+  const pageSize = Math.min(MAX_PAGE_SIZE$1, Math.max(1, rawSize));
+  return { page, pageSize, skip: (page - 1) * pageSize };
+}
+function normalizeV2BusinessDateRange(startDate, endDate) {
+  const yesterday = amsterdamYmdForOffset(-1);
+  const thirtyBeforeYesterday = amsterdamYmdForOffset(-30);
+  if (!startDate && !endDate) return { start: thirtyBeforeYesterday, end: yesterday };
+  if (startDate && !endDate) return { start: startDate, end: yesterday };
+  if (!startDate && endDate) {
+    const e = /* @__PURE__ */ new Date(`${endDate}T12:00:00Z`);
+    const s = new Date(e.getTime() - 29 * 24 * 60 * 60 * 1e3);
+    const pad = (n) => String(n).padStart(2, "0");
+    const start = `${s.getUTCFullYear()}-${pad(s.getUTCMonth() + 1)}-${pad(s.getUTCDate())}`;
+    return { start, end: endDate };
+  }
+  return { start: startDate, end: endDate };
+}
+function parseLocationFilter$1(locationId) {
+  if (!locationId || locationId === "all") return void 0;
+  try {
+    return new ObjectId(locationId);
+  } catch {
+    return locationId;
+  }
+}
+async function sumMatchedMetrics$1(db, collection, match) {
+  var _a, _b, _c;
+  const [row] = await db.collection(collection).aggregate([
+    { $match: match },
+    {
+      $group: {
+        _id: null,
+        total_revenue: { $sum: { $ifNull: ["$total_revenue", 0] } },
+        total_quantity: { $sum: { $ifNull: ["$total_quantity", 0] } },
+        record_count: { $sum: { $ifNull: ["$record_count", 0] } }
+      }
+    }
+  ]).toArray();
+  const r = row;
+  return {
+    total_revenue: (_a = r == null ? void 0 : r.total_revenue) != null ? _a : 0,
+    total_quantity: (_b = r == null ? void 0 : r.total_quantity) != null ? _b : 0,
+    record_count: (_c = r == null ? void 0 : r.record_count) != null ? _c : 0
+  };
+}
+async function findPaged$1(db, collection, match, sortObj, skip, limit, excludeProducts) {
+  const projection = excludeProducts ? { products: 0 } : {};
+  const col = db.collection(collection);
+  const [results, totalCount, totals] = await Promise.all([
+    col.find(match, { projection }).sort(sortObj).skip(skip).limit(limit).toArray(),
+    col.countDocuments(match),
+    sumMatchedMetrics$1(db, collection, match)
+  ]);
+  return { results, totalCount, totals };
+}
+const salesAggregatedV2_get = defineEventHandler(async (event) => {
+  try {
+    const db = await getDb();
+    const query = getQuery$1(event);
+    const { page, pageSize, skip } = parsePageParams$1(query);
+    const suffix = resolveBorkAggReadSuffix();
+    const rawStart = typeof query.startDate === "string" ? query.startDate : void 0;
+    const rawEnd = typeof query.endDate === "string" ? query.endDate : void 0;
+    let { start: rangeStart, end: rangeEnd } = normalizeV2BusinessDateRange(rawStart, rawEnd);
+    const todayAmsterdam = amsterdamTodayYmd();
+    if (rangeEnd >= todayAmsterdam) {
+      rangeEnd = amsterdamYmdForOffset(-1);
+    }
+    if (rangeStart > rangeEnd) {
+      rangeStart = amsterdamYmdForOffset(-30);
+    }
+    const locationId = typeof query.locationId === "string" ? query.locationId : void 0;
+    const groupBy = query.groupBy || "day";
+    const sortBy = query.sortBy || "date";
+    const sortOrder = query.sortOrder || "desc";
+    const includeProducts = query.includeProducts === "true" || query.includeProducts === "1";
+    const includeLocations = query.includeLocations !== "false" && query.includeLocations !== "0";
+    const productSearch = typeof query.productSearch === "string" ? query.productSearch.trim() : "";
+    const minRevenueRaw = query.minRevenue;
+    const minRevenue = typeof minRevenueRaw === "string" || typeof minRevenueRaw === "number" ? Math.max(0, Number(minRevenueRaw) || 0) : 0;
+    const fullDaysOnly = query.fullDaysOnly === "true" || query.fullDaysOnly === "1";
+    const dateFilter = {
+      $gte: rangeStart,
+      $lte: rangeEnd
+    };
+    const q = { business_date: dateFilter };
+    const locationFilter = parseLocationFilter$1(locationId);
+    if (locationFilter !== void 0) q.locationId = locationFilter;
+    if (groupBy === "day" && fullDaysOnly) {
+      q.hour_buckets = 24;
+    }
+    const sortDirection = sortOrder === "asc" ? 1 : -1;
+    let sortObj;
+    if (groupBy === "hour") {
+      if (sortBy === "hour" || sortBy === "business_hour") {
+        sortObj = { business_date: -1, business_hour: sortDirection };
+      } else {
+        sortObj = { business_date: sortDirection === 1 ? 1 : -1, business_hour: 1 };
+      }
+    } else if (groupBy === "product") {
+      const sk = sortBy === "product_name" ? "productName" : sortBy === "unit_price" ? "unit_price" : sortBy === "total_quantity" ? "total_quantity" : "total_revenue";
+      sortObj = { [sk]: sortDirection };
+    } else {
+      const sortField = sortBy === "location" || sortBy === "location_name" ? "locationName" : sortBy === "total_revenue" ? "total_revenue" : sortBy === "total_quantity" ? "total_quantity" : "business_date";
+      sortObj = { [sortField]: sortDirection };
+    }
+    let results = [];
+    let collectionName = `bork_business_days${suffix}`;
+    let totalCount = 0;
+    let totals = { total_revenue: 0, total_quantity: 0, record_count: 0 };
+    const excludeProducts = !includeProducts;
+    if (groupBy === "day") {
+      collectionName = `bork_business_days${suffix}`;
+      const out = await findPaged$1(db, collectionName, q, sortObj, skip, pageSize, false);
+      results = out.results;
+      totalCount = out.totalCount;
+      totals = out.totals;
+    } else if (groupBy === "hour") {
+      collectionName = `bork_sales_by_hour${suffix}`;
+      const out = await findPaged$1(db, collectionName, q, sortObj, skip, pageSize, excludeProducts);
+      results = out.results;
+      totalCount = out.totalCount;
+      totals = out.totals;
+    } else if (groupBy === "table") {
+      collectionName = `bork_sales_by_table${suffix}`;
+      const out = await findPaged$1(db, collectionName, q, sortObj, skip, pageSize, excludeProducts);
+      results = out.results;
+      totalCount = out.totalCount;
+      totals = out.totals;
+    } else if (groupBy === "worker") {
+      collectionName = `bork_sales_by_worker${suffix}`;
+      const out = await findPaged$1(db, collectionName, q, sortObj, skip, pageSize, excludeProducts);
+      results = out.results;
+      totalCount = out.totalCount;
+      totals = out.totals;
+    } else if (groupBy === "guestAccount") {
+      collectionName = `bork_sales_by_guest_account${suffix}`;
+      const out = await findPaged$1(db, collectionName, q, sortObj, skip, pageSize, excludeProducts);
+      results = out.results;
+      totalCount = out.totalCount;
+      totals = out.totals;
+    } else if (groupBy === "product") {
+      collectionName = `bork_sales_by_table${suffix}`;
+      const pq = { ...q };
+      if (productSearch) {
+        pq.productName = { $regex: productSearch.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), $options: "i" };
+      }
+      if (minRevenue > 0) {
+        pq.total_revenue = { $gte: minRevenue };
+      }
+      const out = await findPaged$1(db, collectionName, pq, sortObj, skip, pageSize, true);
+      results = out.results;
+      totalCount = out.totalCount;
+      totals = out.totals;
+    } else {
+      collectionName = `bork_business_days${suffix}`;
+      const out = await findPaged$1(db, collectionName, q, sortObj, skip, pageSize, false);
+      results = out.results;
+      totalCount = out.totalCount;
+      totals = out.totals;
+    }
+    let locations = [];
+    if (includeLocations) {
+      const locs = await db.collection("locations").find({}, { projection: { name: 1 } }).sort({ name: 1 }).toArray();
+      locations = locs.map((l) => ({
+        _id: String(l._id),
+        name: typeof l.name === "string" ? l.name : ""
+      }));
+    }
+    return {
+      success: true,
+      data: results,
+      pagination: {
+        page,
+        pageSize,
+        totalCount
+      },
+      totals,
+      summary: {
+        group_by: groupBy,
+        collection: collectionName,
+        v2_suffix: suffix || null
+      },
+      locations
+    };
+  } catch (error) {
+    console.error("[sales-aggregated-v2]", error);
+    throw createError({ statusCode: 500, message: "Failed to fetch V2 sales data" });
+  }
+});
+
+const salesAggregatedV2_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+  __proto__: null,
+  default: salesAggregatedV2_get
 }, Symbol.toStringTag, { value: 'Module' }));
 
 const MAX_PAGE_SIZE = 200;

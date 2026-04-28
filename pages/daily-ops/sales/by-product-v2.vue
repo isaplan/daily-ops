@@ -3,7 +3,7 @@
     <div>
       <h1 class="text-3xl font-bold text-gray-900">Sales by Product (V2)</h1>
       <p class="text-gray-500">
-        One row per <strong>business_date</strong> × location × product × unit price from <code class="text-xs">bork_sales_products</code> (same line math as V1 raw path).
+        One row per <strong>business_date</strong> × location × product × unit price from <code class="text-xs">bork_sales_by_product</code> (same line math as V1 raw path).
       </p>
     </div>
 

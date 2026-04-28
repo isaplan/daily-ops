@@ -1,17 +1,17 @@
 /**
  * @registry-id: borkRebuildAggregationV2Service
  * @created: 2026-04-14T18:00:00.000Z
- * @last-modified: 2026-04-16T12:00:00.000Z
- * @description: V2 Bork aggregates: register business-day buckets — hours, days, tables, workers, guest accounts, product lines (parallel to V1 bork_sales_by_*)
- * @last-fix: [2026-04-16] Added bork_sales_tables/workers/guest_accounts/products + hour product rollups for Sales-V2 UI
+ * @last-modified: 2026-04-28T18:40:00.000Z
+ * @description: V2 Bork aggregates — writes bork_business_days, bork_sales_by_day, bork_sales_by_hour, bork_sales_by_table, bork_sales_by_worker, bork_sales_by_guest_account, bork_sales_by_product (+ version suffix)
+ * @last-fix: [2026-04-28] Aligned V2 rebuild collections to bork_sales_by_* names used by `/api/sales-aggregated-v2` and default version suffix `_v2`
  *
- * @CRITICAL: Same raw scan + line math as V1; keys use business_date / business_hour (06:00–05:59 register day).
- * Does NOT write to bork_sales_by_* — uses bork_sales_hours, bork_business_days, bork_sales_tables, bork_sales_workers, bork_sales_guest_accounts, bork_sales_products (+ suffix).
+ * @CRITICAL: Line revenue uses Lines (Price×Qty); paymode totals use Order.Paymodes (may differ from line totals).
  *
  * @exports-to:
  * ✓ scripts/bork-backfill-weekly-backward.ts (optional BORK_AGG_V2=1)
- * ✓ scripts/rebuild-bork-v2-date-range.ts (BORK_V2_REBUILD_CONFIRM=1; optional BORK_V2_START/BORK_V2_END)
+ * ✓ scripts/rebuild-bork-v2-date-range.ts
  * ✓ server/api/sales-aggregated-v2.get.ts
+ * ✓ server/utils/borkV2RebuildSuffix.ts (rebuild script write suffix)
  */
 
 import type { Db, Document } from 'mongodb'
@@ -60,13 +60,54 @@ function isBorkTicketOpenUnsettled(ticket: { ActualDate?: number | string } | nu
 
 type ProductRollup = { productId: string; productName: string; revenue: number; quantity: number }
 
+type WorkerDayRollup = {
+  workerId: string
+  workerName: string
+  total_revenue: number
+  total_quantity: number
+  record_count: number
+}
+
+type GuestDayRollup = {
+  accountName: string
+  total_revenue: number
+  total_quantity: number
+}
+
+type PaymodeDayRollup = {
+  paymodeName: string
+  groupName: string
+  total_revenue: number
+}
+
+type DayRollupInternal = {
+  schema_version: number
+  locationId: unknown
+  locationName: string
+  business_date: string
+  status: string
+  total_revenue: number
+  total_quantity: number
+  record_count: number
+  paymode_total: number
+  products: Map<string, ProductRollup>
+  workers: Map<string, WorkerDayRollup>
+  guests: Map<string, GuestDayRollup>
+  paymodes: Map<string, PaymodeDayRollup>
+}
+
 export type RebuildBorkAggV2Result = {
   businessDays: number
+  salesByDay: number
   salesHours: number
   tables: number
   workers: number
   guestAccounts: number
   productLines: number
+}
+
+function sortByRevenueDesc<T extends { total_revenue?: number; revenue?: number }>(arr: T[]): T[] {
+  return [...arr].sort((a, b) => (b.total_revenue ?? b.revenue ?? 0) - (a.total_revenue ?? a.revenue ?? 0))
 }
 
 /**
@@ -81,6 +122,7 @@ export async function rebuildBorkSalesAggregationV2(
 ): Promise<RebuildBorkAggV2Result> {
   const result: RebuildBorkAggV2Result = {
     businessDays: 0,
+    salesByDay: 0,
     salesHours: 0,
     tables: 0,
     workers: 0,
@@ -103,21 +145,48 @@ export async function rebuildBorkSalesAggregationV2(
     userMappings.map((u) => [u.borkUserId || u.borkUserName, { unifiedId: u.unifiedUserId, name: u.unifiedUserName }])
   )
 
-  const hoursCollection = `bork_sales_hours${collectionSuffix}`
+  const hoursCollection = `bork_sales_by_hour${collectionSuffix}`
   const daysCollection = `bork_business_days${collectionSuffix}`
-  const tablesCollection = `bork_sales_tables${collectionSuffix}`
-  const workersCollection = `bork_sales_workers${collectionSuffix}`
-  const guestsCollection = `bork_sales_guest_accounts${collectionSuffix}`
-  const productsCollection = `bork_sales_products${collectionSuffix}`
+  const salesByDayCollection = `bork_sales_by_day${collectionSuffix}`
+  const tablesCollection = `bork_sales_by_table${collectionSuffix}`
+  const workersCollection = `bork_sales_by_worker${collectionSuffix}`
+  const guestsCollection = `bork_sales_by_guest_account${collectionSuffix}`
+  const productsCollection = `bork_sales_by_product${collectionSuffix}`
 
   const byHourMap = new Map<string, Document>()
-  const byDayMap = new Map<string, Document>()
+  const dayRollupMap = new Map<string, DayRollupInternal>()
   const byTableMap = new Map<string, Document>()
   const byWorkerMap = new Map<string, Document>()
   const byGuestMap = new Map<string, Document>()
   const byProductMap = new Map<string, Document>()
 
   const cursor = db.collection('bork_raw_data').find({ endpoint: 'bork_daily' }).batchSize(32)
+
+  const ensureDayRollup = (
+    dayKey: string,
+    unifiedLocationId: unknown,
+    unifiedLocationName: string,
+    businessDate: string
+  ): DayRollupInternal => {
+    if (!dayRollupMap.has(dayKey)) {
+      dayRollupMap.set(dayKey, {
+        schema_version: 2,
+        locationId: unifiedLocationId,
+        locationName: unifiedLocationName,
+        business_date: businessDate,
+        status: 'aggregated',
+        total_revenue: 0,
+        total_quantity: 0,
+        record_count: 0,
+        paymode_total: 0,
+        products: new Map<string, ProductRollup>(),
+        workers: new Map<string, WorkerDayRollup>(),
+        guests: new Map<string, GuestDayRollup>(),
+        paymodes: new Map<string, PaymodeDayRollup>(),
+      })
+    }
+    return dayRollupMap.get(dayKey)!
+  }
 
   try {
     for await (const rawDoc of cursor) {
@@ -136,7 +205,7 @@ export async function rebuildBorkSalesAggregationV2(
         const borkWorkerName = (ticket as { UserName?: string }).UserName || 'Unknown'
         const userMapping =
           userMap.get(borkWorkerName) || userMap.get((ticket as { UserId?: string }).UserId)
-        const unifiedWorkerId = userMapping?.unifiedId || 'unknown'
+        const unifiedWorkerId = String(userMapping?.unifiedId || 'unknown')
         const unifiedWorkerName = userMapping?.name || borkWorkerName
 
         const orders = Array.isArray(ticket.Orders) ? ticket.Orders : []
@@ -152,6 +221,7 @@ export async function rebuildBorkSalesAggregationV2(
 
           const isoDate = borkDateToISO(orderBorkDate)
           const { businessDate, businessHour } = calendarToBusinessDay(isoDate, calendarHour)
+          const dayKey = `${unifiedLocationId}:${businessDate}`
 
           const tableNumber = String((order as { TableNr?: string }).TableNr || '').trim()
           const hasTable = tableNumber.length > 0
@@ -195,24 +265,31 @@ export async function rebuildBorkSalesAggregationV2(
             hp.revenue += totalPrice
             hp.quantity += qty
 
-            const dayKey = `${unifiedLocationId}:${businessDate}`
-            if (!byDayMap.has(dayKey)) {
-              byDayMap.set(dayKey, {
-                schema_version: 2,
-                locationId: unifiedLocationId,
-                locationName: unifiedLocationName,
-                business_date: businessDate,
-                status: 'aggregated',
+            const dr = ensureDayRollup(dayKey, unifiedLocationId, unifiedLocationName, businessDate)
+            dr.total_revenue += totalPrice
+            dr.total_quantity += qty
+            dr.record_count += 1
+
+            if (!dr.products.has(productKey)) {
+              dr.products.set(productKey, { productId: productKey, productName, revenue: 0, quantity: 0 })
+            }
+            const dp = dr.products.get(productKey)!
+            dp.revenue += totalPrice
+            dp.quantity += qty
+
+            if (!dr.workers.has(unifiedWorkerId)) {
+              dr.workers.set(unifiedWorkerId, {
+                workerId: unifiedWorkerId,
+                workerName: unifiedWorkerName,
                 total_revenue: 0,
                 total_quantity: 0,
                 record_count: 0,
-                hour_buckets: 0,
               })
             }
-            const de = byDayMap.get(dayKey)!
-            de.total_revenue = (de.total_revenue as number) + totalPrice
-            de.total_quantity = (de.total_quantity as number) + qty
-            de.record_count = (de.record_count as number) + 1
+            const dw = dr.workers.get(unifiedWorkerId)!
+            dw.total_revenue += totalPrice
+            dw.total_quantity += qty
+            dw.record_count += 1
 
             const productAggKey = `${unifiedLocationId}:${businessDate}:${productKey}:${price}`
             if (!byProductMap.has(productAggKey)) {
@@ -327,7 +404,41 @@ export async function rebuildBorkSalesAggregationV2(
               const gp = gm.get(productKey)!
               gp.revenue += totalPrice
               gp.quantity += qty
+
+              if (!dr.guests.has(guestAccountName)) {
+                dr.guests.set(guestAccountName, {
+                  accountName: guestAccountName,
+                  total_revenue: 0,
+                  total_quantity: 0,
+                })
+              }
+              const dg = dr.guests.get(guestAccountName)!
+              dg.total_revenue += totalPrice
+              dg.total_quantity += qty
             }
+          }
+
+          const paymodes = Array.isArray((order as { Paymodes?: unknown[] }).Paymodes)
+            ? (order as { Paymodes: unknown[] }).Paymodes
+            : []
+          for (const pm of paymodes) {
+            if (!pm || typeof pm !== 'object') continue
+            const p = pm as { Total?: number; Price?: number; PaymodeName?: string; GroupName?: string }
+            const amt = Number(p.Total ?? p.Price ?? 0)
+            if (!Number.isFinite(amt) || amt === 0) continue
+
+            const paymodeName = String(p.PaymodeName || 'Unknown')
+            const groupName = String(p.GroupName || '')
+            const payKey = `${paymodeName}\t${groupName}`
+
+            const drPay = ensureDayRollup(dayKey, unifiedLocationId, unifiedLocationName, businessDate)
+            drPay.paymode_total += amt
+
+            if (!drPay.paymodes.has(payKey)) {
+              drPay.paymodes.set(payKey, { paymodeName, groupName, total_revenue: 0 })
+            }
+            const pmR = drPay.paymodes.get(payKey)!
+            pmR.total_revenue += amt
           }
         }
       }
@@ -349,11 +460,44 @@ export async function rebuildBorkSalesAggregationV2(
     if (!distinctHoursPerDay.has(k)) distinctHoursPerDay.set(k, new Set())
     distinctHoursPerDay.get(k)!.add(d.business_hour as number)
   }
-  const dayDocs = Array.from(byDayMap.values()).map((d) => {
-    const k = `${d.locationId}:${d.business_date}`
+
+  const slimDayDocs: Document[] = []
+  const salesByDayDocs: Document[] = []
+
+  for (const dr of dayRollupMap.values()) {
+    const k = `${dr.locationId}:${dr.business_date}`
     const set = distinctHoursPerDay.get(k)
-    return { ...d, hour_buckets: set ? set.size : 0 }
-  })
+    const hour_buckets = set ? set.size : 0
+
+    slimDayDocs.push({
+      schema_version: 2,
+      locationId: dr.locationId,
+      locationName: dr.locationName,
+      business_date: dr.business_date,
+      status: dr.status,
+      total_revenue: dr.total_revenue,
+      total_quantity: dr.total_quantity,
+      record_count: dr.record_count,
+      hour_buckets,
+    })
+
+    salesByDayDocs.push({
+      schema_version: 2,
+      locationId: dr.locationId,
+      locationName: dr.locationName,
+      business_date: dr.business_date,
+      status: dr.status,
+      total_revenue: dr.total_revenue,
+      total_quantity: dr.total_quantity,
+      record_count: dr.record_count,
+      hour_buckets,
+      paymode_total: dr.paymode_total,
+      products_day: sortByRevenueDesc(Array.from(dr.products.values())),
+      workers_day: sortByRevenueDesc(Array.from(dr.workers.values())),
+      guest_accounts_day: sortByRevenueDesc(Array.from(dr.guests.values())),
+      paymodes_day: sortByRevenueDesc(Array.from(dr.paymodes.values())),
+    })
+  }
 
   const tableDocs = Array.from(byTableMap.values()).map((doc) => ({
     ...doc,
@@ -377,6 +521,7 @@ export async function rebuildBorkSalesAggregationV2(
   await Promise.all([
     db.collection(hoursCollection).deleteMany(clearFilter),
     db.collection(daysCollection).deleteMany(clearFilter),
+    db.collection(salesByDayCollection).deleteMany(clearFilter),
     db.collection(tablesCollection).deleteMany(clearFilter),
     db.collection(workersCollection).deleteMany(clearFilter),
     db.collection(guestsCollection).deleteMany(clearFilter),
@@ -387,9 +532,13 @@ export async function rebuildBorkSalesAggregationV2(
     await db.collection(hoursCollection).insertMany(hourDocs as Document[])
     result.salesHours = hourDocs.length
   }
-  if (dayDocs.length > 0) {
-    await db.collection(daysCollection).insertMany(dayDocs as Document[])
-    result.businessDays = dayDocs.length
+  if (slimDayDocs.length > 0) {
+    await db.collection(daysCollection).insertMany(slimDayDocs)
+    result.businessDays = slimDayDocs.length
+  }
+  if (salesByDayDocs.length > 0) {
+    await db.collection(salesByDayCollection).insertMany(salesByDayDocs as Document[])
+    result.salesByDay = salesByDayDocs.length
   }
   if (tableDocs.length > 0) {
     await db.collection(tablesCollection).insertMany(tableDocs as Document[])

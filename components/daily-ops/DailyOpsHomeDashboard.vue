@@ -813,12 +813,17 @@ import WorkerDetailsDrawer from '~/components/daily-ops/WorkerDetailsDrawer.vue'
 const categoryChartColors = ['#0a0a0a', '#242424', '#3d3d3d', '#575757', '#737373', '#b8b8b8']
 const timePeriodChartColors = ['#1a1a1a', '#2a2a2a', '#3a3a3a', '#4a4a4a']
 
-withDefaults(
+const props = withDefaults(
   defineProps<{
     /** Last segment of the H1, e.g. Dashboard, Revenue, Productivity */
     pageHeadingSuffix?: string
+    /** Metrics bundle endpoint path (V1 default, V2 opt-in). */
+    metricsApiPath?: string
   }>(),
-  { pageHeadingSuffix: 'Dashboard' }
+  {
+    pageHeadingSuffix: 'Dashboard',
+    metricsApiPath: '/api/daily-ops/metrics/bundle',
+  }
 )
 
 type LocationRow = { _id: string; name: string; abbreviation?: string }
@@ -856,7 +861,7 @@ type MetricsBundle = {
 
 const metricsCacheKey = computed(
   () =>
-    `daily-ops-dashboard-metrics-${dashboardQuery.value.period}-${dashboardQuery.value.location ?? 'all'}-${dashboardQuery.value.anchor ?? ''}`
+    `daily-ops-dashboard-metrics-${dashboardQuery.value.period}-${dashboardQuery.value.location ?? 'all'}-${dashboardQuery.value.anchor ?? ''}-${props.metricsApiPath}`
 )
 
 const {
@@ -868,7 +873,7 @@ const {
   metricsCacheKey,
   async (): Promise<MetricsBundle> => {
     const q = { ...dashboardQuery.value }
-    return await $fetch<MetricsBundle>('/api/daily-ops/metrics/bundle', { query: q })
+    return await $fetch<MetricsBundle>(props.metricsApiPath, { query: q })
   },
   { watch: [metricsCacheKey] }
 )

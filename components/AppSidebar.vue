@@ -64,6 +64,18 @@
           </NuxtLink>
         </li>
         <li>
+          <UTooltip v-if="collapsed" text="Dashboard V2" :popper="{ placement: 'right' }">
+            <NuxtLink to="/daily-ops-v2" :class="navLinkClass(isDailyOpsV2Dashboard)">
+              <UIcon name="i-lucide-layout-panel-top" class="size-5 shrink-0" />
+              <span v-if="!collapsed">Dashboard V2</span>
+            </NuxtLink>
+          </UTooltip>
+          <NuxtLink v-else to="/daily-ops-v2" :class="navLinkClass(isDailyOpsV2Dashboard)">
+            <UIcon name="i-lucide-layout-panel-top" class="size-4 shrink-0" />
+            <span>Dashboard V2</span>
+          </NuxtLink>
+        </li>
+        <li>
           <UTooltip v-if="collapsed" text="Workers" :popper="{ placement: 'right' }">
             <NuxtLink to="/daily-ops/workers" :class="navLinkClass(isWorkersPage)">
               <UIcon name="i-lucide-users" class="size-5 shrink-0" />
@@ -186,12 +198,13 @@
             <UIcon name="i-lucide-chevron-right" :class="['size-4 shrink-0 transition-transform', isSalesV2Open && 'rotate-90']" />
           </button>
           <ul v-if="!collapsed && isSalesV2Open" class="mt-1 ml-4 space-y-0.5 border-l border-gray-200 pl-3">
-            <li><NuxtLink to="/daily-ops/sales/by-day-v2" :class="navLinkClass(isPath('/daily-ops/sales/by-day-v2'))">By Day</NuxtLink></li>
-            <li><NuxtLink to="/daily-ops/sales/by-hour-v2" :class="navLinkClass(isPath('/daily-ops/sales/by-hour-v2'))">By Hour</NuxtLink></li>
-            <li><NuxtLink to="/daily-ops/sales/by-table-v2" :class="navLinkClass(isPath('/daily-ops/sales/by-table-v2'))">By Table</NuxtLink></li>
-            <li><NuxtLink to="/daily-ops/sales/by-worker-v2" :class="navLinkClass(isPath('/daily-ops/sales/by-worker-v2'))">By Worker</NuxtLink></li>
-            <li><NuxtLink to="/daily-ops/sales/by-product-v2" :class="navLinkClass(isPath('/daily-ops/sales/by-product-v2'))">By Product</NuxtLink></li>
-            <li><NuxtLink to="/daily-ops/sales/by-guest-account-v2" :class="navLinkClass(isPath('/daily-ops/sales/by-guest-account-v2'))">By Guest Account</NuxtLink></li>
+            <li><NuxtLink to="/daily-ops/sales-v2/by-day" :class="navLinkClass(isPath('/daily-ops/sales-v2/by-day'))">By Day</NuxtLink></li>
+            <li><NuxtLink to="/daily-ops/sales-v2/by-hour" :class="navLinkClass(isPath('/daily-ops/sales-v2/by-hour'))">By Hour</NuxtLink></li>
+            <li><NuxtLink to="/daily-ops/sales-v2/by-table" :class="navLinkClass(isPath('/daily-ops/sales-v2/by-table'))">By Table</NuxtLink></li>
+            <li><NuxtLink to="/daily-ops/sales-v2/by-worker" :class="navLinkClass(isPath('/daily-ops/sales-v2/by-worker'))">By Worker</NuxtLink></li>
+            <li><NuxtLink to="/daily-ops/sales-v2/by-product" :class="navLinkClass(isPath('/daily-ops/sales-v2/by-product'))">By Product</NuxtLink></li>
+            <li><NuxtLink to="/daily-ops/sales-v2/by-guest-account" :class="navLinkClass(isPath('/daily-ops/sales-v2/by-guest-account'))">By Guest Account</NuxtLink></li>
+            <li><NuxtLink to="/daily-ops/sales-v2/day-breakdown" :class="navLinkClass(isPath('/daily-ops/sales-v2/day-breakdown'))">Day Breakdown</NuxtLink></li>
           </ul>
         </li>
         <li>
@@ -378,22 +391,25 @@ const salesDropdownItems = computed(() => [
 const salesV2DropdownItems = computed(() => [
   [{
     label: 'By Day',
-    to: '/daily-ops/sales/by-day-v2',
+    to: '/daily-ops/sales-v2/by-day',
   }, {
     label: 'By Hour',
-    to: '/daily-ops/sales/by-hour-v2',
+    to: '/daily-ops/sales-v2/by-hour',
   }, {
     label: 'By Table',
-    to: '/daily-ops/sales/by-table-v2',
+    to: '/daily-ops/sales-v2/by-table',
   }, {
     label: 'By Worker',
-    to: '/daily-ops/sales/by-worker-v2',
+    to: '/daily-ops/sales-v2/by-worker',
   }, {
     label: 'By Product',
-    to: '/daily-ops/sales/by-product-v2',
+    to: '/daily-ops/sales-v2/by-product',
   }, {
     label: 'By Guest Account',
-    to: '/daily-ops/sales/by-guest-account-v2',
+    to: '/daily-ops/sales-v2/by-guest-account',
+  }, {
+    label: 'Day Breakdown',
+    to: '/daily-ops/sales-v2/day-breakdown',
   }],
 ])
 
@@ -429,6 +445,7 @@ const isDailyOpsDashboard = computed(() => {
   return dash.includes(p)
 })
 const isWorkersPage = computed(() => route.path === '/daily-ops/workers' || route.path === '/daily-ops/workers/')
+const isDailyOpsV2Dashboard = computed(() => route.path === '/daily-ops-v2' || route.path === '/daily-ops-v2/')
 const isEitjeApi = computed(() => route.path === '/daily-ops/settings/eitje-api')
 const isBorkApi = computed(() => route.path === '/daily-ops/settings/bork-api')
 const isHoursSection = computed(() => route.path.startsWith('/daily-ops/hours'))
@@ -436,8 +453,8 @@ const isHoursSection = computed(() => route.path.startsWith('/daily-ops/hours'))
 const normalizedPath = computed(() => (route.path.replace(/\/$/, '') || '/') as string)
 const isSalesV2Section = computed(
   () =>
-    normalizedPath.value.startsWith('/daily-ops/sales/')
-    && /-v2$/.test(normalizedPath.value)
+    normalizedPath.value.startsWith('/daily-ops/sales-v2/')
+    || /\/daily-ops\/sales\/.+-v2$/.test(normalizedPath.value)
 )
 const isSalesSection = computed(
   () => route.path.startsWith('/daily-ops/sales') && !isSalesV2Section.value
@@ -452,10 +469,10 @@ const isInboxBork = computed(() => route.path === '/daily-ops/inbox/bork' || rou
 const isInboxPowerBi = computed(() => route.path === '/daily-ops/inbox/power-bi' || route.path.startsWith('/daily-ops/inbox/power-bi/'))
 const isInboxOther = computed(() => route.path === '/daily-ops/inbox/other' || route.path.startsWith('/daily-ops/inbox/other/'))
 
-watch(() => route.path, (path) => {
+watch(() => route.path, (path: string) => {
   if (path.startsWith('/daily-ops/hours')) isHoursOpen.value = true
   const p = path.replace(/\/$/, '') || '/'
-  if (p.startsWith('/daily-ops/sales/') && /-v2$/.test(p)) {
+  if (p.startsWith('/daily-ops/sales-v2/') || (p.startsWith('/daily-ops/sales/') && /-v2$/.test(p))) {
     isSalesV2Open.value = true
   } else if (path.startsWith('/daily-ops/sales')) {
     isSalesOpen.value = true

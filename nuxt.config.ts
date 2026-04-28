@@ -14,6 +14,11 @@ if (!disableIntegrationsSchedule) {
 
 export default defineNuxtConfig({
   ssr: false,
+  /** Sales-V2 API (`/api/sales-aggregated-v2`) — version suffix (default `_v2`). */
+  runtimeConfig: {
+    borkAggVersionSuffix: process.env.BORK_AGG_VERSION_SUFFIX ?? process.env.BORK_AGG_V2_SUFFIX ?? '_v2',
+    borkAggV2Suffix: process.env.BORK_AGG_V2_SUFFIX ?? '',
+  },
   modules: ['@nuxt/ui'],
   srcDir: '.',
   /** Avoid trailing slash — prevents bad joins like `.nuxt//dist` in generated dev paths. */

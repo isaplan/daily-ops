@@ -11,6 +11,9 @@ declare module "nitropack/types" {
       'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/bork/v2/cron.get').default>>>>
       'post': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/bork/v2/cron.post').default>>>>
     }
+    '/api/bork/v2/day-breakdown-v2': {
+      'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/bork/v2/day-breakdown-v2.get').default>>>>
+    }
     '/api/bork/v2/day-breakdown': {
       'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/bork/v2/day-breakdown.get').default>>>>
     }
@@ -25,6 +28,9 @@ declare module "nitropack/types" {
     }
     '/api/cron/data-integrity': {
       'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/cron/data-integrity.get').default>>>>
+    }
+    '/api/daily-ops-v2/metrics/bundle': {
+      'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/daily-ops-v2/metrics/bundle.get').default>>>>
     }
     '/api/daily-ops/insights': {
       'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/daily-ops/insights.get').default>>>>
@@ -239,6 +245,9 @@ declare module "nitropack/types" {
     }
     '/api/sales-aggregated-products': {
       'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/sales-aggregated-products.get').default>>>>
+    }
+    '/api/sales-aggregated-v2': {
+      'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/sales-aggregated-v2.get').default>>>>
     }
     '/api/sales-aggregated': {
       'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/sales-aggregated.get').default>>>>
