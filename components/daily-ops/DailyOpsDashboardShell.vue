@@ -113,6 +113,13 @@ const {
   setLocation,
 } = useDailyOpsDashboardRoute()
 
+// Determine the version prefix based on current route
+const versionPrefix = computed(() => {
+  if (route.path.startsWith('/daily-ops-v3')) return '/daily-ops-v3'
+  if (route.path.startsWith('/daily-ops-v2')) return '/daily-ops-v2'
+  return '/daily-ops'
+})
+
 const periodOptions: { id: DailyOpsPeriodId; label: string }[] = [
   { id: 'today', label: 'Today' },
   { id: 'yesterday', label: 'Yesterday' },
@@ -120,14 +127,28 @@ const periodOptions: { id: DailyOpsPeriodId; label: string }[] = [
   { id: 'last-week', label: 'Last Week' },
 ]
 
-const navItems = [
-  { key: 'overview' as const, label: 'Daily Ops', path: '/daily-ops' },
-  { key: 'revenue' as const, label: 'Revenue', path: '/daily-ops/revenue' },
-  { key: 'productivity' as const, label: 'Productivity', path: '/daily-ops/productivity' },
-  { key: 'products' as const, label: 'Products', path: '/daily-ops/products' },
-  { key: 'insights' as const, label: 'Insights', path: '/daily-ops/insights' },
-  { key: 'inbox' as const, label: 'Inbox', path: '/daily-ops/inbox' },
-]
+// Determine which nav items to show based on version
+const navItems = computed(() => {
+  const prefix = versionPrefix.value
+  const baseItems = [
+    { key: 'overview' as const, label: 'Daily Ops', path: `${prefix}` },
+  ]
+  
+  // V1 has all pages
+  if (prefix === '/daily-ops') {
+    return [
+      ...baseItems,
+      { key: 'revenue' as const, label: 'Revenue', path: `${prefix}/revenue` },
+      { key: 'productivity' as const, label: 'Productivity', path: `${prefix}/productivity` },
+      { key: 'products' as const, label: 'Products', path: `${prefix}/products` },
+      { key: 'insights' as const, label: 'Insights', path: `${prefix}/insights` },
+      { key: 'inbox' as const, label: 'Inbox', path: `${prefix}/inbox` },
+    ]
+  }
+  
+  // V2 and V3 only have overview for now
+  return baseItems
+})
 
 const { data: locationsRes } = await useFetch<{ success: boolean; data: LocationRow[] }>('/api/daily-ops/locations')
 
