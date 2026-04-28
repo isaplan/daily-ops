@@ -99,11 +99,7 @@
             <UIcon name="i-lucide-chevron-right" :class="['size-4 shrink-0 transition-transform', isHoursV2Open && 'rotate-90']" />
           </button>
           <ul v-if="!collapsed && isHoursV2Open" class="mt-1 ml-4 space-y-0.5 border-l border-gray-200 pl-3">
-            <li><NuxtLink to="/daily-ops-v2/hours" :class="navLinkClass(route.path === '/daily-ops-v2/hours')">Overview</NuxtLink></li>
             <li><NuxtLink to="/daily-ops-v2/hours/by-day" :class="navLinkClass(route.path === '/daily-ops-v2/hours/by-day')">By Day</NuxtLink></li>
-            <li><NuxtLink to="/daily-ops-v2/hours/by-team" :class="navLinkClass(route.path === '/daily-ops-v2/hours/by-team')">By Team</NuxtLink></li>
-            <li><NuxtLink to="/daily-ops-v2/hours/by-worker" :class="navLinkClass(route.path === '/daily-ops-v2/hours/by-worker')">By Worker</NuxtLink></li>
-            <li><NuxtLink to="/daily-ops-v2/hours/by-location" :class="navLinkClass(route.path === '/daily-ops-v2/hours/by-location')">By Location</NuxtLink></li>
           </ul>
         </li>
         <!-- Sales-V2 (collapsible) -->
@@ -130,11 +126,7 @@
             <UIcon name="i-lucide-chevron-right" :class="['size-4 shrink-0 transition-transform', isSalesV2Open && 'rotate-90']" />
           </button>
           <ul v-if="!collapsed && isSalesV2Open" class="mt-1 ml-4 space-y-0.5 border-l border-gray-200 pl-3">
-            <li><NuxtLink to="/daily-ops-v2/sales" :class="navLinkClass(isPath('/daily-ops-v2/sales'))">Overview</NuxtLink></li>
             <li><NuxtLink to="/daily-ops-v2/sales/by-day" :class="navLinkClass(isPath('/daily-ops-v2/sales/by-day'))">By Day</NuxtLink></li>
-            <li><NuxtLink to="/daily-ops-v2/sales/by-hour" :class="navLinkClass(isPath('/daily-ops-v2/sales/by-hour'))">By Hour</NuxtLink></li>
-            <li><NuxtLink to="/daily-ops-v2/sales/by-product" :class="navLinkClass(isPath('/daily-ops-v2/sales/by-product'))">By Product</NuxtLink></li>
-            <li><NuxtLink to="/daily-ops-v2/sales/by-worker" :class="navLinkClass(isPath('/daily-ops-v2/sales/by-worker'))">By Worker</NuxtLink></li>
           </ul>
         </li>
         <li>
@@ -239,11 +231,7 @@
             <UIcon name="i-lucide-chevron-right" :class="['size-4 shrink-0 transition-transform', isHoursV3Open && 'rotate-90']" />
           </button>
           <ul v-if="!collapsed && isHoursV3Open" class="mt-1 ml-4 space-y-0.5 border-l border-gray-200 pl-3">
-            <li><NuxtLink to="/daily-ops-v3/hours" :class="navLinkClass(route.path === '/daily-ops-v3/hours')">Overview</NuxtLink></li>
             <li><NuxtLink to="/daily-ops-v3/hours/by-day" :class="navLinkClass(route.path === '/daily-ops-v3/hours/by-day')">By Day</NuxtLink></li>
-            <li><NuxtLink to="/daily-ops-v3/hours/by-hour" :class="navLinkClass(route.path === '/daily-ops-v3/hours/by-hour')">By Hour</NuxtLink></li>
-            <li><NuxtLink to="/daily-ops-v3/hours/by-team" :class="navLinkClass(route.path === '/daily-ops-v3/hours/by-team')">By Team</NuxtLink></li>
-            <li><NuxtLink to="/daily-ops-v3/hours/by-contract" :class="navLinkClass(route.path === '/daily-ops-v3/hours/by-contract')">By Contract</NuxtLink></li>
           </ul>
         </li>
         <li>
@@ -333,11 +321,7 @@
             <UIcon name="i-lucide-chevron-right" :class="['size-4 shrink-0 transition-transform', isSalesV3Open && 'rotate-90']" />
           </button>
           <ul v-if="!collapsed && isSalesV3Open" class="mt-1 ml-4 space-y-0.5 border-l border-gray-200 pl-3">
-            <li><NuxtLink to="/daily-ops-v3/sales" :class="navLinkClass(isPath('/daily-ops-v3/sales'))">Overview</NuxtLink></li>
             <li><NuxtLink to="/daily-ops-v3/sales/by-day" :class="navLinkClass(isPath('/daily-ops-v3/sales/by-day'))">By Day</NuxtLink></li>
-            <li><NuxtLink to="/daily-ops-v3/sales/by-hour" :class="navLinkClass(isPath('/daily-ops-v3/sales/by-hour'))">By Hour</NuxtLink></li>
-            <li><NuxtLink to="/daily-ops-v3/sales/by-product" :class="navLinkClass(isPath('/daily-ops-v3/sales/by-product'))">By Product</NuxtLink></li>
-            <li><NuxtLink to="/daily-ops-v3/sales/by-waiter" :class="navLinkClass(isPath('/daily-ops-v3/sales/by-waiter'))">By Waiter</NuxtLink></li>
           </ul>
         </li>
         <!-- Workforce-V3 -->
