@@ -890,6 +890,11 @@ const {
                 laborCostPctOfRevenue: snapshot.cards.laborCostPctOfRevenue,
                 revenuePerLaborHour: snapshot.cards.revenuePerLaborHour,
               },
+              range: {
+                startDate: snapshot.businessDate,
+                endDate: snapshot.businessDate,
+                period: 'today',
+              },
               vatDisclaimer: 'V3 Live Snapshot',
             },
             revenue: {
