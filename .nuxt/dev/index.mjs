@@ -5766,16 +5766,16 @@ _bZ9Ni6V2HtIpJeulfSLzyAQaoMJdeQllxN50TS5qNvY
 const assets = {
   "/index.mjs": {
     "type": "text/javascript; charset=utf-8",
-    "etag": "\"16ef53-/BmHwEAKGaHcJop2t0Gh6ohnkao\"",
-    "mtime": "2026-04-28T17:36:02.839Z",
-    "size": 1503059,
+    "etag": "\"16f728-Z0CX8GxAO/l0/P+BqdIWIpwgoIs\"",
+    "mtime": "2026-04-28T17:36:15.781Z",
+    "size": 1505064,
     "path": "index.mjs"
   },
   "/index.mjs.map": {
     "type": "application/json",
-    "etag": "\"5c139f-pHEDq5c1h1qq43p07w2JS8TwuFY\"",
-    "mtime": "2026-04-28T17:36:02.858Z",
-    "size": 6034335,
+    "etag": "\"5c2bb6-ehrS1+E/5LO8CIJuknMLO6mwSwM\"",
+    "mtime": "2026-04-28T17:36:15.800Z",
+    "size": 6040502,
     "path": "index.mjs.map"
   }
 };
@@ -33398,6 +33398,7 @@ const _lazy_l24SXQ = () => Promise.resolve().then(function () { return _id__dele
 const _lazy_s6toDC = () => Promise.resolve().then(function () { return index_get$5; });
 const _lazy_225H4_ = () => Promise.resolve().then(function () { return index_post$1; });
 const _lazy_jRvml4 = () => Promise.resolve().then(function () { return index_get$3; });
+const _lazy_705EJ4 = () => Promise.resolve().then(function () { return trigger_post$1; });
 const _lazy_NYaGeS = () => Promise.resolve().then(function () { return dashboard_get$1; });
 const _lazy_k5UGFT = () => Promise.resolve().then(function () { return labor_get$1; });
 const _lazy_DuZCYP = () => Promise.resolve().then(function () { return sales_get$1; });
@@ -33507,6 +33508,7 @@ const handlers = [
   { route: '/api/teams', handler: _lazy_s6toDC, lazy: true, middleware: false, method: "get" },
   { route: '/api/teams', handler: _lazy_225H4_, lazy: true, middleware: false, method: "post" },
   { route: '/api/unified-users', handler: _lazy_jRvml4, lazy: true, middleware: false, method: "get" },
+  { route: '/api/v3/aggregation/trigger', handler: _lazy_705EJ4, lazy: true, middleware: false, method: "post" },
   { route: '/api/v3/dashboard', handler: _lazy_NYaGeS, lazy: true, middleware: false, method: "get" },
   { route: '/api/v3/labor', handler: _lazy_k5UGFT, lazy: true, middleware: false, method: "get" },
   { route: '/api/v3/sales', handler: _lazy_DuZCYP, lazy: true, middleware: false, method: "get" },
@@ -41591,6 +41593,50 @@ const index_get$2 = defineEventHandler(async () => {
 const index_get$3 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
   __proto__: null,
   default: index_get$2
+}, Symbol.toStringTag, { value: 'Module' }));
+
+const trigger_post = defineEventHandler(async (event) => {
+  const db = await useDatabase();
+  const body = await readBody(event);
+  try {
+    const businessDate = (body == null ? void 0 : body.businessDate) || getCurrentBusinessDate();
+    console.log(`[v3-aggregation-trigger] Manual trigger for business date: ${businessDate}`);
+    const result = await runV3AggregationPipeline(db, businessDate, (msg) => {
+      console.log(`[V3-Manual] ${msg}`);
+    });
+    return {
+      success: result.success,
+      message: result.message,
+      businessDate: result.businessDate,
+      startedAt: result.startedAt,
+      completedAt: result.completedAt,
+      durationMs: result.durationMs,
+      totalLocations: result.totalLocations,
+      successCount: result.successCount,
+      failureCount: result.failureCount,
+      locations: result.locations.map((r) => ({
+        locationId: r.locationId.toString(),
+        locationName: r.locationName,
+        success: r.success,
+        syncCount: r.syncCount,
+        durationMs: r.durationMs,
+        message: r.message,
+        error: r.error
+      }))
+    };
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    console.error("[v3-aggregation-trigger] Error:", errorMsg);
+    return createError({
+      statusCode: 500,
+      statusMessage: `V3 aggregation trigger failed: ${errorMsg}`
+    });
+  }
+});
+
+const trigger_post$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+  __proto__: null,
+  default: trigger_post
 }, Symbol.toStringTag, { value: 'Module' }));
 
 const dashboard_get = defineEventHandler(async (event) => {
