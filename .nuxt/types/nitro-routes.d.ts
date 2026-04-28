@@ -265,6 +265,18 @@ declare module "nitropack/types" {
     '/api/unified-users': {
       'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/unified-users/index.get').default>>>>
     }
+    '/api/v3/aggregation/trigger': {
+      'post': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/v3/aggregation/trigger.post').default>>>>
+    }
+    '/api/v3/dashboard': {
+      'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/v3/dashboard.get').default>>>>
+    }
+    '/api/v3/labor': {
+      'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/v3/labor.get').default>>>>
+    }
+    '/api/v3/sales': {
+      'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/v3/sales.get').default>>>>
+    }
     '/api/workers/active': {
       'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/workers/active.get').default>>>>
     }

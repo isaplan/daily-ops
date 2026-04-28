@@ -3254,6 +3254,9 @@ async function getSalesSnapshot(db, locationId, businessDate) {
 async function getLaborSnapshot(db, locationId, businessDate) {
   return db.collection(V3_COLLECTIONS.LABOR_WORKING_DAY_SNAPSHOT).findOne({ locationId, businessDate });
 }
+async function getDashboardSnapshot(db, locationId, businessDate) {
+  return db.collection(V3_COLLECTIONS.DASHBOARD_SNAPSHOT).findOne({ locationId, businessDate });
+}
 async function upsertSalesSnapshot(db, snapshot) {
   const result = await db.collection(V3_COLLECTIONS.SALES_WORKING_DAY_SNAPSHOT).updateOne(
     { locationId: snapshot.locationId, businessDate: snapshot.businessDate },
@@ -3277,6 +3280,15 @@ async function upsertDashboardSnapshot(db, snapshot) {
     { upsert: true }
   );
   return snapshot._id || result.upsertedId || new ObjectId();
+}
+async function getSalesSnapshotsByLocationRange(db, locationId, startDate, endDate) {
+  return db.collection(V3_COLLECTIONS.SALES_WORKING_DAY_SNAPSHOT).find({
+    locationId,
+    businessDate: { $gte: startDate, $lte: endDate }
+  }).sort({ businessDate: -1 }).toArray();
+}
+async function getLatestSalesSnapshotsAllLocations(db, businessDate) {
+  return db.collection(V3_COLLECTIONS.SALES_WORKING_DAY_SNAPSHOT).find({ businessDate }).toArray();
 }
 async function recordAggregationMetadata(db, result) {
   await db.collection(V3_COLLECTIONS.AGGREGATION_METADATA).insertOne({
@@ -5405,12 +5417,12 @@ async function executeEitjeJob(db, jobType) {
     const todayUtc = (_a2 = now.toISOString().split("T")[0]) != null ? _a2 : "";
     const tr2 = await syncTimeRegistrationShifts(db, creds, todayUtc, todayUtc);
     let agg2;
-    let v3AggResult = null;
+    let v3AggResult2 = null;
     try {
       agg2 = await rebuildEitjeTimeRegistrationAggregation(db, todayUtc, todayUtc);
       await syncUnifiedCollectionsFromRawData(db);
       console.log("[eitjeSyncService] Triggering V3 aggregation pipeline for daily data...");
-      v3AggResult = await runV3AggregationPipeline(db, todayUtc, (msg) => console.log(`[V3] ${msg}`));
+      v3AggResult2 = await runV3AggregationPipeline(db, todayUtc, (msg) => console.log(`[V3] ${msg}`));
     } catch (e) {
       agg2 = {
         deletedPeriods: 0,
@@ -5419,11 +5431,11 @@ async function executeEitjeJob(db, jobType) {
       };
     }
     const ok2 = !tr2.error && (tr2.fetched > 0 || tr2.upserted > 0 || ((_b = agg2 == null ? void 0 : agg2.inserted) != null ? _b : 0) > 0);
-    const v3Message = v3AggResult ? `; V3: ${v3AggResult.successCount}/${v3AggResult.totalLocations} locations` : "";
+    const v3Message2 = v3AggResult2 ? `; V3: ${v3AggResult2.successCount}/${v3AggResult2.totalLocations} locations` : "";
     return {
       ok: ok2,
       jobType,
-      message: tr2.error ? `Time registration: ${tr2.error}` : `Synced ${tr2.fetched} shifts (${tr2.upserted} writes), aggregation +${(_c = agg2 == null ? void 0 : agg2.inserted) != null ? _c : 0} rows for today${v3Message}`,
+      message: tr2.error ? `Time registration: ${tr2.error}` : `Synced ${tr2.fetched} shifts (${tr2.upserted} writes), aggregation +${(_c = agg2 == null ? void 0 : agg2.inserted) != null ? _c : 0} rows for today${v3Message2}`,
       timeRegistration: tr2,
       aggregation: agg2
     };
@@ -5432,9 +5444,12 @@ async function executeEitjeJob(db, jobType) {
   const { start, end } = dateRangeDays(histDays);
   const tr = await syncTimeRegistrationShifts(db, creds, start, end);
   let agg;
+  let v3AggResult = null;
   try {
     agg = await rebuildEitjeTimeRegistrationAggregation(db, start, end);
     await syncUnifiedCollectionsFromRawData(db);
+    console.log("[eitjeSyncService] Triggering V3 aggregation pipeline for historical data...");
+    v3AggResult = await runV3AggregationPipeline(db, end, (msg) => console.log(`[V3] ${msg}`));
   } catch (e) {
     agg = {
       deletedPeriods: 0,
@@ -5443,10 +5458,11 @@ async function executeEitjeJob(db, jobType) {
     };
   }
   const ok = !tr.error && (tr.fetched > 0 || tr.upserted > 0 || ((_d = agg == null ? void 0 : agg.inserted) != null ? _d : 0) > 0);
+  const v3Message = v3AggResult ? `; V3: ${v3AggResult.successCount}/${v3AggResult.totalLocations} locations` : "";
   return {
     ok,
     jobType,
-    message: tr.error ? `Time registration: ${tr.error}` : `Synced ${tr.fetched} shifts (${tr.upserted} writes), aggregation +${(_e = agg == null ? void 0 : agg.inserted) != null ? _e : 0} rows (${jobType})`,
+    message: tr.error ? `Time registration: ${tr.error}` : `Synced ${tr.fetched} shifts (${tr.upserted} writes), aggregation +${(_e = agg == null ? void 0 : agg.inserted) != null ? _e : 0} rows (${jobType})${v3Message}`,
     timeRegistration: tr,
     aggregation: agg
   };
@@ -5750,16 +5766,16 @@ _bZ9Ni6V2HtIpJeulfSLzyAQaoMJdeQllxN50TS5qNvY
 const assets = {
   "/index.mjs": {
     "type": "text/javascript; charset=utf-8",
-    "etag": "\"16d6fe-aIW8Hkr5kk7rTI0WipJfhw2Hkec\"",
-    "mtime": "2026-04-28T17:34:15.590Z",
-    "size": 1496830,
+    "etag": "\"16ef53-/BmHwEAKGaHcJop2t0Gh6ohnkao\"",
+    "mtime": "2026-04-28T17:36:02.839Z",
+    "size": 1503059,
     "path": "index.mjs"
   },
   "/index.mjs.map": {
     "type": "application/json",
-    "etag": "\"5bbc3f-+eWK36asagVG8UGuD2PncG/7IT8\"",
-    "mtime": "2026-04-28T17:34:15.613Z",
-    "size": 6011967,
+    "etag": "\"5c139f-pHEDq5c1h1qq43p07w2JS8TwuFY\"",
+    "mtime": "2026-04-28T17:36:02.858Z",
+    "size": 6034335,
     "path": "index.mjs.map"
   }
 };
@@ -33296,14 +33312,14 @@ const _lazy_YSAaAO = () => Promise.resolve().then(function () { return bundle_ge
 const _lazy_fiyqpy = () => Promise.resolve().then(function () { return insights_get$1; });
 const _lazy_gJJ0yZ = () => Promise.resolve().then(function () { return locations_get$1; });
 const _lazy_7ki8Q4 = () => Promise.resolve().then(function () { return bundle_get$1; });
-const _lazy_GI_DGY = () => Promise.resolve().then(function () { return labor_get$1; });
+const _lazy_GI_DGY = () => Promise.resolve().then(function () { return labor_get$3; });
 const _lazy_Bpe9Sc = () => Promise.resolve().then(function () { return revenueBreakdown_get$1; });
 const _lazy_3d9XzO = () => Promise.resolve().then(function () { return summary_get$1; });
 const _lazy_ddvbvh = () => Promise.resolve().then(function () { return overview_get$1; });
 const _lazy_b9OPGV = () => Promise.resolve().then(function () { return productivity_get$1; });
 const _lazy_PkLaTv = () => Promise.resolve().then(function () { return products_get$1; });
 const _lazy_JmL3hN = () => Promise.resolve().then(function () { return revenue_get$1; });
-const _lazy_xkC3wT = () => Promise.resolve().then(function () { return sales_get$3; });
+const _lazy_xkC3wT = () => Promise.resolve().then(function () { return sales_get$5; });
 const _lazy_6ws9ek = () => Promise.resolve().then(function () { return workload_get$1; });
 const _lazy_vALsC_ = () => Promise.resolve().then(function () { return run_get$1; });
 const _lazy_4juWGc = () => Promise.resolve().then(function () { return fieldMapping_get$1; });
@@ -33325,7 +33341,7 @@ const _lazy_t9l008 = () => Promise.resolve().then(function () { return basisRepo
 const _lazy_5uSL73 = () => Promise.resolve().then(function () { return foodBeverage_get$1; });
 const _lazy_1Py5Rg = () => Promise.resolve().then(function () { return productMix_get$1; });
 const _lazy_xKhjZi = () => Promise.resolve().then(function () { return salesPerHour_get$1; });
-const _lazy_cOPVhi = () => Promise.resolve().then(function () { return sales_get$1; });
+const _lazy_cOPVhi = () => Promise.resolve().then(function () { return sales_get$3; });
 const _lazy_74gf57 = () => Promise.resolve().then(function () { return contracts_get$1; });
 const _lazy_6hI7Mq = () => Promise.resolve().then(function () { return finance_get$1; });
 const _lazy_OQ7Ga7 = () => Promise.resolve().then(function () { return hours_get$1; });
@@ -33382,6 +33398,9 @@ const _lazy_l24SXQ = () => Promise.resolve().then(function () { return _id__dele
 const _lazy_s6toDC = () => Promise.resolve().then(function () { return index_get$5; });
 const _lazy_225H4_ = () => Promise.resolve().then(function () { return index_post$1; });
 const _lazy_jRvml4 = () => Promise.resolve().then(function () { return index_get$3; });
+const _lazy_NYaGeS = () => Promise.resolve().then(function () { return dashboard_get$1; });
+const _lazy_k5UGFT = () => Promise.resolve().then(function () { return labor_get$1; });
+const _lazy_DuZCYP = () => Promise.resolve().then(function () { return sales_get$1; });
 const _lazy_90ItQx = () => Promise.resolve().then(function () { return active_get$1; });
 const _lazy_ILK1q4 = () => Promise.resolve().then(function () { return index_get$1; });
 const _lazy_kONC8c = () => Promise.resolve().then(function () { return renderer$1; });
@@ -33488,6 +33507,9 @@ const handlers = [
   { route: '/api/teams', handler: _lazy_s6toDC, lazy: true, middleware: false, method: "get" },
   { route: '/api/teams', handler: _lazy_225H4_, lazy: true, middleware: false, method: "post" },
   { route: '/api/unified-users', handler: _lazy_jRvml4, lazy: true, middleware: false, method: "get" },
+  { route: '/api/v3/dashboard', handler: _lazy_NYaGeS, lazy: true, middleware: false, method: "get" },
+  { route: '/api/v3/labor', handler: _lazy_k5UGFT, lazy: true, middleware: false, method: "get" },
+  { route: '/api/v3/sales', handler: _lazy_DuZCYP, lazy: true, middleware: false, method: "get" },
   { route: '/api/workers/active', handler: _lazy_90ItQx, lazy: true, middleware: false, method: "get" },
   { route: '/api/workers', handler: _lazy_ILK1q4, lazy: true, middleware: false, method: "get" },
   { route: '/__nuxt_error', handler: _lazy_kONC8c, lazy: true, middleware: false, method: undefined },
@@ -36658,7 +36680,7 @@ const bundle_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProper
   default: bundle_get
 }, Symbol.toStringTag, { value: 'Module' }));
 
-const labor_get = defineEventHandler(async (event) => {
+const labor_get$2 = defineEventHandler(async (event) => {
   setResponseHeader(event, "Cache-Control", "private, max-age=30, stale-while-revalidate=120");
   const ctx = parseDailyOpsMetricsQuery(getQuery$1(event));
   const db = await getDb();
@@ -36666,9 +36688,9 @@ const labor_get = defineEventHandler(async (event) => {
   return assembleDailyOpsLaborMetricsDto(ctx, input);
 });
 
-const labor_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+const labor_get$3 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
   __proto__: null,
-  default: labor_get
+  default: labor_get$2
 }, Symbol.toStringTag, { value: 'Module' }));
 
 const revenueBreakdown_get = defineEventHandler(async (event) => {
@@ -36832,7 +36854,7 @@ const revenue_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.definePrope
   default: revenue_get
 }, Symbol.toStringTag, { value: 'Module' }));
 
-const sales_get$2 = defineEventHandler((event) => {
+const sales_get$4 = defineEventHandler((event) => {
   const q = getQuery$1(event);
   const period = typeof q.period === "string" ? q.period : "today";
   const anchor = typeof q.anchor === "string" ? q.anchor : void 0;
@@ -36849,9 +36871,9 @@ const sales_get$2 = defineEventHandler((event) => {
   };
 });
 
-const sales_get$3 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+const sales_get$5 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
   __proto__: null,
-  default: sales_get$2
+  default: sales_get$4
 }, Symbol.toStringTag, { value: 'Module' }));
 
 const workload_get = defineEventHandler((event) => {
@@ -38314,7 +38336,7 @@ const salesPerHour_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.define
   default: salesPerHour_get
 }, Symbol.toStringTag, { value: 'Module' }));
 
-const sales_get = defineEventHandler(async (event) => {
+const sales_get$2 = defineEventHandler(async (event) => {
   try {
     const q = getQuery$1(event);
     const data = await getInboxImportTablePayload("sales", parseInboxImportTableQuery(q));
@@ -38328,9 +38350,9 @@ const sales_get = defineEventHandler(async (event) => {
   }
 });
 
-const sales_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+const sales_get$3 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
   __proto__: null,
-  default: sales_get
+  default: sales_get$2
 }, Symbol.toStringTag, { value: 'Module' }));
 
 const contracts_get = defineEventHandler(async (event) => {
@@ -41569,6 +41591,213 @@ const index_get$2 = defineEventHandler(async () => {
 const index_get$3 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
   __proto__: null,
   default: index_get$2
+}, Symbol.toStringTag, { value: 'Module' }));
+
+const dashboard_get = defineEventHandler(async (event) => {
+  const query = getQuery$1(event);
+  const db = await useDatabase();
+  try {
+    if (query.all === "true" || query.all === "1") {
+      const businessDate2 = query.businessDate || getCurrentBusinessDate();
+      const snapshots = await db.collection("v3_daily_ops_dashboard_snapshots").find({ businessDate: businessDate2 }).toArray();
+      return {
+        success: true,
+        data: snapshots,
+        businessDate: businessDate2,
+        count: snapshots.length
+      };
+    }
+    const locationId = query.locationId;
+    const businessDate = query.businessDate || getCurrentBusinessDate();
+    if (!locationId) {
+      return createError({
+        statusCode: 400,
+        statusMessage: "Missing parameter: locationId"
+      });
+    }
+    const snapshot = await getDashboardSnapshot(db, new ObjectId(locationId), businessDate);
+    if (!snapshot) {
+      return {
+        success: false,
+        data: null,
+        message: "Dashboard snapshot not found",
+        locationId,
+        businessDate
+      };
+    }
+    return {
+      success: true,
+      data: snapshot,
+      locationId,
+      businessDate
+    };
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    console.error("[v3-dashboard-api]", errorMsg);
+    return createError({
+      statusCode: 500,
+      statusMessage: `Failed to fetch dashboard snapshot: ${errorMsg}`
+    });
+  }
+});
+
+const dashboard_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+  __proto__: null,
+  default: dashboard_get
+}, Symbol.toStringTag, { value: 'Module' }));
+
+const labor_get = defineEventHandler(async (event) => {
+  const query = getQuery$1(event);
+  const db = await useDatabase();
+  try {
+    if (query.all === "true" || query.all === "1") {
+      const businessDate2 = query.businessDate || getCurrentBusinessDate();
+      const snapshots = await db.collection("v3_labor_working_day_snapshots").find({ businessDate: businessDate2 }).toArray();
+      return {
+        success: true,
+        data: snapshots,
+        businessDate: businessDate2,
+        count: snapshots.length
+      };
+    }
+    if (query.range === "true" || query.range === "1") {
+      const locationId2 = query.locationId;
+      const startDate = query.startDate;
+      const endDate = query.endDate;
+      if (!locationId2 || !startDate || !endDate) {
+        return createError({
+          statusCode: 400,
+          statusMessage: "Missing parameters: locationId, startDate, endDate"
+        });
+      }
+      const snapshots = await db.collection("v3_labor_working_day_snapshots").find({
+        locationId: new ObjectId(locationId2),
+        businessDate: { $gte: startDate, $lte: endDate }
+      }).sort({ businessDate: -1 }).toArray();
+      return {
+        success: true,
+        data: snapshots,
+        locationId: locationId2,
+        startDate,
+        endDate,
+        count: snapshots.length
+      };
+    }
+    const locationId = query.locationId;
+    const businessDate = query.businessDate || getCurrentBusinessDate();
+    if (!locationId) {
+      return createError({
+        statusCode: 400,
+        statusMessage: "Missing parameter: locationId"
+      });
+    }
+    const snapshot = await getLaborSnapshot(db, new ObjectId(locationId), businessDate);
+    if (!snapshot) {
+      return {
+        success: false,
+        data: null,
+        message: "Snapshot not found",
+        locationId,
+        businessDate
+      };
+    }
+    return {
+      success: true,
+      data: snapshot,
+      locationId,
+      businessDate
+    };
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    console.error("[v3-labor-api]", errorMsg);
+    return createError({
+      statusCode: 500,
+      statusMessage: `Failed to fetch labor snapshot: ${errorMsg}`
+    });
+  }
+});
+
+const labor_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+  __proto__: null,
+  default: labor_get
+}, Symbol.toStringTag, { value: 'Module' }));
+
+const sales_get = defineEventHandler(async (event) => {
+  const query = getQuery$1(event);
+  const db = await useDatabase();
+  try {
+    if (query.all === "true" || query.all === "1") {
+      const businessDate2 = query.businessDate || getCurrentBusinessDate();
+      const snapshots = await getLatestSalesSnapshotsAllLocations(db, businessDate2);
+      return {
+        success: true,
+        data: snapshots,
+        businessDate: businessDate2,
+        count: snapshots.length
+      };
+    }
+    if (query.range === "true" || query.range === "1") {
+      const locationId2 = query.locationId;
+      const startDate = query.startDate;
+      const endDate = query.endDate;
+      if (!locationId2 || !startDate || !endDate) {
+        return createError({
+          statusCode: 400,
+          statusMessage: "Missing parameters: locationId, startDate, endDate"
+        });
+      }
+      const snapshots = await getSalesSnapshotsByLocationRange(
+        db,
+        new ObjectId(locationId2),
+        startDate,
+        endDate
+      );
+      return {
+        success: true,
+        data: snapshots,
+        locationId: locationId2,
+        startDate,
+        endDate,
+        count: snapshots.length
+      };
+    }
+    const locationId = query.locationId;
+    const businessDate = query.businessDate || getCurrentBusinessDate();
+    if (!locationId) {
+      return createError({
+        statusCode: 400,
+        statusMessage: "Missing parameter: locationId"
+      });
+    }
+    const snapshot = await getSalesSnapshot(db, new ObjectId(locationId), businessDate);
+    if (!snapshot) {
+      return {
+        success: false,
+        data: null,
+        message: "Snapshot not found",
+        locationId,
+        businessDate
+      };
+    }
+    return {
+      success: true,
+      data: snapshot,
+      locationId,
+      businessDate
+    };
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    console.error("[v3-sales-api]", errorMsg);
+    return createError({
+      statusCode: 500,
+      statusMessage: `Failed to fetch sales snapshot: ${errorMsg}`
+    });
+  }
+});
+
+const sales_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+  __proto__: null,
+  default: sales_get
 }, Symbol.toStringTag, { value: 'Module' }));
 
 const active_get = defineEventHandler(async () => {

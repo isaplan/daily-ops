@@ -4,6 +4,8 @@ declare global {
   const H3Event: typeof import('../../node_modules/h3').H3Event
   const INBOX_COLLECTIONS: typeof import('../../server/utils/inbox/constants').INBOX_COLLECTIONS
   const INBOX_TARGET_COLLECTIONS: typeof import('../../server/utils/inbox/constants').INBOX_TARGET_COLLECTIONS
+  const V3_COLLECTIONS: typeof import('../../server/utils/v3Collections').V3_COLLECTIONS
+  const V3_COLLECTION_INDEXES: typeof import('../../server/utils/v3Collections').V3_COLLECTION_INDEXES
   const VAT_DISCLAIMER: typeof import('../../server/utils/dailyOpsDashboardMetrics').VAT_DISCLAIMER
   const __buildAssetsURL: typeof import('../../node_modules/@nuxt/nitro-server/dist/runtime/utils/paths').buildAssetsURL
   const __publicAssetsURL: typeof import('../../node_modules/@nuxt/nitro-server/dist/runtime/utils/paths').publicAssetsURL
@@ -25,6 +27,7 @@ declare global {
   const classifyByContent: typeof import('../../server/utils/inbox/document-classifier').classifyByContent
   const classifyByFilename: typeof import('../../server/utils/inbox/document-classifier').classifyByFilename
   const classifyDocument: typeof import('../../server/utils/inbox/document-classifier').classifyDocument
+  const cleanupOldSnapshots: typeof import('../../server/utils/v3Snapshots').cleanupOldSnapshots
   const clearResponseHeaders: typeof import('../../node_modules/h3').clearResponseHeaders
   const clearSession: typeof import('../../node_modules/h3').clearSession
   const collectMentionSlugsFromContent: typeof import('../../server/utils/noteMentions').collectMentionSlugsFromContent
@@ -88,22 +91,38 @@ declare global {
   const fetchWorkersByTeamLocation: typeof import('../../server/utils/dailyOpsDashboardMetrics').fetchWorkersByTeamLocation
   const fetchWorkersByTeamLocationByDay: typeof import('../../server/utils/dailyOpsDashboardMetrics').fetchWorkersByTeamLocationByDay
   const findEitjeCredentialDocument: typeof import('../../server/utils/eitjeApiCredentials').findEitjeCredentialDocument
+  const formatBusinessDate: typeof import('../../server/utils/v3BusinessDay').formatBusinessDate
   const fromNodeMiddleware: typeof import('../../node_modules/h3').fromNodeMiddleware
   const fromPlainHandler: typeof import('../../node_modules/h3').fromPlainHandler
   const fromWebHandler: typeof import('../../node_modules/h3').fromWebHandler
+  const getAggregationHistory: typeof import('../../server/utils/v3Snapshots').getAggregationHistory
+  const getBusinessDate: typeof import('../../server/utils/v3BusinessDay').getBusinessDate
+  const getBusinessDayDurationMs: typeof import('../../server/utils/v3BusinessDay').getBusinessDayDurationMs
+  const getBusinessDayEnd: typeof import('../../server/utils/v3BusinessDay').getBusinessDayEnd
+  const getBusinessDayPart1Date: typeof import('../../server/utils/v3BusinessDay').getBusinessDayPart1Date
+  const getBusinessDayPart2Date: typeof import('../../server/utils/v3BusinessDay').getBusinessDayPart2Date
+  const getBusinessDayPart: typeof import('../../server/utils/v3BusinessDay').getBusinessDayPart
+  const getBusinessDayProgressPercent: typeof import('../../server/utils/v3BusinessDay').getBusinessDayProgressPercent
+  const getBusinessDayStart: typeof import('../../server/utils/v3BusinessDay').getBusinessDayStart
   const getCookie: typeof import('../../node_modules/h3').getCookie
+  const getCurrentBusinessDate: typeof import('../../server/utils/v3BusinessDay').getCurrentBusinessDate
+  const getDashboardSnapshot: typeof import('../../server/utils/v3Snapshots').getDashboardSnapshot
   const getDb: typeof import('../../server/utils/db').getDb
   const getGmailInvalidGrantHint: typeof import('../../server/utils/gmailOAuthError').getGmailInvalidGrantHint
   const getGmailOAuthErrorMessage: typeof import('../../server/utils/gmailOAuthError').getGmailOAuthErrorMessage
   const getGmailOAuthRedirectUri: typeof import('../../server/utils/gmailOAuthRedirect').getGmailOAuthRedirectUri
   const getHeader: typeof import('../../node_modules/h3').getHeader
   const getHeaders: typeof import('../../node_modules/h3').getHeaders
+  const getHourFromDate: typeof import('../../server/utils/v3BusinessDay').getHourFromDate
   const getInboxImportTablePayload: typeof import('../../server/utils/inbox/inboxImportTableQuery').getInboxImportTablePayload
+  const getLaborSnapshot: typeof import('../../server/utils/v3Snapshots').getLaborSnapshot
+  const getLatestSalesSnapshotsAllLocations: typeof import('../../server/utils/v3Snapshots').getLatestSalesSnapshotsAllLocations
   const getMenuItemsCollection: typeof import('../../server/utils/db').getMenuItemsCollection
   const getMenuVersionsCollection: typeof import('../../server/utils/db').getMenuVersionsCollection
   const getMenusCollection: typeof import('../../server/utils/db').getMenusCollection
   const getMethod: typeof import('../../node_modules/h3').getMethod
   const getMongoDatabaseName: typeof import('../../server/utils/db').getMongoDatabaseName
+  const getNextAggregationTime: typeof import('../../server/utils/v3BusinessDay').getNextAggregationTime
   const getNotesCollection: typeof import('../../server/utils/db').getNotesCollection
   const getProxyRequestHeaders: typeof import('../../node_modules/h3').getProxyRequestHeaders
   const getQuery: typeof import('../../node_modules/h3').getQuery
@@ -123,15 +142,20 @@ declare global {
   const getRouteRules: typeof import('../../node_modules/nitropack/dist/runtime/internal/route-rules').getRouteRules
   const getRouterParam: typeof import('../../node_modules/h3').getRouterParam
   const getRouterParams: typeof import('../../node_modules/h3').getRouterParams
+  const getSalesSnapshot: typeof import('../../server/utils/v3Snapshots').getSalesSnapshot
+  const getSalesSnapshotsByLocationRange: typeof import('../../server/utils/v3Snapshots').getSalesSnapshotsByLocationRange
   const getSession: typeof import('../../node_modules/h3').getSession
   const getSheetNames: typeof import('../../server/utils/inbox/excel-parser').getSheetNames
   const getUnifiedUsersCollection: typeof import('../../server/utils/db').getUnifiedUsersCollection
   const getUtcDayRange: typeof import('../../server/utils/eitjeHours').getUtcDayRange
+  const getV3AggregationScheduleHours: typeof import('../../server/utils/v3BusinessDay').getV3AggregationScheduleHours
   const getValidatedQuery: typeof import('../../node_modules/h3').getValidatedQuery
   const getValidatedRouterParams: typeof import('../../node_modules/h3').getValidatedRouterParams
   const handleCacheHeaders: typeof import('../../node_modules/h3').handleCacheHeaders
   const handleCors: typeof import('../../node_modules/h3').handleCors
+  const initializeV3Collections: typeof import('../../server/utils/v3Collections').initializeV3Collections
   const inventoryCollections: typeof import('../../server/utils/dailyOpsDashboardMetrics').inventoryCollections
+  const isBusinessDayFinished: typeof import('../../server/utils/v3BusinessDay').isBusinessDayFinished
   const isCorsOriginAllowed: typeof import('../../node_modules/h3').isCorsOriginAllowed
   const isError: typeof import('../../node_modules/h3').isError
   const isEvent: typeof import('../../node_modules/h3').isEvent
@@ -139,7 +163,9 @@ declare global {
   const isInvalidGrantError: typeof import('../../server/utils/gmailOAuthError').isInvalidGrantError
   const isMethod: typeof import('../../node_modules/h3').isMethod
   const isPreflightRequest: typeof import('../../node_modules/h3').isPreflightRequest
+  const isScheduledAggregationTime: typeof import('../../server/utils/v3BusinessDay').isScheduledAggregationTime
   const isStream: typeof import('../../node_modules/h3').isStream
+  const isValidBusinessDateFormat: typeof import('../../server/utils/v3BusinessDay').isValidBusinessDateFormat
   const isWebResponse: typeof import('../../node_modules/h3').isWebResponse
   const lazyEventHandler: typeof import('../../node_modules/h3').lazyEventHandler
   const locationDayKey: typeof import('../../server/utils/dailyOpsDashboardMetrics').locationDayKey
@@ -170,6 +196,7 @@ declare global {
   const readMultipartFormData: typeof import('../../node_modules/h3').readMultipartFormData
   const readRawBody: typeof import('../../node_modules/h3').readRawBody
   const readValidatedBody: typeof import('../../node_modules/h3').readValidatedBody
+  const recordAggregationMetadata: typeof import('../../server/utils/v3Snapshots').recordAggregationMetadata
   const removeResponseHeader: typeof import('../../node_modules/h3').removeResponseHeader
   const resolveBorkAggReadSuffix: typeof import('../../server/utils/borkAggVersionSuffix').resolveBorkAggReadSuffix
   const resolveBorkAggRebuildSuffix: typeof import('../../server/utils/borkAggVersionSuffix').resolveBorkAggRebuildSuffix
@@ -199,8 +226,10 @@ declare global {
   const setResponseHeader: typeof import('../../node_modules/h3').setResponseHeader
   const setResponseHeaders: typeof import('../../node_modules/h3').setResponseHeaders
   const setResponseStatus: typeof import('../../node_modules/h3').setResponseStatus
+  const shouldUpdateSnapshot: typeof import('../../server/utils/v3Snapshots').shouldUpdateSnapshot
   const splitCookiesString: typeof import('../../node_modules/h3').splitCookiesString
   const toEventHandler: typeof import('../../node_modules/h3').toEventHandler
+  const toISODateString: typeof import('../../server/utils/v3BusinessDay').toISODateString
   const toNodeListener: typeof import('../../node_modules/h3').toNodeListener
   const toPlainHandler: typeof import('../../node_modules/h3').toPlainHandler
   const toWebHandler: typeof import('../../node_modules/h3').toWebHandler
@@ -208,6 +237,9 @@ declare global {
   const trashedNotesMatch: typeof import('../../server/utils/noteDeletedFilter').trashedNotesMatch
   const unsealSession: typeof import('../../node_modules/h3').unsealSession
   const updateSession: typeof import('../../node_modules/h3').updateSession
+  const upsertDashboardSnapshot: typeof import('../../server/utils/v3Snapshots').upsertDashboardSnapshot
+  const upsertLaborSnapshot: typeof import('../../server/utils/v3Snapshots').upsertLaborSnapshot
+  const upsertSalesSnapshot: typeof import('../../server/utils/v3Snapshots').upsertSalesSnapshot
   const useAppConfig: typeof import('../../node_modules/nitropack/dist/runtime/internal/config').useAppConfig
   const useBase: typeof import('../../node_modules/h3').useBase
   const useEvent: typeof import('../../node_modules/nitropack/dist/runtime/internal/context').useEvent
@@ -301,3 +333,6 @@ export { extractMentionSlug, collectMentionSlugsFromContent, resolveSlugsToUnifi
 export { detectHeaderRow, rowToData, productGroupFromFilename, extractDumpRows } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/parseMenuDump';
 export { parseCsvToRows, parseExcelToRows, mapWijnkaartRowToItem, extractWijnkaartItems, parseMenuFileToRows } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/parseMenuFile';
 export { parsePdfToRows } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/parsePdf';
+export { getBusinessDate, getBusinessDayStart, getBusinessDayEnd, getBusinessDayPart1Date, getBusinessDayPart2Date, getBusinessDayPart, isBusinessDayFinished, toISODateString, formatBusinessDate, getCurrentBusinessDate, getHourFromDate, isValidBusinessDateFormat, getBusinessDayDurationMs, getBusinessDayProgressPercent, getV3AggregationScheduleHours, isScheduledAggregationTime, getNextAggregationTime } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/v3BusinessDay';
+export { V3_COLLECTIONS, V3_COLLECTION_INDEXES, initializeV3Collections } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/v3Collections';
+export { getSalesSnapshot, getLaborSnapshot, getDashboardSnapshot, upsertSalesSnapshot, upsertLaborSnapshot, upsertDashboardSnapshot, getSalesSnapshotsByLocationRange, getLatestSalesSnapshotsAllLocations, recordAggregationMetadata, getAggregationHistory, cleanupOldSnapshots, shouldUpdateSnapshot } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/v3Snapshots';
