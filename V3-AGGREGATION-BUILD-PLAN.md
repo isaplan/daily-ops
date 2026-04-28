@@ -375,13 +375,24 @@ server/
 
 pages/
 ├── daily-ops/
-│   ├── productivity-v3.vue               # NEW: V3 dashboard (from snapshot)
+│   ├── productivity-v3.vue               # NEW: V3 main dashboard (from snapshot)
 │   ├── sales-v3/
-│   │   ├── by-day-v3.vue                 # V3 hourly sales breakdown
-│   │   └── by-hour-v3.vue                # NEW: V3 hourly chart
-│   └── workforce-v3/
-│       ├── teams-v3.vue                  # V3 teams summary
-│       └── contracts-v3.vue              # V3 contracts summary
+│   │   ├── index.vue                     # Sales overview
+│   │   ├── by-day-v3.vue                 # V3 daily sales breakdown
+│   │   ├── by-hour-v3.vue                # NEW: V3 hourly sales chart
+│   │   ├── by-product-v3.vue             # V3 product analysis
+│   │   ├── by-waiter-v3.vue              # V3 waiter performance
+│   │   └── by-category-v3.vue            # V3 category breakdown
+│   ├── hours-v3/
+│   │   ├── index.vue                     # Hours/Labor overview (NEW)
+│   │   ├── by-day-v3.vue                 # V3 daily hours breakdown (NEW)
+│   │   ├── by-hour-v3.vue                # V3 hourly labor chart (NEW)
+│   │   ├── by-team-v3.vue                # V3 team hours analysis (NEW)
+│   │   ├── by-contract-v3.vue            # V3 contract hours (NEW)
+│   │   └── productivity-v3.vue           # V3 labor productivity (NEW)
+│   ├── workforce-v3/
+│   │   ├── teams-v3.vue                  # V3 teams summary
+│   │   └── contracts-v3.vue              # V3 contracts summary
 │
 components/
 └── daily-ops-v3/
@@ -418,9 +429,23 @@ types/
 
 ### Phase 4: Dashboard Pages (Week 2-3)
 - [ ] Create `productivity-v3.vue` (main dashboard)
-- [ ] Create `sales-v3/by-hour-v3.vue` (hourly breakdown)
-- [ ] Create `workforce-v3/teams-v3.vue` (teams summary)
-- [ ] Create `workforce-v3/contracts-v3.vue` (contracts summary)
+- [ ] Create `sales-v3/` pages:
+  - [ ] `index.vue` (overview)
+  - [ ] `by-day-v3.vue` (daily breakdown)
+  - [ ] `by-hour-v3.vue` (hourly chart)
+  - [ ] `by-product-v3.vue` (product analysis)
+  - [ ] `by-waiter-v3.vue` (waiter performance)
+  - [ ] `by-category-v3.vue` (category breakdown)
+- [ ] Create `hours-v3/` pages (NEW):
+  - [ ] `index.vue` (overview)
+  - [ ] `by-day-v3.vue` (daily hours breakdown)
+  - [ ] `by-hour-v3.vue` (hourly labor chart)
+  - [ ] `by-team-v3.vue` (team hours analysis)
+  - [ ] `by-contract-v3.vue` (contract hours)
+  - [ ] `productivity-v3.vue` (labor productivity)
+- [ ] Create `workforce-v3/` pages:
+  - [ ] `teams-v3.vue` (teams summary)
+  - [ ] `contracts-v3.vue` (contracts summary)
 - [ ] Create supporting components in `components/daily-ops-v3/`
 
 ### Phase 5: Testing & Refinement (Week 3)
@@ -438,7 +463,97 @@ types/
 
 ---
 
-## 🔧 Key Functions to Implement
+## 🗺️ V3 Page Navigation Structure
+
+### URL Routes
+
+```
+/daily-ops/productivity-v3                    Main V3 Dashboard
+/daily-ops/sales-v3                           Sales Overview (index)
+/daily-ops/sales-v3/by-day-v3                 Daily Sales Breakdown
+/daily-ops/sales-v3/by-hour-v3                Hourly Sales Chart
+/daily-ops/sales-v3/by-product-v3             Product Analysis
+/daily-ops/sales-v3/by-waiter-v3              Waiter Performance
+/daily-ops/sales-v3/by-category-v3            Category Breakdown
+
+/daily-ops/hours-v3                           Hours/Labor Overview (index) [NEW]
+/daily-ops/hours-v3/by-day-v3                 Daily Hours Breakdown [NEW]
+/daily-ops/hours-v3/by-hour-v3                Hourly Labor Chart [NEW]
+/daily-ops/hours-v3/by-team-v3                Team Hours Analysis [NEW]
+/daily-ops/hours-v3/by-contract-v3            Contract Hours [NEW]
+/daily-ops/hours-v3/productivity-v3           Labor Productivity [NEW]
+
+/daily-ops/workforce-v3                       Workforce Overview (index)
+/daily-ops/workforce-v3/teams-v3              Teams Summary
+/daily-ops/workforce-v3/contracts-v3          Contracts Summary
+```
+
+### Page Descriptions
+
+#### Sales V3 Pages
+- **by-day-v3**: Daily revenue breakdown, top products, top waiters, payment methods
+- **by-hour-v3**: Hour-by-hour revenue progression chart, cumulative data
+- **by-product-v3**: Product sales quantity, revenue, profit margin per product
+- **by-waiter-v3**: Waiter performance, transactions, average ticket value
+- **by-category-v3**: Drinks vs Food breakdown, category revenue trends
+
+#### Hours V3 Pages (NEW)
+- **by-day-v3**: Daily hours worked, cost, worker count per team
+- **by-hour-v3**: Hour-by-hour labor hours progression, cumulative workers
+- **by-team-v3**: Team member count, total hours, cost per team
+- **by-contract-v3**: Contract type hours, worker count, cost per contract
+- **productivity-v3**: Revenue per labor hour, labor cost % of revenue, best/worst performing hours
+
+---
+
+## 📊 V3 Pages Data Sources
+
+All V3 pages read from working day snapshots (updated 6x daily):
+
+```
+v3_sales_working_day_snapshots
+├─ Used by: sales-v3/* pages
+├─ Data: hourlyBreakdown, byWaiter, byCategory, revenueByPaymentMethod, etc.
+└─ Updated: 6x daily (06:00, 13:00, 16:00, 18:00, 20:00, 22:00 UTC)
+
+v3_labor_working_day_snapshots
+├─ Used by: hours-v3/* pages
+├─ Data: teams, contracts, hourlyBreakdown, productivity metrics
+└─ Updated: 6x daily (06:00, 13:00, 16:00, 18:00, 20:00, 22:00 UTC)
+
+v3_daily_ops_dashboard_snapshot
+├─ Used by: productivity-v3, workforce-v3/*
+├─ Data: combined revenue + labor, top items, productivity metrics
+└─ Updated: 6x daily (06:00, 13:00, 16:00, 18:00, 20:00, 22:00 UTC)
+```
+
+---
+
+## 🔄 Data Flow for Hours V3 Pages
+
+```
+Raw Eitje Data (today only)
+  ↓
+Upsert to eitje_raw_data
+  ↓
+Rebuild eitje_time_registration_aggregation (today only, final after 06:00)
+  ↓
+Update v3_labor_working_day_snapshots
+  ├─ Extract teams summary
+  ├─ Extract contracts summary
+  ├─ Calculate productivity metrics
+  ├─ Build hourly breakdown (cumulative)
+  └─ Updated 6x daily
+  ↓
+Hours V3 Pages Read Snapshot
+  ├─ /daily-ops/hours-v3/* pages fetch v3_labor_working_day_snapshots
+  ├─ Display hourly labor progression
+  ├─ Show team/contract breakdowns
+  ├─ Calculate productivity ratios
+  └─ Live updates 6x daily
+```
+
+---
 
 ### 1. `updateSalesWorkingDaySnapshot(location, businessDate)`
 ```
