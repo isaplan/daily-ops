@@ -5766,16 +5766,16 @@ _bZ9Ni6V2HtIpJeulfSLzyAQaoMJdeQllxN50TS5qNvY
 const assets = {
   "/index.mjs": {
     "type": "text/javascript; charset=utf-8",
-    "etag": "\"16f728-Z0CX8GxAO/l0/P+BqdIWIpwgoIs\"",
-    "mtime": "2026-04-28T17:36:15.781Z",
-    "size": 1505064,
+    "etag": "\"16fe1d-PrG+eQJQGmnTusoCmzxrh/5cm4E\"",
+    "mtime": "2026-04-28T17:36:35.782Z",
+    "size": 1506845,
     "path": "index.mjs"
   },
   "/index.mjs.map": {
     "type": "application/json",
-    "etag": "\"5c2bb6-ehrS1+E/5LO8CIJuknMLO6mwSwM\"",
-    "mtime": "2026-04-28T17:36:15.800Z",
-    "size": 6040502,
+    "etag": "\"5c4116-rlmbCXJ8Ny1raWg6Z2DR/PgsM6Q\"",
+    "mtime": "2026-04-28T17:36:35.830Z",
+    "size": 6045974,
     "path": "index.mjs.map"
   }
 };
@@ -41596,7 +41596,7 @@ const index_get$3 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.definePropert
 }, Symbol.toStringTag, { value: 'Module' }));
 
 const trigger_post = defineEventHandler(async (event) => {
-  const db = await useDatabase();
+  const db = await getDb();
   const body = await readBody(event);
   try {
     const businessDate = (body == null ? void 0 : body.businessDate) || getCurrentBusinessDate();
@@ -41641,8 +41641,8 @@ const trigger_post$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProp
 
 const dashboard_get = defineEventHandler(async (event) => {
   const query = getQuery$1(event);
-  const db = await useDatabase();
   try {
+    const db = await getDb();
     if (query.all === "true" || query.all === "1") {
       const businessDate2 = query.businessDate || getCurrentBusinessDate();
       const snapshots = await db.collection("v3_daily_ops_dashboard_snapshots").find({ businessDate: businessDate2 }).toArray();
@@ -41694,8 +41694,8 @@ const dashboard_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.definePro
 
 const labor_get = defineEventHandler(async (event) => {
   const query = getQuery$1(event);
-  const db = await useDatabase();
   try {
+    const db = await getDb();
     if (query.all === "true" || query.all === "1") {
       const businessDate2 = query.businessDate || getCurrentBusinessDate();
       const snapshots = await db.collection("v3_labor_working_day_snapshots").find({ businessDate: businessDate2 }).toArray();
@@ -41770,8 +41770,8 @@ const labor_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.definePropert
 
 const sales_get = defineEventHandler(async (event) => {
   const query = getQuery$1(event);
-  const db = await useDatabase();
   try {
+    const db = await getDb();
     if (query.all === "true" || query.all === "1") {
       const businessDate2 = query.businessDate || getCurrentBusinessDate();
       const snapshots = await getLatestSalesSnapshotsAllLocations(db, businessDate2);

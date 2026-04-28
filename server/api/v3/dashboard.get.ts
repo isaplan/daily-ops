@@ -23,7 +23,6 @@ export default defineEventHandler(async (event) => {
   try {
     const db = await getDb()
 
-  try {
     // Get all dashboards for a business date
     if (query.all === 'true' || query.all === '1') {
       const businessDate = (query.businessDate as string) || getCurrentBusinessDate()
