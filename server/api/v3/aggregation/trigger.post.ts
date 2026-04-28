@@ -12,11 +12,12 @@
  * Body: { businessDate?: "2026-04-28" }
  */
 
+import { getDb } from '~/server/utils/db'
 import { runV3AggregationPipeline } from '~/server/services/v3Aggregation/v3AggregationOrchestrator'
 import { getCurrentBusinessDate } from '~/server/utils/v3BusinessDay'
 
 export default defineEventHandler(async (event) => {
-  const db = await useDatabase()
+  const db = await getDb()
   const body = await readBody(event)
 
   try {

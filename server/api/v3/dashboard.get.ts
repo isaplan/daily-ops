@@ -13,12 +13,15 @@
  */
 
 import { ObjectId } from 'mongodb'
+import { getDb } from '~/server/utils/db'
 import { getDashboardSnapshot } from '~/server/utils/v3Snapshots'
 import { getCurrentBusinessDate } from '~/server/utils/v3BusinessDay'
 
 export default defineEventHandler(async (event) => {
   const query = getQuery(event)
-  const db = await useDatabase()
+
+  try {
+    const db = await getDb()
 
   try {
     // Get all dashboards for a business date
