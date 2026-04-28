@@ -899,6 +899,12 @@ const {
             },
             revenue: {
               byCategory: Object.entries(snapshot.revenue ? { drinks: snapshot.revenue.drinksRevenue, food: snapshot.revenue.foodRevenue } : {}),
+              mostProfitableHour: {
+                hourLabel: snapshot.hourlyBreakdown && snapshot.hourlyBreakdown.length > 0 ? '—' : '—',
+                revenue: 0,
+                laborCost: 0,
+                profit: 0,
+              },
             },
             labor: {
               workersByTeamLocation: snapshot.labor ? snapshot.topTeams.map(t => ({
@@ -910,6 +916,12 @@ const {
               contractTypeByDay: snapshot.topContracts ?? [],
               daily: [],
               workersByTeamLocationByDay: [],
+              periodRollup: {
+                revenue: snapshot.cards.totalRevenue,
+                laborCost: snapshot.cards.totalLaborCost,
+                hours: 0,
+                revenuePerLaborHour: snapshot.cards.revenuePerLaborHour,
+              },
             },
           } as any
         }
