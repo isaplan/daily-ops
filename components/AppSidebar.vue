@@ -302,13 +302,11 @@
             <UIcon name="i-lucide-chevron-right" :class="['size-4 shrink-0 transition-transform', isSalesV2Open && 'rotate-90']" />
           </button>
           <ul v-if="!collapsed && isSalesV2Open" class="mt-1 ml-4 space-y-0.5 border-l border-gray-200 pl-3">
-            <li><NuxtLink to="/daily-ops/sales-v2/by-day" :class="navLinkClass(isPath('/daily-ops/sales-v2/by-day'))">By Day</NuxtLink></li>
-            <li><NuxtLink to="/daily-ops/sales-v2/by-hour" :class="navLinkClass(isPath('/daily-ops/sales-v2/by-hour'))">By Hour</NuxtLink></li>
-            <li><NuxtLink to="/daily-ops/sales-v2/by-table" :class="navLinkClass(isPath('/daily-ops/sales-v2/by-table'))">By Table</NuxtLink></li>
-            <li><NuxtLink to="/daily-ops/sales-v2/by-worker" :class="navLinkClass(isPath('/daily-ops/sales-v2/by-worker'))">By Worker</NuxtLink></li>
-            <li><NuxtLink to="/daily-ops/sales-v2/by-product" :class="navLinkClass(isPath('/daily-ops/sales-v2/by-product'))">By Product</NuxtLink></li>
-            <li><NuxtLink to="/daily-ops/sales-v2/by-guest-account" :class="navLinkClass(isPath('/daily-ops/sales-v2/by-guest-account'))">By Guest Account</NuxtLink></li>
-            <li><NuxtLink to="/daily-ops/sales-v2/day-breakdown" :class="navLinkClass(isPath('/daily-ops/sales-v2/day-breakdown'))">Day Breakdown</NuxtLink></li>
+            <li><NuxtLink to="/daily-ops-v2/sales" :class="navLinkClass(isPath('/daily-ops-v2/sales'))">Overview</NuxtLink></li>
+            <li><NuxtLink to="/daily-ops-v2/sales/by-day" :class="navLinkClass(isPath('/daily-ops-v2/sales/by-day'))">By Day</NuxtLink></li>
+            <li><NuxtLink to="/daily-ops-v2/sales/by-hour" :class="navLinkClass(isPath('/daily-ops-v2/sales/by-hour'))">By Hour</NuxtLink></li>
+            <li><NuxtLink to="/daily-ops-v2/sales/by-product" :class="navLinkClass(isPath('/daily-ops-v2/sales/by-product'))">By Product</NuxtLink></li>
+            <li><NuxtLink to="/daily-ops-v2/sales/by-worker" :class="navLinkClass(isPath('/daily-ops-v2/sales/by-worker'))">By Worker</NuxtLink></li>
           </ul>
         </li>
         <!-- Sales-V3 (collapsible) -->
