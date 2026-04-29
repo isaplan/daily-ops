@@ -93,33 +93,6 @@
             <li><NuxtLink to="/daily-ops/hours/by-location" :class="navLinkClass(route.path === '/daily-ops/hours/by-location')">By Location</NuxtLink></li>
           </ul>
         </li>
-        <!-- Hours V3 (collapsible) -->
-        <li>
-          <UTooltip v-if="collapsed" text="Hours V3" :popper="{ placement: 'right' }">
-            <UDropdownMenu :items="hoursV3DropdownItems" :popper="{ placement: 'right-start' }">
-              <button
-                type="button"
-                :class="navLinkClass(isHoursV3Section)"
-                class="w-full flex items-center"
-              >
-                <UIcon name="i-lucide-zap" class="size-5 shrink-0" />
-              </button>
-            </UDropdownMenu>
-          </UTooltip>
-          <button v-else
-            type="button"
-            :class="navLinkClass(isHoursV3Section)"
-            class="w-full flex items-center"
-            @click="isHoursV3Open = !isHoursV3Open"
-          >
-            <UIcon name="i-lucide-zap" class="size-4 shrink-0" />
-            <span class="flex-1 text-left">Hours V3</span>
-            <UIcon name="i-lucide-chevron-right" :class="['size-4 shrink-0 transition-transform', isHoursV3Open && 'rotate-90']" />
-          </button>
-          <ul v-if="!collapsed && isHoursV3Open" class="mt-1 ml-4 space-y-0.5 border-l border-gray-200 pl-3">
-            <li><NuxtLink to="/daily-ops-v3/hours/by-day" :class="navLinkClass(route.path === '/daily-ops-v3/hours/by-day')">By Day</NuxtLink></li>
-          </ul>
-        </li>
         <li>
           <UTooltip v-if="collapsed" text="Sales" :popper="{ placement: 'right' }">
             <UDropdownMenu :items="salesDropdownItems" :popper="{ placement: 'right-start' }">
@@ -151,46 +124,6 @@
             <li><NuxtLink to="/daily-ops/sales/by-guest-account" :class="navLinkClass(route.path === '/daily-ops/sales/by-guest-account')">By Guest Account</NuxtLink></li>
             <li><NuxtLink to="/daily-ops/sales/day-breakdown" :class="navLinkClass(route.path === '/daily-ops/sales/day-breakdown')">Day Breakdown</NuxtLink></li>
           </ul>
-        </li>
-        <!-- Sales-V3 (collapsible) -->
-        <li>
-          <UTooltip v-if="collapsed" text="Sales-V3" :popper="{ placement: 'right' }">
-            <UDropdownMenu :items="salesV3DropdownItems" :popper="{ placement: 'right-start' }">
-              <button
-                type="button"
-                :class="navLinkClass(isSalesV3Section)"
-                class="w-full flex items-center"
-              >
-                <UIcon name="i-lucide-trending-up" class="size-5 shrink-0" />
-              </button>
-            </UDropdownMenu>
-          </UTooltip>
-          <button v-else
-            type="button"
-            :class="navLinkClass(isSalesV3Section)"
-            class="w-full flex items-center"
-            @click="isSalesV3Open = !isSalesV3Open"
-          >
-            <UIcon name="i-lucide-trending-up" class="size-4 shrink-0" />
-            <span class="flex-1 text-left">Sales-V3</span>
-            <UIcon name="i-lucide-chevron-right" :class="['size-4 shrink-0 transition-transform', isSalesV3Open && 'rotate-90']" />
-          </button>
-          <ul v-if="!collapsed && isSalesV3Open" class="mt-1 ml-4 space-y-0.5 border-l border-gray-200 pl-3">
-            <li><NuxtLink to="/daily-ops-v3/sales/by-day" :class="navLinkClass(isPath('/daily-ops-v3/sales/by-day'))">By Day</NuxtLink></li>
-          </ul>
-        </li>
-        <!-- Workforce-V3 -->
-        <li>
-          <UTooltip v-if="collapsed" text="Workforce V3" :popper="{ placement: 'right' }">
-            <NuxtLink to="/daily-ops-v3/workforce" :class="navLinkClass(isWorkforceV3)">
-              <UIcon name="i-lucide-users-cog" class="size-5 shrink-0" />
-              <span v-if="!collapsed">Workforce V3</span>
-            </NuxtLink>
-          </UTooltip>
-          <NuxtLink v-else to="/daily-ops-v3/workforce" :class="navLinkClass(isWorkforceV3)">
-            <UIcon name="i-lucide-users-cog" class="size-4 shrink-0" />
-            <span>Workforce V3</span>
-          </NuxtLink>
         </li>
         <li>
           <button
@@ -373,44 +306,6 @@ const salesDropdownItems = computed(() => [
   }],
 ])
 
-const hoursV3DropdownItems = computed(() => [
-  [{
-    label: 'Overview',
-    to: '/daily-ops-v3/hours',
-  }, {
-    label: 'By Day',
-    to: '/daily-ops-v3/hours/by-day',
-  }, {
-    label: 'By Hour',
-    to: '/daily-ops-v3/hours/by-hour',
-  }, {
-    label: 'By Team',
-    to: '/daily-ops-v3/hours/by-team',
-  }, {
-    label: 'By Contract',
-    to: '/daily-ops-v3/hours/by-contract',
-  }],
-])
-
-const salesV3DropdownItems = computed(() => [
-  [{
-    label: 'Overview',
-    to: '/daily-ops-v3/sales',
-  }, {
-    label: 'By Day',
-    to: '/daily-ops-v3/sales/by-day',
-  }, {
-    label: 'By Hour',
-    to: '/daily-ops-v3/sales/by-hour',
-  }, {
-    label: 'By Product',
-    to: '/daily-ops-v3/sales/by-product',
-  }, {
-    label: 'By Waiter',
-    to: '/daily-ops-v3/sales/by-waiter',
-  }],
-])
-
 const isDashboard = computed(() => route.path === '/' || route.path === '')
 const isAllNotes = computed(() => route.path === '/notes/all')
 const isTodos = computed(() => route.path === '/notes/todos')
@@ -421,8 +316,6 @@ const isOrganisation = computed(() => route.path === '/organisation')
 // Daily Ops nav state
 const isHoursOpen = ref(false)
 const isSalesOpen = ref(false)
-const isHoursV3Open = ref(false)
-const isSalesV3Open = ref(false)
 const isInboxOpen = ref(false)
 const isDailyOpsDashboard = computed(() => {
   const p = route.path.replace(/\/$/, '') || '/'
@@ -444,20 +337,14 @@ const isDailyOpsDashboard = computed(() => {
   return dash.includes(p)
 })
 const isWorkersPage = computed(() => route.path === '/daily-ops/workers' || route.path === '/daily-ops/workers/')
-const isDailyOpsV3Dashboard = computed(() => route.path === '/daily-ops-v3' || route.path === '/daily-ops-v3/')
 const isEitjeApi = computed(() => route.path === '/daily-ops/settings/eitje-api')
 const isBorkApi = computed(() => route.path === '/daily-ops/settings/bork-api')
-const isHoursSection = computed(() => route.path.startsWith('/daily-ops/hours') && !route.path.startsWith('/daily-ops-v3'))
-const isHoursV3Section = computed(() => route.path.startsWith('/daily-ops-v3/hours'))
+const isHoursSection = computed(() => route.path.startsWith('/daily-ops/hours'))
 
 const normalizedPath = computed(() => (route.path.replace(/\/$/, '') || '/') as string)
-const isSalesV3Section = computed(
-  () => normalizedPath.value.startsWith('/daily-ops-v3/sales')
-)
 const isSalesSection = computed(
-  () => route.path.startsWith('/daily-ops/sales') && !isSalesV3Section.value
+  () => route.path.startsWith('/daily-ops/sales')
 )
-const isWorkforceV3 = computed(() => route.path === '/daily-ops-v3/workforce' || route.path.startsWith('/daily-ops-v3/workforce/'))
 const isInboxSection = computed(() => route.path.startsWith('/daily-ops/inbox'))
 
 function isPath(path: string) {
@@ -469,15 +356,11 @@ const isInboxPowerBi = computed(() => route.path === '/daily-ops/inbox/power-bi'
 const isInboxOther = computed(() => route.path === '/daily-ops/inbox/other' || route.path.startsWith('/daily-ops/inbox/other/'))
 
 watch(() => route.path, (path: string) => {
-  if (path.startsWith('/daily-ops-v3/hours')) {
-    isHoursV3Open.value = true
-  } else if (path.startsWith('/daily-ops/hours')) {
+  if (path.startsWith('/daily-ops/hours')) {
     isHoursOpen.value = true
   }
   const p = path.replace(/\/$/, '') || '/'
-  if (p.startsWith('/daily-ops-v3/sales')) {
-    isSalesV3Open.value = true
-  } else if (path.startsWith('/daily-ops/sales')) {
+  if (path.startsWith('/daily-ops/sales')) {
     isSalesOpen.value = true
   }
   if (path.startsWith('/daily-ops/inbox')) isInboxOpen.value = true
