@@ -160,6 +160,31 @@
             <li><NuxtLink to="/daily-ops/inbox/other/all-test-data" :class="navLinkClass(route.path === '/daily-ops/inbox/other/all-test-data')">All Test Data</NuxtLink></li>
           </ul>
         </li>
+        <!-- Settings -->
+        <li>
+          <UTooltip v-if="collapsed" text="Eitje API" :popper="{ placement: 'right' }">
+            <NuxtLink to="/daily-ops/settings/eitje-api" :class="navLinkClass(isEitjeApi)">
+              <UIcon name="i-lucide-settings" class="size-5 shrink-0" />
+              <span v-if="!collapsed">Eitje API</span>
+            </NuxtLink>
+          </UTooltip>
+          <NuxtLink v-else to="/daily-ops/settings/eitje-api" :class="navLinkClass(isEitjeApi)">
+            <UIcon name="i-lucide-settings" class="size-4 shrink-0" />
+            <span>Eitje API</span>
+          </NuxtLink>
+        </li>
+        <li>
+          <UTooltip v-if="collapsed" text="Bork API" :popper="{ placement: 'right' }">
+            <NuxtLink to="/daily-ops/settings/bork-api" :class="navLinkClass(isBorkApi)">
+              <UIcon name="i-lucide-settings" class="size-5 shrink-0" />
+              <span v-if="!collapsed">Bork API</span>
+            </NuxtLink>
+          </UTooltip>
+          <NuxtLink v-else to="/daily-ops/settings/bork-api" :class="navLinkClass(isBorkApi)">
+            <UIcon name="i-lucide-settings" class="size-4 shrink-0" />
+            <span>Bork API</span>
+          </NuxtLink>
+        </li>
       </ul>
       <!-- Daily Notes / other environments -->
       <ul v-else class="space-y-1">
