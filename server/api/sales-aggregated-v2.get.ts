@@ -1,23 +1,12 @@
 /**
  * @registry-id: salesAggregatedV2Api
  * @created: 2026-04-13T00:00:00.000Z
- * @last-modified: 2026-04-28T18:40:00.000Z
+ * @last-modified: 2026-04-30T12:00:00.000Z
  * @description: Sales V2 API reader with version suffix resolver
- * @last-fix: [2026-04-28] Uses bork_business_days + bork_sales_by_{hour,table,worker,guest_account,product} with version suffix (default _v2)
+ * @last-fix: [2026-04-30] V2 sales UI pages removed; API kept for integrations / V2 aggregates
  *
  * @exports-to:
- * ✓ pages/daily-ops/sales/by-day-v2.vue
- * ✓ pages/daily-ops/sales/by-hour-v2.vue
- * ✓ pages/daily-ops/sales/by-table-v2.vue
- * ✓ pages/daily-ops/sales/by-worker-v2.vue
- * ✓ pages/daily-ops/sales/by-product-v2.vue
- * ✓ pages/daily-ops/sales/by-guest-account-v2.vue
- * ✓ pages/daily-ops/sales-v2/by-day.vue
- * ✓ pages/daily-ops/sales-v2/by-hour.vue
- * ✓ pages/daily-ops/sales-v2/by-table.vue
- * ✓ pages/daily-ops/sales-v2/by-worker.vue
- * ✓ pages/daily-ops/sales-v2/by-product.vue
- * ✓ pages/daily-ops/sales-v2/by-guest-account.vue
+ * (no in-repo UI — call `/api/sales-aggregated-v2` from tools or future pages)
  */
 import { getDb } from '../utils/db'
 import { ObjectId, type Db } from 'mongodb'

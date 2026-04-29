@@ -1,17 +1,18 @@
 /**
  * @registry-id: dailyOpsV3SnapshotUtils
  * @created: 2026-04-28T19:45:00.000Z
- * @last-modified: 2026-04-28T19:45:00.000Z
+ * @last-modified: 2026-04-30T12:00:00.000Z
  * @description: V3 snapshot utility functions for querying and manipulating snapshots
- * @last-fix: [2026-04-28] Initial snapshot utilities
+ * @last-fix: [2026-04-30] Metadata exports-to aligned with server/api/v3 routes
  * 
  * @exports-to:
  * ✓ server/services/v3Aggregation/v3AggregationOrchestrator.ts
  * ✓ server/services/v3Aggregation/v3SalesSnapshot.ts
  * ✓ server/services/v3Aggregation/v3LaborSnapshot.ts
  * ✓ server/services/v3Aggregation/v3DashboardSnapshot.ts
- * ✓ server/api/daily-ops-v3/sales.get.ts
- * ✓ server/api/daily-ops-v3/labor.get.ts
+ * ✓ server/api/v3/sales.get.ts
+ * ✓ server/api/v3/labor.get.ts
+ * ✓ server/api/v3/dashboard.get.ts
  */
 
 import { Db, ObjectId } from 'mongodb'

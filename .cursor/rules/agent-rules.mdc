@@ -192,5 +192,5 @@ grep '"type": "service"' function-registry.json
 ## 🔗 RELATED DOCS
 
 - `.cursor/rules/metadata-header-system.md` → Full metadata format + examples
-- IMPLEMENTATION_PLAN.md → Project architecture + timelines
+- `dev-docs/IMPLEMENTATION_PLAN.md` → Project architecture + timelines
 - See `function-registry.json` for all tracked code

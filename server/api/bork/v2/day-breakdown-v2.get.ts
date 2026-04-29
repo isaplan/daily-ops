@@ -1,12 +1,12 @@
 /**
  * @registry-id: borkDayBreakdownV2Api
  * @created: 2026-04-28T00:00:00.000Z
- * @last-modified: 2026-04-28T18:40:00.000Z
+ * @last-modified: 2026-04-30T12:00:00.000Z
  * @description: V2 day breakdown using version-suffixed V2 aggregates
- * @last-fix: [2026-04-28] Uses bork_sales_by_hour/_worker/_table + suffix resolver (default _v2)
+ * @last-fix: [2026-04-30] V2 day-breakdown page removed; API retained
  *
  * @exports-to:
- * ✓ pages/daily-ops/sales-v2/day-breakdown.vue => Fetches V2 breakdown for selected business date
+ * (no in-repo UI — call `/api/bork/v2/day-breakdown-v2` from tools or future pages)
  */
 import { getDb } from '../../../utils/db'
 import { resolveBorkAggReadSuffix } from '../../../utils/borkAggVersionSuffix'

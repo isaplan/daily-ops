@@ -1,6 +1,6 @@
 /**
  * Writes <!-- BORK_BENCHMARK_INBOX_VS_API_START --> … <!-- BORK_BENCHMARK_INBOX_VS_API_END -->
- * in DEBUG_BUSINESS_HOUR_MAPPING.md: inbox Basis Rapport + Sales.csv vs Bork API aggregates.
+ * in dev-docs/DEBUG_BUSINESS_HOUR_MAPPING.md: inbox Basis Rapport + Sales.csv vs Bork API aggregates.
  *
  * Benchmark: morning inbox (Basis Rapport / Sales.csv) for yesterday’s Bork calendar day — compare
  * to line revenue summed from `bork_sales_hours` + suffix (built from `bork_raw_data` API pulls).
@@ -440,7 +440,7 @@ async function main() {
     md += corrMd
   }
 
-  const path = resolve(process.cwd(), 'DEBUG_BUSINESS_HOUR_MAPPING.md')
+  const path = resolve(process.cwd(), 'dev-docs/DEBUG_BUSINESS_HOUR_MAPPING.md')
   let raw = readFileSync(path, 'utf-8')
   const markerStart = '<!-- BORK_BENCHMARK_INBOX_VS_API_START -->'
   const markerEnd = '<!-- BORK_BENCHMARK_INBOX_VS_API_END -->'
@@ -453,7 +453,7 @@ async function main() {
   const re = new RegExp(`${markerStart}[\\s\\S]*?${markerEnd}`)
   raw = raw.replace(re, `${markerStart}\n${md}\n${markerEnd}`)
   writeFileSync(path, raw)
-  process.stdout.write(`Wrote benchmark section → DEBUG_BUSINESS_HOUR_MAPPING.md (${last14.length} day(s), ${apiCol}).\n`)
+  process.stdout.write(`Wrote benchmark section → dev-docs/DEBUG_BUSINESS_HOUR_MAPPING.md (${last14.length} day(s), ${apiCol}).\n`)
 
   await client.close()
 }

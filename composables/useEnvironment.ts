@@ -9,7 +9,6 @@ export function useEnvironment() {
   const derivedEnvironment = computed((): EnvironmentId => {
     const path = route.path
     if (path.startsWith('/daily-ops')) return 'daily-ops'
-    if (path.startsWith('/daily-work')) return 'daily-work'
     if (path.startsWith('/daily-menu-products')) return 'daily-menu-products'
     return 'daily-notes'
   })
@@ -28,8 +27,6 @@ export function useEnvironment() {
       if (route.path.startsWith('/daily-')) router.push('/')
     } else if (env === 'daily-ops') {
       router.push('/daily-ops')
-    } else if (env === 'daily-work') {
-      router.push('/daily-work')
     } else if (env === 'daily-menu-products') {
       router.push('/daily-menu-products')
     }

@@ -30,7 +30,7 @@ pnpm dev:clean
 
 ## Important: Cron Job Scheduler
 
-The Bork and Eitje cron jobs require an **external scheduler** to run automatically. See [CRON_SCHEDULER_SETUP.md](./CRON_SCHEDULER_SETUP.md) for setup instructions.
+The Bork and Eitje cron jobs require an **external scheduler** to run automatically. See [CRON_SCHEDULER_SETUP.md](./dev-docs/CRON_SCHEDULER_SETUP.md) for setup instructions.
 
 **TL;DR**: You must set up one of:
 - Vercel Cron (if deployed to Vercel)
@@ -65,7 +65,7 @@ pnpm preview
 ## Troubleshooting
 
 ### Cron Jobs Not Running?
-- Check [CRON_SCHEDULER_SETUP.md](./CRON_SCHEDULER_SETUP.md)
+- Check [CRON_SCHEDULER_SETUP.md](./dev-docs/CRON_SCHEDULER_SETUP.md)
 - Ensure CRON_SECRET is set in production
 - Verify external scheduler is configured and calling the endpoint
 

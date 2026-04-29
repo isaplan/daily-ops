@@ -817,15 +817,9 @@ const props = withDefaults(
   defineProps<{
     /** Last segment of the H1, e.g. Dashboard, Revenue, Productivity */
     pageHeadingSuffix?: string
-    /** Metrics bundle endpoint path (V1 default, V2 opt-in). */
-    metricsApiPath?: string
-    /** Use V3 API for live snapshots instead of aggregated metrics */
-    isV3?: boolean
   }>(),
   {
     pageHeadingSuffix: 'Dashboard',
-    metricsApiPath: '/api/daily-ops/metrics/bundle',
-    isV3: false,
   }
 )
 
@@ -864,7 +858,7 @@ type MetricsBundle = {
 
 const metricsCacheKey = computed(
   () =>
-    `daily-ops-dashboard-metrics-${dashboardQuery.value.period}-${dashboardQuery.value.location ?? 'all'}-${dashboardQuery.value.anchor ?? ''}-${props.metricsApiPath}-v3-${props.isV3}`
+    `daily-ops-dashboard-metrics-${dashboardQuery.value.period}-${dashboardQuery.value.location ?? 'all'}-${dashboardQuery.value.anchor ?? ''}`
 )
 
 const {
@@ -875,65 +869,8 @@ const {
 } = await useAsyncData(
   metricsCacheKey,
   async (): Promise<MetricsBundle> => {
-    // V3: Fetch from snapshot APIs instead of aggregated metrics
-    if (props.isV3) {
-      try {
-        const dashboardData = await $fetch('/api/v3/dashboard?all=true')
-        if (dashboardData.success && dashboardData.data && dashboardData.data.length > 0) {
-          const snapshot = dashboardData.data[0]
-          // Convert V3 snapshot to MetricsBundle format
-          return {
-            summary: {
-              summary: {
-                totalRevenue: snapshot.cards.totalRevenue,
-                totalLaborCost: snapshot.cards.totalLaborCost,
-                laborCostPctOfRevenue: snapshot.cards.laborCostPctOfRevenue,
-                revenuePerLaborHour: snapshot.cards.revenuePerLaborHour,
-              },
-              range: {
-                startDate: snapshot.businessDate,
-                endDate: snapshot.businessDate,
-                period: 'today',
-              },
-              vatDisclaimer: 'V3 Live Snapshot',
-            },
-            revenue: {
-              byCategory: Object.entries(snapshot.revenue ? { drinks: snapshot.revenue.drinksRevenue, food: snapshot.revenue.foodRevenue } : {}),
-              mostProfitableHour: {
-                hourLabel: snapshot.hourlyBreakdown && snapshot.hourlyBreakdown.length > 0 ? '—' : '—',
-                revenue: 0,
-                laborCost: 0,
-                profit: 0,
-              },
-            },
-            labor: {
-              workersByTeamLocation: snapshot.labor ? snapshot.topTeams.map(t => ({
-                teamName: t.teamName,
-                workerCount: t.workerCount,
-                totalHours: t.totalHours,
-                totalCost: t.totalCost,
-              })) : [],
-              contractTypeByDay: snapshot.topContracts ?? [],
-              daily: [],
-              workersByTeamLocationByDay: [],
-              periodRollup: {
-                revenue: snapshot.cards.totalRevenue,
-                laborCost: snapshot.cards.totalLaborCost,
-                hours: 0,
-                revenuePerLaborHour: snapshot.cards.revenuePerLaborHour,
-              },
-            },
-          } as any
-        }
-      } catch (e) {
-        console.error('[DailyOpsHomeDashboard V3]', e)
-        // Fall back to regular metrics
-      }
-    }
-    
-    // V1/V2: Fetch from regular metrics API
     const q = { ...dashboardQuery.value }
-    return await $fetch<MetricsBundle>(props.metricsApiPath, { query: q })
+    return await $fetch<MetricsBundle>('/api/daily-ops/metrics/bundle', { query: q })
   },
   { watch: [metricsCacheKey] }
 )
