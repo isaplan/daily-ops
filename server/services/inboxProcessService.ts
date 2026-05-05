@@ -78,28 +78,35 @@ async function handleParsedMapping(
   ) {
     // Special handling for basis_report (Bork daily sales)
     if (parseResult.documentType === 'basis_report') {
-      const basisReport = mapBasisReportXLSX(parseResult, '')
-      if (basisReport) {
-        // Store structured sales report
-        const db = await (await import('~/server/utils/inbox/collections').then(m => m.getDb))()
-        await db
-          .collection('basis_reports')
-          .updateOne(
-            { date: basisReport.date, location: basisReport.location },
-            { $set: basisReport },
-            { upsert: true },
-          )
-        
-        await inboxRepo.updateParsedData(String(parsedDataId), {
-          mapping: {
-            mappedToCollection: 'basis_reports',
-            matchedRecords: 1,
-            createdRecords: 1,
-            updatedRecords: 0,
-          },
-          rowsValid: 1,
-          rowsFailed: 0,
-        })
+      try {
+        const basisReport = mapBasisReportXLSX(parseResult, '')
+        if (basisReport) {
+          // Store structured sales report - use raw MongoDB connection
+          const { getDb } = await import('~/server/utils/inbox/collections')
+          const db = await getDb()
+          await db
+            .collection('basis_reports')
+            .updateOne(
+              { date: basisReport.date, location: basisReport.location },
+              { $set: basisReport },
+              { upsert: true },
+            )
+          
+          await inboxRepo.updateParsedData(String(parsedDataId), {
+            mapping: {
+              mappedToCollection: 'basis_reports',
+              matchedRecords: 1,
+              createdRecords: 1,
+              updatedRecords: 0,
+            },
+            rowsValid: 1,
+            rowsFailed: 0,
+          })
+          console.log('[inboxProcessService] Stored basis report:', basisReport.date, basisReport.location)
+        }
+      } catch (err) {
+        console.error('[inboxProcessService] Basis report error:', err instanceof Error ? err.message : err)
+        throw err
       }
     } else {
       const mappingResult = await dataMappingService.mapToCollection(

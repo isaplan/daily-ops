@@ -5771,16 +5771,16 @@ _bZ9Ni6V2HtIpJeulfSLzyAQaoMJdeQllxN50TS5qNvY
 const assets = {
   "/index.mjs": {
     "type": "text/javascript; charset=utf-8",
-    "etag": "\"171743-td/uEWVy71wqsxdP8471D8GejmA\"",
-    "mtime": "2026-05-05T17:25:13.337Z",
-    "size": 1513283,
+    "etag": "\"171c27-OVhC11sPjI+lYtGeEZoZUONRDE4\"",
+    "mtime": "2026-05-05T17:25:30.883Z",
+    "size": 1514535,
     "path": "index.mjs"
   },
   "/index.mjs.map": {
     "type": "application/json",
-    "etag": "\"5c9835-kESX7wa/WwuH728mWtED9swsn1k\"",
-    "mtime": "2026-05-05T17:25:13.623Z",
-    "size": 6068277,
+    "etag": "\"5ca6fb-q6PWriQu+mF67K2iPJZGHCh0d3Y\"",
+    "mtime": "2026-05-05T17:25:30.917Z",
+    "size": 6072059,
     "path": "index.mjs.map"
   }
 };
@@ -35270,24 +35270,31 @@ async function handleParsedMapping(parseResult, attachmentId, emailId, parsedDat
     });
   } else if (parseResult.documentType !== "formitabele" && parseResult.documentType !== "pasy" && parseResult.documentType !== "coming_soon") {
     if (parseResult.documentType === "basis_report") {
-      const basisReport = mapBasisReportXLSX(parseResult, "");
-      if (basisReport) {
-        const db = await (await Promise.resolve().then(function () { return collections; }).then((m) => m.getDb))();
-        await db.collection("basis_reports").updateOne(
-          { date: basisReport.date, location: basisReport.location },
-          { $set: basisReport },
-          { upsert: true }
-        );
-        await updateParsedData(String(parsedDataId), {
-          mapping: {
-            mappedToCollection: "basis_reports",
-            matchedRecords: 1,
-            createdRecords: 1,
-            updatedRecords: 0
-          },
-          rowsValid: 1,
-          rowsFailed: 0
-        });
+      try {
+        const basisReport = mapBasisReportXLSX(parseResult, "");
+        if (basisReport) {
+          const { getDb } = await Promise.resolve().then(function () { return collections; });
+          const db = await getDb();
+          await db.collection("basis_reports").updateOne(
+            { date: basisReport.date, location: basisReport.location },
+            { $set: basisReport },
+            { upsert: true }
+          );
+          await updateParsedData(String(parsedDataId), {
+            mapping: {
+              mappedToCollection: "basis_reports",
+              matchedRecords: 1,
+              createdRecords: 1,
+              updatedRecords: 0
+            },
+            rowsValid: 1,
+            rowsFailed: 0
+          });
+          console.log("[inboxProcessService] Stored basis report:", basisReport.date, basisReport.location);
+        }
+      } catch (err) {
+        console.error("[inboxProcessService] Basis report error:", err instanceof Error ? err.message : err);
+        throw err;
       }
     } else {
       const mappingResult = await dataMappingService.mapToCollection(
