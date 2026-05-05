@@ -198,56 +198,51 @@ function mapNettoSales(
   rows: Record<string, unknown>[],
   headers: string[],
 ): BasisReportData['sections']['netto_sales'] {
+  console.log('[mapNettoSales] Input: rows=', rows.length, 'headers=', headers.slice(0, 5))
+  if (rows.length === 0) {
+    console.log('[mapNettoSales] No rows!')
+    return { categories: [], grand_total: { quantity: 0, price_incl_vat: 0, price_ex_vat: 0 } }
+  }
+
+  console.log('[mapNettoSales] First row keys:', Object.keys(rows[0]))
+  console.log('[mapNettoSales] First row values:', JSON.stringify(Object.entries(rows[0]).slice(0, 3)))
+
   const categories: BasisReportData['sections']['netto_sales']['categories'] = []
   let grandTotalQty = 0
   let grandTotalIncl = 0
   let grandTotalEx = 0
 
   for (const row of rows) {
-    // Find the relevant columns - try multiple column name patterns
-    let name = ''
-    let qty = 0
-    let incl = 0
-    let ex = 0
+    // Find the relevant columns - the first non-null value is usually the product name
+    const name = Object.values(row).find(v => v && String(v).trim() && !String(v).toLowerCase().includes('groep'))
+    const nameStr = String(name || '').trim()
 
-    // Get first non-null, non-empty value as product name
-    for (const [key, val] of Object.entries(row)) {
-      const strVal = String(val || '').trim()
-      if (strVal && strVal.toLowerCase() !== 'groep1' && strVal.toLowerCase() !== 'null') {
-        name = strVal
-        break
-      }
-    }
-
-    // Get quantity (look for Hoeveelheid or similar numeric column)
-    const qtyVal = row['Hoeveelheid'] || Object.values(row)[3]
-    qty = parseFloat(String(qtyVal || 0))
-
-    // Get prices (try Totale prijs and following columns)
-    const priceIdx = headers.indexOf('Totale prijs')
-    if (priceIdx >= 0) {
-      const vals = Object.values(row)
-      incl = parsePrice(String(vals[priceIdx] || 0))
-      ex = parsePrice(String(vals[priceIdx + 1] || 0))
-    }
-
-    if (name.toLowerCase().includes('grand total')) {
-      grandTotalQty = qty
-      grandTotalIncl = incl
-      grandTotalEx = ex
+    if (nameStr.toLowerCase().includes('grand total')) {
+      const values = Object.values(row)
+      grandTotalQty = parseFloat(String(values[1] || 0))
+      grandTotalIncl = parsePrice(String(values[2] || 0))
+      grandTotalEx = parsePrice(String(values[3] || 0))
       continue
     }
 
-    if (name && !name.toLowerCase().includes('groep')) {
-      categories.push({
-        name,
-        quantity: qty,
-        price_incl_vat: incl,
-        price_ex_vat: ex,
-      })
+    if (nameStr && !nameStr.toLowerCase().includes('groep')) {
+      const values = Object.values(row)
+      const qty = parseFloat(String(values[1] || 0))
+      const incl = parsePrice(String(values[2] || 0))
+      const ex = parsePrice(String(values[3] || 0))
+
+      if (!Number.isNaN(qty) && qty > 0) {
+        categories.push({
+          name: nameStr,
+          quantity: qty,
+          price_incl_vat: incl,
+          price_ex_vat: ex,
+        })
+      }
     }
   }
 
+  console.log('[mapNettoSales] Returned', categories.length, 'categories, grandTotal=', grandTotalQty)
   return {
     categories,
     grand_total: {

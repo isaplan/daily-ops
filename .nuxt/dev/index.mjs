@@ -2578,7 +2578,8 @@ const INBOX_COLLECTIONS = {
   emailAttachment: "emailattachments",
   parsedData: "parseddatas",
   processingLog: "processinglogs",
-  gmailOAuthToken: "gmail_oauth_tokens"
+  gmailOAuthToken: "gmail_oauth_tokens",
+  basisReports: "basis_reports"
 };
 const INBOX_TARGET_COLLECTIONS = [
   "inbox-eitje-hours",
@@ -2588,6 +2589,7 @@ const INBOX_TARGET_COLLECTIONS = [
   "inbox-bork-food-beverage",
   "inbox-bork-product-mix",
   "inbox-bork-basis-report",
+  "basis_reports",
   "bork_sales",
   "power_bi_exports",
   "other_documents"
@@ -5765,16 +5767,16 @@ _bZ9Ni6V2HtIpJeulfSLzyAQaoMJdeQllxN50TS5qNvY
 const assets = {
   "/index.mjs": {
     "type": "text/javascript; charset=utf-8",
-    "etag": "\"170f47-RJcHz7eKJokIfPbgXJ7EOs7j0Qs\"",
-    "mtime": "2026-05-05T18:48:45.523Z",
-    "size": 1511239,
+    "etag": "\"171266-gnCBFH0613AN2YPvAf/6rlLFW70\"",
+    "mtime": "2026-05-05T18:50:30.775Z",
+    "size": 1512038,
     "path": "index.mjs"
   },
   "/index.mjs.map": {
     "type": "application/json",
-    "etag": "\"5c74c9-MW0gJGhwmhJklkdwDNlcazDzE0A\"",
-    "mtime": "2026-05-05T18:48:45.715Z",
-    "size": 6059209,
+    "etag": "\"5c7f77-/IIXM7gc063HznnjxCoch/KU9rA\"",
+    "mtime": "2026-05-05T18:50:30.793Z",
+    "size": 6061943,
     "path": "index.mjs.map"
   }
 };
@@ -7216,7 +7218,7 @@ function getGmailRedirectUri() {
 }
 
 function mapBasisReportXLSX(parseResult, fileName) {
-  var _a;
+  var _a, _b, _c;
   if (!parseResult.success || parseResult.rows.length === 0) {
     console.log("[mapBasisReportXLSX] Failed: success=", parseResult.success, "rows=", parseResult.rows.length);
     return null;
@@ -7249,13 +7251,22 @@ function mapBasisReportXLSX(parseResult, fileName) {
   }
   if (nettoSalesRows.length > 0) {
     data.sections.netto_sales = mapNettoSales(nettoSalesRows, headers);
-    console.log("[mapBasisReportXLSX] Mapped", nettoSalesRows.length, "netto_sales rows");
+    console.log("[mapBasisReportXLSX] Mapped", nettoSalesRows.length, "netto_sales rows, categories:", ((_b = (_a = data.sections.netto_sales) == null ? void 0 : _a.categories) == null ? void 0 : _b.length) || 0);
+  } else {
+    console.log("[mapBasisReportXLSX] NO netto sales rows found!");
   }
-  if ((_a = data.sections.netto_sales) == null ? void 0 : _a.grand_total) {
+  if ((_c = data.sections.netto_sales) == null ? void 0 : _c.grand_total) {
     data.final_revenue_incl_vat = data.sections.netto_sales.grand_total.price_incl_vat;
     data.final_revenue_ex_vat = data.sections.netto_sales.grand_total.price_ex_vat;
   }
-  console.log("[mapBasisReportXLSX] Result: date=", data.date, "location=", data.location, "revenue=", data.final_revenue_incl_vat);
+  console.log("[mapBasisReportXLSX] FINAL: returning data with date=", data.date, "revenue=", data.final_revenue_incl_vat, "location=", data.location);
+  if (!data.date || data.date === "Invalid date" || data.date.includes("undefined")) {
+    console.log("[mapBasisReportXLSX] ERROR: Invalid date extracted, setting to today");
+    data.date = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
+  }
+  if (!data.location || data.location === "Unknown") {
+    console.log("[mapBasisReportXLSX] WARNING: Unknown location");
+  }
   return data;
 }
 function extractDateFromFile(rows) {
