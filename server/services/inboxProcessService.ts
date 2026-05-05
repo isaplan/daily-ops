@@ -78,8 +78,9 @@ async function handleParsedMapping(
     parseResult.documentType !== 'coming_soon'
   ) {
     // Special handling for basis_report (Bork daily sales)
-    if (parseResult.documentType === 'basis_report') {
+    if (parseResult.documentType === 'basis_report' || parseResult.format === 'xlsx') {
       try {
+        console.log('[handleParsedMapping] Processing basis_report, documentType:', parseResult.documentType, 'format:', parseResult.format)
         const basisReport = mapBasisReportXLSX(parseResult, '')
         if (basisReport) {
           // Store structured sales report
@@ -102,10 +103,12 @@ async function handleParsedMapping(
             rowsValid: 1,
             rowsFailed: 0,
           })
-          console.log('[inboxProcessService] Stored basis report:', basisReport.date, basisReport.location)
+          console.log('[handleParsedMapping] Stored basis report:', basisReport.date, basisReport.location)
+        } else {
+          console.log('[handleParsedMapping] Mapper returned null')
         }
       } catch (err) {
-        console.error('[inboxProcessService] Basis report error:', err instanceof Error ? err.message : err)
+        console.error('[handleParsedMapping] Basis report error:', err instanceof Error ? err.message : err)
         throw err
       }
     } else {

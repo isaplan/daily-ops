@@ -5765,16 +5765,16 @@ _bZ9Ni6V2HtIpJeulfSLzyAQaoMJdeQllxN50TS5qNvY
 const assets = {
   "/index.mjs": {
     "type": "text/javascript; charset=utf-8",
-    "etag": "\"171bd5-vYulxXgQBD1LGm3fzHJBorstXKs\"",
-    "mtime": "2026-05-05T18:37:52.669Z",
-    "size": 1514453,
+    "etag": "\"170f47-RJcHz7eKJokIfPbgXJ7EOs7j0Qs\"",
+    "mtime": "2026-05-05T18:48:45.523Z",
+    "size": 1511239,
     "path": "index.mjs"
   },
   "/index.mjs.map": {
     "type": "application/json",
-    "etag": "\"5cabcf-s3CQFAGfwmzxXWTsyPJCGq9rLx0\"",
-    "mtime": "2026-05-05T18:37:52.695Z",
-    "size": 6073295,
+    "etag": "\"5c74c9-MW0gJGhwmhJklkdwDNlcazDzE0A\"",
+    "mtime": "2026-05-05T18:48:45.715Z",
+    "size": 6059209,
     "path": "index.mjs.map"
   }
 };
@@ -7218,12 +7218,15 @@ function getGmailRedirectUri() {
 function mapBasisReportXLSX(parseResult, fileName) {
   var _a;
   if (!parseResult.success || parseResult.rows.length === 0) {
+    console.log("[mapBasisReportXLSX] Failed: success=", parseResult.success, "rows=", parseResult.rows.length);
     return null;
   }
   const rows = parseResult.rows;
-  parseResult.headers || [];
+  const headers = parseResult.headers || [];
+  console.log("[mapBasisReportXLSX] Mapping", rows.length, "rows");
   const dateStr = extractDateFromFile(rows);
   const location = extractLocationFromFile(rows, fileName);
+  console.log("[mapBasisReportXLSX] Date:", dateStr, "Location:", location);
   const data = {
     date: dateStr,
     location,
@@ -7231,58 +7234,28 @@ function mapBasisReportXLSX(parseResult, fileName) {
     final_revenue_incl_vat: 0,
     final_revenue_ex_vat: 0
   };
-  let currentSection = null;
-  const sections = {
-    netto_sales: [],
-    payments: [],
-    corrections: [],
-    internal_sales: []
-  };
+  const nettoSalesRows = [];
   for (const row of rows) {
     const firstCol = Object.values(row)[0];
-    const firstColStr = String(firstCol).toLowerCase().trim();
-    if (firstColStr.includes("netto sales") || firstColStr.includes("netto")) {
-      currentSection = "netto_sales";
+    const firstColStr = String(firstCol || "").toLowerCase().trim();
+    if (firstColStr.includes("grand total")) {
+      nettoSalesRows.push(row);
+      break;
+    }
+    if (firstColStr.includes("groep") || firstColStr === "") {
       continue;
     }
-    if (firstColStr.includes("betalingen") || firstColStr.includes("payment")) {
-      currentSection = "payments";
-      continue;
-    }
-    if (firstColStr.includes("correcties") || firstColStr.includes("correction")) {
-      currentSection = "corrections";
-      continue;
-    }
-    if (firstColStr.includes("interne verkoop") || firstColStr.includes("internal")) {
-      currentSection = "internal_sales";
-      continue;
-    }
-    if (firstColStr.includes("grand total") && currentSection) {
-      continue;
-    }
-    if (firstColStr.includes("groep") || firstColStr.includes("betaalwijze") || firstColStr.includes("gebruiker")) {
-      continue;
-    }
-    if (currentSection && Object.keys(row).length > 0) {
-      sections[currentSection].push(row);
-    }
+    nettoSalesRows.push(row);
   }
-  if (sections.netto_sales.length > 0) {
-    data.sections.netto_sales = mapNettoSales(sections.netto_sales);
-  }
-  if (sections.payments.length > 0) {
-    data.sections.payments = mapPayments(sections.payments);
-  }
-  if (sections.corrections.length > 0) {
-    data.sections.corrections = mapCorrections(sections.corrections);
-  }
-  if (sections.internal_sales.length > 0) {
-    data.sections.internal_sales = mapInternalSales(sections.internal_sales);
+  if (nettoSalesRows.length > 0) {
+    data.sections.netto_sales = mapNettoSales(nettoSalesRows, headers);
+    console.log("[mapBasisReportXLSX] Mapped", nettoSalesRows.length, "netto_sales rows");
   }
   if ((_a = data.sections.netto_sales) == null ? void 0 : _a.grand_total) {
     data.final_revenue_incl_vat = data.sections.netto_sales.grand_total.price_incl_vat;
     data.final_revenue_ex_vat = data.sections.netto_sales.grand_total.price_ex_vat;
   }
+  console.log("[mapBasisReportXLSX] Result: date=", data.date, "location=", data.location, "revenue=", data.final_revenue_incl_vat);
   return data;
 }
 function extractDateFromFile(rows) {
@@ -7330,125 +7303,42 @@ function mapNettoSales(rows, headers) {
   let grandTotalIncl = 0;
   let grandTotalEx = 0;
   for (const row of rows) {
-    const name = String(Object.values(row)[0] || "").trim();
-    if (name.toLowerCase() === "grand total") {
-      const qty = parseFloat(String(Object.values(row)[1] || 0));
-      const incl = parsePrice(String(Object.values(row)[2] || 0));
-      const ex = parsePrice(String(Object.values(row)[3] || 0));
+    let name = "";
+    let qty = 0;
+    let incl = 0;
+    let ex = 0;
+    for (const [key, val] of Object.entries(row)) {
+      const strVal = String(val || "").trim();
+      if (strVal && strVal.toLowerCase() !== "groep1" && strVal.toLowerCase() !== "null") {
+        name = strVal;
+        break;
+      }
+    }
+    const qtyVal = row["Hoeveelheid"] || Object.values(row)[3];
+    qty = parseFloat(String(qtyVal || 0));
+    const priceIdx = headers.indexOf("Totale prijs");
+    if (priceIdx >= 0) {
+      const vals = Object.values(row);
+      incl = parsePrice(String(vals[priceIdx] || 0));
+      ex = parsePrice(String(vals[priceIdx + 1] || 0));
+    }
+    if (name.toLowerCase().includes("grand total")) {
       grandTotalQty = qty;
       grandTotalIncl = incl;
       grandTotalEx = ex;
       continue;
     }
-    if (name && !name.includes("Groep")) {
-      const qty = parseFloat(String(Object.values(row)[1] || 0));
-      const incl = parsePrice(String(Object.values(row)[2] || 0));
-      const ex = parsePrice(String(Object.values(row)[3] || 0));
-      if (!Number.isNaN(qty)) {
-        categories.push({
-          name,
-          quantity: qty,
-          price_incl_vat: incl,
-          price_ex_vat: ex
-        });
-      }
+    if (name && !name.toLowerCase().includes("groep")) {
+      categories.push({
+        name,
+        quantity: qty,
+        price_incl_vat: incl,
+        price_ex_vat: ex
+      });
     }
   }
   return {
     categories,
-    grand_total: {
-      quantity: grandTotalQty,
-      price_incl_vat: grandTotalIncl,
-      price_ex_vat: grandTotalEx
-    }
-  };
-}
-function mapPayments(rows) {
-  const methods = [];
-  let grandTotalQty = 0;
-  for (const row of rows) {
-    const method = String(Object.values(row)[0] || "").trim();
-    if (method.toLowerCase() === "grand total") {
-      grandTotalQty = parseFloat(String(Object.values(row)[1] || 0));
-      continue;
-    }
-    if (method && !method.includes("Betaalwijze")) {
-      const qty = parseFloat(String(Object.values(row)[1] || 0));
-      if (!Number.isNaN(qty)) {
-        methods.push({ method, quantity: qty });
-      }
-    }
-  }
-  return {
-    methods,
-    grand_total_qty: grandTotalQty
-  };
-}
-function mapCorrections(rows, headers) {
-  const adjustments = [];
-  let grandTotalQty = 0;
-  let grandTotalIncl = 0;
-  let grandTotalEx = 0;
-  for (const row of rows) {
-    const user = String(Object.values(row)[0] || "").trim();
-    if (user.toLowerCase() === "grand total") {
-      grandTotalQty = parseFloat(String(Object.values(row)[1] || 0));
-      grandTotalIncl = parsePrice(String(Object.values(row)[2] || 0));
-      grandTotalEx = parsePrice(String(Object.values(row)[3] || 0));
-      continue;
-    }
-    if (user && !user.includes("Gebruiker")) {
-      const qty = parseFloat(String(Object.values(row)[1] || 0));
-      const incl = parsePrice(String(Object.values(row)[2] || 0));
-      const ex = parsePrice(String(Object.values(row)[3] || 0));
-      if (!Number.isNaN(qty)) {
-        adjustments.push({
-          user,
-          quantity: qty,
-          price_incl_vat: incl,
-          price_ex_vat: ex
-        });
-      }
-    }
-  }
-  return {
-    adjustments,
-    grand_total: {
-      quantity: grandTotalQty,
-      price_incl_vat: grandTotalIncl,
-      price_ex_vat: grandTotalEx
-    }
-  };
-}
-function mapInternalSales(rows, headers) {
-  const staff = [];
-  let grandTotalQty = 0;
-  let grandTotalIncl = 0;
-  let grandTotalEx = 0;
-  for (const row of rows) {
-    const user = String(Object.values(row)[0] || "").trim();
-    if (user.toLowerCase() === "grand total") {
-      grandTotalQty = parseFloat(String(Object.values(row)[1] || 0));
-      grandTotalIncl = parsePrice(String(Object.values(row)[2] || 0));
-      grandTotalEx = parsePrice(String(Object.values(row)[3] || 0));
-      continue;
-    }
-    if (user && !user.includes("Gebruiker")) {
-      const qty = parseFloat(String(Object.values(row)[1] || 0));
-      const incl = parsePrice(String(Object.values(row)[2] || 0));
-      const ex = parsePrice(String(Object.values(row)[3] || 0));
-      if (!Number.isNaN(qty)) {
-        staff.push({
-          user,
-          quantity: qty,
-          price_incl_vat: incl,
-          price_ex_vat: ex
-        });
-      }
-    }
-  }
-  return {
-    staff,
     grand_total: {
       quantity: grandTotalQty,
       price_incl_vat: grandTotalIncl,
@@ -35263,8 +35153,9 @@ async function handleParsedMapping(parseResult, attachmentId, emailId, parsedDat
       }))
     });
   } else if (parseResult.documentType !== "formitabele" && parseResult.documentType !== "pasy" && parseResult.documentType !== "coming_soon") {
-    if (parseResult.documentType === "basis_report") {
+    if (parseResult.documentType === "basis_report" || parseResult.format === "xlsx") {
       try {
+        console.log("[handleParsedMapping] Processing basis_report, documentType:", parseResult.documentType, "format:", parseResult.format);
         const basisReport = mapBasisReportXLSX(parseResult, "");
         if (basisReport) {
           const db = await getDb();
@@ -35283,10 +35174,12 @@ async function handleParsedMapping(parseResult, attachmentId, emailId, parsedDat
             rowsValid: 1,
             rowsFailed: 0
           });
-          console.log("[inboxProcessService] Stored basis report:", basisReport.date, basisReport.location);
+          console.log("[handleParsedMapping] Stored basis report:", basisReport.date, basisReport.location);
+        } else {
+          console.log("[handleParsedMapping] Mapper returned null");
         }
       } catch (err) {
-        console.error("[inboxProcessService] Basis report error:", err instanceof Error ? err.message : err);
+        console.error("[handleParsedMapping] Basis report error:", err instanceof Error ? err.message : err);
         throw err;
       }
     } else {

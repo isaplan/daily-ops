@@ -70,15 +70,20 @@ export function mapBasisReportXLSX(
   fileName: string,
 ): BasisReportData | null {
   if (!parseResult.success || parseResult.rows.length === 0) {
+    console.log('[mapBasisReportXLSX] Failed: success=', parseResult.success, 'rows=', parseResult.rows.length)
     return null
   }
 
   const rows = parseResult.rows as Record<string, unknown>[]
   const headers = parseResult.headers || []
 
-  // Extract date from first few rows (typically row 0 contains date range)
+  console.log('[mapBasisReportXLSX] Mapping', rows.length, 'rows')
+
+  // Extract date and location
   const dateStr = extractDateFromFile(rows)
   const location = extractLocationFromFile(rows, fileName)
+  
+  console.log('[mapBasisReportXLSX] Date:', dateStr, 'Location:', location)
 
   const data: BasisReportData = {
     date: dateStr,
@@ -88,74 +93,56 @@ export function mapBasisReportXLSX(
     final_revenue_ex_vat: 0,
   }
 
-  // Parse sections by identifying section headers
-  let currentSection: string | null = null
-  const sections: Record<string, Record<string, unknown>[]> = {
-    netto_sales: [],
-    payments: [],
-    corrections: [],
-    internal_sales: [],
-  }
+  // For Basis Rapport, the structure is:
+  // First set of rows: product categories (Netto Sales)
+  // Look for "Grand Total" to mark the end
+  const nettoSalesRows: Record<string, unknown>[] = []
+  let foundGrandTotal = false
 
   for (const row of rows) {
     const firstCol = Object.values(row)[0] as string | number | undefined
-    const firstColStr = String(firstCol).toLowerCase().trim()
+    const firstColStr = String(firstCol || '').toLowerCase().trim()
 
-    // Detect section headers
-    if (firstColStr.includes('netto sales') || firstColStr.includes('netto')) {
-      currentSection = 'netto_sales'
-      continue
+    if (firstColStr.includes('grand total')) {
+      foundGrandTotal = true
+      // This row is the grand total for netto sales
+      nettoSalesRows.push(row)
+      break
     }
-    if (firstColStr.includes('betalingen') || firstColStr.includes('payment')) {
-      currentSection = 'payments'
-      continue
-    }
-    if (firstColStr.includes('correcties') || firstColStr.includes('correction')) {
-      currentSection = 'corrections'
-      continue
-    }
-    if (firstColStr.includes('interne verkoop') || firstColStr.includes('internal')) {
-      currentSection = 'internal_sales'
+
+    // Skip header rows
+    if (firstColStr.includes('groep') || firstColStr === '') {
       continue
     }
 
-    // Skip headers and section labels
-    if (firstColStr.includes('grand total') && currentSection) {
-      continue
-    }
-    if (firstColStr.includes('groep') || firstColStr.includes('betaalwijze') || firstColStr.includes('gebruiker')) {
-      continue
-    }
-
-    // Add data rows to current section
-    if (currentSection && Object.keys(row).length > 0) {
-      sections[currentSection].push(row)
-    }
+    // Add to netto sales
+    nettoSalesRows.push(row)
   }
 
-  // Map each section
-  if (sections.netto_sales.length > 0) {
-    data.sections.netto_sales = mapNettoSales(sections.netto_sales, headers)
+  if (nettoSalesRows.length > 0) {
+    data.sections.netto_sales = mapNettoSales(nettoSalesRows, headers)
+    console.log('[mapBasisReportXLSX] Mapped', nettoSalesRows.length, 'netto_sales rows, categories:', data.sections.netto_sales?.categories?.length || 0)
+  } else {
+    console.log('[mapBasisReportXLSX] NO netto sales rows found!')
   }
 
-  if (sections.payments.length > 0) {
-    data.sections.payments = mapPayments(sections.payments)
-  }
-
-  if (sections.corrections.length > 0) {
-    data.sections.corrections = mapCorrections(sections.corrections, headers)
-  }
-
-  if (sections.internal_sales.length > 0) {
-    data.sections.internal_sales = mapInternalSales(sections.internal_sales, headers)
-  }
-
-  // Calculate final revenue (use netto_sales grand total if available)
+  // Calculate final revenue
   if (data.sections.netto_sales?.grand_total) {
     data.final_revenue_incl_vat = data.sections.netto_sales.grand_total.price_incl_vat
     data.final_revenue_ex_vat = data.sections.netto_sales.grand_total.price_ex_vat
   }
 
+  console.log('[mapBasisReportXLSX] FINAL: returning data with date=', data.date, 'revenue=', data.final_revenue_incl_vat, 'location=', data.location)
+  
+  // DEBUG: Always return something
+  if (!data.date || data.date === 'Invalid date' || data.date.includes('undefined')) {
+    console.log('[mapBasisReportXLSX] ERROR: Invalid date extracted, setting to today')
+    data.date = new Date().toISOString().split('T')[0]
+  }
+  if (!data.location || data.location === 'Unknown') {
+    console.log('[mapBasisReportXLSX] WARNING: Unknown location')
+  }
+  
   return data
 }
 
@@ -217,31 +204,47 @@ function mapNettoSales(
   let grandTotalEx = 0
 
   for (const row of rows) {
-    const name = String(Object.values(row)[0] || '').trim()
+    // Find the relevant columns - try multiple column name patterns
+    let name = ''
+    let qty = 0
+    let incl = 0
+    let ex = 0
 
-    if (name.toLowerCase() === 'grand total') {
-      const qty = parseFloat(String(Object.values(row)[1] || 0))
-      const incl = parsePrice(String(Object.values(row)[2] || 0))
-      const ex = parsePrice(String(Object.values(row)[3] || 0))
+    // Get first non-null, non-empty value as product name
+    for (const [key, val] of Object.entries(row)) {
+      const strVal = String(val || '').trim()
+      if (strVal && strVal.toLowerCase() !== 'groep1' && strVal.toLowerCase() !== 'null') {
+        name = strVal
+        break
+      }
+    }
+
+    // Get quantity (look for Hoeveelheid or similar numeric column)
+    const qtyVal = row['Hoeveelheid'] || Object.values(row)[3]
+    qty = parseFloat(String(qtyVal || 0))
+
+    // Get prices (try Totale prijs and following columns)
+    const priceIdx = headers.indexOf('Totale prijs')
+    if (priceIdx >= 0) {
+      const vals = Object.values(row)
+      incl = parsePrice(String(vals[priceIdx] || 0))
+      ex = parsePrice(String(vals[priceIdx + 1] || 0))
+    }
+
+    if (name.toLowerCase().includes('grand total')) {
       grandTotalQty = qty
       grandTotalIncl = incl
       grandTotalEx = ex
       continue
     }
 
-    if (name && !name.includes('Groep')) {
-      const qty = parseFloat(String(Object.values(row)[1] || 0))
-      const incl = parsePrice(String(Object.values(row)[2] || 0))
-      const ex = parsePrice(String(Object.values(row)[3] || 0))
-
-      if (!Number.isNaN(qty)) {
-        categories.push({
-          name,
-          quantity: qty,
-          price_incl_vat: incl,
-          price_ex_vat: ex,
-        })
-      }
+    if (name && !name.toLowerCase().includes('groep')) {
+      categories.push({
+        name,
+        quantity: qty,
+        price_incl_vat: incl,
+        price_ex_vat: ex,
+      })
     }
   }
 
