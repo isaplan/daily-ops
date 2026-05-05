@@ -80,24 +80,22 @@ async function handleParsedMapping(
     // Special handling for basis_report (Bork daily sales)
     if (parseResult.documentType === 'basis_report' || parseResult.format === 'xlsx') {
       try {
-        console.log('[handleParsedMapping] Processing basis_report, documentType:', parseResult.documentType, 'format:', parseResult.format)
+        console.log('[handleParsedMapping] Processing basis_report, documentType:', parseResult.documentType)
         const basisReport = mapBasisReportXLSX(parseResult, '')
         
         if (basisReport) {
-          console.log('[handleParsedMapping] Mapper returned data, storing...')
-          // Store structured sales report
+          console.log('[handleParsedMapping] ✅ Storing to inbox-bork-basis-report:', basisReport.date, basisReport.location)
+          // Store to Bork basis report collection
           const db = await getDb()
-          
-          // DEBUG: Force insert test record
-          await db.collection('basis_reports').insertOne({
-            debug: true,
-            timestamp: new Date(),
-            ...basisReport
-          })
+          await db.collection('inbox-bork-basis-report').updateOne(
+            { date: basisReport.date, location: basisReport.location },
+            { $set: { ...basisReport, updated_at: new Date() } },
+            { upsert: true }
+          )
           
           await inboxRepo.updateParsedData(String(parsedDataId), {
             mapping: {
-              mappedToCollection: 'basis_reports',
+              mappedToCollection: 'inbox-bork-basis-report',
               matchedRecords: 1,
               createdRecords: 1,
               updatedRecords: 0,
@@ -105,12 +103,11 @@ async function handleParsedMapping(
             rowsValid: 1,
             rowsFailed: 0,
           })
-          console.log('[handleParsedMapping] ✅ Stored basis report:', basisReport.date, basisReport.location)
         } else {
-          console.log('[handleParsedMapping] ❌ Mapper returned NULL!')
+          console.log('[handleParsedMapping] ❌ Mapper returned NULL')
         }
       } catch (err) {
-        console.error('[handleParsedMapping] ❌ Basis report error:', err instanceof Error ? err.message : err)
+        console.error('[handleParsedMapping] ❌ Error:', err instanceof Error ? err.message : err)
         throw err
       }
     } else {

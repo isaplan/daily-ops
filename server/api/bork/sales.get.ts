@@ -1,5 +1,5 @@
 /**
- * GET /api/bork/sales — Fetch daily sales reports (basis_reports)
+ * GET /api/bork/sales — Fetch daily basis reports from inbox-bork-basis-report
  * Filters: date, location, limit
  */
 
@@ -14,7 +14,7 @@ export default defineEventHandler(async (event) => {
     const limit = Math.min(parseInt(query.limit as string) || 30, 365)
 
     const db = await getDb()
-    const collection = db.collection('basis_reports')
+    const collection = db.collection('inbox-bork-basis-report')
 
     const filter: Record<string, unknown> = {}
     if (date) filter.date = date

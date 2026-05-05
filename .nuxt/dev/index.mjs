@@ -5767,16 +5767,16 @@ _bZ9Ni6V2HtIpJeulfSLzyAQaoMJdeQllxN50TS5qNvY
 const assets = {
   "/index.mjs": {
     "type": "text/javascript; charset=utf-8",
-    "etag": "\"1714be-gKKECFOvcCQ6cHFeen9/mLDqVSE\"",
-    "mtime": "2026-05-05T19:02:32.249Z",
-    "size": 1512638,
+    "etag": "\"1714a1-HRdkoZeo9TPnOuB24hTb7/ise2c\"",
+    "mtime": "2026-05-05T22:41:04.280Z",
+    "size": 1512609,
     "path": "index.mjs"
   },
   "/index.mjs.map": {
     "type": "application/json",
-    "etag": "\"5c87c1-7BhWKtRZh3/RHDPL/7MKygsEmt0\"",
-    "mtime": "2026-05-05T19:02:32.266Z",
-    "size": 6064065,
+    "etag": "\"5c890e-HH3RUpBjY/+PedKPXWhQSLGRbts\"",
+    "mtime": "2026-05-05T22:41:04.301Z",
+    "size": 6064398,
     "path": "index.mjs.map"
   }
 };
@@ -35164,19 +35164,19 @@ async function handleParsedMapping(parseResult, attachmentId, emailId, parsedDat
   } else if (parseResult.documentType !== "formitabele" && parseResult.documentType !== "pasy" && parseResult.documentType !== "coming_soon") {
     if (parseResult.documentType === "basis_report" || parseResult.format === "xlsx") {
       try {
-        console.log("[handleParsedMapping] Processing basis_report, documentType:", parseResult.documentType, "format:", parseResult.format);
+        console.log("[handleParsedMapping] Processing basis_report, documentType:", parseResult.documentType);
         const basisReport = mapBasisReportXLSX(parseResult, "");
         if (basisReport) {
-          console.log("[handleParsedMapping] Mapper returned data, storing...");
+          console.log("[handleParsedMapping] \u2705 Storing to inbox-bork-basis-report:", basisReport.date, basisReport.location);
           const db = await getDb();
-          await db.collection("basis_reports").insertOne({
-            debug: true,
-            timestamp: /* @__PURE__ */ new Date(),
-            ...basisReport
-          });
+          await db.collection("inbox-bork-basis-report").updateOne(
+            { date: basisReport.date, location: basisReport.location },
+            { $set: { ...basisReport, updated_at: /* @__PURE__ */ new Date() } },
+            { upsert: true }
+          );
           await updateParsedData(String(parsedDataId), {
             mapping: {
-              mappedToCollection: "basis_reports",
+              mappedToCollection: "inbox-bork-basis-report",
               matchedRecords: 1,
               createdRecords: 1,
               updatedRecords: 0
@@ -35184,12 +35184,11 @@ async function handleParsedMapping(parseResult, attachmentId, emailId, parsedDat
             rowsValid: 1,
             rowsFailed: 0
           });
-          console.log("[handleParsedMapping] \u2705 Stored basis report:", basisReport.date, basisReport.location);
         } else {
-          console.log("[handleParsedMapping] \u274C Mapper returned NULL!");
+          console.log("[handleParsedMapping] \u274C Mapper returned NULL");
         }
       } catch (err) {
-        console.error("[handleParsedMapping] \u274C Basis report error:", err instanceof Error ? err.message : err);
+        console.error("[handleParsedMapping] \u274C Error:", err instanceof Error ? err.message : err);
         throw err;
       }
     } else {
@@ -35793,7 +35792,7 @@ const sales_get$6 = defineEventHandler(async (event) => {
     const location = query.location;
     const limit = Math.min(parseInt(query.limit) || 30, 365);
     const db = await getDb();
-    const collection = db.collection("basis_reports");
+    const collection = db.collection("inbox-bork-basis-report");
     const filter = {};
     if (date) filter.date = date;
     if (location) filter.location = { $regex: location, $options: "i" };
