@@ -19,6 +19,7 @@ import { storeRawData, isTestDataType, updateSourceFileName } from './rawDataSto
 import { gmailApiService } from './gmailApiService'
 import { aggregateDailySalesForEmail } from './borkSalesDailyAggregation'
 import { mapBasisReportXLSX } from '../utils/inbox/basis-report-mapper'
+import { getDb } from '../utils/db'
 import * as inboxRepo from './inboxRepository'
 import type { CreateParsedDataDto, DocumentType, EmailAttachmentDoc, FileFormat } from '~/types/inbox'
 import { Buffer } from 'node:buffer'
@@ -81,8 +82,7 @@ async function handleParsedMapping(
       try {
         const basisReport = mapBasisReportXLSX(parseResult, '')
         if (basisReport) {
-          // Store structured sales report - use raw MongoDB connection
-          const { getDb } = await import('~/server/utils/inbox/collections')
+          // Store structured sales report
           const db = await getDb()
           await db
             .collection('basis_reports')

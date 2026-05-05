@@ -44,7 +44,7 @@ import { createHead as createHead$1, propsToString, renderSSRHead } from 'file:/
 import { renderToString } from 'file:///Users/alviniomolina/Documents/GitHub/daily-ops/node_modules/.pnpm/vue@3.5.31_typescript@5.9.3/node_modules/vue/server-renderer/index.mjs';
 import { walkResolver } from 'file:///Users/alviniomolina/Documents/GitHub/daily-ops/node_modules/unhead/dist/utils.mjs';
 import { getIcons } from 'file:///Users/alviniomolina/Documents/GitHub/daily-ops/node_modules/@iconify/utils/lib/index.js';
-import { collections as collections$1 } from 'file:///Users/alviniomolina/Documents/GitHub/daily-ops/.nuxt/nuxt-icon-server-bundle.mjs';
+import { collections } from 'file:///Users/alviniomolina/Documents/GitHub/daily-ops/.nuxt/nuxt-icon-server-bundle.mjs';
 
 const serverAssets = [{"baseName":"server","dir":"/Users/alviniomolina/Documents/GitHub/daily-ops/server/assets"}];
 
@@ -2633,12 +2633,6 @@ async function ensureInboxIndexes() {
   ]).catch(() => {
   });
 }
-
-const collections = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
-  __proto__: null,
-  ensureInboxCollections: ensureInboxCollections,
-  ensureInboxIndexes: ensureInboxIndexes
-}, Symbol.toStringTag, { value: 'Module' }));
 
 var __defProp$1 = Object.defineProperty;
 var __defNormalProp$1 = (obj, key, value) => key in obj ? __defProp$1(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
@@ -5771,16 +5765,16 @@ _bZ9Ni6V2HtIpJeulfSLzyAQaoMJdeQllxN50TS5qNvY
 const assets = {
   "/index.mjs": {
     "type": "text/javascript; charset=utf-8",
-    "etag": "\"171c27-OVhC11sPjI+lYtGeEZoZUONRDE4\"",
-    "mtime": "2026-05-05T17:25:30.883Z",
-    "size": 1514535,
+    "etag": "\"171bd5-vYulxXgQBD1LGm3fzHJBorstXKs\"",
+    "mtime": "2026-05-05T18:37:52.669Z",
+    "size": 1514453,
     "path": "index.mjs"
   },
   "/index.mjs.map": {
     "type": "application/json",
-    "etag": "\"5ca6fb-q6PWriQu+mF67K2iPJZGHCh0d3Y\"",
-    "mtime": "2026-05-05T17:25:30.917Z",
-    "size": 6072059,
+    "etag": "\"5cabcf-s3CQFAGfwmzxXWTsyPJCGq9rLx0\"",
+    "mtime": "2026-05-05T18:37:52.695Z",
+    "size": 6073295,
     "path": "index.mjs.map"
   }
 };
@@ -33502,7 +33496,7 @@ const _rkMhOj = defineCachedEventHandler(async (event) => {
     return createError({ status: 400, message: "Invalid icon request" });
   const options = useAppConfig().icon;
   const collectionName = event.context.params?.collection?.replace(/\.json$/, "");
-  const collection = collectionName ? await collections$1[collectionName]?.() : null;
+  const collection = collectionName ? await collections[collectionName]?.() : null;
   const apiEndPoint = options.iconifyApiEndpoint || DEFAULT_ENDPOINT;
   const icons = url.searchParams.get("icons")?.split(",");
   if (collection) {
@@ -35273,7 +35267,6 @@ async function handleParsedMapping(parseResult, attachmentId, emailId, parsedDat
       try {
         const basisReport = mapBasisReportXLSX(parseResult, "");
         if (basisReport) {
-          const { getDb } = await Promise.resolve().then(function () { return collections; });
           const db = await getDb();
           await db.collection("basis_reports").updateOne(
             { date: basisReport.date, location: basisReport.location },
@@ -35469,9 +35462,9 @@ async function processEmailAttachments(emailId) {
 }
 async function processAllUnprocessed(maxEmails) {
   var _a, _b, _c, _d;
-  const { getDb } = await Promise.resolve().then(function () { return db; });
+  const { getDb: getDb2 } = await Promise.resolve().then(function () { return db; });
   const { INBOX_COLLECTIONS } = await Promise.resolve().then(function () { return constants; });
-  const db$1 = await getDb();
+  const db$1 = await getDb2();
   const col = db$1.collection(INBOX_COLLECTIONS.inboxEmail);
   const emails = await col.find({
     $or: [{ status: { $ne: "completed" } }, { status: { $exists: false } }]
@@ -35896,7 +35889,7 @@ const sales_get$6 = defineEventHandler(async (event) => {
     const date = query.date;
     const location = query.location;
     const limit = Math.min(parseInt(query.limit) || 30, 365);
-    const db = await (await Promise.resolve().then(function () { return collections; }).then((m) => m.getDb))();
+    const db = await getDb();
     const collection = db.collection("basis_reports");
     const filter = {};
     if (date) filter.date = date;

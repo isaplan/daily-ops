@@ -4,6 +4,7 @@
  */
 
 import type { BasisReportData } from '../../utils/inbox/basis-report-mapper'
+import { getDb } from '../../utils/db'
 
 export default defineEventHandler(async (event) => {
   try {
@@ -12,7 +13,7 @@ export default defineEventHandler(async (event) => {
     const location = query.location as string | undefined
     const limit = Math.min(parseInt(query.limit as string) || 30, 365)
 
-    const db = await (await import('~/server/utils/inbox/collections').then(m => m.getDb))()
+    const db = await getDb()
     const collection = db.collection('basis_reports')
 
     const filter: Record<string, unknown> = {}
