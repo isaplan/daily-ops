@@ -3,6 +3,12 @@ import type { Serialize, Simplify } from "nitropack/types";
 declare module "nitropack/types" {
   type Awaited<T> = T extends PromiseLike<infer U> ? Awaited<U> : T
   interface InternalApi {
+    '/api/auth/gmail/authorize': {
+      'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/auth/gmail/authorize.get').default>>>>
+    }
+    '/api/auth/gmail/callback': {
+      'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/auth/gmail/callback.get').default>>>>
+    }
     '/api/bork/v2/credentials': {
       'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/bork/v2/credentials.get').default>>>>
       'post': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/bork/v2/credentials.post').default>>>>
@@ -28,9 +34,6 @@ declare module "nitropack/types" {
     }
     '/api/cron/data-integrity': {
       'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/cron/data-integrity.get').default>>>>
-    }
-    '/api/daily-ops-v2/metrics/bundle': {
-      'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/daily-ops-v2/metrics/bundle.get').default>>>>
     }
     '/api/daily-ops/insights': {
       'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/daily-ops/insights.get').default>>>>
@@ -133,6 +136,9 @@ declare module "nitropack/types" {
     }
     '/api/inbox/eitje/hours': {
       'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/inbox/eitje/hours.get').default>>>>
+    }
+    '/api/inbox/gmail-status': {
+      'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/inbox/gmail-status.get').default>>>>
     }
     '/api/inbox/list': {
       'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/inbox/list.get').default>>>>

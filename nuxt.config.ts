@@ -5,7 +5,7 @@ const disableIntegrationsSchedule = process.env.DISABLE_INTEGRATIONS_SCHEDULED =
 
 const scheduledTasks: Record<string, string[]> = {}
 if (!disableInboxSchedule) {
-  scheduledTasks['0 8 * * *'] = ['inbox:gmail-sync']
+  scheduledTasks['5 8 * * *'] = ['inbox:gmail-sync']
 }
 if (!disableIntegrationsSchedule) {
   /** Same UTC slots as `.github/workflows/daily-ops-sync.yml` — disable that workflow `schedule` to avoid duplicate API load. */
@@ -18,6 +18,10 @@ export default defineNuxtConfig({
   runtimeConfig: {
     borkAggVersionSuffix: process.env.BORK_AGG_VERSION_SUFFIX ?? process.env.BORK_AGG_V2_SUFFIX ?? '_v2',
     borkAggV2Suffix: process.env.BORK_AGG_V2_SUFFIX ?? '',
+    /** Default BTW % for “ex BTW” display on day-breakdown (Bork lines are incl. BTW). Override per session in UI. */
+    public: {
+      borkDisplayExVatPercent: process.env.BORK_DISPLAY_EX_VAT_PERCENT ?? '21',
+    },
   },
   modules: ['@nuxt/ui'],
   srcDir: '.',
@@ -44,7 +48,7 @@ export default defineNuxtConfig({
   },
   /**
    * Inbox Gmail poll: one run per day on the DO Node process (no extra DO Job component).
-   * `0 8 * * *` UTC ≈ 10:00 Europe/Amsterdam in CEST (UTC+2). In CET (winter) same cron is ~09:00 local — adjust if needed.
+   * `5 8 * * *` UTC ≈ 10:05 Europe/Amsterdam in CEST (UTC+2). In CET (winter) same cron is ~09:05 local — gives reports 5min slack.
    * GitHub inbox-daily-sync.yml is manual-only to avoid duplicate fetches + Actions minutes.
    *
    * Bork + Eitje: Nitro `0 6,13,16,18,20,22 * * *` UTC matches daily-ops-sync.yml; turn off that workflow schedule when this is on.

@@ -2,11 +2,19 @@
  * Rebuild V2 aggregates (`bork_sales_by_hour`, `bork_business_days`, etc.) from existing `bork_raw_data` only.
  * Does NOT read or write `bork_raw_data` content — only scans it for aggregation.
  *
- * Default window: last **2 calendar months** from today (UTC) through today.
- * Override: `BORK_V2_START=YYYY-MM-DD` and `BORK_V2_END=YYYY-MM-DD`
+ * **“Back from now to start” (fill `_v2` collections):** set a historical **order-Date** floor and end at today
+ * in **one** run — `rebuildBorkSalesAggregationV2` does a single full pass over `bork_raw_data` and clears
+ * `business_date` rows implied by that window. **Do not** chain disjoint weekly rebuilds newest-first:
+ * register-day spill makes that drop rows at chunk edges.
+ *
+ * | Mode | Env |
+ * |------|-----|
+ * | Explicit range | `BORK_V2_START` + `BORK_V2_END` (inclusive Bork `order.Date`) |
+ * | Floor → today | `BORK_V2_BACKSTOP=YYYY-MM-DD` and optional `BORK_V2_END` (default today UTC) |
+ * | Default | last **2 calendar months** through today |
  *
  * Usage:
- *   BORK_V2_REBUILD_CONFIRM=1 node --experimental-strip-types scripts/rebuild-bork-v2-date-range.ts
+ *   BORK_V2_REBUILD_CONFIRM=1 BORK_V2_BACKSTOP=2025-11-01 node --experimental-strip-types scripts/rebuild-bork-v2-date-range.ts
  *
  * **Write suffix (rebuild):** `BORK_AGG_REBUILD_SUFFIX` (defaults `_v2`).
  * **Read suffix (API):** `BORK_AGG_VERSION_SUFFIX` (defaults `_v2`).
@@ -55,13 +63,22 @@ async function main() {
 
   const suffix = resolveV2RebuildCollectionSuffix()
 
+  const endUtc = new Date()
+  const endDefault = isoUtc(endUtc)
+
   let startDate: string
   let endDate: string
   if (process.env.BORK_V2_START && process.env.BORK_V2_END) {
     startDate = process.env.BORK_V2_START
     endDate = process.env.BORK_V2_END
+  } else if (process.env.BORK_V2_START) {
+    startDate = process.env.BORK_V2_START
+    endDate = process.env.BORK_V2_END || endDefault
+  } else if (process.env.BORK_V2_BACKSTOP) {
+    startDate = process.env.BORK_V2_BACKSTOP
+    endDate = process.env.BORK_V2_END || endDefault
   } else {
-    const end = new Date()
+    const end = endUtc
     const start = new Date(
       Date.UTC(end.getUTCFullYear(), end.getUTCMonth() - 2, end.getUTCDate())
     )
@@ -69,8 +86,13 @@ async function main() {
     endDate = isoUtc(end)
   }
 
+  if (startDate > endDate) {
+    console.error(`[rebuild-bork-v2-date-range] BORK_V2_START/BACKSTOP (${startDate}) must be <= BORK_V2_END (${endDate})`)
+    process.exit(1)
+  }
+
   console.log(
-    `[rebuild-bork-v2-date-range] ${startDate} .. ${endDate} → V2 WRITE suffix: ${JSON.stringify(suffix || '')}. Reads use BORK_AGG_VERSION_SUFFIX (fallback BORK_AGG_V2_SUFFIX). Rebuild uses BORK_AGG_REBUILD_SUFFIX (fallback BORK_AGG_V2_REBUILD_SUFFIX).`
+    `[rebuild-bork-v2-date-range] order.Date window ${startDate} .. ${endDate} (inclusive) — single full raw scan → V2 WRITE suffix: ${JSON.stringify(suffix || '')}. Reads: BORK_AGG_VERSION_SUFFIX. Writes: BORK_AGG_REBUILD_SUFFIX.`
   )
 
   const client = new MongoClient(uri)

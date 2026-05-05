@@ -6,9 +6,9 @@ import nodeCrypto, { createHash } from 'node:crypto';
 import { parentPort, threadId } from 'node:worker_threads';
 import { escapeHtml } from 'file:///Users/alviniomolina/Documents/GitHub/daily-ops/node_modules/@vue/shared/dist/shared.cjs.js';
 import { Cron } from 'file:///Users/alviniomolina/Documents/GitHub/daily-ops/node_modules/croner/dist/croner.js';
+import { google } from 'file:///Users/alviniomolina/Documents/GitHub/daily-ops/node_modules/.pnpm/googleapis@171.4.0/node_modules/googleapis/build/src/index.js';
 import { MongoClient, ObjectId } from 'file:///Users/alviniomolina/Documents/GitHub/daily-ops/node_modules/.pnpm/mongodb@7.1.1/node_modules/mongodb/lib/index.js';
 import { Buffer as Buffer$1 } from 'node:buffer';
-import { google } from 'file:///Users/alviniomolina/Documents/GitHub/daily-ops/node_modules/.pnpm/googleapis@171.4.0/node_modules/googleapis/build/src/index.js';
 import Papa from 'file:///Users/alviniomolina/Documents/GitHub/daily-ops/node_modules/.pnpm/papaparse@5.5.3/node_modules/papaparse/papaparse.js';
 import * as cpexcel from '/Users/alviniomolina/Documents/GitHub/daily-ops/node_modules/.pnpm/xlsx@0.18.5/node_modules/xlsx/dist/cpexcel.js';
 import * as node_fs from 'node:fs';
@@ -970,7 +970,9 @@ const _inlineRuntimeConfig = {
       }
     }
   },
-  "public": {},
+  "public": {
+    "borkDisplayExVatPercent": "21"
+  },
   "borkAggVersionSuffix": "_v2",
   "borkAggV2Suffix": "",
   "icon": {
@@ -2575,7 +2577,8 @@ const INBOX_COLLECTIONS = {
   inboxEmail: "inboxemails",
   emailAttachment: "emailattachments",
   parsedData: "parseddatas",
-  processingLog: "processinglogs"
+  processingLog: "processinglogs",
+  gmailOAuthToken: "gmail_oauth_tokens"
 };
 const INBOX_TARGET_COLLECTIONS = [
   "inbox-eitje-hours",
@@ -2611,6 +2614,7 @@ async function ensureInboxIndexes() {
   const attachments = db.collection(INBOX_COLLECTIONS.emailAttachment);
   const parsed = db.collection(INBOX_COLLECTIONS.parsedData);
   const logs = db.collection(INBOX_COLLECTIONS.processingLog);
+  const oauthTokens = db.collection(INBOX_COLLECTIONS.gmailOAuthToken);
   await Promise.all([
     emails.createIndex({ messageId: 1 }, { unique: true }),
     emails.createIndex({ from: 1 }),
@@ -2623,16 +2627,11 @@ async function ensureInboxIndexes() {
     parsed.createIndex({ attachmentId: 1, documentType: 1 }),
     parsed.createIndex({ emailId: 1, documentType: 1 }),
     logs.createIndex({ emailId: 1, timestamp: -1 }),
-    logs.createIndex({ attachmentId: 1, timestamp: -1 })
+    logs.createIndex({ attachmentId: 1, timestamp: -1 }),
+    oauthTokens.createIndex({ accountId: 1 }, { unique: true }),
+    oauthTokens.createIndex({ createdAt: -1 })
   ]).catch(() => {
   });
-}
-
-function getGmailOAuthRedirectUri() {
-  const raw = process.env.GMAIL_REDIRECT_URI;
-  const trimmed = typeof raw === "string" ? raw.trim() : "";
-  if (trimmed) return trimmed;
-  return "http://localhost:8080";
 }
 
 var __defProp$1 = Object.defineProperty;
@@ -2900,7 +2899,7 @@ function extractHour(timeStr) {
   const match = timeStr.match(/^(\d{1,2}):/);
   return match ? parseInt(match[1], 10) : 0;
 }
-function addCalendarDaysISO(dateStr, deltaDays) {
+function addCalendarDaysISO$1(dateStr, deltaDays) {
   const [y, m, d] = dateStr.split("-").map(Number);
   const dt = new Date(Date.UTC(y, m - 1, d + deltaDays));
   const yy = dt.getUTCFullYear();
@@ -2909,12 +2908,12 @@ function addCalendarDaysISO(dateStr, deltaDays) {
   return `${yy}-${mm}-${dd}`;
 }
 function calendarToBusinessDay(calendarDateStr, calendarHour) {
-  if (calendarHour >= 6 && calendarHour <= 23) {
-    return { businessDate: calendarDateStr, businessHour: calendarHour - 6 };
+  if (calendarHour >= 8 && calendarHour <= 23) {
+    return { businessDate: calendarDateStr, businessHour: calendarHour - 8 };
   }
   return {
-    businessDate: addCalendarDaysISO(calendarDateStr, -1),
-    businessHour: calendarHour + 18
+    businessDate: addCalendarDaysISO$1(calendarDateStr, -1),
+    businessHour: calendarHour + 16
   };
 }
 async function rebuildBorkSalesAggregation(db, startDate, endDate, collectionSuffix = "", cronTime = /* @__PURE__ */ new Date()) {
@@ -5763,22 +5762,7 @@ _nddW4OgTKHcMIQ8mQhekYcJvlrNi40TbQzTLx2yq5MQ,
 _bZ9Ni6V2HtIpJeulfSLzyAQaoMJdeQllxN50TS5qNvY
 ];
 
-const assets = {
-  "/index.mjs": {
-    "type": "text/javascript; charset=utf-8",
-    "etag": "\"16fe0b-/fDNWsWJjtbwBfXtRK9EzICu2W0\"",
-    "mtime": "2026-04-28T18:09:10.031Z",
-    "size": 1506827,
-    "path": "index.mjs"
-  },
-  "/index.mjs.map": {
-    "type": "application/json",
-    "etag": "\"5c4134-3MCgPocBrmS0D88FBMwAfB6x8qM\"",
-    "mtime": "2026-04-28T18:09:10.050Z",
-    "size": 6046004,
-    "path": "index.mjs.map"
-  }
-};
+const assets = {};
 
 function readAsset (id) {
   const serverDir = dirname$1(fileURLToPath(globalThis._importMeta_.url));
@@ -6265,7 +6249,7 @@ function defineRenderHandler(render) {
 
 const r=Object.create(null),i=e=>globalThis.process?.env||globalThis._importMeta_.env||globalThis.Deno?.env.toObject()||globalThis.__env__||(e?r:globalThis),o=new Proxy(r,{get(e,s){return i()[s]??r[s]},has(e,s){const E=i();return s in E||s in r},set(e,s,E){const B=i(true);return B[s]=E,true},deleteProperty(e,s){if(!s)return  false;const E=i(true);return delete E[s],true},ownKeys(){const e=i(true);return Object.keys(e)}}),t=typeof process<"u"&&process.env&&"development"||"",f=[["APPVEYOR"],["AWS_AMPLIFY","AWS_APP_ID",{ci:true}],["AZURE_PIPELINES","SYSTEM_TEAMFOUNDATIONCOLLECTIONURI"],["AZURE_STATIC","INPUT_AZURE_STATIC_WEB_APPS_API_TOKEN"],["APPCIRCLE","AC_APPCIRCLE"],["BAMBOO","bamboo_planKey"],["BITBUCKET","BITBUCKET_COMMIT"],["BITRISE","BITRISE_IO"],["BUDDY","BUDDY_WORKSPACE_ID"],["BUILDKITE"],["CIRCLE","CIRCLECI"],["CIRRUS","CIRRUS_CI"],["CLOUDFLARE_PAGES","CF_PAGES",{ci:true}],["CLOUDFLARE_WORKERS","WORKERS_CI",{ci:true}],["CODEBUILD","CODEBUILD_BUILD_ARN"],["CODEFRESH","CF_BUILD_ID"],["DRONE"],["DRONE","DRONE_BUILD_EVENT"],["DSARI"],["GITHUB_ACTIONS"],["GITLAB","GITLAB_CI"],["GITLAB","CI_MERGE_REQUEST_ID"],["GOCD","GO_PIPELINE_LABEL"],["LAYERCI"],["HUDSON","HUDSON_URL"],["JENKINS","JENKINS_URL"],["MAGNUM"],["NETLIFY"],["NETLIFY","NETLIFY_LOCAL",{ci:false}],["NEVERCODE"],["RENDER"],["SAIL","SAILCI"],["SEMAPHORE"],["SCREWDRIVER"],["SHIPPABLE"],["SOLANO","TDDIUM"],["STRIDER"],["TEAMCITY","TEAMCITY_VERSION"],["TRAVIS"],["VERCEL","NOW_BUILDER"],["VERCEL","VERCEL",{ci:false}],["VERCEL","VERCEL_ENV",{ci:false}],["APPCENTER","APPCENTER_BUILD_ID"],["CODESANDBOX","CODESANDBOX_SSE",{ci:false}],["CODESANDBOX","CODESANDBOX_HOST",{ci:false}],["STACKBLITZ"],["STORMKIT"],["CLEAVR"],["ZEABUR"],["CODESPHERE","CODESPHERE_APP_ID",{ci:true}],["RAILWAY","RAILWAY_PROJECT_ID"],["RAILWAY","RAILWAY_SERVICE_ID"],["DENO-DEPLOY","DENO_DEPLOYMENT_ID"],["FIREBASE_APP_HOSTING","FIREBASE_APP_HOSTING",{ci:true}]];function b(){if(globalThis.process?.env)for(const e of f){const s=e[1]||e[0];if(globalThis.process?.env[s])return {name:e[0].toLowerCase(),...e[2]}}return globalThis.process?.env?.SHELL==="/bin/jsh"&&globalThis.process?.versions?.webcontainer?{name:"stackblitz",ci:false}:{name:"",ci:false}}const l=b();l.name;function n(e){return e?e!=="false":false}const I=globalThis.process?.platform||"",T=n(o.CI)||l.ci!==false,R=n(globalThis.process?.stdout&&globalThis.process?.stdout.isTTY);n(o.DEBUG);const a=t==="test"||n(o.TEST);n(o.MINIMAL)||T||a||!R;const A=/^win/i.test(I);!n(o.NO_COLOR)&&(n(o.FORCE_COLOR)||(R||A)&&o.TERM!=="dumb"||T);const C=(globalThis.process?.versions?.node||"").replace(/^v/,"")||null;Number(C?.split(".")[0])||null;const W=globalThis.process||Object.create(null),_={versions:{}};new Proxy(W,{get(e,s){if(s==="env")return o;if(s in e)return e[s];if(s in _)return _[s]}});const O=globalThis.process?.release?.name==="node",c=!!globalThis.Bun||!!globalThis.process?.versions?.bun,D=!!globalThis.Deno,L=!!globalThis.fastly,S=!!globalThis.Netlify,u=!!globalThis.EdgeRuntime,N=globalThis.navigator?.userAgent==="Cloudflare-Workers",F=[[S,"netlify"],[u,"edge-light"],[N,"workerd"],[L,"fastly"],[D,"deno"],[c,"bun"],[O,"node"]];function G(){const e=F.find(s=>s[0]);if(e)return {name:e[1]}}const P=G();P?.name||"";
 
-const scheduledTasks = [{"cron":"0 8 * * *","tasks":["inbox:gmail-sync"]},{"cron":"0 6,13,16,18,20,22 * * *","tasks":["integrations:bork-eitje-daily"]}];
+const scheduledTasks = [{"cron":"5 8 * * *","tasks":["inbox:gmail-sync"]},{"cron":"0 6,13,16,18,20,22 * * *","tasks":["integrations:bork-eitje-daily"]}];
 
 const tasks = {
   "inbox:gmail-sync": {
@@ -7209,6 +7193,11 @@ function getGmailInvalidGrantHint(redirectUriEnv, redirectUriUsed) {
     return "Redirect URI is still localhost somewhere. On App Platform, the Web component env can override app-level GMAIL_REDIRECT_URI \u2014 remove the duplicate or set https://developers.google.com/oauthplayground on the daily-ops component, redeploy, then ensure GMAIL_REFRESH_TOKEN was issued for that same redirect + client.";
   }
   return "Redirect URI matches Playground. invalid_grant here almost always means GMAIL_REFRESH_TOKEN is revoked or was issued for different GMAIL_CLIENT_ID / GMAIL_CLIENT_SECRET than on the server. In OAuth Playground use the exact same OAuth client as DigitalOcean, authorize Gmail API scopes, copy the new refresh token into GMAIL_REFRESH_TOKEN (DO secrets), save, redeploy.";
+}
+
+function getGmailRedirectUri() {
+  const baseUrl = process.env.NUXT_PUBLIC_SITE_URL || "http://localhost:8080";
+  return `${baseUrl}/api/auth/gmail/callback`;
 }
 
 function detectDelimiter(csvText) {
@@ -33298,6 +33287,8 @@ const _rkMhOj = defineCachedEventHandler(async (event) => {
   // 1 week
 });
 
+const _lazy_YeQtu5 = () => Promise.resolve().then(function () { return authorize_get$1; });
+const _lazy_mFBrTd = () => Promise.resolve().then(function () { return callback_get$1; });
 const _lazy_rpoMxL = () => Promise.resolve().then(function () { return credentials_get$3; });
 const _lazy_Fk11Zg = () => Promise.resolve().then(function () { return credentials_post$3; });
 const _lazy_0fNa4b = () => Promise.resolve().then(function () { return cron_get$3; });
@@ -33308,7 +33299,6 @@ const _lazy_VkZeTR = () => Promise.resolve().then(function () { return locations
 const _lazy_GrR807 = () => Promise.resolve().then(function () { return runScheduled_get$3; });
 const _lazy_2sV_oe = () => Promise.resolve().then(function () { return sync_post$5; });
 const _lazy_ir2wis = () => Promise.resolve().then(function () { return dataIntegrity_get$1; });
-const _lazy_YSAaAO = () => Promise.resolve().then(function () { return bundle_get$3; });
 const _lazy_fiyqpy = () => Promise.resolve().then(function () { return insights_get$1; });
 const _lazy_gJJ0yZ = () => Promise.resolve().then(function () { return locations_get$1; });
 const _lazy_7ki8Q4 = () => Promise.resolve().then(function () { return bundle_get$1; });
@@ -33345,6 +33335,7 @@ const _lazy_cOPVhi = () => Promise.resolve().then(function () { return sales_get
 const _lazy_74gf57 = () => Promise.resolve().then(function () { return contracts_get$1; });
 const _lazy_6hI7Mq = () => Promise.resolve().then(function () { return finance_get$1; });
 const _lazy_OQ7Ga7 = () => Promise.resolve().then(function () { return hours_get$1; });
+const _lazy_YMZXzj = () => Promise.resolve().then(function () { return gmailStatus_get$1; });
 const _lazy_NCD9cK = () => Promise.resolve().then(function () { return list_get$1; });
 const _lazy_qL75kA = () => Promise.resolve().then(function () { return parse_post$1; });
 const _lazy_ly3CSO = () => Promise.resolve().then(function () { return reports_get$1; });
@@ -33408,6 +33399,8 @@ const _lazy_kONC8c = () => Promise.resolve().then(function () { return renderer$
 
 const handlers = [
   { route: '', handler: _hOix36, lazy: false, middleware: true, method: undefined },
+  { route: '/api/auth/gmail/authorize', handler: _lazy_YeQtu5, lazy: true, middleware: false, method: "get" },
+  { route: '/api/auth/gmail/callback', handler: _lazy_mFBrTd, lazy: true, middleware: false, method: "get" },
   { route: '/api/bork/v2/credentials', handler: _lazy_rpoMxL, lazy: true, middleware: false, method: "get" },
   { route: '/api/bork/v2/credentials', handler: _lazy_Fk11Zg, lazy: true, middleware: false, method: "post" },
   { route: '/api/bork/v2/cron', handler: _lazy_0fNa4b, lazy: true, middleware: false, method: "get" },
@@ -33418,7 +33411,6 @@ const handlers = [
   { route: '/api/bork/v2/run-scheduled', handler: _lazy_GrR807, lazy: true, middleware: false, method: "get" },
   { route: '/api/bork/v2/sync', handler: _lazy_2sV_oe, lazy: true, middleware: false, method: "post" },
   { route: '/api/cron/data-integrity', handler: _lazy_ir2wis, lazy: true, middleware: false, method: "get" },
-  { route: '/api/daily-ops-v2/metrics/bundle', handler: _lazy_YSAaAO, lazy: true, middleware: false, method: "get" },
   { route: '/api/daily-ops/insights', handler: _lazy_fiyqpy, lazy: true, middleware: false, method: "get" },
   { route: '/api/daily-ops/locations', handler: _lazy_gJJ0yZ, lazy: true, middleware: false, method: "get" },
   { route: '/api/daily-ops/metrics/bundle', handler: _lazy_7ki8Q4, lazy: true, middleware: false, method: "get" },
@@ -33455,6 +33447,7 @@ const handlers = [
   { route: '/api/inbox/eitje/contracts', handler: _lazy_74gf57, lazy: true, middleware: false, method: "get" },
   { route: '/api/inbox/eitje/finance', handler: _lazy_6hI7Mq, lazy: true, middleware: false, method: "get" },
   { route: '/api/inbox/eitje/hours', handler: _lazy_OQ7Ga7, lazy: true, middleware: false, method: "get" },
+  { route: '/api/inbox/gmail-status', handler: _lazy_YMZXzj, lazy: true, middleware: false, method: "get" },
   { route: '/api/inbox/list', handler: _lazy_NCD9cK, lazy: true, middleware: false, method: "get" },
   { route: '/api/inbox/parse', handler: _lazy_qL75kA, lazy: true, middleware: false, method: "post" },
   { route: '/api/inbox/power-bi/reports', handler: _lazy_ly3CSO, lazy: true, middleware: false, method: "get" },
@@ -33792,6 +33785,39 @@ const styles$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
   default: styles
 }, Symbol.toStringTag, { value: 'Module' }));
 
+const ACCOUNT_ID = "default";
+async function saveGmailRefreshToken(refreshToken) {
+  const db = await getDb();
+  const col = db.collection(INBOX_COLLECTIONS.gmailOAuthToken);
+  await col.updateOne(
+    { accountId: ACCOUNT_ID },
+    {
+      $set: {
+        refreshToken,
+        updatedAt: /* @__PURE__ */ new Date()
+      },
+      $setOnInsert: {
+        accountId: ACCOUNT_ID,
+        createdAt: /* @__PURE__ */ new Date()
+      }
+    },
+    { upsert: true }
+  );
+}
+async function getGmailRefreshToken() {
+  var _a;
+  const db = await getDb();
+  const col = db.collection(INBOX_COLLECTIONS.gmailOAuthToken);
+  const doc = await col.findOne({ accountId: ACCOUNT_ID });
+  const token = (_a = doc == null ? void 0 : doc.refreshToken) != null ? _a : null;
+  console.log("[gmailOAuthService] getGmailRefreshToken found:", !!token, token ? `${token.substring(0, 20)}...` : "null");
+  return token;
+}
+async function isGmailConnected() {
+  const token = await getGmailRefreshToken();
+  return token !== null && token.length > 0;
+}
+
 var __defProp = Object.defineProperty;
 var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
 var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
@@ -33803,13 +33829,25 @@ class GmailApiService {
   async initialize() {
     const clientId = process.env.GMAIL_CLIENT_ID;
     const clientSecret = process.env.GMAIL_CLIENT_SECRET;
-    const refreshToken = process.env.GMAIL_REFRESH_TOKEN;
-    const redirectUri = getGmailOAuthRedirectUri();
-    if (!clientId || !clientSecret || !refreshToken) {
+    if (!clientId || !clientSecret) {
       throw new Error(
-        "Gmail OAuth2 credentials missing. Set GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, and GMAIL_REFRESH_TOKEN in .env"
+        "GMAIL_CLIENT_ID or GMAIL_CLIENT_SECRET missing"
       );
     }
+    let refreshToken = process.env.GMAIL_REFRESH_TOKEN;
+    if (!refreshToken) {
+      refreshToken = await getGmailRefreshToken();
+    }
+    if (!refreshToken) {
+      throw new Error(
+        "No refresh token found. Connect Gmail using the UI first."
+      );
+    }
+    const redirectUri = getGmailRedirectUri();
+    console.log("[gmailApiService] Initializing with:");
+    console.log("  - clientId:", clientId.slice(0, 20) + "...");
+    console.log("  - redirectUri:", redirectUri);
+    console.log("  - refreshToken:", refreshToken.slice(0, 20) + "...");
     const oauth2Client = new google.auth.OAuth2(clientId, clientSecret, redirectUri);
     oauth2Client.setCredentials({ refresh_token: refreshToken });
     this.auth = oauth2Client;
@@ -33828,27 +33866,32 @@ class GmailApiService {
     }
     const inboxAddress = process.env.GMAIL_INBOX_ADDRESS || "inboxhaagsenieuwehorecagroep@gmail.com";
     const query = options.query || `to:${inboxAddress}`;
-    const response = await this.gmail.users.messages.list({
-      userId: "me",
-      maxResults: options.maxResults || 50,
-      q: query,
-      pageToken: options.pageToken
-    });
-    const messageIds = ((_a = response.data.messages) == null ? void 0 : _a.map((msg) => msg.id || "").filter(Boolean)) || [];
-    if (messageIds.length === 0) {
+    try {
+      const response = await this.gmail.users.messages.list({
+        userId: "me",
+        maxResults: options.maxResults || 50,
+        q: query,
+        pageToken: options.pageToken
+      });
+      const messageIds = ((_a = response.data.messages) == null ? void 0 : _a.map((msg) => msg.id || "").filter(Boolean)) || [];
+      if (messageIds.length === 0) {
+        return {
+          messages: [],
+          nextPageToken: response.data.nextPageToken || void 0,
+          resultSizeEstimate: response.data.resultSizeEstimate || 0
+        };
+      }
+      const messagePromises = messageIds.map((id) => this.getMessage(id));
+      const messages = await Promise.all(messagePromises);
       return {
-        messages: [],
+        messages: messages.filter((msg) => msg !== null),
         nextPageToken: response.data.nextPageToken || void 0,
         resultSizeEstimate: response.data.resultSizeEstimate || 0
       };
+    } catch (err) {
+      console.error("[gmailApiService] fetchEmails error:", err);
+      throw err;
     }
-    const messagePromises = messageIds.map((id) => this.getMessage(id));
-    const messages = await Promise.all(messagePromises);
-    return {
-      messages: messages.filter((msg) => msg !== null),
-      nextPageToken: response.data.nextPageToken || void 0,
-      resultSizeEstimate: response.data.resultSizeEstimate || 0
-    };
   }
   async getMessage(messageId) {
     await this.ensureInitialized();
@@ -33890,25 +33933,10 @@ class GmailApiService {
       id: attachmentId
     });
     return {
-      attachmentId,
+      attachmentId: response.data.id || attachmentId,
       size: parseInt(response.data.size || "0", 10),
       data: response.data.data || void 0
     };
-  }
-  getAuthorizationUrl() {
-    const clientId = process.env.GMAIL_CLIENT_ID;
-    const clientSecret = process.env.GMAIL_CLIENT_SECRET;
-    const redirectUri = getGmailOAuthRedirectUri();
-    if (!clientId || !clientSecret) {
-      throw new Error("Gmail OAuth2 credentials missing");
-    }
-    const oauth2Client = new google.auth.OAuth2(clientId, clientSecret, redirectUri);
-    const scopes = ["https://www.googleapis.com/auth/gmail.readonly"];
-    return oauth2Client.generateAuthUrl({
-      access_type: "offline",
-      scope: scopes,
-      prompt: "consent"
-    });
   }
 }
 const gmailApiService = new GmailApiService();
@@ -35487,6 +35515,83 @@ const borkEitjeDaily$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.definePr
   default: borkEitjeDaily
 }, Symbol.toStringTag, { value: 'Module' }));
 
+const authorize_get = defineEventHandler(async (event) => {
+  const clientId = process.env.GMAIL_CLIENT_ID;
+  const clientSecret = process.env.GMAIL_CLIENT_SECRET;
+  if (!clientId || !clientSecret) {
+    throw createError({
+      statusCode: 500,
+      statusMessage: "Gmail OAuth credentials not configured on server"
+    });
+  }
+  const redirectUri = getGmailRedirectUri();
+  const oauth2Client = new google.auth.OAuth2(clientId, clientSecret, redirectUri);
+  const authUrl = oauth2Client.generateAuthUrl({
+    access_type: "offline",
+    scope: ["https://www.googleapis.com/auth/gmail.readonly"],
+    prompt: "consent"
+  });
+  console.log("[authorize] Redirecting to Google with redirectUri:", redirectUri);
+  return sendRedirect(event, authUrl);
+});
+
+const authorize_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+  __proto__: null,
+  default: authorize_get
+}, Symbol.toStringTag, { value: 'Module' }));
+
+const callback_get = defineEventHandler(async (event) => {
+  const clientId = process.env.GMAIL_CLIENT_ID;
+  const clientSecret = process.env.GMAIL_CLIENT_SECRET;
+  if (!clientId || !clientSecret) {
+    return sendRedirect(event, "/daily-ops/inbox?error=server_misconfigured");
+  }
+  const query = getQuery$1(event);
+  const code = query.code;
+  const error = query.error;
+  if (error) {
+    console.log("[callback] OAuth error:", error);
+    return sendRedirect(event, `/daily-ops/inbox?error=${error}`);
+  }
+  if (!code) {
+    console.log("[callback] No code in query");
+    return sendRedirect(event, "/daily-ops/inbox?error=missing_code");
+  }
+  try {
+    const redirectUri = getGmailRedirectUri();
+    const oauth2Client = new google.auth.OAuth2(clientId, clientSecret, redirectUri);
+    console.log("[callback] Exchanging code with redirectUri:", redirectUri);
+    const { tokens } = await oauth2Client.getToken(code);
+    console.log("[callback] Received tokens:", {
+      hasRefresh: !!tokens.refresh_token,
+      hasAccess: !!tokens.access_token,
+      refreshPrefix: tokens.refresh_token ? tokens.refresh_token.slice(0, 20) : "none"
+    });
+    if (!tokens.refresh_token) {
+      console.log("[callback] No refresh_token in response");
+      return sendRedirect(
+        event,
+        "/daily-ops/inbox?error=no_refresh_token&hint=use_prompt_consent"
+      );
+    }
+    await saveGmailRefreshToken(tokens.refresh_token);
+    console.log("[callback] Token saved to DB");
+    return sendRedirect(event, "/daily-ops/inbox?connected=gmail");
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    console.error("[callback] Error:", message);
+    return sendRedirect(
+      event,
+      `/daily-ops/inbox?error=oauth_failed&message=${encodeURIComponent(message)}`
+    );
+  }
+});
+
+const callback_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+  __proto__: null,
+  default: callback_get
+}, Symbol.toStringTag, { value: 'Module' }));
+
 const credentials_get$2 = defineEventHandler(async () => {
   var _a;
   const db = await getDb();
@@ -35735,6 +35840,66 @@ const dayBreakdownV2_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defi
   default: dayBreakdownV2_get
 }, Symbol.toStringTag, { value: 'Module' }));
 
+function addCalendarDaysISO(dateStr, deltaDays) {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d + deltaDays));
+  const yy = dt.getUTCFullYear();
+  const mm = String(dt.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(dt.getUTCDate()).padStart(2, "0");
+  return `${yy}-${mm}-${dd}`;
+}
+function ticketDateHourForBusinessSlot(businessDate, businessHour) {
+  const hour = (businessHour + 8) % 24;
+  if (businessHour <= 15) return { date: businessDate, hour };
+  return { date: addCalendarDaysISO(businessDate, 1), hour };
+}
+function padHourlyFullRegisterDay(rows, businessDate, location) {
+  var _a;
+  const locations = location === "all" ? [...new Set(rows.map((r) => {
+    var _a2;
+    return String((_a2 = r.locationName) != null ? _a2 : "");
+  }).filter(Boolean))].sort() : [location];
+  if (locations.length === 0) return rows;
+  const key = (loc, bh) => `${loc}	${bh}`;
+  const map = /* @__PURE__ */ new Map();
+  for (const r of rows) {
+    const loc = String((_a = r.locationName) != null ? _a : "");
+    const bh = r.business_hour;
+    if (!loc || typeof bh !== "number") continue;
+    map.set(key(loc, bh), r);
+  }
+  const out = [];
+  for (const loc of locations) {
+    for (let bh = 0; bh < 24; bh++) {
+      const k = key(loc, bh);
+      if (map.has(k)) {
+        out.push(map.get(k));
+        continue;
+      }
+      const { date: tDate, hour: tHour } = ticketDateHourForBusinessSlot(businessDate, bh);
+      out.push({
+        _id: `synthetic-hour-${businessDate}-${loc}-${bh}`,
+        business_date: businessDate,
+        business_hour: bh,
+        locationName: loc,
+        date: tDate,
+        hour: tHour,
+        total_revenue: 0,
+        total_quantity: 0,
+        record_count: 0,
+        products: []
+      });
+    }
+  }
+  return out;
+}
+function matchBusinessDayFilter(dateStr, locationQuery) {
+  const dayOrLegacy = {
+    $or: [{ business_date: dateStr }, { business_date: { $exists: false }, date: dateStr }]
+  };
+  if (Object.keys(locationQuery).length === 0) return dayOrLegacy;
+  return { $and: [dayOrLegacy, locationQuery] };
+}
 const dayBreakdown_get = defineEventHandler(async (event) => {
   const query = getQuery$1(event);
   const dateStr = query.date;
@@ -35744,28 +35909,26 @@ const dayBreakdown_get = defineEventHandler(async (event) => {
   }
   const db = await getDb();
   try {
-    const startDate = /* @__PURE__ */ new Date(`${dateStr}T08:00:00Z`);
-    const endDate = new Date(startDate);
-    endDate.setDate(endDate.getDate() + 1);
-    const startDateStr = startDate.toISOString().split("T")[0];
-    const endDateStr = endDate.toISOString().split("T")[0];
-    const dateQuery = { date: { $gte: startDateStr, $lte: endDateStr } };
     const locationQuery = location === "all" ? {} : { locationName: location };
-    const hourly = await db.collection("bork_sales_by_hour").find({ ...dateQuery, ...locationQuery }).sort({ date: 1, hour: 1 }).toArray();
-    const worker = await db.collection("bork_sales_by_worker").find({ ...dateQuery, ...locationQuery }).sort({ total_revenue: -1 }).toArray();
-    const table = await db.collection("bork_sales_by_table").find({ ...dateQuery, ...locationQuery }).sort({ total_revenue: -1 }).toArray();
-    const product = await db.collection("bork_products_master").find({ ...dateQuery, ...locationQuery }).sort({ total_revenue: -1 }).toArray();
+    const dayMatch = matchBusinessDayFilter(dateStr, locationQuery);
+    const hourlyRaw = await db.collection("bork_sales_by_hour").find(dayMatch).sort({ business_hour: 1, locationName: 1 }).toArray();
+    const hourly = padHourlyFullRegisterDay(hourlyRaw, dateStr, location);
+    const worker = await db.collection("bork_sales_by_worker").find(dayMatch).sort({ business_hour: 1, locationName: 1, total_revenue: -1 }).toArray();
+    const table = await db.collection("bork_sales_by_table").find(dayMatch).sort({ business_hour: 1, locationName: 1, total_revenue: -1 }).toArray();
+    const guest = await db.collection("bork_sales_by_guest_account").find(dayMatch).sort({ business_hour: 1, locationName: 1, total_revenue: -1 }).toArray();
+    const product = await db.collection("bork_products_master").find(dayMatch).sort({ total_revenue: -1 }).toArray();
     return {
+      businessDate: dateStr,
       dateRange: {
-        startDate: startDateStr,
-        endDate: endDateStr,
-        startTime: startDate.toISOString(),
-        endTime: endDate.toISOString()
+        startDate: dateStr,
+        endDate: dateStr,
+        note: "Register day = business_date: 08:00 day D through 07:59 morning D+1 (BH0\u2013BH23). Rebuild aggregates after changing the boundary."
       },
       location,
       hourly,
       worker,
       table,
+      guest,
       product
     };
   } catch (e) {
@@ -36389,212 +36552,6 @@ const dataIntegrity_get = defineEventHandler(async (event) => {
 const dataIntegrity_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
   __proto__: null,
   default: dataIntegrity_get
-}, Symbol.toStringTag, { value: 'Module' }));
-
-function borkDayMatch(ctx) {
-  const q = {
-    business_date: { $gte: ctx.startDate, $lte: ctx.endDate }
-  };
-  if (ctx.locationId !== void 0) q.locationId = ctx.locationId;
-  return q;
-}
-async function fetchV2RevenueByDate(db, ctx, suffix) {
-  const rows = await db.collection(`bork_business_days${suffix}`).aggregate([
-    { $match: borkDayMatch(ctx) },
-    { $group: { _id: "$business_date", revenue: { $sum: { $ifNull: ["$total_revenue", 0] } } } }
-  ]).toArray();
-  return new Map(rows.map((r) => [r._id, r.revenue]));
-}
-async function fetchV2RevenueByDateAndLocation(db, ctx, suffix) {
-  var _a;
-  const rows = await db.collection(`bork_business_days${suffix}`).aggregate([
-    { $match: borkDayMatch(ctx) },
-    {
-      $group: {
-        _id: { date: "$business_date", locationId: "$locationId" },
-        revenue: { $sum: { $ifNull: ["$total_revenue", 0] } }
-      }
-    }
-  ]).toArray();
-  const map = /* @__PURE__ */ new Map();
-  for (const r of rows) map.set(`${r._id.date}${String((_a = r._id.locationId) != null ? _a : "unknown")}`, r.revenue);
-  return map;
-}
-async function fetchV2RevenueByCategory(db, ctx, suffix) {
-  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k;
-  const DRINK_NAME_PATTERN = /wine|wijn|beer|bier|gint|gin |vodka|whisk|whiskey|rum|cocktail|cola|sprite|fanta|coffee|koffie|thee|tea|sap|juice|fris|prosecco|champagne|cider|tonic|latte|cappuccino|espresso|pils|stelz|borrel|aperol|campari|martini|soda|limonade/i;
-  const [facetRow] = await db.collection(`bork_sales_by_hour${suffix}`).aggregate([
-    { $match: borkDayMatch(ctx) },
-    {
-      $facet: {
-        categoryFromLines: [
-          { $unwind: { path: "$products", preserveNullAndEmptyArrays: false } },
-          {
-            $addFields: {
-              productName: { $ifNull: ["$products.productName", ""] },
-              lineValue: { $toDouble: { $ifNull: ["$products.revenue", 0] } }
-            }
-          },
-          {
-            $addFields: {
-              bucket: {
-                $cond: {
-                  if: { $regexMatch: { input: "$productName", regex: DRINK_NAME_PATTERN } },
-                  then: "drinks",
-                  else: "food"
-                }
-              }
-            }
-          },
-          { $group: { _id: "$bucket", amount: { $sum: "$lineValue" } } }
-        ],
-        hourRevenueTotal: [{ $group: { _id: null, total: { $sum: { $ifNull: ["$total_revenue", 0] } } } }],
-        productLinesTotal: [
-          { $unwind: { path: "$products", preserveNullAndEmptyArrays: false } },
-          { $group: { _id: null, total: { $sum: { $toDouble: { $ifNull: ["$products.revenue", 0] } } } } }
-        ]
-      }
-    }
-  ]).toArray();
-  const byCat = (_a = facetRow == null ? void 0 : facetRow.categoryFromLines) != null ? _a : [];
-  let drinks = (_c = (_b = byCat.find((x) => x._id === "drinks")) == null ? void 0 : _b.amount) != null ? _c : 0;
-  let food = (_e = (_d = byCat.find((x) => x._id === "food")) == null ? void 0 : _d.amount) != null ? _e : 0;
-  const hourGrand = (_h = (_g = (_f = facetRow == null ? void 0 : facetRow.hourRevenueTotal) == null ? void 0 : _f[0]) == null ? void 0 : _g.total) != null ? _h : 0;
-  const lineGrand = (_k = (_j = (_i = facetRow == null ? void 0 : facetRow.productLinesTotal) == null ? void 0 : _i[0]) == null ? void 0 : _j.total) != null ? _k : 0;
-  food += Math.max(0, hourGrand - lineGrand);
-  return { drinks, food };
-}
-async function fetchV2HourBundle(db, ctx, suffix) {
-  var _a, _b;
-  const [row] = await db.collection(`bork_sales_by_hour${suffix}`).aggregate([
-    { $match: borkDayMatch(ctx) },
-    {
-      $facet: {
-        byHourOnly: [{ $group: { _id: "$business_hour", amount: { $sum: { $ifNull: ["$total_revenue", 0] } } } }],
-        byDayHour: [{ $group: { _id: { d: "$business_date", h: "$business_hour" }, revenue: { $sum: { $ifNull: ["$total_revenue", 0] } } } }]
-      }
-    }
-  ]).toArray();
-  return { byHourOnly: (_a = row == null ? void 0 : row.byHourOnly) != null ? _a : [], byDayHour: (_b = row == null ? void 0 : row.byDayHour) != null ? _b : [] };
-}
-async function fetchV2Inventory(db, ctx, suffix) {
-  const notes = [];
-  const q = borkDayMatch(ctx);
-  const days = await db.collection(`bork_business_days${suffix}`).countDocuments(q, { limit: 1 });
-  const hours = await db.collection(`bork_sales_by_hour${suffix}`).countDocuments(q, { limit: 1 });
-  const eitje = await db.collection("eitje_time_registration_aggregation").countDocuments(
-    { period_type: "day", period: { $gte: ctx.startDate, $lte: ctx.endDate }, ...ctx.locationId !== void 0 ? { locationId: ctx.locationId } : {} },
-    { limit: 1 }
-  );
-  if (days === 0) notes.push(`No rows in bork_business_days${suffix} for this range.`);
-  if (hours === 0) notes.push(`No rows in bork_sales_by_hour${suffix} for this range.`);
-  if (eitje === 0) notes.push("No rows in eitje_time_registration_aggregation for this range.");
-  return { hasBorkCronData: days > 0, hasBorkHourData: hours > 0, hasEitjeAggData: eitje > 0, notes };
-}
-async function fetchV2ProductivityByLocationDay(db, borkCtx, laborCtx, suffix) {
-  var _a, _b;
-  const revRows = await db.collection(`bork_business_days${suffix}`).aggregate([
-    { $match: borkDayMatch(borkCtx) },
-    { $group: { _id: { date: "$business_date", locationId: "$locationId", locationName: "$locationName" }, revenue: { $sum: { $ifNull: ["$total_revenue", 0] } } } }
-  ]).toArray();
-  const labRows = await db.collection("eitje_time_registration_aggregation").aggregate([
-    { $match: { period_type: "day", period: { $gte: laborCtx.startDate, $lte: laborCtx.endDate }, ...laborCtx.locationId !== void 0 ? { locationId: laborCtx.locationId } : {} } },
-    { $group: { _id: { period: "$period", locationId: "$locationId", location_name: "$location_name" }, hours: { $sum: { $ifNull: ["$total_hours", 0] } }, laborCost: { $sum: { $ifNull: ["$total_cost", 0] } } } }
-  ]).toArray();
-  const byLoc = /* @__PURE__ */ new Map();
-  const locKey = (id) => id != null ? String(id) : "unknown";
-  for (const r of revRows) {
-    const lk = locKey(r._id.locationId);
-    if (!byLoc.has(lk)) byLoc.set(lk, { name: (_a = r._id.locationName) != null ? _a : lk, days: [] });
-    const entry = byLoc.get(lk);
-    let d = entry.days.find((x) => x.date === r._id.date);
-    if (!d) {
-      d = { date: r._id.date, revenuePerLaborHour: 0, revenue: 0, hours: 0 };
-      entry.days.push(d);
-    }
-    d.revenue += r.revenue;
-  }
-  for (const r of labRows) {
-    const lk = locKey(r._id.locationId);
-    if (!byLoc.has(lk)) byLoc.set(lk, { name: (_b = r._id.location_name) != null ? _b : lk, days: [] });
-    const entry = byLoc.get(lk);
-    let d = entry.days.find((x) => x.date === r._id.period);
-    if (!d) {
-      d = { date: r._id.period, revenuePerLaborHour: 0, revenue: 0, hours: 0 };
-      entry.days.push(d);
-    }
-    d.hours += r.hours;
-  }
-  const out = [];
-  for (const [lid, { name, days }] of byLoc) {
-    const finite = days.map((d) => ({ ...d, revenuePerLaborHour: d.hours > 0 ? d.revenue / d.hours : 0 })).filter((d) => d.hours > 0 || d.revenue > 0);
-    let highest = null;
-    let lowest = null;
-    for (const d of finite) {
-      if (!highest || d.revenuePerLaborHour > highest.revenuePerLaborHour) highest = d;
-      if (!lowest || d.revenuePerLaborHour < lowest.revenuePerLaborHour) lowest = d;
-    }
-    out.push({ locationId: lid, locationName: name, highest, lowest });
-  }
-  out.sort((a, b) => a.locationName.localeCompare(b.locationName));
-  return out;
-}
-const bundle_get$2 = defineEventHandler(async (event) => {
-  var _a;
-  setResponseHeader(event, "Cache-Control", "private, max-age=30, stale-while-revalidate=120");
-  const baseCtx = parseDailyOpsMetricsQuery(getQuery$1(event));
-  const db = await getDb();
-  const suffix = resolveBorkAggReadSuffix();
-  const borkCtx = { ...baseCtx };
-  const laborCtx = { ...baseCtx };
-  if (baseCtx.locationId && typeof baseCtx.locationId !== "string") {
-    const unifiedDoc = await db.collection("unified_location").findOne({ _id: baseCtx.locationId });
-    if (((_a = unifiedDoc == null ? void 0 : unifiedDoc.eitjeIds) == null ? void 0 : _a[0]) != null) laborCtx.locationId = String(unifiedDoc.eitjeIds[0]);
-  }
-  const [
-    workersByTeamLocation,
-    workersByTeamLocationByDayRaw,
-    hoursCostByContractType,
-    contractTypeByDay,
-    productivityByLocationDay,
-    inventory,
-    revMap,
-    revByDateLocation,
-    labMap,
-    cat,
-    hourBundle
-  ] = await Promise.all([
-    fetchWorkersByTeamLocation(db, laborCtx),
-    fetchWorkersByTeamLocationByDay(db, laborCtx),
-    fetchHoursCostByContractType(db, laborCtx),
-    fetchHoursCostByContractTypeByDay(db, laborCtx),
-    fetchV2ProductivityByLocationDay(db, borkCtx, laborCtx, suffix),
-    fetchV2Inventory(db, borkCtx, suffix),
-    fetchV2RevenueByDate(db, borkCtx, suffix),
-    fetchV2RevenueByDateAndLocation(db, borkCtx, suffix),
-    fetchLaborByDate(db, laborCtx),
-    fetchV2RevenueByCategory(db, borkCtx, suffix),
-    fetchV2HourBundle(db, borkCtx, suffix)
-  ]);
-  const summary = buildDailyOpsSummaryDto(borkCtx, revMap, labMap);
-  const revenue = buildDailyOpsRevenueBreakdownDto(borkCtx, cat, hourBundle, revMap, labMap);
-  const labor = assembleDailyOpsLaborMetricsDto(borkCtx, {
-    workersByTeamLocation,
-    workersByTeamLocationByDayRaw,
-    hoursCostByContractType,
-    contractTypeByDay,
-    productivityByLocationDay,
-    inventory,
-    revMap,
-    revByDateLocation,
-    labMap
-  });
-  return { summary, revenue, labor };
-});
-
-const bundle_get$3 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
-  __proto__: null,
-  default: bundle_get$2
 }, Symbol.toStringTag, { value: 'Module' }));
 
 const insights_get = defineEventHandler((event) => {
@@ -38412,6 +38369,16 @@ const hours_get = defineEventHandler(async (event) => {
 const hours_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
   __proto__: null,
   default: hours_get
+}, Symbol.toStringTag, { value: 'Module' }));
+
+const gmailStatus_get = defineEventHandler(async () => {
+  const connected = await isGmailConnected();
+  return { success: true, data: { connected } };
+});
+
+const gmailStatus_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+  __proto__: null,
+  default: gmailStatus_get
 }, Symbol.toStringTag, { value: 'Module' }));
 
 const list_get = defineEventHandler(async (event) => {

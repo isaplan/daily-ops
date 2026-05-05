@@ -135,20 +135,19 @@ export function classifyByContent(headers: string[]): ClassificationResult {
 }
 
 export function classifyDocument(fileName: string, headers?: string[]): ClassificationResult {
-  if (headers && headers.length > 0) {
-    const contentResult = classifyByContent(headers)
-    if (contentResult.confidence === 'high') {
-      return contentResult
-    }
-  }
-
+  // Check filename first — filename hints take priority
   const filenameResult = classifyByFilename(fileName)
   if (filenameResult.confidence === 'high') {
     return filenameResult
   }
 
+  // If filename didn't give high confidence, check headers
   if (headers && headers.length > 0) {
     const contentResult = classifyByContent(headers)
+    if (contentResult.confidence === 'high') {
+      return contentResult
+    }
+    // If headers have medium confidence and filename has low, use headers
     if (contentResult.confidence === 'medium' && filenameResult.confidence === 'low') {
       return contentResult
     }

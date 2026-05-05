@@ -110,7 +110,7 @@ declare global {
   const getDb: typeof import('../../server/utils/db').getDb
   const getGmailInvalidGrantHint: typeof import('../../server/utils/gmailOAuthError').getGmailInvalidGrantHint
   const getGmailOAuthErrorMessage: typeof import('../../server/utils/gmailOAuthError').getGmailOAuthErrorMessage
-  const getGmailOAuthRedirectUri: typeof import('../../server/utils/gmailOAuthRedirect').getGmailOAuthRedirectUri
+  const getGmailRedirectUri: typeof import('../../server/utils/gmailRedirectUri').getGmailRedirectUri
   const getHeader: typeof import('../../node_modules/h3').getHeader
   const getHeaders: typeof import('../../node_modules/h3').getHeaders
   const getHourFromDate: typeof import('../../server/utils/v3BusinessDay').getHourFromDate
@@ -247,6 +247,7 @@ declare global {
   const useRuntimeConfig: typeof import('../../node_modules/nitropack/dist/runtime/internal/config').useRuntimeConfig
   const useSession: typeof import('../../node_modules/h3').useSession
   const useStorage: typeof import('../../node_modules/nitropack/dist/runtime/internal/storage').useStorage
+  const v3ValidationComplete: typeof import('../../server/utils/v3ValidationChecklist').v3ValidationComplete
   const writeEarlyHints: typeof import('../../node_modules/h3').writeEarlyHints
 }
 // for type re-export
@@ -316,7 +317,7 @@ export { getMongoDatabaseName, getDb, getNotesCollection, getUnifiedUsersCollect
 export { findEitjeCredentialDocument, documentToEitjeStoredCredentials, documentToCredentialsApiShape } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/eitjeApiCredentials';
 export { EITJE_HOURS_ADD_FIELDS, getUtcDayRange } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/eitjeHours';
 export { getGmailOAuthErrorMessage, isInvalidGrantError, getGmailInvalidGrantHint } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/gmailOAuthError';
-export { getGmailOAuthRedirectUri } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/gmailOAuthRedirect';
+export { getGmailRedirectUri } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/gmailRedirectUri';
 export { ensureInboxCollections, ensureInboxIndexes } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/inbox/collections';
 export { INBOX_COLLECTIONS, INBOX_TARGET_COLLECTIONS } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/inbox/constants';
 export { looksLikeTrivecSemicolonSales, parseCSV } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/inbox/csv-parser';
@@ -336,3 +337,4 @@ export { parsePdfToRows } from '/Users/alviniomolina/Documents/GitHub/daily-ops/
 export { getBusinessDate, getBusinessDayStart, getBusinessDayEnd, getBusinessDayPart1Date, getBusinessDayPart2Date, getBusinessDayPart, isBusinessDayFinished, toISODateString, formatBusinessDate, getCurrentBusinessDate, getHourFromDate, isValidBusinessDateFormat, getBusinessDayDurationMs, getBusinessDayProgressPercent, getV3AggregationScheduleHours, isScheduledAggregationTime, getNextAggregationTime } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/v3BusinessDay';
 export { V3_COLLECTIONS, V3_COLLECTION_INDEXES, initializeV3Collections } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/v3Collections';
 export { getSalesSnapshot, getLaborSnapshot, getDashboardSnapshot, upsertSalesSnapshot, upsertLaborSnapshot, upsertDashboardSnapshot, getSalesSnapshotsByLocationRange, getLatestSalesSnapshotsAllLocations, recordAggregationMetadata, getAggregationHistory, cleanupOldSnapshots, shouldUpdateSnapshot } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/v3Snapshots';
+export { v3ValidationComplete } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/v3ValidationChecklist';

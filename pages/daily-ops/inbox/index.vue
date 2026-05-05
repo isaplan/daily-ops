@@ -3,34 +3,76 @@
     title="Inbox"
     description="Sync from Gmail, process attachments, and review imported documents."
   >
-    <div class="flex flex-wrap gap-3">
-      <UButton
-        variant="outline"
-        color="neutral"
-        :loading="syncing"
-        icon="i-lucide-refresh-cw"
-        @click="onSync"
+    <div class="flex items-center gap-3">
+      <!-- Credentials dropdown for admins/managers only -->
+      <UDropdown
+        v-if="isAdmin"
+        :popper="{ placement: 'bottom-start' }"
+        :items="[[{ label: 'Gmail Credentials', slot: 'credentials' }]]"
       >
-        Sync from Gmail
-      </UButton>
-      <UButton
-        variant="outline"
-        color="neutral"
-        :loading="processingAll"
-        icon="i-lucide-play"
-        @click="onProcessAll"
-      >
-        Process all
-      </UButton>
-      <UButton
-        variant="outline"
-        color="neutral"
-        :loading="watchLoading"
-        :icon="watchOn ? 'i-lucide-bell-off' : 'i-lucide-bell'"
-        @click="onToggleWatch"
-      >
-        {{ watchOn ? 'Stop Gmail watch' : 'Start Gmail watch' }}
-      </UButton>
+        <UButton icon="i-lucide-info" color="gray" variant="ghost" size="sm" />
+
+        <template #credentials>
+          <div class="min-w-max px-4 py-3 space-y-2 text-sm">
+            <div>
+              <span class="text-gray-500">Gmail Address:</span>
+              <div class="flex items-center gap-2">
+                <code class="text-xs">inboxhaagsenieuwehorecagroep@gmail.com</code>
+                <UButton
+                  size="xs"
+                  color="gray"
+                  variant="ghost"
+                  icon="i-lucide-copy"
+                  @click="copyToClipboard('inboxhaagsenieuwehorecagroep@gmail.com')"
+                />
+              </div>
+            </div>
+            <div>
+              <span class="text-gray-500">Password:</span>
+              <div class="flex items-center gap-2">
+                <code class="text-xs">@HN-hg#Jan-2026</code>
+                <UButton
+                  size="xs"
+                  color="gray"
+                  variant="ghost"
+                  icon="i-lucide-copy"
+                  @click="copyToClipboard('@HN-hg#Jan-2026')"
+                />
+              </div>
+            </div>
+          </div>
+        </template>
+      </UDropdown>
+
+      <!-- Action buttons -->
+      <div class="flex flex-wrap gap-3">
+        <UButton
+          variant="outline"
+          :color="gmailConnected ? 'success' : 'neutral'"
+          :icon="gmailConnected ? 'i-lucide-check' : 'i-lucide-lock-open'"
+          @click="onConnectGmail"
+        >
+          {{ gmailConnected ? 'Connected Gmail' : 'Connect Gmail' }}
+        </UButton>
+        <UButton
+          variant="outline"
+          color="neutral"
+          :loading="syncing"
+          icon="i-lucide-refresh-cw"
+          @click="onSync"
+        >
+          Sync Gmail
+        </UButton>
+        <UButton
+          variant="outline"
+          color="neutral"
+          :loading="processingAll"
+          icon="i-lucide-play"
+          @click="onProcessAll"
+        >
+          Process all
+        </UButton>
+      </div>
     </div>
 
     <div class="grid gap-4 md:grid-cols-3">
@@ -107,8 +149,8 @@ const api = useInboxApi()
 const unprocessed = ref<number | null>(null)
 const syncing = ref(false)
 const processingAll = ref(false)
-const watchLoading = ref(false)
-const watchOn = ref(false)
+const gmailConnected = ref(false)
+const isAdmin = ref(false)
 
 const { data: list, pending: listPending, error: listError, refresh: refreshList } = await useAsyncData(
   'inbox-dashboard-list',
@@ -124,6 +166,33 @@ onMounted(async () => {
   } catch {
     unprocessed.value = 0
   }
+
+  try {
+    const status = await $fetch<{ success: boolean; data: { connected: boolean } }>(
+      '/api/inbox/gmail-status',
+    )
+    if (status.success) gmailConnected.value = status.data.connected
+  } catch {
+    gmailConnected.value = false
+  }
+
+  const q = useRoute().query
+  if (q.connected === 'gmail') {
+    gmailConnected.value = true
+    toast.add({
+      title: 'Gmail connected!',
+      description: 'Your refresh token is stored. Cron can now sync emails.',
+      color: 'green',
+    })
+  } else if (q.error) {
+    toast.add({
+      title: 'Gmail connection failed',
+      description: `${q.error}${q.message ? ': ' + q.message : ''}`,
+      color: 'red',
+    })
+  }
+
+  isAdmin.value = true
 })
 
 function formatDate(iso: string) {
@@ -201,26 +270,12 @@ async function processOne(id: string) {
   }
 }
 
-async function onToggleWatch() {
-  watchLoading.value = true
-  try {
-    if (watchOn.value) {
-      await api.stopWatch()
-      watchOn.value = false
-      toast.add({ title: 'Gmail watch stopped' })
-    } else {
-      await api.startWatch()
-      watchOn.value = true
-      toast.add({ title: 'Gmail watch started' })
-    }
-  } catch (e) {
-    toast.add({
-      title: 'Watch failed',
-      description: e instanceof Error ? e.message : 'Check GMAIL_PUBSUB_TOPIC and credentials',
-      color: 'red',
-    })
-  } finally {
-    watchLoading.value = false
-  }
+function onConnectGmail() {
+  window.location.href = '/api/auth/gmail/authorize'
+}
+
+function copyToClipboard(text: string) {
+  navigator.clipboard.writeText(text)
+  toast.add({ title: 'Copied!' })
 }
 </script>

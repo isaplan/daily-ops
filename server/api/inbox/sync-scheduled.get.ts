@@ -15,7 +15,6 @@ import {
   getGmailOAuthErrorMessage,
   isInvalidGrantError,
 } from '../../utils/gmailOAuthError'
-import { getGmailOAuthRedirectUri } from '../../utils/gmailOAuthRedirect'
 
 export default defineEventHandler(async (event) => {
   const secret = process.env.CRON_SECRET

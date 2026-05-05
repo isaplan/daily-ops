@@ -1,9 +1,9 @@
 /**
  * @registry-id: borkRebuildAggregationV2Service
  * @created: 2026-04-14T18:00:00.000Z
- * @last-modified: 2026-04-28T18:40:00.000Z
+ * @last-modified: 2026-04-30T02:00:00.000Z
  * @description: V2 Bork aggregates — writes bork_business_days, bork_sales_by_day, bork_sales_by_hour, bork_sales_by_table, bork_sales_by_worker, bork_sales_by_guest_account, bork_sales_by_product (+ version suffix)
- * @last-fix: [2026-04-28] Aligned V2 rebuild collections to bork_sales_by_* names used by `/api/sales-aggregated-v2` and default version suffix `_v2`
+ * @last-fix: [2026-04-30] Register day boundary 06:00 → 08:00 (calendarToBusinessDay); re-run V2 rebuild for correct BH buckets
  *
  * @CRITICAL: Line revenue uses Lines (Price×Qty); paymode totals use Order.Paymodes (may differ from line totals).
  *
@@ -43,12 +43,12 @@ function calendarToBusinessDay(
   calendarDateStr: string,
   calendarHour: number
 ): { businessDate: string; businessHour: number } {
-  if (calendarHour >= 6 && calendarHour <= 23) {
-    return { businessDate: calendarDateStr, businessHour: calendarHour - 6 }
+  if (calendarHour >= 8 && calendarHour <= 23) {
+    return { businessDate: calendarDateStr, businessHour: calendarHour - 8 }
   }
   return {
     businessDate: addCalendarDaysISO(calendarDateStr, -1),
-    businessHour: calendarHour + 18,
+    businessHour: calendarHour + 16,
   }
 }
 

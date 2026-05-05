@@ -1,13 +1,13 @@
 /**
  * @registry-id: borkRebuildAggregationService
  * @created: 2026-04-09T00:00:00.000Z
- * @last-modified: 2026-04-14T12:00:00.000Z
+ * @last-modified: 2026-04-30T02:00:00.000Z
  * @description: Rebuilds Bork sales aggregations from bork_raw_data using UNIFIED location names by CALENDAR DATE
- * @last-fix: [2026-04-14] Added business_date + business_hour (register day 06:00–05:59:59) on hour/table/worker/guest docs
+ * @last-fix: [2026-04-30] Register business day boundary 06:00 → 08:00 (BH0=08:00…BH23=07:59 next morning); re-run rebuild for correct buckets
  *
  * @CRITICAL: Primary bucketing uses calendar order.Date + ticket hour (local register time).
  * Each hourly (and related) document also stores business_date + business_hour so reports can filter by register business day without recomputing.
- * Register business day: 06:00–05:59:59 → business_hour 0 = 06:00–06:59 same day, 18–23 = 00:00–05:59 next calendar day.
+ * Register business day: 08:00–07:59 next calendar morning → business_hour 0 = 08:00–08:59 same day, 16–23 = 00:00–07:59 next calendar day.
  *
  * @CRITICAL: This service uses bork_unified_location_mapping to resolve locationNames.
  * All aggregation documents MUST have locationName matching unifiedLocationName, NOT raw Bork names.
@@ -61,19 +61,19 @@ function addCalendarDaysISO(dateStr: string, deltaDays: number): string {
 }
 
 /**
- * Register business day 06:00 (inclusive) through 05:59:59 next morning.
- * business_hour 0 = 06:00–06:59, … 17 = 23:00–23:59, 18 = 00:00–00:59 next calendar day, … 23 = 05:00–05:59.
+ * Register business day 08:00 (inclusive) through 07:59 next calendar morning.
+ * business_hour 0 = 08:00–08:59, … 15 = 23:00–23:59, 16 = 00:00–00:59 next day, … 23 = 07:00–07:59.
  */
 function calendarToBusinessDay(
   calendarDateStr: string,
   calendarHour: number
 ): { businessDate: string; businessHour: number } {
-  if (calendarHour >= 6 && calendarHour <= 23) {
-    return { businessDate: calendarDateStr, businessHour: calendarHour - 6 }
+  if (calendarHour >= 8 && calendarHour <= 23) {
+    return { businessDate: calendarDateStr, businessHour: calendarHour - 8 }
   }
   return {
     businessDate: addCalendarDaysISO(calendarDateStr, -1),
-    businessHour: calendarHour + 18,
+    businessHour: calendarHour + 16,
   }
 }
 
