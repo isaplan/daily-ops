@@ -21,6 +21,10 @@ export type ClassificationResult = {
 export function classifyByFilename(fileName: string): ClassificationResult {
   const lowerName = fileName.toLowerCase()
 
+  // Eitje daily hours export
+  if (lowerName.includes('dagelijkse-uren-export')) {
+    return { type: 'hours', confidence: 'high', reason: 'Eitje daily hours export' }
+  }
   if (lowerName.includes('hours') || lowerName.includes('uren')) {
     return { type: 'hours', confidence: 'high', reason: 'Filename contains "hours" or "uren"' }
   }

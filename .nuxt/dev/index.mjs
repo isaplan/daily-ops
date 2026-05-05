@@ -5762,7 +5762,22 @@ _nddW4OgTKHcMIQ8mQhekYcJvlrNi40TbQzTLx2yq5MQ,
 _bZ9Ni6V2HtIpJeulfSLzyAQaoMJdeQllxN50TS5qNvY
 ];
 
-const assets = {};
+const assets = {
+  "/index.mjs": {
+    "type": "text/javascript; charset=utf-8",
+    "etag": "\"16f396-CzJ2agxAXFUdhNv925QoQdencnc\"",
+    "mtime": "2026-05-05T17:06:01.822Z",
+    "size": 1504150,
+    "path": "index.mjs"
+  },
+  "/index.mjs.map": {
+    "type": "application/json",
+    "etag": "\"5c0a63-kOcCN5SVv0RCNfuNfZMse4sGD4k\"",
+    "mtime": "2026-05-05T17:06:01.922Z",
+    "size": 6031971,
+    "path": "index.mjs.map"
+  }
+};
 
 function readAsset (id) {
   const serverDir = dirname$1(fileURLToPath(globalThis._importMeta_.url));
@@ -7335,6 +7350,9 @@ async function parseCSV(csvText, options = {}) {
 
 function classifyByFilename(fileName) {
   const lowerName = fileName.toLowerCase();
+  if (lowerName.includes("dagelijkse-uren-export")) {
+    return { type: "hours", confidence: "high", reason: "Eitje daily hours export" };
+  }
   if (lowerName.includes("hours") || lowerName.includes("uren")) {
     return { type: "hours", confidence: "high", reason: 'Filename contains "hours" or "uren"' };
   }
@@ -7429,18 +7447,15 @@ function classifyByContent(headers) {
   return { type: "other", confidence: "low", reason: "No matching pattern found in headers" };
 }
 function classifyDocument(fileName, headers) {
-  if (headers && headers.length > 0) {
-    const contentResult = classifyByContent(headers);
-    if (contentResult.confidence === "high") {
-      return contentResult;
-    }
-  }
   const filenameResult = classifyByFilename(fileName);
   if (filenameResult.confidence === "high") {
     return filenameResult;
   }
   if (headers && headers.length > 0) {
     const contentResult = classifyByContent(headers);
+    if (contentResult.confidence === "high") {
+      return contentResult;
+    }
     if (contentResult.confidence === "medium" && filenameResult.confidence === "low") {
       return contentResult;
     }
