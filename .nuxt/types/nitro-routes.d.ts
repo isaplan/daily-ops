@@ -9,6 +9,9 @@ declare module "nitropack/types" {
     '/api/auth/gmail/callback': {
       'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/auth/gmail/callback.get').default>>>>
     }
+    '/api/bork/sales': {
+      'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/bork/sales.get').default>>>>
+    }
     '/api/bork/v2/credentials': {
       'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/bork/v2/credentials.get').default>>>>
       'post': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/bork/v2/credentials.post').default>>>>

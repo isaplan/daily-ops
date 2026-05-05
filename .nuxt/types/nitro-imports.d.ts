@@ -170,6 +170,7 @@ declare global {
   const lazyEventHandler: typeof import('../../node_modules/h3').lazyEventHandler
   const locationDayKey: typeof import('../../server/utils/dailyOpsDashboardMetrics').locationDayKey
   const looksLikeTrivecSemicolonSales: typeof import('../../server/utils/inbox/csv-parser').looksLikeTrivecSemicolonSales
+  const mapBasisReportXLSX: typeof import('../../server/utils/inbox/basis-report-mapper').mapBasisReportXLSX
   const mapWijnkaartRowToItem: typeof import('../../server/utils/parseMenuFile').mapWijnkaartRowToItem
   const mergeWorkedAndPlanned: typeof import('../../server/utils/memberEitjeContext').mergeWorkedAndPlanned
   const nitroPlugin: typeof import('../../node_modules/nitropack/dist/runtime/internal/plugin').nitroPlugin
@@ -265,6 +266,9 @@ declare global {
   export type { UtcDayRange } from '../../server/utils/eitjeHours'
   import('../../server/utils/eitjeHours')
   // @ts-ignore
+  export type { BasisReportData } from '../../server/utils/inbox/basis-report-mapper'
+  import('../../server/utils/inbox/basis-report-mapper')
+  // @ts-ignore
   export type { CsvParseOptions } from '../../server/utils/inbox/csv-parser'
   import('../../server/utils/inbox/csv-parser')
   // @ts-ignore
@@ -318,6 +322,7 @@ export { findEitjeCredentialDocument, documentToEitjeStoredCredentials, document
 export { EITJE_HOURS_ADD_FIELDS, getUtcDayRange } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/eitjeHours';
 export { getGmailOAuthErrorMessage, isInvalidGrantError, getGmailInvalidGrantHint } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/gmailOAuthError';
 export { getGmailRedirectUri } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/gmailRedirectUri';
+export { mapBasisReportXLSX } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/inbox/basis-report-mapper';
 export { ensureInboxCollections, ensureInboxIndexes } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/inbox/collections';
 export { INBOX_COLLECTIONS, INBOX_TARGET_COLLECTIONS } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/inbox/constants';
 export { looksLikeTrivecSemicolonSales, parseCSV } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/inbox/csv-parser';

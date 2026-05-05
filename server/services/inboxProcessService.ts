@@ -18,6 +18,7 @@ import { dataMappingService } from './dataMappingService'
 import { storeRawData, isTestDataType, updateSourceFileName } from './rawDataStorageService'
 import { gmailApiService } from './gmailApiService'
 import { aggregateDailySalesForEmail } from './borkSalesDailyAggregation'
+import { mapBasisReportXLSX } from '../utils/inbox/basis-report-mapper'
 import * as inboxRepo from './inboxRepository'
 import type { CreateParsedDataDto, DocumentType, EmailAttachmentDoc, FileFormat } from '~/types/inbox'
 import { Buffer } from 'node:buffer'
@@ -75,36 +76,63 @@ async function handleParsedMapping(
     parseResult.documentType !== 'pasy' &&
     parseResult.documentType !== 'coming_soon'
   ) {
-    const mappingResult = await dataMappingService.mapToCollection(
-      {
-        ...base,
-        data: { headers: parseResult.headers, rows: parseResult.rows },
-      },
-      parseResult.documentType,
-    )
-    await inboxRepo.updateParsedData(String(parsedDataId), {
-      mapping: {
-        mappedToCollection: mappingResult.mappedToCollection,
-        matchedRecords: mappingResult.matchedRecords,
-        createdRecords: mappingResult.createdRecords,
-        updatedRecords: mappingResult.updatedRecords,
-      },
-      rowsValid: mappingResult.createdRecords + mappingResult.updatedRecords,
-      rowsFailed: mappingResult.failedRecords,
-      validationErrors: mappingResult.errors.map((e) => ({
-        row: e.row,
-        column: '',
-        error: e.error,
-      })),
-    })
+    // Special handling for basis_report (Bork daily sales)
+    if (parseResult.documentType === 'basis_report') {
+      const basisReport = mapBasisReportXLSX(parseResult, '')
+      if (basisReport) {
+        // Store structured sales report
+        const db = await (await import('~/server/utils/inbox/collections').then(m => m.getDb))()
+        await db
+          .collection('basis_reports')
+          .updateOne(
+            { date: basisReport.date, location: basisReport.location },
+            { $set: basisReport },
+            { upsert: true },
+          )
+        
+        await inboxRepo.updateParsedData(String(parsedDataId), {
+          mapping: {
+            mappedToCollection: 'basis_reports',
+            matchedRecords: 1,
+            createdRecords: 1,
+            updatedRecords: 0,
+          },
+          rowsValid: 1,
+          rowsFailed: 0,
+        })
+      }
+    } else {
+      const mappingResult = await dataMappingService.mapToCollection(
+        {
+          ...base,
+          data: { headers: parseResult.headers, rows: parseResult.rows },
+        },
+        parseResult.documentType,
+      )
+      await inboxRepo.updateParsedData(String(parsedDataId), {
+        mapping: {
+          mappedToCollection: mappingResult.mappedToCollection,
+          matchedRecords: mappingResult.matchedRecords,
+          createdRecords: mappingResult.createdRecords,
+          updatedRecords: mappingResult.updatedRecords,
+        },
+        rowsValid: mappingResult.createdRecords + mappingResult.updatedRecords,
+        rowsFailed: mappingResult.failedRecords,
+        validationErrors: mappingResult.errors.map((e) => ({
+          row: e.row,
+          column: '',
+          error: e.error,
+        })),
+      })
 
-    // Aggregate daily sales if this is a sales document
-    if (parseResult.documentType === 'sales') {
-      try {
-        const emailOid = new ObjectId(emailId)
-        await aggregateDailySalesForEmail(emailOid)
-      } catch (error) {
-        console.error('[inboxProcessService] Failed to aggregate daily sales:', error)
+      // Aggregate daily sales if this is a sales document
+      if (parseResult.documentType === 'sales') {
+        try {
+          const emailOid = new ObjectId(emailId)
+          await aggregateDailySalesForEmail(emailOid)
+        } catch (error) {
+          console.error('[inboxProcessService] Failed to aggregate daily sales:', error)
+        }
       }
     }
   }

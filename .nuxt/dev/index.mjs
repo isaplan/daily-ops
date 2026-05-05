@@ -44,7 +44,7 @@ import { createHead as createHead$1, propsToString, renderSSRHead } from 'file:/
 import { renderToString } from 'file:///Users/alviniomolina/Documents/GitHub/daily-ops/node_modules/.pnpm/vue@3.5.31_typescript@5.9.3/node_modules/vue/server-renderer/index.mjs';
 import { walkResolver } from 'file:///Users/alviniomolina/Documents/GitHub/daily-ops/node_modules/unhead/dist/utils.mjs';
 import { getIcons } from 'file:///Users/alviniomolina/Documents/GitHub/daily-ops/node_modules/@iconify/utils/lib/index.js';
-import { collections } from 'file:///Users/alviniomolina/Documents/GitHub/daily-ops/.nuxt/nuxt-icon-server-bundle.mjs';
+import { collections as collections$1 } from 'file:///Users/alviniomolina/Documents/GitHub/daily-ops/.nuxt/nuxt-icon-server-bundle.mjs';
 
 const serverAssets = [{"baseName":"server","dir":"/Users/alviniomolina/Documents/GitHub/daily-ops/server/assets"}];
 
@@ -2633,6 +2633,12 @@ async function ensureInboxIndexes() {
   ]).catch(() => {
   });
 }
+
+const collections = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+  __proto__: null,
+  ensureInboxCollections: ensureInboxCollections,
+  ensureInboxIndexes: ensureInboxIndexes
+}, Symbol.toStringTag, { value: 'Module' }));
 
 var __defProp$1 = Object.defineProperty;
 var __defNormalProp$1 = (obj, key, value) => key in obj ? __defProp$1(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
@@ -5765,16 +5771,16 @@ _bZ9Ni6V2HtIpJeulfSLzyAQaoMJdeQllxN50TS5qNvY
 const assets = {
   "/index.mjs": {
     "type": "text/javascript; charset=utf-8",
-    "etag": "\"16f396-CzJ2agxAXFUdhNv925QoQdencnc\"",
-    "mtime": "2026-05-05T17:06:01.822Z",
-    "size": 1504150,
+    "etag": "\"171743-td/uEWVy71wqsxdP8471D8GejmA\"",
+    "mtime": "2026-05-05T17:25:13.337Z",
+    "size": 1513283,
     "path": "index.mjs"
   },
   "/index.mjs.map": {
     "type": "application/json",
-    "etag": "\"5c0a63-kOcCN5SVv0RCNfuNfZMse4sGD4k\"",
-    "mtime": "2026-05-05T17:06:01.922Z",
-    "size": 6031971,
+    "etag": "\"5c9835-kESX7wa/WwuH728mWtED9swsn1k\"",
+    "mtime": "2026-05-05T17:25:13.623Z",
+    "size": 6068277,
     "path": "index.mjs.map"
   }
 };
@@ -7213,6 +7219,252 @@ function getGmailInvalidGrantHint(redirectUriEnv, redirectUriUsed) {
 function getGmailRedirectUri() {
   const baseUrl = process.env.NUXT_PUBLIC_SITE_URL || "http://localhost:8080";
   return `${baseUrl}/api/auth/gmail/callback`;
+}
+
+function mapBasisReportXLSX(parseResult, fileName) {
+  var _a;
+  if (!parseResult.success || parseResult.rows.length === 0) {
+    return null;
+  }
+  const rows = parseResult.rows;
+  parseResult.headers || [];
+  const dateStr = extractDateFromFile(rows);
+  const location = extractLocationFromFile(rows, fileName);
+  const data = {
+    date: dateStr,
+    location,
+    sections: {},
+    final_revenue_incl_vat: 0,
+    final_revenue_ex_vat: 0
+  };
+  let currentSection = null;
+  const sections = {
+    netto_sales: [],
+    payments: [],
+    corrections: [],
+    internal_sales: []
+  };
+  for (const row of rows) {
+    const firstCol = Object.values(row)[0];
+    const firstColStr = String(firstCol).toLowerCase().trim();
+    if (firstColStr.includes("netto sales") || firstColStr.includes("netto")) {
+      currentSection = "netto_sales";
+      continue;
+    }
+    if (firstColStr.includes("betalingen") || firstColStr.includes("payment")) {
+      currentSection = "payments";
+      continue;
+    }
+    if (firstColStr.includes("correcties") || firstColStr.includes("correction")) {
+      currentSection = "corrections";
+      continue;
+    }
+    if (firstColStr.includes("interne verkoop") || firstColStr.includes("internal")) {
+      currentSection = "internal_sales";
+      continue;
+    }
+    if (firstColStr.includes("grand total") && currentSection) {
+      continue;
+    }
+    if (firstColStr.includes("groep") || firstColStr.includes("betaalwijze") || firstColStr.includes("gebruiker")) {
+      continue;
+    }
+    if (currentSection && Object.keys(row).length > 0) {
+      sections[currentSection].push(row);
+    }
+  }
+  if (sections.netto_sales.length > 0) {
+    data.sections.netto_sales = mapNettoSales(sections.netto_sales);
+  }
+  if (sections.payments.length > 0) {
+    data.sections.payments = mapPayments(sections.payments);
+  }
+  if (sections.corrections.length > 0) {
+    data.sections.corrections = mapCorrections(sections.corrections);
+  }
+  if (sections.internal_sales.length > 0) {
+    data.sections.internal_sales = mapInternalSales(sections.internal_sales);
+  }
+  if ((_a = data.sections.netto_sales) == null ? void 0 : _a.grand_total) {
+    data.final_revenue_incl_vat = data.sections.netto_sales.grand_total.price_incl_vat;
+    data.final_revenue_ex_vat = data.sections.netto_sales.grand_total.price_ex_vat;
+  }
+  return data;
+}
+function extractDateFromFile(rows) {
+  for (let i = 0; i < Math.min(5, rows.length); i++) {
+    const vals = Object.values(rows[i]);
+    for (const val of vals) {
+      const str = String(val).trim();
+      if (/\d{1,2}\/\d{1,2}\/\d{4}/.test(str)) {
+        const match = str.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})\s*-\s*(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+        if (match) {
+          const [, m, d, y] = match;
+          return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+        }
+        const matchSingle = str.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+        if (matchSingle) {
+          const [, m, d, y] = matchSingle;
+          return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+        }
+      }
+    }
+  }
+  return (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
+}
+function extractLocationFromFile(rows, fileName) {
+  for (let i = 0; i < Math.min(5, rows.length); i++) {
+    const vals = Object.values(rows[i]);
+    for (const val of vals) {
+      const str = String(val).trim();
+      if (str.match(
+        /^(Bar|Kinsbergen|lAmour|Barbea|Bea|Restaurant|Cafe|Gastropub|Bistro)/i
+      )) {
+        return str;
+      }
+    }
+  }
+  if (fileName.includes("Kinsbergen")) return "Kinsbergen";
+  if (fileName.includes("lAmour")) return "lAmour Toujours";
+  if (fileName.includes("Barbea")) return "Barbea";
+  if (fileName.includes("Bea")) return "Bea";
+  return "Unknown";
+}
+function mapNettoSales(rows, headers) {
+  const categories = [];
+  let grandTotalQty = 0;
+  let grandTotalIncl = 0;
+  let grandTotalEx = 0;
+  for (const row of rows) {
+    const name = String(Object.values(row)[0] || "").trim();
+    if (name.toLowerCase() === "grand total") {
+      const qty = parseFloat(String(Object.values(row)[1] || 0));
+      const incl = parsePrice(String(Object.values(row)[2] || 0));
+      const ex = parsePrice(String(Object.values(row)[3] || 0));
+      grandTotalQty = qty;
+      grandTotalIncl = incl;
+      grandTotalEx = ex;
+      continue;
+    }
+    if (name && !name.includes("Groep")) {
+      const qty = parseFloat(String(Object.values(row)[1] || 0));
+      const incl = parsePrice(String(Object.values(row)[2] || 0));
+      const ex = parsePrice(String(Object.values(row)[3] || 0));
+      if (!Number.isNaN(qty)) {
+        categories.push({
+          name,
+          quantity: qty,
+          price_incl_vat: incl,
+          price_ex_vat: ex
+        });
+      }
+    }
+  }
+  return {
+    categories,
+    grand_total: {
+      quantity: grandTotalQty,
+      price_incl_vat: grandTotalIncl,
+      price_ex_vat: grandTotalEx
+    }
+  };
+}
+function mapPayments(rows) {
+  const methods = [];
+  let grandTotalQty = 0;
+  for (const row of rows) {
+    const method = String(Object.values(row)[0] || "").trim();
+    if (method.toLowerCase() === "grand total") {
+      grandTotalQty = parseFloat(String(Object.values(row)[1] || 0));
+      continue;
+    }
+    if (method && !method.includes("Betaalwijze")) {
+      const qty = parseFloat(String(Object.values(row)[1] || 0));
+      if (!Number.isNaN(qty)) {
+        methods.push({ method, quantity: qty });
+      }
+    }
+  }
+  return {
+    methods,
+    grand_total_qty: grandTotalQty
+  };
+}
+function mapCorrections(rows, headers) {
+  const adjustments = [];
+  let grandTotalQty = 0;
+  let grandTotalIncl = 0;
+  let grandTotalEx = 0;
+  for (const row of rows) {
+    const user = String(Object.values(row)[0] || "").trim();
+    if (user.toLowerCase() === "grand total") {
+      grandTotalQty = parseFloat(String(Object.values(row)[1] || 0));
+      grandTotalIncl = parsePrice(String(Object.values(row)[2] || 0));
+      grandTotalEx = parsePrice(String(Object.values(row)[3] || 0));
+      continue;
+    }
+    if (user && !user.includes("Gebruiker")) {
+      const qty = parseFloat(String(Object.values(row)[1] || 0));
+      const incl = parsePrice(String(Object.values(row)[2] || 0));
+      const ex = parsePrice(String(Object.values(row)[3] || 0));
+      if (!Number.isNaN(qty)) {
+        adjustments.push({
+          user,
+          quantity: qty,
+          price_incl_vat: incl,
+          price_ex_vat: ex
+        });
+      }
+    }
+  }
+  return {
+    adjustments,
+    grand_total: {
+      quantity: grandTotalQty,
+      price_incl_vat: grandTotalIncl,
+      price_ex_vat: grandTotalEx
+    }
+  };
+}
+function mapInternalSales(rows, headers) {
+  const staff = [];
+  let grandTotalQty = 0;
+  let grandTotalIncl = 0;
+  let grandTotalEx = 0;
+  for (const row of rows) {
+    const user = String(Object.values(row)[0] || "").trim();
+    if (user.toLowerCase() === "grand total") {
+      grandTotalQty = parseFloat(String(Object.values(row)[1] || 0));
+      grandTotalIncl = parsePrice(String(Object.values(row)[2] || 0));
+      grandTotalEx = parsePrice(String(Object.values(row)[3] || 0));
+      continue;
+    }
+    if (user && !user.includes("Gebruiker")) {
+      const qty = parseFloat(String(Object.values(row)[1] || 0));
+      const incl = parsePrice(String(Object.values(row)[2] || 0));
+      const ex = parsePrice(String(Object.values(row)[3] || 0));
+      if (!Number.isNaN(qty)) {
+        staff.push({
+          user,
+          quantity: qty,
+          price_incl_vat: incl,
+          price_ex_vat: ex
+        });
+      }
+    }
+  }
+  return {
+    staff,
+    grand_total: {
+      quantity: grandTotalQty,
+      price_incl_vat: grandTotalIncl,
+      price_ex_vat: grandTotalEx
+    }
+  };
+}
+function parsePrice(priceStr) {
+  const cleaned = String(priceStr).replace(/[€\s]/g, "").replace(",", ".");
+  return parseFloat(cleaned) || 0;
 }
 
 function detectDelimiter(csvText) {
@@ -33250,7 +33502,7 @@ const _rkMhOj = defineCachedEventHandler(async (event) => {
     return createError({ status: 400, message: "Invalid icon request" });
   const options = useAppConfig().icon;
   const collectionName = event.context.params?.collection?.replace(/\.json$/, "");
-  const collection = collectionName ? await collections[collectionName]?.() : null;
+  const collection = collectionName ? await collections$1[collectionName]?.() : null;
   const apiEndPoint = options.iconifyApiEndpoint || DEFAULT_ENDPOINT;
   const icons = url.searchParams.get("icons")?.split(",");
   if (collection) {
@@ -33304,6 +33556,7 @@ const _rkMhOj = defineCachedEventHandler(async (event) => {
 
 const _lazy_YeQtu5 = () => Promise.resolve().then(function () { return authorize_get$1; });
 const _lazy_mFBrTd = () => Promise.resolve().then(function () { return callback_get$1; });
+const _lazy_ld8Iwt = () => Promise.resolve().then(function () { return sales_get$7; });
 const _lazy_rpoMxL = () => Promise.resolve().then(function () { return credentials_get$3; });
 const _lazy_Fk11Zg = () => Promise.resolve().then(function () { return credentials_post$3; });
 const _lazy_0fNa4b = () => Promise.resolve().then(function () { return cron_get$3; });
@@ -33416,6 +33669,7 @@ const handlers = [
   { route: '', handler: _hOix36, lazy: false, middleware: true, method: undefined },
   { route: '/api/auth/gmail/authorize', handler: _lazy_YeQtu5, lazy: true, middleware: false, method: "get" },
   { route: '/api/auth/gmail/callback', handler: _lazy_mFBrTd, lazy: true, middleware: false, method: "get" },
+  { route: '/api/bork/sales', handler: _lazy_ld8Iwt, lazy: true, middleware: false, method: "get" },
   { route: '/api/bork/v2/credentials', handler: _lazy_rpoMxL, lazy: true, middleware: false, method: "get" },
   { route: '/api/bork/v2/credentials', handler: _lazy_Fk11Zg, lazy: true, middleware: false, method: "post" },
   { route: '/api/bork/v2/cron', handler: _lazy_0fNa4b, lazy: true, middleware: false, method: "get" },
@@ -35015,34 +35269,56 @@ async function handleParsedMapping(parseResult, attachmentId, emailId, parsedDat
       }))
     });
   } else if (parseResult.documentType !== "formitabele" && parseResult.documentType !== "pasy" && parseResult.documentType !== "coming_soon") {
-    const mappingResult = await dataMappingService.mapToCollection(
-      {
-        ...base,
-        data: { headers: parseResult.headers, rows: parseResult.rows }
-      },
-      parseResult.documentType
-    );
-    await updateParsedData(String(parsedDataId), {
-      mapping: {
-        mappedToCollection: mappingResult.mappedToCollection,
-        matchedRecords: mappingResult.matchedRecords,
-        createdRecords: mappingResult.createdRecords,
-        updatedRecords: mappingResult.updatedRecords
-      },
-      rowsValid: mappingResult.createdRecords + mappingResult.updatedRecords,
-      rowsFailed: mappingResult.failedRecords,
-      validationErrors: mappingResult.errors.map((e) => ({
-        row: e.row,
-        column: "",
-        error: e.error
-      }))
-    });
-    if (parseResult.documentType === "sales") {
-      try {
-        const emailOid = new ObjectId(emailId);
-        await aggregateDailySalesForEmail(emailOid);
-      } catch (error) {
-        console.error("[inboxProcessService] Failed to aggregate daily sales:", error);
+    if (parseResult.documentType === "basis_report") {
+      const basisReport = mapBasisReportXLSX(parseResult, "");
+      if (basisReport) {
+        const db = await (await Promise.resolve().then(function () { return collections; }).then((m) => m.getDb))();
+        await db.collection("basis_reports").updateOne(
+          { date: basisReport.date, location: basisReport.location },
+          { $set: basisReport },
+          { upsert: true }
+        );
+        await updateParsedData(String(parsedDataId), {
+          mapping: {
+            mappedToCollection: "basis_reports",
+            matchedRecords: 1,
+            createdRecords: 1,
+            updatedRecords: 0
+          },
+          rowsValid: 1,
+          rowsFailed: 0
+        });
+      }
+    } else {
+      const mappingResult = await dataMappingService.mapToCollection(
+        {
+          ...base,
+          data: { headers: parseResult.headers, rows: parseResult.rows }
+        },
+        parseResult.documentType
+      );
+      await updateParsedData(String(parsedDataId), {
+        mapping: {
+          mappedToCollection: mappingResult.mappedToCollection,
+          matchedRecords: mappingResult.matchedRecords,
+          createdRecords: mappingResult.createdRecords,
+          updatedRecords: mappingResult.updatedRecords
+        },
+        rowsValid: mappingResult.createdRecords + mappingResult.updatedRecords,
+        rowsFailed: mappingResult.failedRecords,
+        validationErrors: mappingResult.errors.map((e) => ({
+          row: e.row,
+          column: "",
+          error: e.error
+        }))
+      });
+      if (parseResult.documentType === "sales") {
+        try {
+          const emailOid = new ObjectId(emailId);
+          await aggregateDailySalesForEmail(emailOid);
+        } catch (error) {
+          console.error("[inboxProcessService] Failed to aggregate daily sales:", error);
+        }
       }
     }
   }
@@ -35605,6 +35881,36 @@ const callback_get = defineEventHandler(async (event) => {
 const callback_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
   __proto__: null,
   default: callback_get
+}, Symbol.toStringTag, { value: 'Module' }));
+
+const sales_get$6 = defineEventHandler(async (event) => {
+  try {
+    const query = getQuery$1(event);
+    const date = query.date;
+    const location = query.location;
+    const limit = Math.min(parseInt(query.limit) || 30, 365);
+    const db = await (await Promise.resolve().then(function () { return collections; }).then((m) => m.getDb))();
+    const collection = db.collection("basis_reports");
+    const filter = {};
+    if (date) filter.date = date;
+    if (location) filter.location = { $regex: location, $options: "i" };
+    const reports = await collection.find(filter).sort({ date: -1 }).limit(limit).toArray();
+    return {
+      success: true,
+      data: reports,
+      count: reports.length
+    };
+  } catch (error) {
+    throw createError({
+      statusCode: 500,
+      statusMessage: error instanceof Error ? error.message : "Failed to fetch sales reports"
+    });
+  }
+});
+
+const sales_get$7 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+  __proto__: null,
+  default: sales_get$6
 }, Symbol.toStringTag, { value: 'Module' }));
 
 const credentials_get$2 = defineEventHandler(async () => {
