@@ -5767,16 +5767,16 @@ _bZ9Ni6V2HtIpJeulfSLzyAQaoMJdeQllxN50TS5qNvY
 const assets = {
   "/index.mjs": {
     "type": "text/javascript; charset=utf-8",
-    "etag": "\"171266-gnCBFH0613AN2YPvAf/6rlLFW70\"",
-    "mtime": "2026-05-05T18:50:30.775Z",
-    "size": 1512038,
+    "etag": "\"1714be-gKKECFOvcCQ6cHFeen9/mLDqVSE\"",
+    "mtime": "2026-05-05T19:02:32.249Z",
+    "size": 1512638,
     "path": "index.mjs"
   },
   "/index.mjs.map": {
     "type": "application/json",
-    "etag": "\"5c7f77-/IIXM7gc063HznnjxCoch/KU9rA\"",
-    "mtime": "2026-05-05T18:50:30.793Z",
-    "size": 6061943,
+    "etag": "\"5c87c1-7BhWKtRZh3/RHDPL/7MKygsEmt0\"",
+    "mtime": "2026-05-05T19:02:32.266Z",
+    "size": 6064065,
     "path": "index.mjs.map"
   }
 };
@@ -7309,45 +7309,43 @@ function extractLocationFromFile(rows, fileName) {
   return "Unknown";
 }
 function mapNettoSales(rows, headers) {
+  console.log("[mapNettoSales] Input: rows=", rows.length, "headers=", headers.slice(0, 5));
+  if (rows.length === 0) {
+    console.log("[mapNettoSales] No rows!");
+    return { categories: [], grand_total: { quantity: 0, price_incl_vat: 0, price_ex_vat: 0 } };
+  }
+  console.log("[mapNettoSales] First row keys:", Object.keys(rows[0]));
+  console.log("[mapNettoSales] First row values:", JSON.stringify(Object.entries(rows[0]).slice(0, 3)));
   const categories = [];
   let grandTotalQty = 0;
   let grandTotalIncl = 0;
   let grandTotalEx = 0;
   for (const row of rows) {
-    let name = "";
-    let qty = 0;
-    let incl = 0;
-    let ex = 0;
-    for (const [key, val] of Object.entries(row)) {
-      const strVal = String(val || "").trim();
-      if (strVal && strVal.toLowerCase() !== "groep1" && strVal.toLowerCase() !== "null") {
-        name = strVal;
-        break;
-      }
-    }
-    const qtyVal = row["Hoeveelheid"] || Object.values(row)[3];
-    qty = parseFloat(String(qtyVal || 0));
-    const priceIdx = headers.indexOf("Totale prijs");
-    if (priceIdx >= 0) {
-      const vals = Object.values(row);
-      incl = parsePrice(String(vals[priceIdx] || 0));
-      ex = parsePrice(String(vals[priceIdx + 1] || 0));
-    }
-    if (name.toLowerCase().includes("grand total")) {
-      grandTotalQty = qty;
-      grandTotalIncl = incl;
-      grandTotalEx = ex;
+    const name = Object.values(row).find((v) => v && String(v).trim() && !String(v).toLowerCase().includes("groep"));
+    const nameStr = String(name || "").trim();
+    if (nameStr.toLowerCase().includes("grand total")) {
+      const values = Object.values(row);
+      grandTotalQty = parseFloat(String(values[1] || 0));
+      grandTotalIncl = parsePrice(String(values[2] || 0));
+      grandTotalEx = parsePrice(String(values[3] || 0));
       continue;
     }
-    if (name && !name.toLowerCase().includes("groep")) {
-      categories.push({
-        name,
-        quantity: qty,
-        price_incl_vat: incl,
-        price_ex_vat: ex
-      });
+    if (nameStr && !nameStr.toLowerCase().includes("groep")) {
+      const values = Object.values(row);
+      const qty = parseFloat(String(values[1] || 0));
+      const incl = parsePrice(String(values[2] || 0));
+      const ex = parsePrice(String(values[3] || 0));
+      if (!Number.isNaN(qty) && qty > 0) {
+        categories.push({
+          name: nameStr,
+          quantity: qty,
+          price_incl_vat: incl,
+          price_ex_vat: ex
+        });
+      }
     }
   }
+  console.log("[mapNettoSales] Returned", categories.length, "categories, grandTotal=", grandTotalQty);
   return {
     categories,
     grand_total: {
@@ -34722,7 +34720,7 @@ function getCollectionName(documentType) {
   }
 }
 function isTestDataType(documentType) {
-  return ["sales", "product_mix", "food_beverage", "basis_report", "product_sales_per_hour"].includes(documentType);
+  return ["sales", "product_mix", "food_beverage", "product_sales_per_hour"].includes(documentType);
 }
 async function storeRawData(parsedData, documentType, options) {
   if (!isTestDataType(documentType)) {
@@ -35169,12 +35167,13 @@ async function handleParsedMapping(parseResult, attachmentId, emailId, parsedDat
         console.log("[handleParsedMapping] Processing basis_report, documentType:", parseResult.documentType, "format:", parseResult.format);
         const basisReport = mapBasisReportXLSX(parseResult, "");
         if (basisReport) {
+          console.log("[handleParsedMapping] Mapper returned data, storing...");
           const db = await getDb();
-          await db.collection("basis_reports").updateOne(
-            { date: basisReport.date, location: basisReport.location },
-            { $set: basisReport },
-            { upsert: true }
-          );
+          await db.collection("basis_reports").insertOne({
+            debug: true,
+            timestamp: /* @__PURE__ */ new Date(),
+            ...basisReport
+          });
           await updateParsedData(String(parsedDataId), {
             mapping: {
               mappedToCollection: "basis_reports",
@@ -35185,12 +35184,12 @@ async function handleParsedMapping(parseResult, attachmentId, emailId, parsedDat
             rowsValid: 1,
             rowsFailed: 0
           });
-          console.log("[handleParsedMapping] Stored basis report:", basisReport.date, basisReport.location);
+          console.log("[handleParsedMapping] \u2705 Stored basis report:", basisReport.date, basisReport.location);
         } else {
-          console.log("[handleParsedMapping] Mapper returned null");
+          console.log("[handleParsedMapping] \u274C Mapper returned NULL!");
         }
       } catch (err) {
-        console.error("[handleParsedMapping] Basis report error:", err instanceof Error ? err.message : err);
+        console.error("[handleParsedMapping] \u274C Basis report error:", err instanceof Error ? err.message : err);
         throw err;
       }
     } else {

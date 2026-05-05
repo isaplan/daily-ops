@@ -82,16 +82,18 @@ async function handleParsedMapping(
       try {
         console.log('[handleParsedMapping] Processing basis_report, documentType:', parseResult.documentType, 'format:', parseResult.format)
         const basisReport = mapBasisReportXLSX(parseResult, '')
+        
         if (basisReport) {
+          console.log('[handleParsedMapping] Mapper returned data, storing...')
           // Store structured sales report
           const db = await getDb()
-          await db
-            .collection('basis_reports')
-            .updateOne(
-              { date: basisReport.date, location: basisReport.location },
-              { $set: basisReport },
-              { upsert: true },
-            )
+          
+          // DEBUG: Force insert test record
+          await db.collection('basis_reports').insertOne({
+            debug: true,
+            timestamp: new Date(),
+            ...basisReport
+          })
           
           await inboxRepo.updateParsedData(String(parsedDataId), {
             mapping: {
@@ -103,12 +105,12 @@ async function handleParsedMapping(
             rowsValid: 1,
             rowsFailed: 0,
           })
-          console.log('[handleParsedMapping] Stored basis report:', basisReport.date, basisReport.location)
+          console.log('[handleParsedMapping] ✅ Stored basis report:', basisReport.date, basisReport.location)
         } else {
-          console.log('[handleParsedMapping] Mapper returned null')
+          console.log('[handleParsedMapping] ❌ Mapper returned NULL!')
         }
       } catch (err) {
-        console.error('[handleParsedMapping] Basis report error:', err instanceof Error ? err.message : err)
+        console.error('[handleParsedMapping] ❌ Basis report error:', err instanceof Error ? err.message : err)
         throw err
       }
     } else {
