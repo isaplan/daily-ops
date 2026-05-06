@@ -178,10 +178,11 @@ export async function mapBasisReportXLSX(
   const getRowsForSection = (startIdx: number, endIdx: number): Record<string, unknown>[] => {
     if (startIdx >= endIdx || startIdx < 0) return []
     const result = rows.slice(startIdx, endIdx).filter(row => {
-      // Skip header rows (rows with keywords or empty rows)
+      // Skip only section header rows (betalingen, correctie, etc), not data rows
+      // Keep grand total / totaal rows - they are data!
       const rowStr = Object.values(row).map(v => String(v || '').toLowerCase()).join(' ')
-      const hasKeyword = ['betalingen', 'betaalwijze', 'correctie', 'interne', 'verkoop', 'grand total', 'gebruiker', 'action', 'hoeveelheid'].some(kw => rowStr.includes(kw))
-      return !hasKeyword && Object.values(row).some(v => v)
+      const isSectionHeader = ['betalingen', 'betaalwijze', 'correctie', 'interne', 'verkoop'].some(kw => rowStr.includes(kw))
+      return !isSectionHeader && Object.values(row).some(v => v)
     })
     return result
   }
@@ -322,7 +323,8 @@ function mapNettoSales(
     const nameVal = row['Groep1'] || row['Product'] || row['Naam'] || ''
     const nameStr = String(nameVal || '').trim()
 
-    if (nameStr.toLowerCase().includes('grand total') || nameStr.toLowerCase().includes('totaal')) {
+    // Match both "Grand Total" and "Algemeen totaal" (Dutch for General Total)
+    if (nameStr.toLowerCase().includes('grand total') || nameStr.toLowerCase().includes('totaal') || nameStr.toLowerCase().includes('algemeen')) {
       grandTotalQty = parseFloat(String(row['Hoeveelheid'] || row['Quantity'] || 0))
       grandTotalIncl = parsePrice(String(row['Totale prijs'] || row['Total Price'] || 0))
       grandTotalEx = parsePrice(String(row['Ex BTW'] || row['Ex VAT'] || 0))
