@@ -146,6 +146,9 @@ declare module "nitropack/types" {
     '/api/inbox/list': {
       'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/inbox/list.get').default>>>>
     }
+    '/api/inbox/manual-process-basis': {
+      'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/inbox/manual-process-basis.get').default>>>>
+    }
     '/api/inbox/parse': {
       'post': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/inbox/parse.post').default>>>>
     }

@@ -39,6 +39,15 @@ async function handleParsedMapping(
   parsedDataId: ObjectId,
   emailData?: { subject?: string; receivedAt?: Date; messageId?: string; fileName?: string },
 ): Promise<void> {
+  // TRACE: Log every call to MongoDB
+  const db = await getDb()
+  await db.collection('_trace_logs').insertOne({
+    timestamp: new Date(),
+    func: 'handleParsedMapping',
+    documentType: parseResult.documentType,
+    emailSubject: emailData?.subject?.substring(0, 60),
+  })
+  
   if (!parseResult.documentType) return
   
   // DEBUG
@@ -90,12 +99,15 @@ async function handleParsedMapping(
           console.log('[handleParsedMapping] email.subject:', emailData.subject?.substring(0, 80))
         }
         
-        const db = await getDb()
-        
         // DEBUG: Log what we're about to pass
         const debugMsg = `[MAPPER_CALL] subject=${emailData?.subject?.substring(0, 60) || 'NULL'} | fileName=${emailData?.fileName || 'NULL'}`
         console.error(debugMsg)
-        await import('fs').then(fs => fs.promises.appendFile('/tmp/mapper-calls.log', debugMsg + '\n'))
+        await db.collection('_trace_logs').insertOne({
+          timestamp: new Date(),
+          func: 'mapper_call',
+          emailSubject: emailData?.subject?.substring(0, 60),
+          fileName: emailData?.fileName,
+        })
         
         const basisReport = await mapBasisReportXLSX(
           parseResult,
