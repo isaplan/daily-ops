@@ -91,6 +91,12 @@ async function handleParsedMapping(
         }
         
         const db = await getDb()
+        
+        // DEBUG: Log what we're about to pass
+        const debugMsg = `[MAPPER_CALL] subject=${emailData?.subject?.substring(0, 60) || 'NULL'} | fileName=${emailData?.fileName || 'NULL'}`
+        console.error(debugMsg)
+        await import('fs').then(fs => fs.promises.appendFile('/tmp/mapper-calls.log', debugMsg + '\n'))
+        
         const basisReport = await mapBasisReportXLSX(
           parseResult,
           emailData?.fileName || '',

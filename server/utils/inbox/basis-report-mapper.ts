@@ -98,24 +98,36 @@ export async function mapBasisReportXLSX(
 
   const rows = parseResult.rows as Record<string, unknown>[]
 
-  // Extract from email subject (NOW WORKS since we're passing it correctly)
+  // Extract date/location from email subject
   let dateStr = ''
   let locationRaw = ''
+  let subject = emailData?.subject
   
-  console.error('[mapper] emailData.subject:', emailData?.subject)
-  if (emailData?.subject) {
-    const dateMatch = emailData.subject.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/)
+  // If subject wasn't passed, query email directly from DB
+  if (!subject && db && emailData?.emailId) {
+    try {
+      const { ObjectId } = await import('mongodb')
+      const email = await db.collection('inboxemails').findOne({ 
+        _id: new ObjectId(emailData.emailId) 
+      })
+      subject = email?.subject
+    } catch (err) {
+      // Silently fail and continue with fallback
+    }
+  }
+  
+  // Extract from subject
+  if (subject) {
+    const dateMatch = subject.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/)
     if (dateMatch) {
       const [, m, d, y] = dateMatch
       dateStr = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`
-      console.error('[mapper] ✓ Extracted date:', dateStr)
     }
     
     const locations = ['Barbea', 'Bea', 'Kinsbergen', "l'Amour", 'lAmour', 'Bar Bea']
     for (const loc of locations) {
-      if (emailData.subject.includes(loc)) {
+      if (subject.includes(loc)) {
         locationRaw = loc
-        console.error('[mapper] ✓ Extracted location:', loc)
         break
       }
     }
@@ -155,23 +167,58 @@ export async function mapBasisReportXLSX(
     }
   }
 
-  // FOR NOW: RETURN HARDCODED TEST DATA TO VERIFY END-TO-END FLOW
-  // UPDATED 2026-05-06 00:14
+  // Normalize location
+  let locationId: string | undefined
+  if (db && locationRaw && locationRaw !== 'Unknown') {
+    try {
+      const locDoc = await db.collection('unified_location').findOne({ 
+        $or: [
+          { name: locationRaw },
+          { primaryName: locationRaw },
+          { 'borkMapping.borkLocationName': locationRaw }
+        ]
+      })
+      if (locDoc) {
+        locationId = String(locDoc._id)
+      }
+    } catch (err) {
+      // Fail silently
+    }
+  }
+  
+  // Calculate business hour from email received time
+  let businessHour: number | undefined
+  let cronHour: number | undefined
+  if (emailData?.receivedAt) {
+    const amsterdamHour = new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Europe/Amsterdam',
+      hour: '2-digit',
+      hour12: false,
+    }).formatToParts(emailData.receivedAt).find(p => p.type === 'hour')?.value
+    if (amsterdamHour) {
+      cronHour = parseInt(amsterdamHour, 10)
+      businessHour = (parseInt(amsterdamHour, 10) - 8 + 24) % 24
+    }
+  }
+
   return {
-    date: '2026-05-04',
-    location: 'Barbea',
-    location_id: undefined,
-    location_raw: 'Barbea',
-    cron_hour: 8,
-    business_hour: 0,
+    date: dateStr || 'EMPTY_DATE',
+    location: locationRaw || 'EMPTY_LOCATION',
+    location_id: locationId,
+    location_raw: locationRaw,
+    cron_hour: cronHour,
+    business_hour: businessHour,
     received_at: emailData?.receivedAt,
     sections: {},
-    final_revenue_incl_vat: 12345.67,
-    final_revenue_ex_vat: 10203.01,
+    final_revenue_incl_vat: 0,
+    final_revenue_ex_vat: 0,
     metadata: {
-      email_subject: emailData?.subject || 'UNKNOWN',
+      email_subject: subject || 'NO_SUBJECT',
       attachment_filename: fileName,
       parsed_at: new Date(),
+      _debug_extracted_subject: subject,
+      _debug_found_date: !!dateStr,
+      _debug_found_location: !!locationRaw,
     }
   }
 }
