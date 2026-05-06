@@ -398,15 +398,20 @@ export async function processAllUnprocessed(maxEmails: number): Promise<{
     .limit(maxEmails)
     .toArray()
 
+  console.log('[processAllUnprocessed] Found emails:', emails.length)
+
   let totalProcessed = 0
   let totalFailed = 0
   const results: Array<{ emailId: string; success: boolean; attachmentsProcessed: number; error?: string }> = []
 
   for (const email of emails) {
+    console.log('[processAllUnprocessed] Processing email:', String(email._id))
     const emailIdStr = String(email._id)
     const unprocessed = await inboxRepo.findAttachmentsByEmail(email._id as ObjectId, {
       parseStatus: { $ne: 'success' },
     })
+
+    console.log('[processAllUnprocessed] Found unprocessed attachments:', unprocessed.length)
 
     // LOG TO DB FOR DEBUGGING
     await db.collection('_debug_logs').insertOne({
