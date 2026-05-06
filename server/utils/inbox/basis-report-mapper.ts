@@ -97,77 +97,23 @@ export async function mapBasisReportXLSX(
   }
 
   const rows = parseResult.rows as Record<string, unknown>[]
-
-  // Extract date/location from email subject
-  let dateStr = ''
-  let locationRaw = ''
   let subject = emailData?.subject
-  
-  // If subject wasn't passed, query email directly from DB
   if (!subject && db && emailData?.emailId) {
     try {
       const { ObjectId } = await import('mongodb')
-      const email = await db.collection('inboxemails').findOne({ 
-        _id: new ObjectId(emailData.emailId) 
-      })
+      const email = await db.collection('inboxemails').findOne({ _id: new ObjectId(emailData.emailId) })
       subject = email?.subject
-    } catch (err) {
-      // Silently fail and continue with fallback
-    }
-  }
-  
-  // Extract from subject
-  if (subject) {
-    const dateMatch = subject.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/)
-    if (dateMatch) {
-      const [, m, d, y] = dateMatch
-      dateStr = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`
-    }
-    
-    const locations = ['Barbea', 'Bea', 'Kinsbergen', "l'Amour", 'lAmour', 'Bar Bea']
-    for (const loc of locations) {
-      if (subject.includes(loc)) {
-        locationRaw = loc
-        break
-      }
-    }
-  }
-  
-  // Fallback to file parsing if subject extraction didn't work
-  if (!dateStr) dateStr = extractDateFromFile(rows) || ''
-  if (!locationRaw) locationRaw = extractLocationFromFile(rows, fileName) || ''
-  
-  // Normalize location
-  let locationId: string | undefined
-  if (db && locationRaw && locationRaw !== 'Unknown') {
-    const locDoc = await db.collection('unified_location').findOne({ 
-      $or: [
-        { name: locationRaw },
-        { primaryName: locationRaw },
-        { 'borkMapping.borkLocationName': locationRaw }
-      ]
-    })
-    if (locDoc) {
-      locationId = String(locDoc._id)
-    }
-  }
-  
-  // Calculate business hour from email received time
-  let businessHour: number | undefined
-  let cronHour: number | undefined
-  if (emailData?.receivedAt) {
-    const amsterdamHour = new Intl.DateTimeFormat('en-GB', {
-      timeZone: 'Europe/Amsterdam',
-      hour: '2-digit',
-      hour12: false,
-    }).formatToParts(emailData.receivedAt).find(p => p.type === 'hour')?.value
-    if (amsterdamHour) {
-      cronHour = parseInt(amsterdamHour, 10)
-      businessHour = (parseInt(amsterdamHour, 10) - 8 + 24) % 24
-    }
+    } catch {}
   }
 
-  // Normalize location
+  const dateFromSubject = extractDateFromSubject(subject) || ''
+  const locationFromSubject = extractLocationFromSubject(subject) || ''
+  const dateFromMetadata = String((parseResult.metadata as Record<string, unknown>)?.extracted_date || '')
+  const locationFromMetadata = String((parseResult.metadata as Record<string, unknown>)?.extracted_location || '')
+
+  const dateStr = dateFromSubject || dateFromMetadata || extractDateFromFile(rows) || ''
+  const locationRaw = locationFromSubject || locationFromMetadata || extractLocationFromFile(rows, fileName) || ''
+
   let locationId: string | undefined
   if (db && locationRaw && locationRaw !== 'Unknown') {
     try {
@@ -186,7 +132,6 @@ export async function mapBasisReportXLSX(
     }
   }
   
-  // Calculate business hour from email received time
   let businessHour: number | undefined
   let cronHour: number | undefined
   if (emailData?.receivedAt) {
@@ -201,24 +146,93 @@ export async function mapBasisReportXLSX(
     }
   }
 
+  // Parse sections from rows
+  const sections: BasisReportData['sections'] = {}
+  
+  // Identify section boundaries by looking for section headers
+  let nettoStartIdx = -1
+  let paymentStartIdx = -1
+  let correctionsStartIdx = -1
+  let internalStartIdx = -1
+  
+  for (let i = 0; i < rows.length; i++) {
+    const firstVal = String(Object.values(rows[i])[0] || '').toLowerCase()
+    if (firstVal.includes('netto') || firstVal.includes('verkoop')) {
+      nettoStartIdx = i
+    } else if (firstVal.includes('betaal')) {
+      paymentStartIdx = i
+    } else if (firstVal.includes('correctie')) {
+      correctionsStartIdx = i
+    } else if (firstVal.includes('interne')) {
+      internalStartIdx = i
+    }
+  }
+
+  // Extract section rows
+  const getRowsForSection = (startIdx: number, nextIdx: number): Record<string, unknown>[] => {
+    if (startIdx < 0) return []
+    const endIdx = nextIdx > startIdx ? nextIdx : rows.length
+    return rows.slice(startIdx + 1, endIdx)
+  }
+
+  const sectionIndices = [nettoStartIdx, paymentStartIdx, correctionsStartIdx, internalStartIdx]
+    .filter(idx => idx >= 0)
+    .sort((a, b) => a - b)
+  
+  if (nettoStartIdx >= 0) {
+    const nextIdx = sectionIndices[sectionIndices.indexOf(nettoStartIdx) + 1] ?? rows.length
+    sections.netto_sales = mapNettoSales(getRowsForSection(nettoStartIdx, nextIdx), parseResult.headers)
+  }
+  
+  if (paymentStartIdx >= 0) {
+    const nextIdx = sectionIndices[sectionIndices.indexOf(paymentStartIdx) + 1] ?? rows.length
+    sections.payments = mapPayments(getRowsForSection(paymentStartIdx, nextIdx))
+  }
+  
+  if (correctionsStartIdx >= 0) {
+    const nextIdx = sectionIndices[sectionIndices.indexOf(correctionsStartIdx) + 1] ?? rows.length
+    sections.corrections = mapCorrections(getRowsForSection(correctionsStartIdx, nextIdx), parseResult.headers)
+  }
+  
+  if (internalStartIdx >= 0) {
+    const nextIdx = sectionIndices[sectionIndices.indexOf(internalStartIdx) + 1] ?? rows.length
+    sections.internal_sales = mapInternalSales(getRowsForSection(internalStartIdx, nextIdx), parseResult.headers)
+  }
+
+  // Normalize user names if database available
+  if (db) {
+    if (sections.corrections?.adjustments) {
+      await normalizeUserNames(sections.corrections.adjustments, db)
+    }
+    if (sections.internal_sales?.staff) {
+      await normalizeUserNames(sections.internal_sales.staff, db)
+    }
+  }
+
+  // Calculate final revenue
+  const finalRevenueIncl = (sections.netto_sales?.grand_total?.price_incl_vat || 0)
+    + (sections.corrections?.grand_total?.price_incl_vat || 0)
+    - (sections.internal_sales?.grand_total?.price_incl_vat || 0)
+  
+  const finalRevenueEx = (sections.netto_sales?.grand_total?.price_ex_vat || 0)
+    + (sections.corrections?.grand_total?.price_ex_vat || 0)
+    - (sections.internal_sales?.grand_total?.price_ex_vat || 0)
+
   return {
-    date: dateStr || 'EMPTY_DATE',
-    location: locationRaw || 'EMPTY_LOCATION',
+    date: dateStr || 'UNKNOWN',
+    location: locationRaw || 'UNKNOWN',
     location_id: locationId,
     location_raw: locationRaw,
     cron_hour: cronHour,
     business_hour: businessHour,
     received_at: emailData?.receivedAt,
-    sections: {},
-    final_revenue_incl_vat: 0,
-    final_revenue_ex_vat: 0,
+    sections,
+    final_revenue_incl_vat: finalRevenueIncl,
+    final_revenue_ex_vat: finalRevenueEx,
     metadata: {
-      email_subject: subject || 'NO_SUBJECT',
+      email_subject: subject,
       attachment_filename: fileName,
       parsed_at: new Date(),
-      _debug_extracted_subject: subject,
-      _debug_found_date: !!dateStr,
-      _debug_found_location: !!locationRaw,
     }
   }
 }
@@ -233,12 +247,12 @@ function extractDateFromFile(rows: Record<string, unknown>[]): string {
         // Extract end date from range (05/05/2026 - 05/05/2026 → 05/05/2026)
         const match = str.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})\s*-\s*(\d{1,2})\/(\d{1,2})\/(\d{4})/)
         if (match) {
-          const [, m, d, y] = match
+          const [, d, m, y] = match
           return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`
         }
         const matchSingle = str.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/)
         if (matchSingle) {
-          const [, m, d, y] = matchSingle
+          const [, d, m, y] = matchSingle
           return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`
         }
       }
@@ -487,7 +501,7 @@ function extractDateFromSubject(subject?: string): string | null {
   // Match patterns like "04/05/2026" or "4/5/2026"
   const match = subject.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/)
   if (match) {
-    const [, m, d, y] = match
+    const [, d, m, y] = match
     return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`
   }
   return null
