@@ -149,62 +149,77 @@ export async function mapBasisReportXLSX(
   // Parse sections from rows
   const sections: BasisReportData['sections'] = {}
   
-  // Identify section boundaries by looking for section headers in any column
-  let nettoStartIdx = -1
-  let paymentStartIdx = -1
-  let correctionsStartIdx = -1
-  let internalStartIdx = -1
+  // Identify section boundaries by looking for section header KEYWORDS
+  const sectionMarkers: Array<{ keyword: string; sectionType: string; rowIdx: number }> = []
   
-  console.log(`[mapBasisReportXLSX] Total rows to scan: ${rows.length}`)
-  
-  for (let i = 0; i < Math.min(rows.length, 20); i++) {
+  for (let i = 0; i < rows.length; i++) {
     const rowStr = Object.values(rows[i]).map(v => String(v || '').toLowerCase()).join(' ')
-    console.log(`[mapBasisReportXLSX] Row ${i}: ${rowStr.substring(0, 80)}`)
-    
-    if (rowStr.includes('netto') || rowStr.includes('verkoop')) {
-      console.log(`[mapBasisReportXLSX] Found netto_sales at row ${i}`)
-      nettoStartIdx = i
-    } else if (rowStr.includes('betaal') || rowStr.includes('payment')) {
-      console.log(`[mapBasisReportXLSX] Found payments at row ${i}`)
-      paymentStartIdx = i
-    } else if (rowStr.includes('correctie') || rowStr.includes('correction')) {
-      console.log(`[mapBasisReportXLSX] Found corrections at row ${i}`)
-      correctionsStartIdx = i
-    } else if (rowStr.includes('interne') || rowStr.includes('internal')) {
-      console.log(`[mapBasisReportXLSX] Found internal_sales at row ${i}`)
-      internalStartIdx = i
+    if (rowStr.includes('betalingen') || rowStr.includes('betaalwijze')) {
+      if (!sectionMarkers.find(m => m.sectionType === 'payments')) {
+        sectionMarkers.push({ keyword: 'betalingen', sectionType: 'payments', rowIdx: i })
+      }
+    } else if (rowStr.includes('correctie')) {
+      if (!sectionMarkers.find(m => m.sectionType === 'corrections')) {
+        sectionMarkers.push({ keyword: 'correcties', sectionType: 'corrections', rowIdx: i })
+      }
+    } else if (rowStr.includes('interne') && rowStr.includes('verkoop')) {
+      if (!sectionMarkers.find(m => m.sectionType === 'internal_sales')) {
+        sectionMarkers.push({ keyword: 'interne verkoop', sectionType: 'internal_sales', rowIdx: i })
+      }
     }
   }
-
-  // Extract section rows
-  const getRowsForSection = (startIdx: number, nextIdx: number): Record<string, unknown>[] => {
-    if (startIdx < 0) return []
-    const endIdx = nextIdx > startIdx ? nextIdx : rows.length
-    return rows.slice(startIdx + 1, endIdx)
-  }
-
-  const sectionIndices = [nettoStartIdx, paymentStartIdx, correctionsStartIdx, internalStartIdx]
-    .filter(idx => idx >= 0)
-    .sort((a, b) => a - b)
   
-  if (nettoStartIdx >= 0) {
-    const nextIdx = sectionIndices[sectionIndices.indexOf(nettoStartIdx) + 1] ?? rows.length
-    sections.netto_sales = mapNettoSales(getRowsForSection(nettoStartIdx, nextIdx), parseResult.headers)
-  }
+  // Sort by row index
+  sectionMarkers.sort((a, b) => a.rowIdx - b.rowIdx)
   
-  if (paymentStartIdx >= 0) {
-    const nextIdx = sectionIndices[sectionIndices.indexOf(paymentStartIdx) + 1] ?? rows.length
-    sections.payments = mapPayments(getRowsForSection(paymentStartIdx, nextIdx))
+  // Extract section data: 
+  // - Netto sales: from row 0 to first section marker
+  // - Other sections: from their marker+1 to next marker
+  const getRowsForSection = (startIdx: number, endIdx: number): Record<string, unknown>[] => {
+    if (startIdx >= endIdx || startIdx < 0) return []
+    const result = rows.slice(startIdx, endIdx).filter(row => {
+      // Skip header rows (rows with keywords or empty rows)
+      const rowStr = Object.values(row).map(v => String(v || '').toLowerCase()).join(' ')
+      const hasKeyword = ['betalingen', 'betaalwijze', 'correctie', 'interne', 'verkoop', 'grand total', 'gebruiker', 'action', 'hoeveelheid'].some(kw => rowStr.includes(kw))
+      return !hasKeyword && Object.values(row).some(v => v)
+    })
+    return result
   }
   
-  if (correctionsStartIdx >= 0) {
-    const nextIdx = sectionIndices[sectionIndices.indexOf(correctionsStartIdx) + 1] ?? rows.length
-    sections.corrections = mapCorrections(getRowsForSection(correctionsStartIdx, nextIdx), parseResult.headers)
+  // Netto sales: from start to first section marker
+  const nettoEndIdx = sectionMarkers.length > 0 ? sectionMarkers[0].rowIdx : rows.length
+  const nettoData = getRowsForSection(0, nettoEndIdx)
+  if (nettoData.length > 0) {
+    sections.netto_sales = mapNettoSales(nettoData, parseResult.headers)
   }
   
-  if (internalStartIdx >= 0) {
-    const nextIdx = sectionIndices[sectionIndices.indexOf(internalStartIdx) + 1] ?? rows.length
-    sections.internal_sales = mapInternalSales(getRowsForSection(internalStartIdx, nextIdx), parseResult.headers)
+  // Payments: between "betalingen" and next section
+  const paymentMarker = sectionMarkers.find(m => m.sectionType === 'payments')
+  if (paymentMarker) {
+    const paymentEndIdx = sectionMarkers.find(m => m.rowIdx > paymentMarker.rowIdx)?.rowIdx ?? rows.length
+    const paymentData = getRowsForSection(paymentMarker.rowIdx + 1, paymentEndIdx)
+    if (paymentData.length > 0) {
+      sections.payments = mapPayments(paymentData)
+    }
+  }
+  
+  // Corrections: between "correcties" and next section
+  const correctionMarker = sectionMarkers.find(m => m.sectionType === 'corrections')
+  if (correctionMarker) {
+    const correctionEndIdx = sectionMarkers.find(m => m.rowIdx > correctionMarker.rowIdx)?.rowIdx ?? rows.length
+    const correctionData = getRowsForSection(correctionMarker.rowIdx + 1, correctionEndIdx)
+    if (correctionData.length > 0) {
+      sections.corrections = mapCorrections(correctionData, parseResult.headers)
+    }
+  }
+  
+  // Internal sales: between "interne verkoop" and end
+  const internalMarker = sectionMarkers.find(m => m.sectionType === 'internal_sales')
+  if (internalMarker) {
+    const internalData = getRowsForSection(internalMarker.rowIdx + 1, rows.length)
+    if (internalData.length > 0) {
+      sections.internal_sales = mapInternalSales(internalData, parseResult.headers)
+    }
   }
 
   // Normalize user names if database available
