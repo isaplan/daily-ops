@@ -232,14 +232,10 @@ export async function mapBasisReportXLSX(
     }
   }
 
-  // Calculate final revenue
-  const finalRevenueIncl = (sections.netto_sales?.grand_total?.price_incl_vat || 0)
-    + (sections.corrections?.grand_total?.price_incl_vat || 0)
-    - (sections.internal_sales?.grand_total?.price_incl_vat || 0)
-  
-  const finalRevenueEx = (sections.netto_sales?.grand_total?.price_ex_vat || 0)
-    + (sections.corrections?.grand_total?.price_ex_vat || 0)
-    - (sections.internal_sales?.grand_total?.price_ex_vat || 0)
+  // Calculate final revenue: use Netto Sales Grand Total as the authoritative revenue
+  // (Corrections and Internal Sales are detailed line items, not adjustments to final revenue)
+  const finalRevenueIncl = sections.netto_sales?.grand_total?.price_incl_vat || 0
+  const finalRevenueEx = sections.netto_sales?.grand_total?.price_ex_vat || 0
 
   return {
     date: dateStr || 'UNKNOWN',
