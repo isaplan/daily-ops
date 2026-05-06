@@ -149,21 +149,29 @@ export async function mapBasisReportXLSX(
   // Parse sections from rows
   const sections: BasisReportData['sections'] = {}
   
-  // Identify section boundaries by looking for section headers
+  // Identify section boundaries by looking for section headers in any column
   let nettoStartIdx = -1
   let paymentStartIdx = -1
   let correctionsStartIdx = -1
   let internalStartIdx = -1
   
-  for (let i = 0; i < rows.length; i++) {
-    const firstVal = String(Object.values(rows[i])[0] || '').toLowerCase()
-    if (firstVal.includes('netto') || firstVal.includes('verkoop')) {
+  console.log(`[mapBasisReportXLSX] Total rows to scan: ${rows.length}`)
+  
+  for (let i = 0; i < Math.min(rows.length, 20); i++) {
+    const rowStr = Object.values(rows[i]).map(v => String(v || '').toLowerCase()).join(' ')
+    console.log(`[mapBasisReportXLSX] Row ${i}: ${rowStr.substring(0, 80)}`)
+    
+    if (rowStr.includes('netto') || rowStr.includes('verkoop')) {
+      console.log(`[mapBasisReportXLSX] Found netto_sales at row ${i}`)
       nettoStartIdx = i
-    } else if (firstVal.includes('betaal')) {
+    } else if (rowStr.includes('betaal') || rowStr.includes('payment')) {
+      console.log(`[mapBasisReportXLSX] Found payments at row ${i}`)
       paymentStartIdx = i
-    } else if (firstVal.includes('correctie')) {
+    } else if (rowStr.includes('correctie') || rowStr.includes('correction')) {
+      console.log(`[mapBasisReportXLSX] Found corrections at row ${i}`)
       correctionsStartIdx = i
-    } else if (firstVal.includes('interne')) {
+    } else if (rowStr.includes('interne') || rowStr.includes('internal')) {
+      console.log(`[mapBasisReportXLSX] Found internal_sales at row ${i}`)
       internalStartIdx = i
     }
   }
