@@ -312,14 +312,9 @@ function mapNettoSales(
   rows: Record<string, unknown>[],
   headers: string[],
 ): BasisReportData['sections']['netto_sales'] {
-  console.log('[mapNettoSales] Input: rows=', rows.length, 'headers=', headers.slice(0, 5))
   if (rows.length === 0) {
-    console.log('[mapNettoSales] No rows!')
     return { categories: [], grand_total: { quantity: 0, price_incl_vat: 0, price_ex_vat: 0 } }
   }
-
-  console.log('[mapNettoSales] First row keys:', Object.keys(rows[0]))
-  console.log('[mapNettoSales] First row values:', JSON.stringify(Object.entries(rows[0]).slice(0, 3)))
 
   const categories: BasisReportData['sections']['netto_sales']['categories'] = []
   let grandTotalQty = 0
@@ -327,23 +322,21 @@ function mapNettoSales(
   let grandTotalEx = 0
 
   for (const row of rows) {
-    // Find the relevant columns - the first non-null value is usually the product name
-    const name = Object.values(row).find(v => v && String(v).trim() && !String(v).toLowerCase().includes('groep'))
-    const nameStr = String(name || '').trim()
+    // Get product name from Groep1 or similar (first non-null named column)
+    const nameVal = row['Groep1'] || row['Product'] || row['Naam'] || ''
+    const nameStr = String(nameVal || '').trim()
 
-    if (nameStr.toLowerCase().includes('grand total')) {
-      const values = Object.values(row)
-      grandTotalQty = parseFloat(String(values[1] || 0))
-      grandTotalIncl = parsePrice(String(values[2] || 0))
-      grandTotalEx = parsePrice(String(values[3] || 0))
+    if (nameStr.toLowerCase().includes('grand total') || nameStr.toLowerCase().includes('totaal')) {
+      grandTotalQty = parseFloat(String(row['Hoeveelheid'] || row['Quantity'] || 0))
+      grandTotalIncl = parsePrice(String(row['Totale prijs'] || row['Total Price'] || 0))
+      grandTotalEx = parsePrice(String(row['Ex BTW'] || row['Ex VAT'] || 0))
       continue
     }
 
     if (nameStr && !nameStr.toLowerCase().includes('groep')) {
-      const values = Object.values(row)
-      const qty = parseFloat(String(values[1] || 0))
-      const incl = parsePrice(String(values[2] || 0))
-      const ex = parsePrice(String(values[3] || 0))
+      const qty = parseFloat(String(row['Hoeveelheid'] || row['Quantity'] || 0))
+      const incl = parsePrice(String(row['Totale prijs'] || row['Total Price'] || 0))
+      const ex = parsePrice(String(row['Ex BTW'] || row['Ex VAT'] || 0))
 
       if (!Number.isNaN(qty) && qty > 0) {
         categories.push({
@@ -356,7 +349,6 @@ function mapNettoSales(
     }
   }
 
-  console.log('[mapNettoSales] Returned', categories.length, 'categories, grandTotal=', grandTotalQty)
   return {
     categories,
     grand_total: {
@@ -374,15 +366,15 @@ function mapPayments(
   let grandTotalQty = 0
 
   for (const row of rows) {
-    const method = String(Object.values(row)[0] || '').trim()
+    const method = String(row['Betaalwijze'] || row['Method'] || row[Object.keys(row)[0]] || '').trim()
 
-    if (method.toLowerCase() === 'grand total') {
-      grandTotalQty = parseFloat(String(Object.values(row)[1] || 0))
+    if (method.toLowerCase() === 'grand total' || method.toLowerCase().includes('totaal')) {
+      grandTotalQty = parseFloat(String(row['Hoeveelheid'] || row['Quantity'] || 0))
       continue
     }
 
     if (method && !method.includes('Betaalwijze')) {
-      const qty = parseFloat(String(Object.values(row)[1] || 0))
+      const qty = parseFloat(String(row['Hoeveelheid'] || row['Quantity'] || 0))
       if (!Number.isNaN(qty)) {
         methods.push({ method, quantity: qty })
       }
@@ -405,19 +397,19 @@ function mapCorrections(
   let grandTotalEx = 0
 
   for (const row of rows) {
-    const user = String(Object.values(row)[0] || '').trim()
+    const user = String(row['Gebruiker'] || row['User'] || row[Object.keys(row)[0]] || '').trim()
 
-    if (user.toLowerCase() === 'grand total') {
-      grandTotalQty = parseFloat(String(Object.values(row)[1] || 0))
-      grandTotalIncl = parsePrice(String(Object.values(row)[2] || 0))
-      grandTotalEx = parsePrice(String(Object.values(row)[3] || 0))
+    if (user.toLowerCase() === 'grand total' || user.toLowerCase().includes('totaal')) {
+      grandTotalQty = parseFloat(String(row['Hoeveelheid'] || row['Quantity'] || 0))
+      grandTotalIncl = parsePrice(String(row['Totale prijs'] || row['Total Price'] || 0))
+      grandTotalEx = parsePrice(String(row['Ex BTW'] || row['Ex VAT'] || 0))
       continue
     }
 
     if (user && !user.includes('Gebruiker')) {
-      const qty = parseFloat(String(Object.values(row)[1] || 0))
-      const incl = parsePrice(String(Object.values(row)[2] || 0))
-      const ex = parsePrice(String(Object.values(row)[3] || 0))
+      const qty = parseFloat(String(row['Hoeveelheid'] || row['Quantity'] || 0))
+      const incl = parsePrice(String(row['Totale prijs'] || row['Total Price'] || 0))
+      const ex = parsePrice(String(row['Ex BTW'] || row['Ex VAT'] || 0))
 
       if (!Number.isNaN(qty)) {
         adjustments.push({
@@ -450,19 +442,19 @@ function mapInternalSales(
   let grandTotalEx = 0
 
   for (const row of rows) {
-    const user = String(Object.values(row)[0] || '').trim()
+    const user = String(row['Gebruiker'] || row['User'] || row[Object.keys(row)[0]] || '').trim()
 
-    if (user.toLowerCase() === 'grand total') {
-      grandTotalQty = parseFloat(String(Object.values(row)[1] || 0))
-      grandTotalIncl = parsePrice(String(Object.values(row)[2] || 0))
-      grandTotalEx = parsePrice(String(Object.values(row)[3] || 0))
+    if (user.toLowerCase() === 'grand total' || user.toLowerCase().includes('totaal')) {
+      grandTotalQty = parseFloat(String(row['Hoeveelheid'] || row['Quantity'] || 0))
+      grandTotalIncl = parsePrice(String(row['Totale prijs'] || row['Total Price'] || 0))
+      grandTotalEx = parsePrice(String(row['Ex BTW'] || row['Ex VAT'] || 0))
       continue
     }
 
     if (user && !user.includes('Gebruiker')) {
-      const qty = parseFloat(String(Object.values(row)[1] || 0))
-      const incl = parsePrice(String(Object.values(row)[2] || 0))
-      const ex = parsePrice(String(Object.values(row)[3] || 0))
+      const qty = parseFloat(String(row['Hoeveelheid'] || row['Quantity'] || 0))
+      const incl = parsePrice(String(row['Totale prijs'] || row['Total Price'] || 0))
+      const ex = parsePrice(String(row['Ex BTW'] || row['Ex VAT'] || 0))
 
       if (!Number.isNaN(qty)) {
         staff.push({
