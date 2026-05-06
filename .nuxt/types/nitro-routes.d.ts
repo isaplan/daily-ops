@@ -167,6 +167,9 @@ declare module "nitropack/types" {
     '/api/inbox/test-data/:type': {
       'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/inbox/test-data/[type].get').default>>>>
     }
+    '/api/inbox/test-mapper': {
+      'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/inbox/test-mapper.get').default>>>>
+    }
     '/api/inbox/unprocessed-count': {
       'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/inbox/unprocessed-count.get').default>>>>
     }

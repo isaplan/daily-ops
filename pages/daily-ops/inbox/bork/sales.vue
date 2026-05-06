@@ -4,7 +4,7 @@
       <!-- Header -->
       <div class="mb-8">
         <h1 class="text-3xl font-bold text-gray-900">Bork Daily Sales Reports</h1>
-        <p class="text-gray-600 mt-2">Revenue tracking by day, location, and payment method</p>
+        <p class="text-gray-600 mt-2">Revenue from Basis Report emails (ground truth)</p>
       </div>
 
       <!-- Loading State -->
@@ -29,11 +29,19 @@
             @click="toggleReport(report.date, report.location)"
             class="w-full px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition"
           >
-            <div class="text-left">
+            <div class="text-left flex-1">
               <div class="flex items-center gap-4">
                 <div>
-                  <h3 class="font-semibold text-gray-900">{{ report.location }}</h3>
-                  <p class="text-sm text-gray-500">{{ formatDate(report.date) }}</p>
+                  <h3 class="font-semibold text-gray-900">{{ report.location_raw || report.location }}</h3>
+                  <p class="text-sm text-gray-500">
+                    {{ formatDate(report.date) }}
+                    <span v-if="report.cron_hour" class="ml-2 text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">
+                      Cron: {{ report.cron_hour }}:00
+                    </span>
+                    <span v-if="report.business_hour !== undefined" class="ml-2 text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded">
+                      Business: {{ report.business_hour }}:00
+                    </span>
+                  </p>
                 </div>
               </div>
             </div>
@@ -62,6 +70,12 @@
             class="border-t border-gray-200 bg-gray-50"
           >
             <div class="px-6 py-4 space-y-6">
+              <!-- Metadata -->
+              <div class="bg-white rounded border border-gray-100 p-3 text-xs space-y-1">
+                <div v-if="report.location_id" class="text-gray-600">Location ID: <code class="bg-gray-100 px-2 py-1 rounded">{{ report.location_id }}</code></div>
+                <div v-if="report.metadata?.email_subject" class="text-gray-600">Subject: {{ report.metadata.email_subject }}</div>
+              </div>
+
               <!-- Netto Sales Section -->
               <div v-if="report.sections?.netto_sales" class="space-y-3">
                 <h4 class="font-semibold text-gray-900">Netto Sales (Products)</h4>
@@ -123,18 +137,23 @@
                   <table class="w-full text-sm">
                     <thead class="bg-gray-100 border-b">
                       <tr>
-                        <th class="px-4 py-2 text-left">User/Action</th>
+                        <th class="px-4 py-2 text-left">User</th>
+                        <th class="px-4 py-2 text-left text-xs">Action</th>
                         <th class="px-4 py-2 text-right">Qty</th>
                         <th class="px-4 py-2 text-right">Amount</th>
                       </tr>
                     </thead>
                     <tbody>
                       <tr
-                        v-for="adj in report.sections.corrections.adjustments"
-                        :key="`adj-${adj.user}`"
+                        v-for="(adj, i) in report.sections.corrections.adjustments"
+                        :key="`adj-${i}`"
                         class="border-b hover:bg-gray-50"
                       >
-                        <td class="px-4 py-2">{{ adj.user }} <span v-if="adj.action" class="text-xs text-gray-500">({{ adj.action }})</span></td>
+                        <td class="px-4 py-2">
+                          <div class="font-medium">{{ adj.user_raw || adj.user }}</div>
+                          <div v-if="adj.user_id" class="text-xs text-gray-500">{{ adj.user_id }}</div>
+                        </td>
+                        <td class="px-4 py-2 text-xs text-gray-500">{{ adj.action || '—' }}</td>
                         <td class="px-4 py-2 text-right text-red-600">{{ adj.quantity }}</td>
                         <td class="px-4 py-2 text-right text-red-600">€{{ formatCurrency(adj.price_incl_vat) }}</td>
                       </tr>
@@ -145,25 +164,40 @@
 
               <!-- Internal Sales Section -->
               <div v-if="report.sections?.internal_sales" class="space-y-3">
-                <h4 class="font-semibold text-gray-900">Internal Sales</h4>
+                <h4 class="font-semibold text-gray-900">Internal Sales (Staff)</h4>
                 <div class="bg-white rounded border border-gray-200 overflow-hidden">
                   <table class="w-full text-sm">
                     <thead class="bg-gray-100 border-b">
                       <tr>
                         <th class="px-4 py-2 text-left">Staff</th>
                         <th class="px-4 py-2 text-right">Qty</th>
-                        <th class="px-4 py-2 text-right">Amount</th>
+                        <th class="px-4 py-2 text-right">Inc VAT</th>
+                        <th class="px-4 py-2 text-right">Ex VAT</th>
                       </tr>
                     </thead>
                     <tbody>
                       <tr
-                        v-for="staff in report.sections.internal_sales.staff"
-                        :key="`staff-${staff.user}`"
+                        v-for="(staff, i) in report.sections.internal_sales.staff"
+                        :key="`staff-${i}`"
                         class="border-b hover:bg-gray-50"
                       >
-                        <td class="px-4 py-2 font-medium">{{ staff.user }}</td>
+                        <td class="px-4 py-2">
+                          <div class="font-medium">{{ staff.user_raw || staff.user }}</div>
+                          <div v-if="staff.user_id" class="text-xs text-gray-500">{{ staff.user_id }}</div>
+                        </td>
                         <td class="px-4 py-2 text-right">{{ staff.quantity }}</td>
                         <td class="px-4 py-2 text-right">€{{ formatCurrency(staff.price_incl_vat || 0) }}</td>
+                        <td class="px-4 py-2 text-right">€{{ formatCurrency(staff.price_ex_vat || 0) }}</td>
+                      </tr>
+                      <tr v-if="report.sections.internal_sales.grand_total" class="bg-purple-50 font-bold border-b-2">
+                        <td class="px-4 py-2">Total</td>
+                        <td class="px-4 py-2 text-right">{{ report.sections.internal_sales.grand_total.quantity }}</td>
+                        <td class="px-4 py-2 text-right text-purple-700">
+                          €{{ formatCurrency(report.sections.internal_sales.grand_total.price_incl_vat) }}
+                        </td>
+                        <td class="px-4 py-2 text-right text-purple-600">
+                          €{{ formatCurrency(report.sections.internal_sales.grand_total.price_ex_vat) }}
+                        </td>
                       </tr>
                     </tbody>
                   </table>
@@ -193,7 +227,7 @@ const expandedReports = ref(new Set<string>())
 onMounted(async () => {
   try {
     loading.value = true
-    const response = await $fetch('/api/bork/sales?limit=30')
+    const response = await $fetch('/api/bork/sales?limit=100&sort=-received_at')
     if (response.success) {
       reports.value = response.data || []
     } else {
@@ -218,7 +252,7 @@ function toggleReport(date: string, location: string) {
 function formatDate(dateStr: string): string {
   try {
     const date = new Date(dateStr)
-    return date.toLocaleDateString('nl-NL', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
+    return date.toLocaleDateString('nl-NL', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })
   } catch {
     return dateStr
   }

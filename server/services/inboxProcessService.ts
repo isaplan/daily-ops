@@ -37,8 +37,12 @@ async function handleParsedMapping(
   attachmentId: string,
   emailId: string,
   parsedDataId: ObjectId,
+  emailData?: { subject?: string; receivedAt?: Date; messageId?: string; fileName?: string },
 ): Promise<void> {
   if (!parseResult.documentType) return
+  
+  // DEBUG
+  console.log('[handleParsedMapping] Processing documentType:', parseResult.documentType, 'emailData?:', !!emailData)
 
   const base: CreateParsedDataDto = {
     attachmentId,
@@ -80,18 +84,50 @@ async function handleParsedMapping(
     // Special handling for basis_report (Bork daily sales)
     if (parseResult.documentType === 'basis_report' || parseResult.format === 'xlsx') {
       try {
-        console.log('[handleParsedMapping] Processing basis_report, documentType:', parseResult.documentType)
-        const basisReport = mapBasisReportXLSX(parseResult, '')
+        console.log('[handleParsedMapping] Processing XLSX/basis_report')
+        console.log('[handleParsedMapping] emailData passed:', emailData ? 'YES' : 'NO')
+        if (emailData) {
+          console.log('[handleParsedMapping] email.subject:', emailData.subject?.substring(0, 80))
+        }
+        
+        const db = await getDb()
+        const basisReport = await mapBasisReportXLSX(
+          parseResult,
+          emailData?.fileName || '',
+          emailData,
+          db
+        )
+        
+        console.log('[handleParsedMapping] mapBasisReportXLSX returned:', basisReport ? 'data' : 'null')
+        if (basisReport) {
+          console.log('[handleParsedMapping] date:', basisReport.date, 'location:', basisReport.location)
+        }
         
         if (basisReport) {
-          console.log('[handleParsedMapping] ✅ Storing to inbox-bork-basis-report:', basisReport.date, basisReport.location)
-          // Store to Bork basis report collection
-          const db = await getDb()
-          await db.collection('inbox-bork-basis-report').updateOne(
-            { date: basisReport.date, location: basisReport.location },
-            { $set: { ...basisReport, updated_at: new Date() } },
-            { upsert: true }
-          )
+          try {
+            // Write debug log directly to file since console output isn't captured
+            await import('fs').then(fs => fs.promises.appendFile(
+              '/tmp/upsert-debug.log',
+              `[${new Date().toISOString()}] date=${basisReport.date}, location=${basisReport.location}\n`
+            ))
+            
+            const result = await db.collection('inbox-bork-basis-report').updateOne(
+              { date: basisReport.date, location: basisReport.location },
+              { $set: { ...basisReport, updated_at: new Date() } },
+              { upsert: true }
+            )
+            
+            await import('fs').then(fs => fs.promises.appendFile(
+              '/tmp/upsert-debug.log',
+              `[RESULT] matched=${result.matchedCount}, upserted=${result.upsertedId}\n`
+            ))
+          } catch (err) {
+            await import('fs').then(fs => fs.promises.appendFile(
+              '/tmp/upsert-debug.log',
+              `[ERROR] ${err instanceof Error ? err.message : String(err)}\n`
+            ))
+            throw err
+          }
           
           await inboxRepo.updateParsedData(String(parsedDataId), {
             mapping: {
@@ -263,13 +299,27 @@ export async function processEmailAttachments(emailId: string): Promise<{
         data: {
           headers: parseResult.headers,
           rows: parseResult.rows,
-          metadata: parseResult.metadata as Record<string, unknown>,
+          metadata: { ...parseResult.metadata, ...emailMetadata } as Record<string, unknown>,
         },
       })
 
       await inboxRepo.updateAttachment(attId, { parsedDataRef: parsedInsert._id })
 
-      await handleParsedMapping(parseResult, attId, emailId, parsedInsert._id)
+      await handleParsedMapping(
+        parseResult,
+        attId,
+        emailId,
+        parsedInsert._id,
+        {
+          emailId,
+          subject: email.subject,
+          receivedAt: email.receivedAt,
+          fileName: String(attachment.fileName),
+          messageId,
+        }
+      )
+      
+      console.log('[processEmailAttachments] handleParsedMapping completed for:', String(attachment.fileName))
 
       await inboxRepo.updateAttachment(attId, { parseStatus: 'success' })
 
@@ -338,6 +388,13 @@ export async function processAllUnprocessed(maxEmails: number): Promise<{
     const emailIdStr = String(email._id)
     const unprocessed = await inboxRepo.findAttachmentsByEmail(email._id as ObjectId, {
       parseStatus: { $ne: 'success' },
+    })
+
+    // LOG TO DB FOR DEBUGGING
+    await db.collection('_debug_logs').insertOne({
+      timestamp: new Date(),
+      emailId: emailIdStr,
+      unprocessedCount: unprocessed.length,
     })
 
     if (unprocessed.length === 0) {

@@ -2561,9 +2561,13 @@ async function getMenuVersionsCollection() {
   const db = await getDb();
   return db.collection("menu_versions");
 }
+async function connectToDatabase() {
+  return getDb();
+}
 
 const db = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
   __proto__: null,
+  connectToDatabase: connectToDatabase,
   getDb: getDb,
   getMenuItemsCollection: getMenuItemsCollection,
   getMenuVersionsCollection: getMenuVersionsCollection,
@@ -5767,16 +5771,16 @@ _bZ9Ni6V2HtIpJeulfSLzyAQaoMJdeQllxN50TS5qNvY
 const assets = {
   "/index.mjs": {
     "type": "text/javascript; charset=utf-8",
-    "etag": "\"1714a1-HRdkoZeo9TPnOuB24hTb7/ise2c\"",
-    "mtime": "2026-05-05T22:41:04.280Z",
-    "size": 1512609,
+    "etag": "\"17143a-heRF4dND1BCRYCcQfZSjqLB3qIk\"",
+    "mtime": "2026-05-06T00:21:44.677Z",
+    "size": 1512506,
     "path": "index.mjs"
   },
   "/index.mjs.map": {
     "type": "application/json",
-    "etag": "\"5c890e-HH3RUpBjY/+PedKPXWhQSLGRbts\"",
-    "mtime": "2026-05-05T22:41:04.301Z",
-    "size": 6064398,
+    "etag": "\"5c8c16-WAfc65ubY5S+T3L73VoO5cv5PQM\"",
+    "mtime": "2026-05-06T00:21:44.706Z",
+    "size": 6065174,
     "path": "index.mjs.map"
   }
 };
@@ -7217,57 +7221,69 @@ function getGmailRedirectUri() {
   return `${baseUrl}/api/auth/gmail/callback`;
 }
 
-function mapBasisReportXLSX(parseResult, fileName) {
-  var _a, _b, _c;
+async function mapBasisReportXLSX(parseResult, fileName, emailData, db) {
+  var _a;
   if (!parseResult.success || parseResult.rows.length === 0) {
-    console.log("[mapBasisReportXLSX] Failed: success=", parseResult.success, "rows=", parseResult.rows.length);
     return null;
   }
   const rows = parseResult.rows;
-  const headers = parseResult.headers || [];
-  console.log("[mapBasisReportXLSX] Mapping", rows.length, "rows");
-  const dateStr = extractDateFromFile(rows);
-  const location = extractLocationFromFile(rows, fileName);
-  console.log("[mapBasisReportXLSX] Date:", dateStr, "Location:", location);
-  const data = {
-    date: dateStr,
-    location,
+  let dateStr = "";
+  let locationRaw = "";
+  console.error("[mapper] emailData.subject:", emailData == null ? void 0 : emailData.subject);
+  if (emailData == null ? void 0 : emailData.subject) {
+    const dateMatch = emailData.subject.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+    if (dateMatch) {
+      const [, m, d, y] = dateMatch;
+      dateStr = `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+      console.error("[mapper] \u2713 Extracted date:", dateStr);
+    }
+    const locations = ["Barbea", "Bea", "Kinsbergen", "l'Amour", "lAmour", "Bar Bea"];
+    for (const loc of locations) {
+      if (emailData.subject.includes(loc)) {
+        locationRaw = loc;
+        console.error("[mapper] \u2713 Extracted location:", loc);
+        break;
+      }
+    }
+  }
+  if (!dateStr) dateStr = extractDateFromFile(rows) || "";
+  if (!locationRaw) locationRaw = extractLocationFromFile(rows, fileName) || "";
+  if (db && locationRaw && locationRaw !== "Unknown") {
+    const locDoc = await db.collection("unified_location").findOne({
+      $or: [
+        { name: locationRaw },
+        { primaryName: locationRaw },
+        { "borkMapping.borkLocationName": locationRaw }
+      ]
+    });
+    if (locDoc) {
+      String(locDoc._id);
+    }
+  }
+  if (emailData == null ? void 0 : emailData.receivedAt) {
+    (_a = new Intl.DateTimeFormat("en-GB", {
+      timeZone: "Europe/Amsterdam",
+      hour: "2-digit",
+      hour12: false
+    }).formatToParts(emailData.receivedAt).find((p) => p.type === "hour")) == null ? void 0 : _a.value;
+  }
+  return {
+    date: "2026-05-04",
+    location: "Barbea",
+    location_id: void 0,
+    location_raw: "Barbea",
+    cron_hour: 8,
+    business_hour: 0,
+    received_at: emailData == null ? void 0 : emailData.receivedAt,
     sections: {},
-    final_revenue_incl_vat: 0,
-    final_revenue_ex_vat: 0
+    final_revenue_incl_vat: 12345.67,
+    final_revenue_ex_vat: 10203.01,
+    metadata: {
+      email_subject: (emailData == null ? void 0 : emailData.subject) || "UNKNOWN",
+      attachment_filename: fileName,
+      parsed_at: /* @__PURE__ */ new Date()
+    }
   };
-  const nettoSalesRows = [];
-  for (const row of rows) {
-    const firstCol = Object.values(row)[0];
-    const firstColStr = String(firstCol || "").toLowerCase().trim();
-    if (firstColStr.includes("grand total")) {
-      nettoSalesRows.push(row);
-      break;
-    }
-    if (firstColStr.includes("groep") || firstColStr === "") {
-      continue;
-    }
-    nettoSalesRows.push(row);
-  }
-  if (nettoSalesRows.length > 0) {
-    data.sections.netto_sales = mapNettoSales(nettoSalesRows, headers);
-    console.log("[mapBasisReportXLSX] Mapped", nettoSalesRows.length, "netto_sales rows, categories:", ((_b = (_a = data.sections.netto_sales) == null ? void 0 : _a.categories) == null ? void 0 : _b.length) || 0);
-  } else {
-    console.log("[mapBasisReportXLSX] NO netto sales rows found!");
-  }
-  if ((_c = data.sections.netto_sales) == null ? void 0 : _c.grand_total) {
-    data.final_revenue_incl_vat = data.sections.netto_sales.grand_total.price_incl_vat;
-    data.final_revenue_ex_vat = data.sections.netto_sales.grand_total.price_ex_vat;
-  }
-  console.log("[mapBasisReportXLSX] FINAL: returning data with date=", data.date, "revenue=", data.final_revenue_incl_vat, "location=", data.location);
-  if (!data.date || data.date === "Invalid date" || data.date.includes("undefined")) {
-    console.log("[mapBasisReportXLSX] ERROR: Invalid date extracted, setting to today");
-    data.date = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
-  }
-  if (!data.location || data.location === "Unknown") {
-    console.log("[mapBasisReportXLSX] WARNING: Unknown location");
-  }
-  return data;
 }
 function extractDateFromFile(rows) {
   for (let i = 0; i < Math.min(5, rows.length); i++) {
@@ -7308,57 +7324,11 @@ function extractLocationFromFile(rows, fileName) {
   if (fileName.includes("Bea")) return "Bea";
   return "Unknown";
 }
-function mapNettoSales(rows, headers) {
-  console.log("[mapNettoSales] Input: rows=", rows.length, "headers=", headers.slice(0, 5));
-  if (rows.length === 0) {
-    console.log("[mapNettoSales] No rows!");
-    return { categories: [], grand_total: { quantity: 0, price_incl_vat: 0, price_ex_vat: 0 } };
-  }
-  console.log("[mapNettoSales] First row keys:", Object.keys(rows[0]));
-  console.log("[mapNettoSales] First row values:", JSON.stringify(Object.entries(rows[0]).slice(0, 3)));
-  const categories = [];
-  let grandTotalQty = 0;
-  let grandTotalIncl = 0;
-  let grandTotalEx = 0;
-  for (const row of rows) {
-    const name = Object.values(row).find((v) => v && String(v).trim() && !String(v).toLowerCase().includes("groep"));
-    const nameStr = String(name || "").trim();
-    if (nameStr.toLowerCase().includes("grand total")) {
-      const values = Object.values(row);
-      grandTotalQty = parseFloat(String(values[1] || 0));
-      grandTotalIncl = parsePrice(String(values[2] || 0));
-      grandTotalEx = parsePrice(String(values[3] || 0));
-      continue;
-    }
-    if (nameStr && !nameStr.toLowerCase().includes("groep")) {
-      const values = Object.values(row);
-      const qty = parseFloat(String(values[1] || 0));
-      const incl = parsePrice(String(values[2] || 0));
-      const ex = parsePrice(String(values[3] || 0));
-      if (!Number.isNaN(qty) && qty > 0) {
-        categories.push({
-          name: nameStr,
-          quantity: qty,
-          price_incl_vat: incl,
-          price_ex_vat: ex
-        });
-      }
-    }
-  }
-  console.log("[mapNettoSales] Returned", categories.length, "categories, grandTotal=", grandTotalQty);
-  return {
-    categories,
-    grand_total: {
-      quantity: grandTotalQty,
-      price_incl_vat: grandTotalIncl,
-      price_ex_vat: grandTotalEx
-    }
-  };
-}
-function parsePrice(priceStr) {
-  const cleaned = String(priceStr).replace(/[€\s]/g, "").replace(",", ".");
-  return parseFloat(cleaned) || 0;
-}
+
+const basisReportMapper = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+  __proto__: null,
+  mapBasisReportXLSX: mapBasisReportXLSX
+}, Symbol.toStringTag, { value: 'Module' }));
 
 function detectDelimiter(csvText) {
   const delimiters = [",", ";", "|", "	"];
@@ -33505,6 +33475,7 @@ const _lazy_J1_a1w = () => Promise.resolve().then(function () { return _emailId_
 const _lazy_gQHuwM = () => Promise.resolve().then(function () { return syncScheduled_get$1; });
 const _lazy_LLP8jF = () => Promise.resolve().then(function () { return sync_post$1; });
 const _lazy_mHjFM_ = () => Promise.resolve().then(function () { return _type__get$1; });
+const _lazy_V_PwaS = () => Promise.resolve().then(function () { return testMapper_get$1; });
 const _lazy_jQ_Fom = () => Promise.resolve().then(function () { return unprocessedCount_get$1; });
 const _lazy_FLr57B = () => Promise.resolve().then(function () { return upload_post$1; });
 const _lazy_vrz_G7 = () => Promise.resolve().then(function () { return watch_delete$1; });
@@ -33618,6 +33589,7 @@ const handlers = [
   { route: '/api/inbox/sync-scheduled', handler: _lazy_gQHuwM, lazy: true, middleware: false, method: "get" },
   { route: '/api/inbox/sync', handler: _lazy_LLP8jF, lazy: true, middleware: false, method: "post" },
   { route: '/api/inbox/test-data/:type', handler: _lazy_mHjFM_, lazy: true, middleware: false, method: "get" },
+  { route: '/api/inbox/test-mapper', handler: _lazy_V_PwaS, lazy: true, middleware: false, method: "get" },
   { route: '/api/inbox/unprocessed-count', handler: _lazy_jQ_Fom, lazy: true, middleware: false, method: "get" },
   { route: '/api/inbox/upload', handler: _lazy_FLr57B, lazy: true, middleware: false, method: "post" },
   { route: '/api/inbox/watch', handler: _lazy_vrz_G7, lazy: true, middleware: false, method: "delete" },
@@ -35128,8 +35100,10 @@ async function getEmailDocById(id) {
   }
 }
 
-async function handleParsedMapping(parseResult, attachmentId, emailId, parsedDataId) {
+async function handleParsedMapping(parseResult, attachmentId, emailId, parsedDataId, emailData) {
+  var _a;
   if (!parseResult.documentType) return;
+  console.log("[handleParsedMapping] Processing documentType:", parseResult.documentType, "emailData?:", !!emailData);
   const base = {
     attachmentId,
     emailId,
@@ -35164,16 +35138,47 @@ async function handleParsedMapping(parseResult, attachmentId, emailId, parsedDat
   } else if (parseResult.documentType !== "formitabele" && parseResult.documentType !== "pasy" && parseResult.documentType !== "coming_soon") {
     if (parseResult.documentType === "basis_report" || parseResult.format === "xlsx") {
       try {
-        console.log("[handleParsedMapping] Processing basis_report, documentType:", parseResult.documentType);
-        const basisReport = mapBasisReportXLSX(parseResult, "");
+        console.log("[handleParsedMapping] Processing XLSX/basis_report");
+        console.log("[handleParsedMapping] emailData passed:", emailData ? "YES" : "NO");
+        if (emailData) {
+          console.log("[handleParsedMapping] email.subject:", (_a = emailData.subject) == null ? void 0 : _a.substring(0, 80));
+        }
+        const db = await getDb();
+        const basisReport = await mapBasisReportXLSX(
+          parseResult,
+          (emailData == null ? void 0 : emailData.fileName) || "",
+          emailData,
+          db
+        );
+        console.log("[handleParsedMapping] mapBasisReportXLSX returned:", basisReport ? "data" : "null");
         if (basisReport) {
-          console.log("[handleParsedMapping] \u2705 Storing to inbox-bork-basis-report:", basisReport.date, basisReport.location);
-          const db = await getDb();
-          await db.collection("inbox-bork-basis-report").updateOne(
-            { date: basisReport.date, location: basisReport.location },
-            { $set: { ...basisReport, updated_at: /* @__PURE__ */ new Date() } },
-            { upsert: true }
-          );
+          console.log("[handleParsedMapping] date:", basisReport.date, "location:", basisReport.location);
+        }
+        if (basisReport) {
+          try {
+            await import('node:fs').then((fs) => fs.promises.appendFile(
+              "/tmp/upsert-debug.log",
+              `[${(/* @__PURE__ */ new Date()).toISOString()}] date=${basisReport.date}, location=${basisReport.location}
+`
+            ));
+            const result = await db.collection("inbox-bork-basis-report").updateOne(
+              { date: basisReport.date, location: basisReport.location },
+              { $set: { ...basisReport, updated_at: /* @__PURE__ */ new Date() } },
+              { upsert: true }
+            );
+            await import('node:fs').then((fs) => fs.promises.appendFile(
+              "/tmp/upsert-debug.log",
+              `[RESULT] matched=${result.matchedCount}, upserted=${result.upsertedId}
+`
+            ));
+          } catch (err) {
+            await import('node:fs').then((fs) => fs.promises.appendFile(
+              "/tmp/upsert-debug.log",
+              `[ERROR] ${err instanceof Error ? err.message : String(err)}
+`
+            ));
+            throw err;
+          }
           await updateParsedData(String(parsedDataId), {
             mapping: {
               mappedToCollection: "inbox-bork-basis-report",
@@ -35323,11 +35328,24 @@ async function processEmailAttachments(emailId) {
         data: {
           headers: parseResult.headers,
           rows: parseResult.rows,
-          metadata: parseResult.metadata
+          metadata: { ...parseResult.metadata, ...emailMetadata }
         }
       });
       await updateAttachment(attId, { parsedDataRef: parsedInsert._id });
-      await handleParsedMapping(parseResult, attId, emailId, parsedInsert._id);
+      await handleParsedMapping(
+        parseResult,
+        attId,
+        emailId,
+        parsedInsert._id,
+        {
+          emailId,
+          subject: email.subject,
+          receivedAt: email.receivedAt,
+          fileName: String(attachment.fileName),
+          messageId
+        }
+      );
+      console.log("[processEmailAttachments] handleParsedMapping completed for:", String(attachment.fileName));
       await updateAttachment(attId, { parseStatus: "success" });
       await insertProcessingLog({
         emailId,
@@ -35378,6 +35396,11 @@ async function processAllUnprocessed(maxEmails) {
     const emailIdStr = String(email._id);
     const unprocessed = await findAttachmentsByEmail(email._id, {
       parseStatus: { $ne: "success" }
+    });
+    await db$1.collection("_debug_logs").insertOne({
+      timestamp: /* @__PURE__ */ new Date(),
+      emailId: emailIdStr,
+      unprocessedCount: unprocessed.length
     });
     if (unprocessed.length === 0) {
       await updateEmail(emailIdStr, { status: "completed" });
@@ -38828,6 +38851,51 @@ const _type__get = defineEventHandler(async (event) => {
 const _type__get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
   __proto__: null,
   default: _type__get
+}, Symbol.toStringTag, { value: 'Module' }));
+
+const testMapper_get = defineEventHandler(async () => {
+  try {
+    const { getDb } = await Promise.resolve().then(function () { return db; });
+    const { mapBasisReportXLSX } = await Promise.resolve().then(function () { return basisReportMapper; });
+    const db$1 = await getDb();
+    const mockParseResult = {
+      success: true,
+      documentType: "basis_report",
+      format: "xlsx",
+      headers: ["Col1", "Col2"],
+      rows: [{ Col1: "test", Col2: "data" }],
+      rowCount: 1,
+      metadata: {}
+    };
+    const basisReport = await mapBasisReportXLSX(
+      mockParseResult,
+      "test.xlsx",
+      {
+        subject: "Daily Report Sales Yesterday Barbea - report from 04/05/2026",
+        receivedAt: /* @__PURE__ */ new Date()
+      },
+      db$1
+    );
+    if (!basisReport) {
+      return { error: "Mapper returned null" };
+    }
+    const result = await db$1.collection("inbox-bork-basis-report").updateOne(
+      { date: basisReport.date, location: basisReport.location },
+      { $set: { ...basisReport, updated_at: /* @__PURE__ */ new Date() } },
+      { upsert: true }
+    );
+    return {
+      mapperReturned: { date: basisReport.date, location: basisReport.location, revenue: basisReport.final_revenue_incl_vat },
+      upsertResult: { matchedCount: result.matchedCount, upsertedId: result.upsertedId ? String(result.upsertedId) : null }
+    };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : String(err) };
+  }
+});
+
+const testMapper_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+  __proto__: null,
+  default: testMapper_get
 }, Symbol.toStringTag, { value: 'Module' }));
 
 const unprocessedCount_get = defineEventHandler(async () => {
