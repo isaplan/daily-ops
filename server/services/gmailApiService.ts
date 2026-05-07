@@ -1,9 +1,9 @@
 /**
  * @registry-id: gmailApiServiceV2
  * @created: 2026-05-02T15:00:00.000Z
- * @last-modified: 2026-05-03T20:10:00.000Z
+ * @last-modified: 2026-05-06T16:30:00.000Z
  * @description: Clean rebuild of Gmail API service — explicit token + redirect_uri handling
- * @last-fix: [2026-05-03] Rebuild from scratch with strict redirect_uri matching
+ * @last-fix: [2026-05-06] Default list query `in:inbox` (replacing `to:`-only) so inbox matches Gmail UI; optional GMAIL_SYNC_QUERY override
  *
  * @exports-to:
  * ✓ server/services/emailProcessorService.ts
@@ -97,8 +97,9 @@ class GmailApiService {
       throw new Error('Gmail client not initialized')
     }
 
-    const inboxAddress = process.env.GMAIL_INBOX_ADDRESS || 'inboxhaagsenieuwehorecagroep@gmail.com'
-    const query = options.query || `to:${inboxAddress}`
+    const envQuery = process.env.GMAIL_SYNC_QUERY?.trim()
+    /** Match the mailbox inbox like the Gmail UI. Narrow with env e.g. `to:user@` if needed. */
+    const query = options.query || envQuery || 'in:inbox'
 
     try {
       const response = await this.gmail.users.messages.list({

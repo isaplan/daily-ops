@@ -20,6 +20,13 @@ export type DailyOpsSummaryDto = {
     revenuePerLaborHour: number | null
     /** Labor cost as % of revenue when revenue > 0 */
     laborCostPctOfRevenue: number | null
+    /** Which number drives headline + profit / €·h / labor % (single completed days: inbox Basis when present) */
+    revenueLeadSource?: 'inbox_basis_ex_vat' | 'bork_api_merged'
+    /** Bork API + Inbox Basis totals for the period */
+    revenueSources?: {
+      apiBusinessDaysTotal: number
+      inboxBasisExVat: number | null
+    }
   }
   vatDisclaimer: string
 }
@@ -34,6 +41,11 @@ export type DailyOpsRevenueBreakdownDto = {
     revenue: number
     laborCost: number
     profit: number
+  }
+  /** When period is `today`: hourly API totals by calendar hour + inbox Basis Report rows at 15:00 / 23:00 (cron_hour) */
+  todayRevenueDetail?: {
+    apiHourlyByCalendarHour: { calendarHour: number; revenue: number }[]
+    inboxBasisCronSnapshots: { cronHour: number; finalRevenueExVat: number; locationLabel: string }[]
   }
 }
 

@@ -3,8 +3,8 @@
     <div>
       <h1 class="text-3xl font-bold text-gray-900">Sales by Product</h1>
       <p class="text-gray-500">
-        From <code class="text-xs">bork_raw_data</code> only: each row is one Bork <code class="text-xs">Lines.Price</code> (same product sold at different prices appears as separate rows). Totals are sums of
-        <code class="text-xs">Price × Qty</code> per line — no menu data and no averaging.
+        From V2 <code class="text-xs">bork_sales_by_product</code> rollups (same Bork line math as the rebuild pipeline): each row is product × unit price; same product at different prices stays separate. Range uses
+        <strong>business dates</strong>. Totals are Σ Price×Qty — no menu layer.
       </p>
     </div>
 

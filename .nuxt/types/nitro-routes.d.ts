@@ -116,6 +116,9 @@ declare module "nitropack/types" {
     '/api/inbox/:id': {
       'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/inbox/[id].get').default>>>>
     }
+    '/api/inbox/backfill-basis-reports': {
+      'post': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/inbox/backfill-basis-reports.post').default>>>>
+    }
     '/api/inbox/bork/basis-report': {
       'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/inbox/bork/basis-report.get').default>>>>
     }
@@ -130,6 +133,9 @@ declare module "nitropack/types" {
     }
     '/api/inbox/bork/sales': {
       'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/inbox/bork/sales.get').default>>>>
+    }
+    '/api/inbox/debug-barbea': {
+      'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/inbox/debug-barbea.get').default>>>>
     }
     '/api/inbox/eitje/contracts': {
       'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/inbox/eitje/contracts.get').default>>>>
@@ -160,6 +166,9 @@ declare module "nitropack/types" {
     }
     '/api/inbox/process/:emailId': {
       'post': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/inbox/process/[emailId].post').default>>>>
+    }
+    '/api/inbox/reprocess-all': {
+      'post': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/inbox/reprocess-all.post').default>>>>
     }
     '/api/inbox/sync-scheduled': {
       'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/inbox/sync-scheduled.get').default>>>>

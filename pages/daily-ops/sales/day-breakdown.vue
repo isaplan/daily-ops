@@ -336,9 +336,11 @@ const recordKeysCount = (value: unknown) =>
     <div>
       <h1 class="text-3xl font-bold text-gray-900">Day Breakdown</h1>
       <p class="text-gray-500">
-        Bork lines are <strong>incl. VAT</strong> (<code class="text-xs">Price×Qty</code>). Your Z (ex-VAT) needs a VAT split; use
+        Reads V2 aggregates (<code class="text-xs">bork_sales_by_hour</code> + suffix from env, same as sales dashboards). Bork lines are
+        <strong>incl. VAT</strong> (<code class="text-xs">Price×Qty</code>). Your Z (ex-VAT) needs a VAT split; use
         <strong>Ex-VAT</strong> below (default 21%, or set a % that matches your Z - e.g. mixed 9/21 gives an effective %).
         Seated tables exclude orders without <code class="text-xs">TableNr</code>; those show as <strong>direct / guest</strong>.
+        For <strong>completed</strong> register days, Basis Report totals from inbox are compared to hourly API revenue below.
       </p>
     </div>
 
@@ -346,6 +348,22 @@ const recordKeysCount = (value: unknown) =>
     <UCard v-if="error" class="border-red-200">
       <p class="text-red-600"><strong>Error:</strong> {{ error }}</p>
     </UCard>
+
+    <UAlert
+      v-if="!pending && dayData?.dataHealth?.emptyAggregatesMessage"
+      color="warning"
+      variant="subtle"
+      class="border border-amber-200"
+      title="No hourly aggregate rows for this business date"
+      :description="dayData.dataHealth.emptyAggregatesMessage"
+    />
+    <UAlert
+      v-if="!pending && dayData?.dataHealth?.fallbackNotice"
+      color="info"
+      variant="subtle"
+      title="Read from alternate aggregate suffix"
+      :description="dayData.dataHealth.fallbackNotice"
+    />
 
     <!-- Filters -->
     <UCard>
@@ -554,6 +572,77 @@ const recordKeysCount = (value: unknown) =>
           Seated subtotal {{ formatRev(verification.tableTotal) }} + direct (no table)
           {{ formatRev(verification.guestTotal) }} = {{ formatRev(verification.tablePlusGuestTotal) }}
         </p>
+      </UCard>
+
+      <!-- Basis Report (inbox) vs API — completed register days only -->
+      <UCard
+        v-if="dayData?.basisReference"
+        class="border-2 border-gray-900 !bg-white ring-0 shadow-none"
+      >
+        <template #header>
+          <h2 class="text-lg font-semibold text-gray-900">
+            Basis Report vs API (incl. VAT)
+          </h2>
+        </template>
+        <div v-if="!dayData.basisReference.eligible" class="text-sm text-gray-600">
+          {{ dayData.basisReference.reason }}
+        </div>
+        <div v-else class="space-y-3">
+          <p class="text-xs text-gray-600">
+            {{ dayData.basisReference.basisSource }}. One row per venue (latest batch per location). API column is Σ hourly
+            <code class="text-xs">total_revenue</code> for this business day (matches your summary cards).
+            <span v-if="dayData.collectionSuffix != null" class="block mt-1">
+              Aggregate suffix: <code class="text-xs">{{ dayData.collectionSuffix || '(none)' }}</code>
+            </span>
+          </p>
+          <p v-if="dayData.basisReference.note" class="text-sm text-amber-800 bg-amber-50 rounded-lg px-3 py-2">
+            {{ dayData.basisReference.note }}
+          </p>
+          <div
+            v-if="dayData.basisReference.rows?.length"
+            class="flex items-center gap-2 text-sm font-medium"
+            :class="dayData.basisReference.overallMatch ? 'text-green-700' : 'text-red-700'"
+          >
+            {{ dayData.basisReference.overallMatch ? '✓ Basis totals align with API' : '✗ Mismatch — review rows or rebuild window' }}
+            <span class="text-gray-600 font-normal">
+              (Σ Basis {{ formatEur(dayData.basisReference.basisGrandTotal) }} · Σ API
+              {{ formatEur(dayData.basisReference.apiGrandTotal) }})
+            </span>
+          </div>
+          <div v-if="dayData.basisReference.rows?.length" class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead class="border-b border-gray-200 bg-gray-50">
+                <tr>
+                  <th class="px-3 py-2 text-left font-medium text-gray-700">Basis (inbox)</th>
+                  <th class="px-3 py-2 text-left font-medium text-gray-700">API location</th>
+                  <th class="px-3 py-2 text-right font-medium text-gray-700">Basis</th>
+                  <th class="px-3 py-2 text-right font-medium text-gray-700">API Σ hourly</th>
+                  <th class="px-3 py-2 text-right font-medium text-gray-700">Δ</th>
+                  <th class="px-3 py-2 text-right font-medium text-gray-700">OK</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  v-for="(br, idx) in dayData.basisReference.rows"
+                  :key="'br-' + idx"
+                  class="border-b border-gray-100 hover:bg-gray-50"
+                >
+                  <td class="px-3 py-2 text-gray-900">{{ br.basisLocationLabel }}</td>
+                  <td class="px-3 py-2 text-gray-700">{{ br.matchedApiLocation ?? '—' }}</td>
+                  <td class="px-3 py-2 text-right">{{ br.basisInclVat != null ? formatEur(br.basisInclVat) : '—' }}</td>
+                  <td class="px-3 py-2 text-right">{{ br.apiInclVat != null ? formatEur(br.apiInclVat) : '—' }}</td>
+                  <td class="px-3 py-2 text-right">{{ formatEur(br.diff) }}</td>
+                  <td class="px-3 py-2 text-right" :class="br.match ? 'text-green-600 font-semibold' : 'text-red-600 font-semibold'">
+                    {{ br.match ? '✓' : '✗' }}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p v-else-if="dayData.basisReference.eligible && !dayData.basisReference.note" class="text-sm text-gray-500">
+            No comparison rows — no overlapping basis and API locations for this filter.
+          </p>
+        </div>
       </UCard>
 
       <!-- Detail Table -->

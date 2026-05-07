@@ -9,17 +9,18 @@
     <UButton
       type="button"
       variant="ghost"
-      size="icon"
+      size="md"
       :class="[
-        'absolute z-20 h-8 w-8 shrink-0 hover:bg-gray-100 transition-[left] duration-200 left-16 pl-2 top-3',
-        showExpanded && '!left-64',
+        'absolute z-20 flex h-10 w-10 shrink-0 items-center justify-center rounded-md hover:bg-gray-100 active:bg-gray-200 max-sm:h-11 max-sm:w-11 transition-[left] duration-200 touch-manipulation left-16 top-2 sm:top-3',
+        showExpanded && '!left-48',
       ]"
       :aria-label="showExpanded ? 'Collapse sidebar' : 'Expand sidebar'"
       @click="toggle"
     >
       <UIcon
-        :name="showExpanded ? 'i-lucide-panel-left-close' : 'i-lucide-panel-left-open'"
-        class="size-6 pl-4"
+        name="i-lucide-panel-left-open"
+        class="size-5 shrink-0 transition-transform duration-200 ease-out"
+        :class="showExpanded && '-scale-x-100'"
       />
     </UButton>
     <main class="flex min-w-0 flex-1 flex-col overflow-y-auto overflow-x-hidden bg-[hsl(45,15%,95%)] shadow-[0_0_15px_rgba(0,0,0,0.06)] transition-[width] duration-200 ease-linear">

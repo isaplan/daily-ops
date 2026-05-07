@@ -5,6 +5,10 @@
  */
 
 import type { ParseResult } from '~/types/inbox'
+import {
+  extractLocationFromBasisSpreadsheet,
+  matchVenueLocationFromText,
+} from './basis-report-location'
 
 export type BasisReportData = {
   date: string
@@ -78,6 +82,9 @@ export type BasisReportData = {
     attachment_filename?: string
     parsed_at?: Date
     errors?: string[]
+    /** Stable upsert key — one inbox attachment maps to one basis report row */
+    source_attachment_id?: string
+    source_email_id?: string
   }
 }
 
@@ -89,6 +96,7 @@ export async function mapBasisReportXLSX(
     receivedAt?: Date
     messageId?: string
     emailId?: string
+    attachmentId?: string
   },
   db?: any,
 ): Promise<BasisReportData | null> {
@@ -107,22 +115,28 @@ export async function mapBasisReportXLSX(
   }
 
   const dateFromSubject = extractDateFromSubject(subject) || ''
-  const locationFromSubject = extractLocationFromSubject(subject) || ''
+  const locationFromSubject = matchVenueLocationFromText(subject ?? '') || ''
   const dateFromMetadata = String((parseResult.metadata as Record<string, unknown>)?.extracted_date || '')
   const locationFromMetadata = String((parseResult.metadata as Record<string, unknown>)?.extracted_location || '')
 
   const dateStr = dateFromSubject || dateFromMetadata || extractDateFromFile(rows) || ''
-  const locationRaw = locationFromSubject || locationFromMetadata || extractLocationFromFile(rows, fileName) || ''
+  const locationRaw =
+    locationFromSubject ||
+    (locationFromMetadata && locationFromMetadata !== 'undefined' ? locationFromMetadata : '') ||
+    extractLocationFromBasisSpreadsheet(rows, fileName) ||
+    ''
 
   let locationId: string | undefined
-  if (db && locationRaw && locationRaw !== 'Unknown') {
+  if (db && locationRaw && locationRaw !== 'Unknown' && locationRaw !== 'Unspecified') {
     try {
-      const locDoc = await db.collection('unified_location').findOne({ 
+      const locDoc = await db.collection('unified_location').findOne({
         $or: [
           { name: locationRaw },
           { primaryName: locationRaw },
-          { 'borkMapping.borkLocationName': locationRaw }
-        ]
+          { canonicalName: locationRaw },
+          { abbreviation: locationRaw },
+          { 'borkMapping.borkLocationName': locationRaw },
+        ],
       })
       if (locDoc) {
         locationId = String(locDoc._id)
@@ -132,19 +146,20 @@ export async function mapBasisReportXLSX(
     }
   }
   
-  let businessHour: number | undefined
-  let cronHour: number | undefined
-  if (emailData?.receivedAt) {
-    const amsterdamHour = new Intl.DateTimeFormat('en-GB', {
-      timeZone: 'Europe/Amsterdam',
-      hour: '2-digit',
-      hour12: false,
-    }).formatToParts(emailData.receivedAt).find(p => p.type === 'hour')?.value
-    if (amsterdamHour) {
-      cronHour = parseInt(amsterdamHour, 10)
-      businessHour = (parseInt(amsterdamHour, 10) - 8 + 24) % 24
-    }
-  }
+  /** Prefer Bork batch hour from subject (`Daily Report Sales 23:00 …`) — matches ops labels; Gmail arrival can be ~1h earlier. */
+  const batchHourFromSubject = extractBatchHourFromSubject(subject)
+  const receivedRaw = emailData?.receivedAt
+  const receivedDate =
+    receivedRaw instanceof Date
+      ? receivedRaw
+      : receivedRaw != null
+        ? new Date(String(receivedRaw as string))
+        : undefined
+  const amsterdamWallHour =
+    receivedDate && !Number.isNaN(receivedDate.getTime()) ? getAmsterdamWallHour(receivedDate) : undefined
+  const cronHour = batchHourFromSubject ?? amsterdamWallHour
+  const businessHour =
+    cronHour !== undefined ? (cronHour - 8 + 24) % 24 : undefined
 
   // Parse sections from rows
   const sections: BasisReportData['sections'] = {}
@@ -240,7 +255,7 @@ export async function mapBasisReportXLSX(
 
   return {
     date: dateStr || 'UNKNOWN',
-    location: locationRaw || 'UNKNOWN',
+    location: locationRaw || 'Unspecified',
     location_id: locationId,
     location_raw: locationRaw,
     cron_hour: cronHour,
@@ -253,6 +268,8 @@ export async function mapBasisReportXLSX(
       email_subject: subject,
       attachment_filename: fileName,
       parsed_at: new Date(),
+      ...(emailData?.attachmentId ? { source_attachment_id: emailData.attachmentId } : {}),
+      ...(emailData?.emailId ? { source_email_id: emailData.emailId } : {}),
     }
   }
 }
@@ -281,30 +298,6 @@ function extractDateFromFile(rows: Record<string, unknown>[]): string {
   return new Date().toISOString().split('T')[0]
 }
 
-function extractLocationFromFile(rows: Record<string, unknown>[], fileName: string): string {
-  // Look for location name in first few rows (usually after "Basis Rapport")
-  for (let i = 0; i < Math.min(5, rows.length); i++) {
-    const vals = Object.values(rows[i])
-    for (const val of vals) {
-      const str = String(val).trim()
-      // Common location names
-      if (
-        str.match(
-          /^(Bar|Kinsbergen|lAmour|Barbea|Bea|Restaurant|Cafe|Gastropub|Bistro)/i,
-        )
-      ) {
-        return str
-      }
-    }
-  }
-  // Fallback to extract from filename
-  if (fileName.includes('Kinsbergen')) return 'Kinsbergen'
-  if (fileName.includes('lAmour')) return 'lAmour Toujours'
-  if (fileName.includes('Barbea')) return 'Barbea'
-  if (fileName.includes('Bea')) return 'Bea'
-  return 'Unknown'
-}
-
 function mapNettoSales(
   rows: Record<string, unknown>[],
   headers: string[],
@@ -324,10 +317,21 @@ function mapNettoSales(
     const nameStr = String(nameVal || '').trim()
 
     // Match both "Grand Total" and "Algemeen totaal" (Dutch for General Total)
-    if (nameStr.toLowerCase().includes('grand total') || nameStr.toLowerCase().includes('totaal') || nameStr.toLowerCase().includes('algemeen')) {
-      grandTotalQty = parseFloat(String(row['Hoeveelheid'] || row['Quantity'] || 0))
-      grandTotalIncl = parsePrice(String(row['Totale prijs'] || row['Total Price'] || 0))
-      grandTotalEx = parsePrice(String(row['Ex BTW'] || row['Ex VAT'] || 0))
+    // Also check lowercase
+    const isGrandTotal = nameStr.toLowerCase().includes('grand total') 
+      || nameStr.toLowerCase().includes('totaal') 
+      || nameStr.toLowerCase().includes('algemeen')
+      || nameStr.toLowerCase().includes('total')
+    
+    if (isGrandTotal) {
+      const qty = String(row['Hoeveelheid'] || row['Quantity'] || 0).trim()
+      const incl = String(row['Totale prijs'] || row['Total Price'] || 0).trim()
+      const ex = String(row['Ex BTW'] || row['Ex VAT'] || 0).trim()
+      
+      grandTotalQty = parseFloat(qty)
+      grandTotalIncl = parsePrice(incl)
+      grandTotalEx = parsePrice(ex)
+      
       continue
     }
 
@@ -520,13 +524,30 @@ function extractDateFromSubject(subject?: string): string | null {
   return null
 }
 
-function extractLocationFromSubject(subject?: string): string | null {
-  if (!subject) return null
-  
-  // Match location names in subject (e.g., "Daily Report Sales Yesterday Barbea")
-  const locations = ['Barbea', 'Bea', 'Kinsbergen', "l'Amour", 'lAmour', 'Bar Bea']
-  for (const loc of locations) {
-    if (subject.includes(loc)) return loc
+/** e.g. `Daily Report Sales18:00 Kinsbergen` or `Daily Report Sales 23:00 lAmour…` — hour is **local NL / report batch**, not UTC */
+function extractBatchHourFromSubject(subject?: string): number | undefined {
+  if (!subject) return undefined
+  const patterns = [/Daily Report Sales\s*(\d{1,2}):(\d{2})\b/i, /Daily Sales Report\s+(\d{1,2}):(\d{2})\b/i]
+  for (const re of patterns) {
+    const m = subject.match(re)
+    if (m) {
+      const h = parseInt(m[1], 10)
+      if (Number.isFinite(h) && h >= 0 && h <= 23) return h
+    }
   }
-  return null
+  return undefined
+}
+
+/** Hour 0–23 on the Europe/Amsterdam civil clock (CEST/CET). */
+function getAmsterdamWallHour(d: Date): number {
+  const parts = new Intl.DateTimeFormat('sv-SE', {
+    timeZone: 'Europe/Amsterdam',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    hourCycle: 'h23',
+  }).formatToParts(d)
+  const h = parts.find((p) => p.type === 'hour')?.value ?? '0'
+  const n = parseInt(h, 10)
+  return Number.isFinite(n) ? Math.min(23, Math.max(0, n)) : 0
 }

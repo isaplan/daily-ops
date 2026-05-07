@@ -13,13 +13,12 @@
  * - After each week syncs successfully, triggers aggregation immediately
  * - Incremental by default (skips days already in DB)
  * - Safe to restart: re-run to continue from where it left off
- * - Optional V2: BORK_AGG_V2=1 also rebuilds V2 aggregates (see borkRebuildAggregationV2Service). **Write suffix:** `BORK_AGG_V2_REBUILD_SUFFIX` (default empty = production). Do not rely on `BORK_AGG_V2_SUFFIX` for writes unless `BORK_AGG_V2_REBUILD_USE_READ_SUFFIX=1`.
+ * - Rebuilds **V2** aggregates only (`borkRebuildAggregationV2Service`). **Write suffix:** `BORK_AGG_V2_REBUILD_SUFFIX` (default `_v2`). See `BORK_AGG_V2_REBUILD_USE_READ_SUFFIX` in `server/utils/borkAggVersionSuffix.ts`.
  */
 
 import { readFileSync, existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { MongoClient, type Db, type Document } from 'mongodb'
-import { rebuildBorkSalesAggregation } from '../server/services/borkRebuildAggregationService.ts'
 import { rebuildBorkSalesAggregationV2 } from '../server/services/borkRebuildAggregationV2Service.ts'
 import { resolveV2RebuildCollectionSuffix } from '../server/utils/borkV2RebuildSuffix.ts'
 
@@ -344,19 +343,11 @@ async function main(): Promise<void> {
           aggEndDate.setDate(aggEndDate.getDate() + 1)
           const aggEnd = dateToIso(aggEndDate)
 
-          const result = await rebuildBorkSalesAggregation(db, aggStart, aggEnd)
+          const v2Suffix = resolveV2RebuildCollectionSuffix()
+          const v2 = await rebuildBorkSalesAggregationV2(db, aggStart, aggEnd, v2Suffix)
           console.log(
-            `    ✅ Aggregation complete: ${result.byCron} cron, ${result.byHour} hour, ${result.byTable} table, ${result.byWorker} worker`
+            `    ✅ V2: sales_by_day ${v2.salesByDay}, business_days ${v2.businessDays}, hours ${v2.salesHours}, tables ${v2.tables}, workers ${v2.workers}, guests ${v2.guestAccounts}, product lines ${v2.productLines} (suffix: ${v2Suffix || '(none)'})`
           )
-          const runV2 =
-            process.env.BORK_AGG_V2 === '1' || process.env.BORK_AGG_V2 === 'yes'
-          if (runV2) {
-            const v2Suffix = resolveV2RebuildCollectionSuffix()
-            const v2 = await rebuildBorkSalesAggregationV2(db, aggStart, aggEnd, v2Suffix)
-            console.log(
-              `    ✅ V2: sales_by_day ${v2.salesByDay}, business_days ${v2.businessDays}, hours ${v2.salesHours}, tables ${v2.tables}, workers ${v2.workers}, guests ${v2.guestAccounts}, product lines ${v2.productLines} (suffix: ${v2Suffix || '(none)'})`
-            )
-          }
           totalWeeksSynced++
         } catch (e) {
           console.warn(`    ⚠️  Aggregation failed: ${e instanceof Error ? e.message : String(e)}`)

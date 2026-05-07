@@ -18,6 +18,17 @@ export function resolveBorkAggReadSuffix(): string {
   return process.env.BORK_AGG_VERSION_SUFFIX ?? process.env.BORK_AGG_V2_SUFFIX ?? '_v2'
 }
 
+/** Ordered list for DB reads: env/default first, then common alternates (many installs still use unsuffixed or `_v2` only). */
+export function listBorkAggReadSuffixCandidates(): string[] {
+  const primary = resolveBorkAggReadSuffix()
+  const fallbacks = ['', '_v2']
+  const out: string[] = [primary]
+  for (const f of fallbacks) {
+    if (f !== primary && !out.includes(f)) out.push(f)
+  }
+  return out
+}
+
 export function resolveBorkAggRebuildSuffix(): string {
   const inherit =
     process.env.BORK_AGG_REBUILD_USE_READ_SUFFIX === '1' ||

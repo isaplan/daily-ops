@@ -2,7 +2,7 @@
   <div class="space-y-6">
     <div>
       <h1 class="text-3xl font-bold text-gray-900">Sales Overview</h1>
-      <p class="text-gray-500">View sales data per day per location</p>
+      <p class="text-gray-500">V2 aggregates (business dates); filter and sort by location, hour, product, etc.</p>
     </div>
 
     <UCard v-if="error" class="border-red-200">

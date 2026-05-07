@@ -1,6 +1,6 @@
 /**
  * Nitro task: poll Gmail, store new emails, auto-parse.
- * Production schedule: Nitro `0 8 * * *` UTC (~10:00 Amsterdam CEST) in nuxt.config. Local: DISABLE_INBOX_SCHEDULED=1 to skip.
+ * Production schedule: 3×/day in nuxt.config — `5 6`, `5 16`, `5 21` **UTC** = 08:05 / 18:05 / 23:05 Europe/Amsterdam during CEST (typical DO host). Local: DISABLE_INBOX_SCHEDULED=1 to skip.
  *
  * @registry-id: taskInboxGmailSync
  * @last-modified: 2026-04-21T10:00:00.000Z

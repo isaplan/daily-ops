@@ -116,13 +116,12 @@
             <UIcon name="i-lucide-chevron-right" :class="['size-4 shrink-0 transition-transform', isSalesOpen && 'rotate-90']" />
           </button>
           <ul v-if="!collapsed && isSalesOpen" class="mt-1 ml-4 space-y-0.5 border-l border-gray-200 pl-3">
-            <li><NuxtLink to="/daily-ops/sales" :class="navLinkClass(route.path === '/daily-ops/sales')">Overview</NuxtLink></li>
+            <li><NuxtLink to="/daily-ops/sales/day-breakdown" :class="navLinkClass(route.path === '/daily-ops/sales/day-breakdown')">Day Breakdown</NuxtLink></li>
             <li><NuxtLink to="/daily-ops/sales/by-hour" :class="navLinkClass(route.path === '/daily-ops/sales/by-hour')">By Hour</NuxtLink></li>
             <li><NuxtLink to="/daily-ops/sales/by-table" :class="navLinkClass(route.path === '/daily-ops/sales/by-table')">By Table</NuxtLink></li>
             <li><NuxtLink to="/daily-ops/sales/by-worker" :class="navLinkClass(route.path === '/daily-ops/sales/by-worker')">By Worker</NuxtLink></li>
-            <li><NuxtLink to="/daily-ops/sales/by-product" :class="navLinkClass(route.path === '/daily-ops/sales/by-product')">By Product</NuxtLink></li>
             <li><NuxtLink to="/daily-ops/sales/by-guest-account" :class="navLinkClass(route.path === '/daily-ops/sales/by-guest-account')">By Guest Account</NuxtLink></li>
-            <li><NuxtLink to="/daily-ops/sales/day-breakdown" :class="navLinkClass(route.path === '/daily-ops/sales/day-breakdown')">Day Breakdown</NuxtLink></li>
+            <li><NuxtLink to="/daily-ops/sales/by-product" :class="navLinkClass(route.path === '/daily-ops/sales/by-product')">By Product</NuxtLink></li>
           </ul>
         </li>
         <li>
@@ -137,27 +136,9 @@
             <UIcon v-if="!collapsed" name="i-lucide-chevron-right" :class="['size-4 shrink-0 transition-transform', isInboxOpen && 'rotate-90']" />
           </button>
           <ul v-if="!collapsed && isInboxOpen" class="mt-1 ml-4 space-y-0.5 border-l border-gray-200 pl-3">
-            <li><NuxtLink to="/daily-ops/inbox" :class="navLinkClass(route.path === '/daily-ops/inbox')">Overview</NuxtLink></li>
-            <li><NuxtLink to="/daily-ops/inbox/emails" :class="navLinkClass(route.path === '/daily-ops/inbox/emails')">Emails</NuxtLink></li>
-            <li><NuxtLink to="/daily-ops/inbox/upload" :class="navLinkClass(route.path === '/daily-ops/inbox/upload')">Upload</NuxtLink></li>
-            <li class="pt-1 text-xs font-medium text-gray-500">Eitje</li>
-            <li><NuxtLink to="/daily-ops/inbox/eitje" :class="navLinkClass(isInboxEitje)">Eitje</NuxtLink></li>
-            <li><NuxtLink to="/daily-ops/inbox/eitje/hours" :class="navLinkClass(route.path === '/daily-ops/inbox/eitje/hours')">Hours</NuxtLink></li>
-            <li><NuxtLink to="/daily-ops/inbox/eitje/contracts" :class="navLinkClass(route.path === '/daily-ops/inbox/eitje/contracts')">Contracts</NuxtLink></li>
-            <li><NuxtLink to="/daily-ops/inbox/eitje/finance" :class="navLinkClass(route.path === '/daily-ops/inbox/eitje/finance')">Finance</NuxtLink></li>
-            <li class="pt-1 text-xs font-medium text-gray-500">Bork</li>
-            <li><NuxtLink to="/daily-ops/inbox/bork" :class="navLinkClass(isInboxBork)">Bork</NuxtLink></li>
-            <li><NuxtLink to="/daily-ops/inbox/bork/sales" :class="navLinkClass(route.path === '/daily-ops/inbox/bork/sales')">Sales</NuxtLink></li>
-            <li><NuxtLink to="/daily-ops/inbox/bork/product-mix" :class="navLinkClass(route.path === '/daily-ops/inbox/bork/product-mix')">Product Mix</NuxtLink></li>
-            <li><NuxtLink to="/daily-ops/inbox/bork/food-beverage" :class="navLinkClass(route.path === '/daily-ops/inbox/bork/food-beverage')">Food & Beverage</NuxtLink></li>
-            <li><NuxtLink to="/daily-ops/inbox/bork/basis-report" :class="navLinkClass(route.path === '/daily-ops/inbox/bork/basis-report')">Basis Report</NuxtLink></li>
-            <li><NuxtLink to="/daily-ops/inbox/bork/sales-per-hour" :class="navLinkClass(route.path === '/daily-ops/inbox/bork/sales-per-hour')">Sales Per Hour</NuxtLink></li>
-            <li class="pt-1 text-xs font-medium text-gray-500">Power-BI</li>
-            <li><NuxtLink to="/daily-ops/inbox/power-bi" :class="navLinkClass(isInboxPowerBi)">Power-BI</NuxtLink></li>
-            <li><NuxtLink to="/daily-ops/inbox/power-bi/reports" :class="navLinkClass(route.path === '/daily-ops/inbox/power-bi/reports')">Reports</NuxtLink></li>
-            <li class="pt-1 text-xs font-medium text-gray-500">Other</li>
-            <li><NuxtLink to="/daily-ops/inbox/other" :class="navLinkClass(isInboxOther)">Other</NuxtLink></li>
-            <li><NuxtLink to="/daily-ops/inbox/other/all-test-data" :class="navLinkClass(route.path === '/daily-ops/inbox/other/all-test-data')">All Test Data</NuxtLink></li>
+            <li><NuxtLink to="/daily-ops/inbox" :class="navLinkClass(route.path === '/daily-ops/inbox' || route.path === '/daily-ops/inbox/')">Inbox</NuxtLink></li>
+            <li><NuxtLink to="/daily-ops/inbox/eitje-hours" :class="navLinkClass(route.path === '/daily-ops/inbox/eitje-hours')">Eitje hours</NuxtLink></li>
+            <li><NuxtLink to="/daily-ops/inbox/bork-sales" :class="navLinkClass(route.path === '/daily-ops/inbox/bork-sales')">Bork sales</NuxtLink></li>
           </ul>
         </li>
         <!-- Settings -->
@@ -308,8 +289,8 @@ const hoursDropdownItems = computed(() => [
 
 const salesDropdownItems = computed(() => [
   [{
-    label: 'Overview',
-    to: '/daily-ops/sales',
+    label: 'Day Breakdown',
+    to: '/daily-ops/sales/day-breakdown',
   }, {
     label: 'By Hour',
     to: '/daily-ops/sales/by-hour',
@@ -320,14 +301,11 @@ const salesDropdownItems = computed(() => [
     label: 'By Worker',
     to: '/daily-ops/sales/by-worker',
   }, {
-    label: 'By Product',
-    to: '/daily-ops/sales/by-product',
-  }, {
     label: 'By Guest Account',
     to: '/daily-ops/sales/by-guest-account',
   }, {
-    label: 'Day Breakdown',
-    to: '/daily-ops/sales/day-breakdown',
+    label: 'By Product',
+    to: '/daily-ops/sales/by-product',
   }],
 ])
 
@@ -375,11 +353,6 @@ const isInboxSection = computed(() => route.path.startsWith('/daily-ops/inbox'))
 function isPath(path: string) {
   return normalizedPath.value === path.replace(/\/$/, '') || normalizedPath.value === path
 }
-const isInboxEitje = computed(() => route.path === '/daily-ops/inbox/eitje' || route.path.startsWith('/daily-ops/inbox/eitje/'))
-const isInboxBork = computed(() => route.path === '/daily-ops/inbox/bork' || route.path.startsWith('/daily-ops/inbox/bork/'))
-const isInboxPowerBi = computed(() => route.path === '/daily-ops/inbox/power-bi' || route.path.startsWith('/daily-ops/inbox/power-bi/'))
-const isInboxOther = computed(() => route.path === '/daily-ops/inbox/other' || route.path.startsWith('/daily-ops/inbox/other/'))
-
 watch(() => route.path, (path: string) => {
   if (path.startsWith('/daily-ops/hours')) {
     isHoursOpen.value = true

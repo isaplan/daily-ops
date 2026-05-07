@@ -25,7 +25,8 @@
 import { readFileSync, existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { MongoClient, type Db, type Document } from 'mongodb'
-import { rebuildBorkSalesAggregation } from '../server/services/borkRebuildAggregationService.ts'
+import { rebuildBorkSalesAggregationV2 } from '../server/services/borkRebuildAggregationV2Service.ts'
+import { resolveV2RebuildCollectionSuffix } from '../server/utils/borkV2RebuildSuffix.ts'
 
 function loadDotEnv () {
   for (const file of ['.env.local', '.env']) {
@@ -50,14 +51,19 @@ const BORK_MASTER_PATHS = [
   { endpoint: 'bork_master_users', path: '/users.json' },
 ] as const
 
-const BORK_AGGREGATE_COLLECTIONS = [
-  'bork_sales_by_cron',
-  'bork_sales_by_hour',
-  'bork_sales_by_table',
-  'bork_sales_by_worker',
-  'bork_sales_by_guest_account',
-  'bork_products_master',
-] as const
+function borkV2AggregateCollections (): string[] {
+  const sfx = resolveV2RebuildCollectionSuffix()
+  return [
+    `bork_business_days${sfx}`,
+    `bork_sales_by_day${sfx}`,
+    `bork_sales_by_hour${sfx}`,
+    `bork_sales_by_table${sfx}`,
+    `bork_sales_by_worker${sfx}`,
+    `bork_sales_by_guest_account${sfx}`,
+    `bork_sales_by_product${sfx}`,
+    'bork_products_master',
+  ]
+}
 
 function toYyyymmdd (d: Date): string {
   const y = d.getFullYear()
@@ -155,7 +161,7 @@ async function loadBorkCredentials (db: Db): Promise<Document[]> {
 }
 
 async function clearBorkRawAndAggregates (db: Db): Promise<void> {
-  const cols = ['bork_raw_data', ...BORK_AGGREGATE_COLLECTIONS]
+  const cols = ['bork_raw_data', ...borkV2AggregateCollections()]
   for (const name of cols) {
     const r = await withTransientRetry(`clear ${name}`, () => db.collection(name).deleteMany({}))
     console.log(`[bork-backfill] cleared ${name}: ${r.deletedCount} document(s)`)
@@ -163,7 +169,7 @@ async function clearBorkRawAndAggregates (db: Db): Promise<void> {
 }
 
 async function clearBorkAggregateCollectionsOnly (db: Db): Promise<void> {
-  for (const name of BORK_AGGREGATE_COLLECTIONS) {
+  for (const name of borkV2AggregateCollections()) {
     const r = await withTransientRetry(`clear aggregates ${name}`, () => db.collection(name).deleteMany({}))
     console.log(`[bork-backfill] cleared aggregates ${name}: ${r.deletedCount} document(s)`)
   }
@@ -436,13 +442,14 @@ async function main (): Promise<void> {
 
     let needsRebuild = true
     if (!fullReset && !forceRebuild && !mutatedRaw) {
-      const cronN = await withTransientRetry('countCron', () =>
-        db.collection('bork_sales_by_cron').countDocuments()
+      const sfx = resolveV2RebuildCollectionSuffix()
+      const daysN = await withTransientRetry('countBusinessDays', () =>
+        db.collection(`bork_business_days${sfx}`).countDocuments()
       )
-      if (cronN > 0) {
+      if (daysN > 0) {
         needsRebuild = false
         console.log(
-          `[bork-backfill] skip aggregation (${cronN} bork_sales_by_cron doc(s) already; no new raw this run). Set BORK_FORCE_REBUILD=1 to rebuild anyway.`
+          `[bork-backfill] skip aggregation (${daysN} bork_business_days${sfx} doc(s) already; no new raw this run). Set BORK_FORCE_REBUILD=1 to rebuild anyway.`
         )
       }
     }
@@ -450,9 +457,10 @@ async function main (): Promise<void> {
     if (needsRebuild) {
       console.log('[bork-backfill] clearing aggregate collections before rebuild')
       await clearBorkAggregateCollectionsOnly(db)
-      console.log(`[bork-backfill] rebuilding aggregations ${aggStart} .. ${aggEnd}`)
-      const agg = await withTransientRetry('rebuildBorkSalesAggregation', () =>
-        rebuildBorkSalesAggregation(db, aggStart, aggEnd, new Date())
+      console.log(`[bork-backfill] rebuilding V2 aggregations ${aggStart} .. ${aggEnd}`)
+      const sfx = resolveV2RebuildCollectionSuffix()
+      const agg = await withTransientRetry('rebuildBorkSalesAggregationV2', () =>
+        rebuildBorkSalesAggregationV2(db, aggStart, aggEnd, sfx)
       )
       console.log('[bork-backfill] aggregation result:', agg)
     }

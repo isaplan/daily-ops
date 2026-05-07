@@ -1,5 +1,16 @@
+/**
+ * @registry-id: salesAggregatedProductsApi
+ * @created: 2026-04-20T00:00:00.000Z
+ * @last-modified: 2026-05-07T12:00:00.000Z
+ * @description: Product lines for one hour/table/worker/guest row — reads V2 `bork_sales_by_*` collections
+ * @last-fix: [2026-05-07] V2 suffix + match `calendar_date`/`calendar_hour` (not legacy `date`/`hour`)
+ *
+ * @exports-to:
+ * ✓ composables/useSalesRowProducts.ts
+ */
 import { getDb } from '../utils/db'
 import { ObjectId } from 'mongodb'
+import { resolveBorkAggReadSuffix } from '../utils/borkAggVersionSuffix'
 
 type ProductLine = {
   productId: string
@@ -45,24 +56,34 @@ export default defineEventHandler(async (event) => {
     const locationId = parseLocationId(typeof q.locationId === 'string' ? q.locationId : undefined)
 
     const db = await getDb()
+    const suffix = resolveBorkAggReadSuffix()
+
     let collectionName = ''
-    const filter: Record<string, unknown> = { date, hour, locationId }
+    const filter: Record<string, unknown> = { locationId }
 
     if (groupBy === 'hour' || groupBy === 'date_location') {
-      collectionName = 'bork_sales_by_hour'
+      filter.calendar_date = date
+      filter.calendar_hour = hour
+      collectionName = `bork_sales_by_hour${suffix}`
     } else if (groupBy === 'table') {
-      collectionName = 'bork_sales_by_table'
+      filter.date = date
+      filter.hour = hour
+      collectionName = `bork_sales_by_table${suffix}`
       const tn = typeof q.tableNumber === 'string' ? q.tableNumber : String(q.tableNumber ?? '')
       if (!tn) {
         throw createError({ statusCode: 400, message: 'tableNumber is required for table detail' })
       }
       filter.tableNumber = tn
     } else if (groupBy === 'worker') {
-      collectionName = 'bork_sales_by_worker'
+      filter.date = date
+      filter.hour = hour
+      collectionName = `bork_sales_by_worker${suffix}`
       const wid = typeof q.workerId === 'string' ? q.workerId : String(q.workerId ?? '')
       filter.workerId = parseWorkerIdForFilter(wid.length > 0 ? wid : 'unknown')
     } else if (groupBy === 'guestAccount') {
-      collectionName = 'bork_sales_by_guest_account'
+      filter.date = date
+      filter.hour = hour
+      collectionName = `bork_sales_by_guest_account${suffix}`
       const acc = typeof q.accountName === 'string' ? q.accountName : ''
       if (!acc) {
         throw createError({ statusCode: 400, message: 'accountName is required for guestAccount detail' })
