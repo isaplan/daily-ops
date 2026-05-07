@@ -1,9 +1,9 @@
 /**
  * @registry-id: eitjeSyncService
  * @created: 2026-04-05T12:00:00.000Z
- * @last-modified: 2026-04-24T12:00:00.000Z
+ * @last-modified: 2026-05-08T00:47:00.000Z
  * @description: Fetches Eitje Open API resources and upserts eitje_raw_data; drives cron/sync handlers
- * @last-fix: [2026-04-24] Consumer integrationCronRunner for Nitro schedule + catch-up
+ * @last-fix: [2026-05-08] Remove V3 aggregation trigger
  *
  * @exports-to:
  * ✓ server/api/eitje/v2/cron.post.ts
@@ -529,15 +529,51 @@ export async function executeEitjeJob (db: Db, jobType: string): Promise<EitjeSy
     }
   }
 
-  const dailyDays = envInt('EITJE_DAILY_SYNC_DAYS', 14)
-  /** Legacy historical cron used 30 days (`v2-cron-manager`). Override via EITJE_HISTORICAL_SYNC_DAYS. */
-  const histDays = envInt('EITJE_HISTORICAL_SYNC_DAYS', 30)
+  if (jobType === 'daily-data') {
+    // Daily incremental sync: fetch only TODAY (service runs 10:00-05:59:59 UTC)
+    // Cron runs at: 06:00 (pre-service), 13:00, 16:00, 18:00, 20:00, 22:00 (all during service hours)
+    // Aggregate TODAY ONLY - continuous updates throughout the business day
+    const now = new Date()
+    const todayUtc = now.toISOString().split('T')[0] ?? ''
+    
+    const tr = await syncTimeRegistrationShifts(db, creds, todayUtc, todayUtc)
+    let agg: { deletedPeriods: number; inserted: number; error?: string } | undefined
+    
+    try {
+      // Rebuild aggregation for TODAY ONLY
+      // This deletes old aggregation for today and rebuilds from fresh raw data
+      agg = await rebuildEitjeTimeRegistrationAggregation(db, todayUtc, todayUtc)
+      
+      // Map Eitje IDs to unified collections after aggregation
+      await syncUnifiedCollectionsFromRawData(db)
+    } catch (e) {
+      agg = {
+        deletedPeriods: 0,
+        inserted: 0,
+        error: e instanceof Error ? e.message : String(e),
+      }
+    }
 
-  const days = jobType === 'historical-data' ? histDays : dailyDays
-  const { start, end } = dateRangeDays(days)
+    const ok = !tr.error && (tr.fetched > 0 || tr.upserted > 0 || (agg?.inserted ?? 0) > 0)
+    
+    return {
+      ok,
+      jobType,
+      message: tr.error
+        ? `Time registration: ${tr.error}`
+        : `Synced ${tr.fetched} shifts (${tr.upserted} writes), aggregation +${agg?.inserted ?? 0} rows for today`,
+      timeRegistration: tr,
+      aggregation: agg,
+    }
+  }
+
+  // Historical backfill: fetch and rebuild full range
+  const histDays = envInt('EITJE_HISTORICAL_SYNC_DAYS', 30)
+  const { start, end } = dateRangeDays(histDays)
 
   const tr = await syncTimeRegistrationShifts(db, creds, start, end)
   let agg: { deletedPeriods: number; inserted: number; error?: string } | undefined
+  
   try {
     agg = await rebuildEitjeTimeRegistrationAggregation(db, start, end)
     // Map Eitje IDs to unified collections after aggregation
@@ -551,12 +587,13 @@ export async function executeEitjeJob (db: Db, jobType: string): Promise<EitjeSy
   }
 
   const ok = !tr.error && (tr.fetched > 0 || tr.upserted > 0 || (agg?.inserted ?? 0) > 0)
+  
   return {
     ok,
     jobType,
     message: tr.error
       ? `Time registration: ${tr.error}`
-      : `Synced ${tr.fetched} shifts (${tr.upserted} writes), aggregation +${agg?.inserted ?? 0} rows`,
+      : `Synced ${tr.fetched} shifts (${tr.upserted} writes), aggregation +${agg?.inserted ?? 0} rows (${jobType})`,
     timeRegistration: tr,
     aggregation: agg,
   }

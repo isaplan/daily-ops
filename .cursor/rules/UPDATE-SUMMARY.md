@@ -209,4 +209,4 @@ Refer to:
 - `.cursor/rules/agent-rules.mdc` - Daily reference
 - `.cursor/rules/METADATA-SYNC-GUIDE.md` - How to use metadata
 - `.cursor/oud/metadata-header-system.md` - Full detailed format
-- IMPLEMENTATION_PLAN.md - Project architecture
+- dev-docs/IMPLEMENTATION_PLAN.md - Project architecture

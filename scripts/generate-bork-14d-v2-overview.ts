@@ -1,5 +1,5 @@
 /**
- * Fills <!-- BORK_V2_14D_START --> … <!-- BORK_V2_14D_END --> in DEBUG_BUSINESS_HOUR_MAPPING.md
+ * Fills <!-- BORK_V2_14D_START --> … <!-- BORK_V2_14D_END --> in dev-docs/DEBUG_BUSINESS_HOUR_MAPPING.md
  * with hourly V2 vs proportional-CSV rows for the last 14 distinct business_date values in bork_sales_hours.
  *
  * Usage: node --experimental-strip-types scripts/generate-bork-14d-v2-overview.ts
@@ -168,7 +168,7 @@ async function main() {
     }
   }
 
-  const path = resolve(process.cwd(), 'DEBUG_BUSINESS_HOUR_MAPPING.md')
+  const path = resolve(process.cwd(), 'dev-docs/DEBUG_BUSINESS_HOUR_MAPPING.md')
   let raw = readFileSync(path, 'utf-8')
   const markerStart = '<!-- BORK_V2_14D_START -->'
   const markerEnd = '<!-- BORK_V2_14D_END -->'

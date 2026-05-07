@@ -16,6 +16,21 @@ let pdfjsLib: typeof import('pdfjs-dist') | null = null
 
 async function getPdfJsLib() {
   if (!pdfjsLib) {
+    // Polyfill DOMMatrix and other DOM globals required by pdfjs-dist
+    if (typeof globalThis.DOMMatrix === 'undefined') {
+      globalThis.DOMMatrix = class DOMMatrix {
+        constructor(public values: (string | number)[] = []) {}
+        static fromMatrix() { return new DOMMatrix() }
+        static fromFloat32Array() { return new DOMMatrix() }
+        static fromFloat64Array() { return new DOMMatrix() }
+      } as any
+    }
+    if (typeof globalThis.DOMPoint === 'undefined') {
+      globalThis.DOMPoint = class DOMPoint {
+        constructor(public x: number = 0, public y: number = 0) {}
+      } as any
+    }
+    
     pdfjsLib = await import('pdfjs-dist')
     pdfjsLib.GlobalWorkerOptions.workerSrc = ''
   }

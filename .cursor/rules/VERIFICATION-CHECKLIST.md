@@ -132,7 +132,7 @@ grep -B 2 "@registry-id: useAuth" app/lib/hooks/useAuth.ts
 | `METADATA-SYNC-GUIDE.md` | How to use metadata | Adding/updating metadata |
 | `UPDATE-SUMMARY.md` | Overview of changes | Understanding the system |
 | `.cursor/oud/metadata-header-system.md` | Detailed format | Writing complex headers |
-| `IMPLEMENTATION_PLAN.md` | Project architecture | Understanding features |
+| `dev-docs/IMPLEMENTATION_PLAN.md` | Project architecture | Understanding features |
 
 ## Success Indicators
 

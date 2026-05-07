@@ -1,9 +1,9 @@
 /**
  * @registry-id: inboxProcessService
  * @created: 2026-04-18T00:00:00.000Z
- * @last-modified: 2026-04-24T00:00:00.000Z
+ * @last-modified: 2026-05-07T00:00:00.000Z
  * @description: Parse Gmail/manual attachments, map to collections (from next-js-old process routes)
- * @last-fix: [2026-04-24] Aggregate daily sales after mapping + location extraction
+ * @last-fix: [2026-05-07] Basis report upsert by source_attachment_id; pass attachmentId into mapper
  *
  * @exports-to:
  * ✓ server/api/inbox/process/[emailId].post.ts
@@ -18,6 +18,9 @@ import { dataMappingService } from './dataMappingService'
 import { storeRawData, isTestDataType, updateSourceFileName } from './rawDataStorageService'
 import { gmailApiService } from './gmailApiService'
 import { aggregateDailySalesForEmail } from './borkSalesDailyAggregation'
+import { mapBasisReportXLSX } from '../utils/inbox/basis-report-mapper'
+import { matchVenueLocationFromText } from '../utils/inbox/basis-report-location'
+import { getDb } from '../utils/db'
 import * as inboxRepo from './inboxRepository'
 import type { CreateParsedDataDto, DocumentType, EmailAttachmentDoc, FileFormat } from '~/types/inbox'
 import { Buffer } from 'node:buffer'
@@ -35,7 +38,16 @@ async function handleParsedMapping(
   attachmentId: string,
   emailId: string,
   parsedDataId: ObjectId,
+  emailData?: {
+    subject?: string
+    receivedAt?: Date
+    messageId?: string
+    fileName?: string
+    emailId?: string
+    attachmentId?: string
+  },
 ): Promise<void> {
+  const db = await getDb()
   if (!parseResult.documentType) return
 
   const base: CreateParsedDataDto = {
@@ -75,36 +87,69 @@ async function handleParsedMapping(
     parseResult.documentType !== 'pasy' &&
     parseResult.documentType !== 'coming_soon'
   ) {
-    const mappingResult = await dataMappingService.mapToCollection(
-      {
-        ...base,
-        data: { headers: parseResult.headers, rows: parseResult.rows },
-      },
-      parseResult.documentType,
-    )
-    await inboxRepo.updateParsedData(String(parsedDataId), {
-      mapping: {
-        mappedToCollection: mappingResult.mappedToCollection,
-        matchedRecords: mappingResult.matchedRecords,
-        createdRecords: mappingResult.createdRecords,
-        updatedRecords: mappingResult.updatedRecords,
-      },
-      rowsValid: mappingResult.createdRecords + mappingResult.updatedRecords,
-      rowsFailed: mappingResult.failedRecords,
-      validationErrors: mappingResult.errors.map((e) => ({
-        row: e.row,
-        column: '',
-        error: e.error,
-      })),
-    })
+    // Special handling for basis_report (Bork daily sales)
+    if (parseResult.documentType === 'basis_report' || parseResult.format === 'xlsx') {
+      const basisReport = await mapBasisReportXLSX(
+        parseResult,
+        emailData?.fileName || '',
+        emailData,
+        db,
+      )
 
-    // Aggregate daily sales if this is a sales document
-    if (parseResult.documentType === 'sales') {
-      try {
-        const emailOid = new ObjectId(emailId)
-        await aggregateDailySalesForEmail(emailOid)
-      } catch (error) {
-        console.error('[inboxProcessService] Failed to aggregate daily sales:', error)
+      if (basisReport) {
+        const attKey = emailData?.attachmentId
+        const filter = attKey
+          ? { 'metadata.source_attachment_id': attKey }
+          : { date: basisReport.date, location: basisReport.location }
+        await db.collection('inbox-bork-basis-report').updateOne(
+          filter,
+          { $set: { ...basisReport, updated_at: new Date() } },
+          { upsert: true },
+        )
+
+        await inboxRepo.updateParsedData(String(parsedDataId), {
+          mapping: {
+            mappedToCollection: 'inbox-bork-basis-report',
+            matchedRecords: 1,
+            createdRecords: 1,
+            updatedRecords: 0,
+          },
+          rowsValid: 1,
+          rowsFailed: 0,
+        })
+      }
+    } else {
+      const mappingResult = await dataMappingService.mapToCollection(
+        {
+          ...base,
+          data: { headers: parseResult.headers, rows: parseResult.rows },
+        },
+        parseResult.documentType,
+      )
+      await inboxRepo.updateParsedData(String(parsedDataId), {
+        mapping: {
+          mappedToCollection: mappingResult.mappedToCollection,
+          matchedRecords: mappingResult.matchedRecords,
+          createdRecords: mappingResult.createdRecords,
+          updatedRecords: mappingResult.updatedRecords,
+        },
+        rowsValid: mappingResult.createdRecords + mappingResult.updatedRecords,
+        rowsFailed: mappingResult.failedRecords,
+        validationErrors: mappingResult.errors.map((e) => ({
+          row: e.row,
+          column: '',
+          error: e.error,
+        })),
+      })
+
+      // Aggregate daily sales if this is a sales document
+      if (parseResult.documentType === 'sales') {
+        try {
+          const emailOid = new ObjectId(emailId)
+          await aggregateDailySalesForEmail(emailOid)
+        } catch (error) {
+          console.error('[inboxProcessService] Failed to aggregate daily sales:', error)
+        }
       }
     }
   }
@@ -201,6 +246,20 @@ export async function processEmailAttachments(emailId: string): Promise<{
         continue
       }
 
+      const emailMetadata: Record<string, unknown> = {}
+      if (email.subject) {
+        const dateMatch = email.subject.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/)
+        if (dateMatch) {
+          const [, d, m, y] = dateMatch
+          emailMetadata.extracted_date = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+        }
+        const subjectLocation = matchVenueLocationFromText(email.subject)
+        if (subjectLocation) {
+          emailMetadata.extracted_location = subjectLocation
+        }
+        emailMetadata.email_subject = email.subject
+      }
+
       const meta = (attachment.metadata ?? {}) as Record<string, unknown>
       await inboxRepo.updateAttachment(attId, {
         documentType: parseResult.documentType,
@@ -226,13 +285,26 @@ export async function processEmailAttachments(emailId: string): Promise<{
         data: {
           headers: parseResult.headers,
           rows: parseResult.rows,
-          metadata: parseResult.metadata as Record<string, unknown>,
+          metadata: { ...parseResult.metadata, ...emailMetadata } as Record<string, unknown>,
         },
       })
 
       await inboxRepo.updateAttachment(attId, { parsedDataRef: parsedInsert._id })
 
-      await handleParsedMapping(parseResult, attId, emailId, parsedInsert._id)
+      await handleParsedMapping(
+        parseResult,
+        attId,
+        emailId,
+        parsedInsert._id,
+        {
+          emailId,
+          subject: email.subject,
+          receivedAt: email.receivedAt,
+          fileName: String(attachment.fileName),
+          messageId,
+          attachmentId: attId,
+        }
+      )
 
       await inboxRepo.updateAttachment(attId, { parseStatus: 'success' })
 
@@ -280,12 +352,10 @@ export async function processAllUnprocessed(maxEmails: number): Promise<{
   message: string
   results: Array<{ emailId: string; success: boolean; attachmentsProcessed: number; error?: string }>
 }> {
-  const { getDb } = await import('../utils/db')
   const { INBOX_COLLECTIONS } = await import('../utils/inbox/constants')
   const db = await getDb()
-  const col = db.collection(INBOX_COLLECTIONS.inboxEmail)
-
-  const emails = await col
+  const emails = await db
+    .collection(INBOX_COLLECTIONS.inboxEmail)
     .find({
       $or: [{ status: { $ne: 'completed' } }, { status: { $exists: false } }],
     })
@@ -299,216 +369,31 @@ export async function processAllUnprocessed(maxEmails: number): Promise<{
 
   for (const email of emails) {
     const emailIdStr = String(email._id)
-    const unprocessed = await inboxRepo.findAttachmentsByEmail(email._id as ObjectId, {
-      parseStatus: { $ne: 'success' },
-    })
-
-    if (unprocessed.length === 0) {
-      await inboxRepo.updateEmail(emailIdStr, { status: 'completed' })
-      continue
-    }
-
-    const messageId = String(email.messageId)
-    await inboxRepo.updateEmail(emailIdStr, { status: 'processing', lastAttempt: new Date() })
-
-    let attachmentsProcessed = 0
-    let attachmentsFailed = 0
-
-    for (const attachment of unprocessed) {
-      const attId = String(attachment._id)
-      try {
-        await inboxRepo.updateAttachment(attId, { parseStatus: 'parsing' })
-
-        const gmailAttachment = await gmailApiService.downloadAttachment(
-          messageId,
-          String(attachment.googleAttachmentId),
-        )
-        if (!gmailAttachment.data) {
-          throw new Error('Failed to download attachment data')
-        }
-
-        const fileBuffer = Buffer.from(gmailAttachment.data, 'base64')
-        const lowerName = String(attachment.fileName).toLowerCase()
-        const lowerMime = String(attachment.mimeType).toLowerCase()
-        const isHtml =
-          lowerName.endsWith('.html') || lowerName.endsWith('.htm') || lowerMime.includes('text/html')
-        if (isHtml) {
-          await inboxRepo.updateAttachment(attId, {
-            parseStatus: 'success',
-            documentType: 'other',
-            metadata: { ...(attachment.metadata as object), format: 'unknown' } as EmailAttachmentDoc['metadata'],
-          })
-          attachmentsProcessed++
-          continue
-        }
-
-        const isCsvByMimeOrExt = lowerMime.includes('csv') || lowerName.endsWith('.csv')
-
-        const parseResult = await documentParserService.parseDocument({
-          fileName: String(attachment.fileName),
-          mimeType: String(attachment.mimeType),
-          data: isCsvByMimeOrExt ? fileBuffer.toString('utf-8') : fileBuffer,
-          autoDetectType: true,
-        })
-
-        if (!parseResult.success || !parseResult.documentType) {
-          await inboxRepo.updateAttachment(attId, {
-            parseStatus: 'failed',
-            parseError: parseResult.error || 'Parsing failed',
-          })
-          attachmentsFailed++
-          continue
-        }
-
-        const meta = (attachment.metadata ?? {}) as Record<string, unknown>
-        await inboxRepo.updateAttachment(attId, {
-          documentType: parseResult.documentType,
-          metadata: {
-            format: parseResult.format,
-            sheets: (parseResult.metadata as { sheets?: string[] })?.sheets,
-            delimiter: (parseResult.metadata as { delimiter?: string })?.delimiter,
-            rowCount: parseResult.rowCount,
-            columnCount: parseResult.headers.length,
-            userInfo: (parseResult.metadata as { userInfo?: Record<string, unknown> })?.userInfo,
-            ...meta,
-          } as EmailAttachmentDoc['metadata'],
-        })
-
-        const parsedInsert = await inboxRepo.insertParsedData({
-          attachmentId: attId,
+    try {
+      const result = await processEmailAttachments(emailIdStr)
+      if (result.attachmentsProcessed > 0) {
+        totalProcessed++
+        results.push({
           emailId: emailIdStr,
-          documentType: parseResult.documentType,
-          format: parseResult.format,
-          rowsProcessed: parseResult.rowCount,
-          rowsValid: parseResult.rowCount,
-          rowsFailed: 0,
-          data: {
-            headers: parseResult.headers,
-            rows: parseResult.rows,
-            metadata: parseResult.metadata as Record<string, unknown>,
-          },
+          success: result.success,
+          attachmentsProcessed: result.attachmentsProcessed,
         })
-
-        await inboxRepo.updateAttachment(attId, { parsedDataRef: parsedInsert._id })
-
-        if (isTestDataType(parseResult.documentType)) {
-          const rawStorageResult = await storeRawData(
-            {
-              attachmentId: attId,
-              emailId: emailIdStr,
-              documentType: parseResult.documentType,
-              format: parseResult.format,
-              rowsProcessed: parseResult.rowCount,
-              rowsValid: parseResult.rowCount,
-              rowsFailed: 0,
-              data: {
-                headers: parseResult.headers,
-                rows: parseResult.rows,
-                metadata: parseResult.metadata as Record<string, unknown>,
-              },
-            },
-            parseResult.documentType,
-            { fileName: String(attachment.fileName) },
-          )
-          await inboxRepo.updateParsedData(String(parsedInsert._id), {
-            mapping: {
-              mappedToCollection: rawStorageResult.collectionName,
-              matchedRecords: 0,
-              createdRecords: rawStorageResult.recordsCreated,
-              updatedRecords: 0,
-            },
-            rowsValid: rawStorageResult.recordsCreated,
-            rowsFailed: rawStorageResult.recordsFailed,
-            validationErrors: rawStorageResult.errors.map((e) => ({
-              row: e.row,
-              column: '',
-              error: e.error,
-            })),
-          })
-        } else if (
-          parseResult.documentType !== 'formitabele' &&
-          parseResult.documentType !== 'pasy' &&
-          parseResult.documentType !== 'coming_soon'
-        ) {
-          const mappingResult = await dataMappingService.mapToCollection(
-            {
-              attachmentId: attId,
-              emailId: emailIdStr,
-              documentType: parseResult.documentType,
-              format: parseResult.format,
-              rowsProcessed: parseResult.rowCount,
-              rowsValid: parseResult.rowCount,
-              rowsFailed: 0,
-              data: {
-                headers: parseResult.headers,
-                rows: parseResult.rows,
-              },
-            },
-            parseResult.documentType,
-          )
-          await inboxRepo.updateParsedData(String(parsedInsert._id), {
-            mapping: {
-              mappedToCollection: mappingResult.mappedToCollection,
-              matchedRecords: mappingResult.matchedRecords,
-              createdRecords: mappingResult.createdRecords,
-              updatedRecords: mappingResult.updatedRecords,
-            },
-            rowsValid: mappingResult.createdRecords + mappingResult.updatedRecords,
-            rowsFailed: mappingResult.failedRecords,
-            validationErrors: mappingResult.errors.map((e) => ({
-              row: e.row,
-              column: '',
-              error: e.error,
-            })),
-          })
-        }
-
-        await inboxRepo.updateAttachment(attId, { parseStatus: 'success' })
-
-        await inboxRepo.insertProcessingLog({
+      } else {
+        totalFailed++
+        results.push({
           emailId: emailIdStr,
-          attachmentId: attId,
-          eventType: 'store',
-          status: 'success',
-          message: `Successfully parsed and stored ${parseResult.rowCount} rows`,
+          success: false,
+          attachmentsProcessed: 0,
+          error: 'No attachments processed',
         })
-
-        attachmentsProcessed++
-      } catch (error) {
-        await inboxRepo.updateAttachment(attId, {
-          parseStatus: 'failed',
-          parseError: error instanceof Error ? error.message : 'Unknown error',
-        })
-        await inboxRepo.insertProcessingLog({
-          emailId: emailIdStr,
-          attachmentId: attId,
-          eventType: 'error',
-          status: 'error',
-          message: `Processing failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        })
-        attachmentsFailed++
       }
-    }
-
-    await inboxRepo.updateEmail(emailIdStr, {
-      status: attachmentsFailed === 0 ? 'completed' : 'failed',
-      processedAt: new Date(),
-    })
-
-    if (attachmentsProcessed > 0) {
-      totalProcessed++
-      results.push({
-        emailId: emailIdStr,
-        success: attachmentsFailed === 0,
-        attachmentsProcessed,
-      })
-    } else {
+    } catch (error) {
       totalFailed++
       results.push({
         emailId: emailIdStr,
         success: false,
         attachmentsProcessed: 0,
-        error: 'No attachments processed',
+        error: error instanceof Error ? error.message : 'Unknown error',
       })
     }
   }

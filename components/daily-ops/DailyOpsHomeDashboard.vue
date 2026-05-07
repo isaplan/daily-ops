@@ -24,6 +24,32 @@
           <UCard class="border-2 border-gray-900 !bg-white ring-0 shadow-none">
             <p class="text-sm font-medium text-gray-500">Total Revenue</p>
             <p class="mt-2 text-2xl font-semibold text-gray-900">{{ formatEur(summary.summary.totalRevenue) }}</p>
+            <p class="mt-1 text-xs text-gray-500">
+              <span v-if="summary.summary.revenueLeadSource === 'inbox_basis_ex_vat'">
+                Headline = Inbox Basis Report (full business day, ex VAT). Bork API breakdown is for detail verification.
+              </span>
+              <span v-else-if="summary.summary.revenueLeadSource === 'bork_api_merged'">
+                Headline = Bork API (business-day aggregates rebuilt daily + today in-progress).
+              </span>
+            </p>
+            <dl
+              v-if="summary.summary.revenueSources"
+              class="mt-3 space-y-1.5 border-t border-gray-100 pt-3 text-xs text-gray-700"
+            >
+              <div class="flex justify-between gap-2">
+                <dt class="text-gray-600">
+                  Inbox Basis · ex VAT
+                  <span v-if="summary.summary.revenueLeadSource === 'inbox_basis_ex_vat'" class="ml-1 font-semibold text-gray-900">(leading)</span>
+                </dt>
+                <dd class="tabular-nums font-medium text-gray-900">
+                  {{ summary.summary.revenueSources.inboxBasisExVat != null ? formatEur(summary.summary.revenueSources.inboxBasisExVat) : '—' }}
+                </dd>
+              </div>
+              <div class="flex justify-between gap-2">
+                <dt class="text-gray-600">Bork API · business-days (hour · worker · table · product)</dt>
+                <dd class="tabular-nums font-medium text-gray-900">{{ formatEur(summary.summary.revenueSources.apiBusinessDaysTotal) }}</dd>
+              </div>
+            </dl>
           </UCard>
           <UCard class="border-2 border-gray-900 !bg-white ring-0 shadow-none">
             <p class="text-sm font-medium text-gray-500">Total Labor Cost</p>
@@ -106,35 +132,57 @@
           </div>
         </div>
 
-        <div class="grid min-w-0 gap-6 lg:grid-cols-2">
-        <div class="w-11/12 md:w-10/12 mx-auto">
-          <div class="grid grid-cols-2 gap-8 min-w-0">
-            <div class="min-w-0 text-center flex flex-col items-center">
-              <h3 class="mb-4 text-lg font-semibold text-gray-900">Revenue by Category</h3>
-              <p class="mb-3 text-xs text-gray-500">Drinks vs food uses product-name keywords on Bork lines.</p>
-              <D3PieChartV2
-                :data="revenue?.revenueByCategory && revenue.revenueByCategory.length > 0 ? revenue.revenueByCategory.map(r => ({ label: r.label, value: r.amount })) : undefined"
-                :width="300"
-                :height="280"
-                :colors="categoryChartColors"
-                :selected-period="period"
-              />
-            </div>
 
-            <div class="min-w-0 text-center flex flex-col items-center">
-              <h3 class="mb-4 text-lg font-semibold text-gray-900">Revenue by Time Period</h3>
-              <p class="mb-3 text-xs text-gray-500">Daily breakdown of revenue.</p>
-              <D3PieChartV2
-                :data="revenue?.revenueByTimePeriod && revenue.revenueByTimePeriod.length > 0 ? revenue.revenueByTimePeriod.map(r => ({ label: r.label, value: r.amount })) : undefined"
-                :width="300"
-                :height="280"
-                :colors="timePeriodChartColors"
-                :selected-period="period"
-              />
+        <UCard
+          v-if="revenue.todayRevenueDetail && (revenue.todayRevenueDetail.apiHourlyByCalendarHour.length > 0 || revenue.todayRevenueDetail.inboxBasisCronSnapshots.length > 0)"
+          class="border-2 border-gray-900 !bg-white ring-0 shadow-none"
+        >
+          <template #header>
+            <h2 class="text-lg font-semibold text-gray-900">Today — hourly API &amp; inbox checkpoints</h2>
+          </template>
+          <p class="mb-4 text-xs text-gray-500">
+            Hourly revenue from Bork aggregates for this calendar date (through latest sync). Basis Report rows at 15:00 and 23:00 (cron) are partial-day snapshots per venue — compare with API hourly rollups.
+          </p>
+          <div class="grid gap-6 lg:grid-cols-2">
+            <div v-if="revenue.todayRevenueDetail.apiHourlyByCalendarHour.length > 0">
+              <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Hourly · API (calendar hour)</p>
+              <div class="max-h-56 overflow-y-auto rounded border border-gray-200">
+                <table class="w-full text-left text-sm">
+                  <thead class="sticky top-0 bg-gray-50 text-xs text-gray-600">
+                    <tr>
+                      <th class="px-3 py-2">Hour</th>
+                      <th class="px-3 py-2 text-right">Revenue</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr
+                      v-for="row in revenue.todayRevenueDetail.apiHourlyByCalendarHour"
+                      :key="`th-${row.calendarHour}`"
+                      class="border-t border-gray-100"
+                    >
+                      <td class="px-3 py-1.5 tabular-nums">{{ String(row.calendarHour).padStart(2, '0') }}:00</td>
+                      <td class="px-3 py-1.5 text-right tabular-nums">{{ formatEur(row.revenue) }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div v-if="revenue.todayRevenueDetail.inboxBasisCronSnapshots.length > 0">
+              <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Inbox Basis · 15:00 / 23:00</p>
+              <ul class="space-y-2 text-sm">
+                <li
+                  v-for="(snap, idx) in revenue.todayRevenueDetail.inboxBasisCronSnapshots"
+                  :key="`cron-${idx}-${snap.locationLabel}-${snap.cronHour}`"
+                  class="flex flex-wrap items-center justify-between gap-2 rounded border border-gray-100 px-3 py-2"
+                >
+                  <span class="font-medium text-gray-800">{{ snap.locationLabel || '—' }}</span>
+                  <span class="text-xs text-gray-500">{{ snap.cronHour }}:00 batch</span>
+                  <span class="tabular-nums text-gray-900">{{ formatEur(snap.finalRevenueExVat) }} <span class="text-gray-500">ex VAT</span></span>
+                </li>
+              </ul>
             </div>
           </div>
-        </div>
-        </div>
+        </UCard>
 
         <UCard class="border-2 border-gray-900 !bg-white ring-0 shadow-none">
           <template #header>
@@ -787,7 +835,7 @@
             <li v-for="(note, i) in labor.inventory?.notes ?? []" :key="i">{{ note }}</li>
           </ul>
           <p class="mt-3 text-xs text-gray-500">
-            Flags: bork_sales_by_cron {{ labor.inventory?.hasBorkCronData ? 'yes' : 'no' }}, bork_sales_by_hour
+            Flags: bork_business_days (V2) {{ labor.inventory?.hasBorkCronData ? 'yes' : 'no' }}, bork_sales_by_hour (V2)
             {{ labor.inventory?.hasBorkHourData ? 'yes' : 'no' }}, eitje_time_registration_aggregation
             {{ labor.inventory?.hasEitjeAggData ? 'yes' : 'no' }}.
           </p>
@@ -842,12 +890,14 @@ import WorkerDetailsDrawer from '~/components/daily-ops/WorkerDetailsDrawer.vue'
 const categoryChartColors = ['#0a0a0a', '#242424', '#3d3d3d', '#575757', '#737373', '#b8b8b8']
 const timePeriodChartColors = ['#1a1a1a', '#2a2a2a', '#3a3a3a', '#4a4a4a']
 
-withDefaults(
+const props = withDefaults(
   defineProps<{
     /** Last segment of the H1, e.g. Dashboard, Revenue, Productivity */
     pageHeadingSuffix?: string
   }>(),
-  { pageHeadingSuffix: 'Dashboard' }
+  {
+    pageHeadingSuffix: 'Dashboard',
+  }
 )
 
 type LocationRow = { _id: string; name: string; abbreviation?: string }

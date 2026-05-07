@@ -1,6 +1,16 @@
-/** true = icon-only narrow bar (default on load), false = full sidebar. useState so state is shared and survives hydration. */
+/** true = icon-only narrow bar, false = full sidebar (default on first app load). Persisted in cookie for SSR-safe app-level state. */
 export function useSidebar() {
-  const isCollapsed = useState('sidebar-collapsed', () => true)
+  const cookieState = useCookie<boolean>('sidebar-collapsed', {
+    default: () => false,
+    sameSite: 'lax',
+  })
+
+  const isCollapsed = useState('sidebar-collapsed', () => cookieState.value ?? false)
+
+  watch(isCollapsed, (value) => {
+    cookieState.value = value
+  }, { immediate: true })
+
   function toggle() {
     isCollapsed.value = !isCollapsed.value
   }

@@ -12,7 +12,6 @@
 
 import { google } from 'googleapis'
 import type { gmail_v1 } from 'googleapis'
-import { getGmailOAuthRedirectUri } from '../utils/gmailOAuthRedirect'
 
 export type WatchRequest = {
   topicName: string

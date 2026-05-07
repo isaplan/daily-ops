@@ -3,6 +3,15 @@ import type { Serialize, Simplify } from "nitropack/types";
 declare module "nitropack/types" {
   type Awaited<T> = T extends PromiseLike<infer U> ? Awaited<U> : T
   interface InternalApi {
+    '/api/auth/gmail/authorize': {
+      'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/auth/gmail/authorize.get').default>>>>
+    }
+    '/api/auth/gmail/callback': {
+      'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/auth/gmail/callback.get').default>>>>
+    }
+    '/api/bork/sales': {
+      'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/bork/sales.get').default>>>>
+    }
     '/api/bork/v2/credentials': {
       'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/bork/v2/credentials.get').default>>>>
       'post': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/bork/v2/credentials.post').default>>>>
@@ -10,6 +19,9 @@ declare module "nitropack/types" {
     '/api/bork/v2/cron': {
       'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/bork/v2/cron.get').default>>>>
       'post': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/bork/v2/cron.post').default>>>>
+    }
+    '/api/bork/v2/day-breakdown-v2': {
+      'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/bork/v2/day-breakdown-v2.get').default>>>>
     }
     '/api/bork/v2/day-breakdown': {
       'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/bork/v2/day-breakdown.get').default>>>>
@@ -104,6 +116,9 @@ declare module "nitropack/types" {
     '/api/inbox/:id': {
       'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/inbox/[id].get').default>>>>
     }
+    '/api/inbox/backfill-basis-reports': {
+      'post': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/inbox/backfill-basis-reports.post').default>>>>
+    }
     '/api/inbox/bork/basis-report': {
       'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/inbox/bork/basis-report.get').default>>>>
     }
@@ -119,6 +134,9 @@ declare module "nitropack/types" {
     '/api/inbox/bork/sales': {
       'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/inbox/bork/sales.get').default>>>>
     }
+    '/api/inbox/debug-barbea': {
+      'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/inbox/debug-barbea.get').default>>>>
+    }
     '/api/inbox/eitje/contracts': {
       'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/inbox/eitje/contracts.get').default>>>>
     }
@@ -128,8 +146,14 @@ declare module "nitropack/types" {
     '/api/inbox/eitje/hours': {
       'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/inbox/eitje/hours.get').default>>>>
     }
+    '/api/inbox/gmail-status': {
+      'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/inbox/gmail-status.get').default>>>>
+    }
     '/api/inbox/list': {
       'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/inbox/list.get').default>>>>
+    }
+    '/api/inbox/manual-process-basis': {
+      'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/inbox/manual-process-basis.get').default>>>>
     }
     '/api/inbox/parse': {
       'post': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/inbox/parse.post').default>>>>
@@ -143,6 +167,9 @@ declare module "nitropack/types" {
     '/api/inbox/process/:emailId': {
       'post': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/inbox/process/[emailId].post').default>>>>
     }
+    '/api/inbox/reprocess-all': {
+      'post': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/inbox/reprocess-all.post').default>>>>
+    }
     '/api/inbox/sync-scheduled': {
       'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/inbox/sync-scheduled.get').default>>>>
     }
@@ -151,6 +178,9 @@ declare module "nitropack/types" {
     }
     '/api/inbox/test-data/:type': {
       'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/inbox/test-data/[type].get').default>>>>
+    }
+    '/api/inbox/test-mapper': {
+      'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/inbox/test-mapper.get').default>>>>
     }
     '/api/inbox/unprocessed-count': {
       'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/inbox/unprocessed-count.get').default>>>>
@@ -240,6 +270,9 @@ declare module "nitropack/types" {
     '/api/sales-aggregated-products': {
       'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/sales-aggregated-products.get').default>>>>
     }
+    '/api/sales-aggregated-v2': {
+      'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/sales-aggregated-v2.get').default>>>>
+    }
     '/api/sales-aggregated': {
       'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/sales-aggregated.get').default>>>>
     }
@@ -255,6 +288,18 @@ declare module "nitropack/types" {
     }
     '/api/unified-users': {
       'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/unified-users/index.get').default>>>>
+    }
+    '/api/v3/aggregation/trigger': {
+      'post': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/v3/aggregation/trigger.post').default>>>>
+    }
+    '/api/v3/dashboard': {
+      'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/v3/dashboard.get').default>>>>
+    }
+    '/api/v3/labor': {
+      'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/v3/labor.get').default>>>>
+    }
+    '/api/v3/sales': {
+      'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/v3/sales.get').default>>>>
     }
     '/api/workers/active': {
       'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/workers/active.get').default>>>>

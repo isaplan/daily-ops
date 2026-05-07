@@ -13,6 +13,9 @@
     "copy:unified-users": "node --experimental-strip-types scripts/copy-unified-users-to-remote.ts",
     "migrate:credentials": "node --experimental-strip-types scripts/migrate-credentials-to-remote.ts",
     "bork:backfill": "NODE_OPTIONS='--max-old-space-size=8192' node --experimental-strip-types scripts/bork-full-raw-backfill.ts",
+    "bork:rebuild:aggregates": "node --experimental-strip-types scripts/rebuild-bork-v1-date-range.ts",
+    "bork:validate:v2-vs-csv": "node --experimental-strip-types scripts/generate-day-breakdown-v2-vs-csv-tables.ts --write",
+    "bork:rebuild:v2": "node --experimental-strip-types scripts/rebuild-bork-v2-date-range.ts",
     "eitje:backfill": "npx --yes tsx scripts/eitje-full-raw-backfill.ts",
     "start": "node .output/server/index.mjs"
   },

@@ -1,19 +1,20 @@
 /**
  * @registry-id: borkSyncService
  * @created: 2026-04-06T12:00:00.000Z
- * @last-modified: 2026-04-24T12:00:00.000Z
- * @description: Bork/Trivec gateway fetch + bork_raw_data upserts; drives Bork cron/sync; calls borkRebuildAggregationService after sync
- * @last-fix: [2026-04-24] Consumer integrationCronRunner for Nitro schedule + catch-up
+ * @last-modified: 2026-05-08T00:46:00.000Z
+ * @description: Bork/Trivec gateway fetch + bork_raw_data upserts; drives Bork cron/sync; calls V2 aggregation after sync
+ * @last-fix: [2026-05-08] Remove V3 aggregation; post-sync uses rebuildBorkSalesAggregationV2 only
  *
  * @exports-to:
  * ✓ server/api/bork/v2/cron.post.ts
  * ✓ server/api/bork/v2/sync.post.ts
- * ✓ server/services/borkRebuildAggregationService.ts
+ * ✓ server/services/borkRebuildAggregationV2Service.ts
  * ✓ server/services/integrationCronRunner.ts
  */
 
 import { ObjectId, type Db, type Document } from 'mongodb'
-import { rebuildBorkSalesAggregation } from './borkRebuildAggregationService'
+import { rebuildBorkSalesAggregationV2 } from './borkRebuildAggregationV2Service'
+import { resolveBorkAggRebuildSuffix } from '../utils/borkAggVersionSuffix'
 
 export type BorkLocationSyncResult = {
   locationId: string
@@ -186,21 +187,38 @@ export async function executeBorkJob (db: Db, jobType: string): Promise<BorkSync
     ? `Synced ${okCount}/${creds.length} location(s) into bork_raw_data`
     : `0/${creds.length} locations succeeded — check Bork API credentials and network access`
 
-  // After sync completes, trigger aggregation for daily data
-  let aggregationResult: Partial<{ byCron: number; byHour: number; byTable: number; byWorker: number }> = {}
+  // After sync completes, trigger V2 aggregation for daily data
+  let v2AggregationResult: Awaited<ReturnType<typeof rebuildBorkSalesAggregationV2>> | null = null
+  let v2RebuildSuffix = ''
+
   if (syncOk && jobType === 'daily-data') {
     try {
-      const today = new Date().toISOString().split('T')[0]
-      aggregationResult = await rebuildBorkSalesAggregation(db, today, today)
+      const today = new Date().toISOString().slice(0, 10)
+      const yesterday = new Date()
+      yesterday.setUTCDate(yesterday.getUTCDate() - 1)
+      const yesterdayStr = yesterday.toISOString().slice(0, 10)
+      v2RebuildSuffix = resolveBorkAggRebuildSuffix() ?? '_v2'
+
+      // Rebuild yesterday + today: yesterday completes (all tickets closed), today is in-progress
+      v2AggregationResult = await rebuildBorkSalesAggregationV2(db, yesterdayStr, today, v2RebuildSuffix)
     } catch (e) {
       console.error('[borkSyncService] Aggregation error:', e)
       // Don't fail the sync if aggregation fails
     }
   }
 
-  const finalMessage = aggregationResult.byCron 
-    ? `${message}; Aggregated: ${aggregationResult.byCron} cron snapshots, ${aggregationResult.byHour} hours, ${aggregationResult.byTable} tables, ${aggregationResult.byWorker} workers`
-    : message
+  const v2 = v2AggregationResult
+  const v2Message =
+    v2 &&
+    (v2.businessDays > 0 ||
+      v2.salesHours > 0 ||
+      v2.tables > 0 ||
+      v2.workers > 0 ||
+      v2.productLines > 0)
+      ? `; V2 (${v2RebuildSuffix || 'none'}): ${v2.businessDays} business days, ${v2.salesHours} hour buckets, ${v2.tables} tables, ${v2.workers} workers, ${v2.guestAccounts} guest slices, ${v2.productLines} product lines`
+      : ''
+
+  const finalMessage = `${message}${v2Message}`
 
   return {
     ok: syncOk,

@@ -1,8 +1,11 @@
 /**
  * Daily Ops dashboard: Bork revenue + Eitje labor aggregations (fast paths on prebuilt collections).
+ * @last-fix: [2026-05-07] Completed single-day headline revenue leads with inbox Basis (ex VAT) when present; API merge fallback
  */
 import type { Db } from 'mongodb'
 import { ObjectId } from 'mongodb'
+import type { BasisReportData } from './inbox/basis-report-mapper'
+import { resolveBorkAggReadSuffix } from './borkAggVersionSuffix'
 import { resolveDailyOpsPeriod } from '~/utils/dailyOpsPeriod'
 import type {
   DailyOpsLaborDayDto,
@@ -79,9 +82,10 @@ function timePeriodKey(hour: number): 'lunch' | 'pre_drinks' | 'dinner' | 'after
   return 'other'
 }
 
-function borkCronMatch(ctx: DailyOpsMetricsContext): Record<string, unknown> {
+/** Match filter for V2 Bork aggregates (`business_date` YYYY-MM-DD, unified `locationId`). */
+function borkV2SalesMatch(ctx: DailyOpsMetricsContext): Record<string, unknown> {
   const q: Record<string, unknown> = {
-    date: { $gte: ctx.startDate, $lte: ctx.endDate },
+    business_date: { $gte: ctx.startDate, $lte: ctx.endDate },
   }
   if (ctx.locationId !== undefined) q.locationId = ctx.locationId
   return q
@@ -97,10 +101,11 @@ function eitjeAggMatch(ctx: DailyOpsMetricsContext): Record<string, unknown> {
 }
 
 export async function fetchBorkRevenueTotals(db: Db, ctx: DailyOpsMetricsContext) {
+  const sfx = resolveBorkAggReadSuffix()
   const [row] = await db
-    .collection('bork_sales_by_cron')
+    .collection(`bork_business_days${sfx}`)
     .aggregate([
-      { $match: borkCronMatch(ctx) },
+      { $match: borkV2SalesMatch(ctx) },
       {
         $group: {
           _id: null,
@@ -137,10 +142,11 @@ export async function fetchEitjeLaborTotals(db: Db, ctx: DailyOpsMetricsContext)
  * Hour-level revenue minus summed product lines is added to food (missing/empty product arrays).
  */
 export async function fetchRevenueByCategoryFromHourAggregates(db: Db, ctx: DailyOpsMetricsContext) {
-  const match = borkCronMatch(ctx)
+  const sfx = resolveBorkAggReadSuffix()
+  const match = borkV2SalesMatch(ctx)
 
   const [facetRow] = (await db
-    .collection('bork_sales_by_hour')
+    .collection(`bork_sales_by_hour${sfx}`)
     .aggregate([
       { $match: match },
       {
@@ -208,16 +214,17 @@ export type BorkHourAggregatesBundle = {
 
 /** One pass over `bork_sales_by_hour` for time-period totals and per-day-hour revenue. */
 export async function fetchBorkHourAggregatesBundle(db: Db, ctx: DailyOpsMetricsContext): Promise<BorkHourAggregatesBundle> {
+  const sfx = resolveBorkAggReadSuffix()
   const [row] = (await db
-    .collection('bork_sales_by_hour')
+    .collection(`bork_sales_by_hour${sfx}`)
     .aggregate([
-      { $match: borkCronMatch(ctx) },
+      { $match: borkV2SalesMatch(ctx) },
       {
         $facet: {
           byHourOnly: [
             {
               $group: {
-                _id: '$hour',
+                _id: '$calendar_hour',
                 amount: { $sum: { $ifNull: ['$total_revenue', 0] } },
               },
             },
@@ -225,7 +232,7 @@ export async function fetchBorkHourAggregatesBundle(db: Db, ctx: DailyOpsMetrics
           byDayHour: [
             {
               $group: {
-                _id: { d: '$date', h: '$hour' },
+                _id: { d: '$calendar_date', h: '$calendar_hour' },
                 revenue: { $sum: { $ifNull: ['$total_revenue', 0] } },
               },
             },
@@ -257,13 +264,14 @@ export function revenueByTimePeriodFromHourTotals(rows: { _id: number; amount: n
 }
 
 export async function fetchRevenueByTimePeriod(db: Db, ctx: DailyOpsMetricsContext) {
+  const sfx = resolveBorkAggReadSuffix()
   const rows = (await db
-    .collection('bork_sales_by_hour')
+    .collection(`bork_sales_by_hour${sfx}`)
     .aggregate([
-      { $match: borkCronMatch(ctx) },
+      { $match: borkV2SalesMatch(ctx) },
       {
         $group: {
-          _id: '$hour',
+          _id: '$calendar_hour',
           amount: { $sum: { $ifNull: ['$total_revenue', 0] } },
         },
       },
@@ -274,13 +282,14 @@ export async function fetchRevenueByTimePeriod(db: Db, ctx: DailyOpsMetricsConte
 }
 
 export async function fetchHourlyRevenueForRange(db: Db, ctx: DailyOpsMetricsContext) {
+  const sfx = resolveBorkAggReadSuffix()
   return (await db
-    .collection('bork_sales_by_hour')
+    .collection(`bork_sales_by_hour${sfx}`)
     .aggregate([
-      { $match: borkCronMatch(ctx) },
+      { $match: borkV2SalesMatch(ctx) },
       {
         $group: {
-          _id: { d: '$date', h: '$hour' },
+          _id: { d: '$calendar_date', h: '$calendar_hour' },
           revenue: { $sum: { $ifNull: ['$total_revenue', 0] } },
         },
       },
@@ -289,15 +298,201 @@ export async function fetchHourlyRevenueForRange(db: Db, ctx: DailyOpsMetricsCon
 }
 
 export async function fetchRevenueByDate(db: Db, ctx: DailyOpsMetricsContext) {
+  const sfx = resolveBorkAggReadSuffix()
   const rows = (await db
-    .collection('bork_sales_by_cron')
+    .collection(`bork_business_days${sfx}`)
     .aggregate([
-      { $match: borkCronMatch(ctx) },
-      { $group: { _id: '$date', revenue: { $sum: { $ifNull: ['$total_revenue', 0] } } } },
+      { $match: borkV2SalesMatch(ctx) },
+      {
+        $group: {
+          _id: '$business_date',
+          revenue: { $sum: { $ifNull: ['$total_revenue', 0] } },
+        },
+      },
     ])
     .toArray()) as { _id: string; revenue: number }[]
 
   return new Map(rows.map((r) => [r._id, r.revenue]))
+}
+
+/** Sum `total_revenue` by business_date from `bork_sales_by_hour` — validates / fills gaps when `bork_business_days` is empty. */
+export async function fetchRevenueByDateFromHourly(db: Db, ctx: DailyOpsMetricsContext): Promise<Map<string, number>> {
+  const sfx = resolveBorkAggReadSuffix()
+  const rows = (await db
+    .collection(`bork_sales_by_hour${sfx}`)
+    .aggregate([
+      { $match: borkV2SalesMatch(ctx) },
+      {
+        $group: {
+          _id: '$business_date',
+          revenue: { $sum: { $ifNull: ['$total_revenue', 0] } },
+        },
+      },
+    ])
+    .toArray()) as { _id: string; revenue: number }[]
+
+  return new Map(rows.map((r) => [r._id, r.revenue]))
+}
+
+function sumMapValues(m: Map<string, number>): number {
+  let s = 0
+  for (const v of m.values()) s += v
+  return s
+}
+
+/** Prefer `bork_business_days` per day when &gt; 0; otherwise use hourly Σ (same range + location filter). */
+export function mergeRevenueByDateMaps(
+  fromBusinessDays: Map<string, number>,
+  fromHourly: Map<string, number>
+): Map<string, number> {
+  const keys = new Set<string>([...fromBusinessDays.keys(), ...fromHourly.keys()])
+  const out = new Map<string, number>()
+  for (const d of keys) {
+    const a = fromBusinessDays.get(d) ?? 0
+    const b = fromHourly.get(d) ?? 0
+    out.set(d, a > 0 ? a : b)
+  }
+  return out
+}
+
+/** Same merge rule per venue/day key (`locationDayKey`). */
+export function mergeLocationRevenueMaps(
+  fromBusinessDays: Map<string, number>,
+  fromHourly: Map<string, number>
+): Map<string, number> {
+  const keys = new Set<string>([...fromBusinessDays.keys(), ...fromHourly.keys()])
+  const out = new Map<string, number>()
+  for (const k of keys) {
+    const a = fromBusinessDays.get(k) ?? 0
+    const b = fromHourly.get(k) ?? 0
+    out.set(k, a > 0 ? a : b)
+  }
+  return out
+}
+
+export async function fetchRevenueByDateAndLocationFromHourly(db: Db, ctx: DailyOpsMetricsContext): Promise<Map<string, number>> {
+  const sfx = resolveBorkAggReadSuffix()
+  const rows = (await db
+    .collection(`bork_sales_by_hour${sfx}`)
+    .aggregate([
+      { $match: borkV2SalesMatch(ctx) },
+      {
+        $group: {
+          _id: { date: '$business_date', locationId: '$locationId' },
+          revenue: { $sum: { $ifNull: ['$total_revenue', 0] } },
+        },
+      },
+    ])
+    .toArray()) as { _id: { date: string; locationId: unknown }; revenue: number }[]
+
+  const map = new Map<string, number>()
+  for (const r of rows) {
+    const lid = r._id.locationId != null ? String(r._id.locationId) : 'unknown'
+    map.set(locationDayKey(r._id.date, lid), r.revenue)
+  }
+  return map
+}
+
+function normalizeBasisLocationLabel(s: string): string {
+  return s.trim().toLowerCase().replace(/\s+/g, ' ')
+}
+
+/** Same pick logic as day-breakdown (latest business_hour / cron batch per venue label). */
+function pickBasisReportsPerLocation(reports: BasisReportData[]): Map<string, BasisReportData> {
+  const sorted = [...reports].sort((a, b) => {
+    const bh = (b.business_hour ?? -1) - (a.business_hour ?? -1)
+    if (bh !== 0) return bh
+    const ch = (b.cron_hour ?? -1) - (a.cron_hour ?? -1)
+    if (ch !== 0) return ch
+    const ra = a.received_at ? new Date(a.received_at).getTime() : 0
+    const rb = b.received_at ? new Date(b.received_at).getTime() : 0
+    return rb - ra
+  })
+  const byNorm = new Map<string, BasisReportData>()
+  for (const r of sorted) {
+    const key = normalizeBasisLocationLabel(r.location)
+    if (!key || key === 'unspecified') continue
+    if (!byNorm.has(key)) byNorm.set(key, r)
+  }
+  return byNorm
+}
+
+/**
+ * Inbox Basis Report grand totals (ex VAT), one row per venue per calendar `date` after de-duping batches.
+ * Ignores dashboard location filter when venue labels cannot be mapped (use “all locations” for full cross-check).
+ */
+export async function fetchInboxBasisRevenueTotalExVat(db: Db, ctx: DailyOpsMetricsContext): Promise<number | null> {
+  const rows = (await db
+    .collection('inbox-bork-basis-report')
+    .find({
+      date: { $gte: ctx.startDate, $lte: ctx.endDate },
+    })
+    .toArray()) as unknown as BasisReportData[]
+
+  if (rows.length === 0) return null
+
+  const byDate = new Map<string, BasisReportData[]>()
+  for (const r of rows) {
+    const d = r.date
+    if (!byDate.has(d)) byDate.set(d, [])
+    byDate.get(d)!.push(r)
+  }
+  let sum = 0
+  for (const list of byDate.values()) {
+    const picked = pickBasisReportsPerLocation(list)
+    for (const rep of picked.values()) {
+      sum += Number(rep.final_revenue_ex_vat ?? 0)
+    }
+  }
+  return Math.round(sum * 100) / 100
+}
+
+export type TodayRevenueExtras = {
+  apiHourlyByCalendarHour: { calendarHour: number; revenue: number }[]
+  inboxBasisCronSnapshots: { cronHour: number; finalRevenueExVat: number; locationLabel: string }[]
+}
+
+/** Period must be `today`: hourly rows for the dashboard date + Basis emails tagged 15:00 / 23:00 (cron_hour). */
+export async function fetchTodayDashboardRevenueExtras(
+  db: Db,
+  ctx: DailyOpsMetricsContext,
+  hourBundle: BorkHourAggregatesBundle
+): Promise<TodayRevenueExtras | undefined> {
+  if (ctx.period !== 'today') return undefined
+  const dateStr = ctx.startDate
+
+  const byH = new Map<number, number>()
+  for (const row of hourBundle.byDayHour) {
+    if (row._id.d !== dateStr) continue
+    const h = Number(row._id.h)
+    byH.set(h, (byH.get(h) ?? 0) + row.revenue)
+  }
+  const apiHourlyByCalendarHour = [...byH.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([calendarHour, revenue]) => ({
+      calendarHour,
+      revenue: Math.round(revenue * 100) / 100,
+    }))
+
+  const raw = await db
+    .collection('inbox-bork-basis-report')
+    .find({
+      date: dateStr,
+      cron_hour: { $in: [15, 23] },
+    })
+    .sort({ location: 1, cron_hour: 1 })
+    .toArray()
+
+  const inboxBasisCronSnapshots = raw.map((doc) => {
+    const b = doc as unknown as BasisReportData
+    return {
+      cronHour: Number(doc.cron_hour ?? 0),
+      finalRevenueExVat: Math.round(Number(b.final_revenue_ex_vat ?? 0) * 100) / 100,
+      locationLabel: String(b.location ?? ''),
+    }
+  })
+
+  return { apiHourlyByCalendarHour, inboxBasisCronSnapshots }
 }
 
 const LOC_DAY_KEY_SEP = '\x1f'
@@ -313,15 +508,16 @@ export function parseLocationDayKey (key: string): { date: string; locationId: s
   return { date: key.slice(0, i), locationId: key.slice(i + LOC_DAY_KEY_SEP.length) }
 }
 
-/** Revenue per calendar day and venue (ex VAT, from `bork_sales_by_cron`). */
+/** Revenue per business day and venue (ex VAT, from `bork_business_days` V2). */
 export async function fetchRevenueByDateAndLocation (db: Db, ctx: DailyOpsMetricsContext): Promise<Map<string, number>> {
+  const sfx = resolveBorkAggReadSuffix()
   const rows = (await db
-    .collection('bork_sales_by_cron')
+    .collection(`bork_business_days${sfx}`)
     .aggregate([
-      { $match: borkCronMatch(ctx) },
+      { $match: borkV2SalesMatch(ctx) },
       {
         $group: {
-          _id: { date: '$date', locationId: '$locationId' },
+          _id: { date: '$business_date', locationId: '$locationId' },
           revenue: { $sum: { $ifNull: ['$total_revenue', 0] } },
         },
       },
@@ -663,13 +859,14 @@ export async function fetchHoursCostByContractType(db: Db, ctx: DailyOpsMetricsC
 }
 
 export async function fetchLaborProductivityByLocationDay(db: Db, ctx: DailyOpsMetricsContext) {
+  const sfx = resolveBorkAggReadSuffix()
   const revRows = (await db
-    .collection('bork_sales_by_cron')
+    .collection(`bork_business_days${sfx}`)
     .aggregate([
-      { $match: borkCronMatch(ctx) },
+      { $match: borkV2SalesMatch(ctx) },
       {
         $group: {
-          _id: { date: '$date', locationId: '$locationId', locationName: '$locationName' },
+          _id: { date: '$business_date', locationId: '$locationId', locationName: '$locationName' },
           revenue: { $sum: { $ifNull: ['$total_revenue', 0] } },
         },
       },
@@ -785,11 +982,16 @@ export async function fetchLaborProductivityByLocationDay(db: Db, ctx: DailyOpsM
 
 export async function inventoryCollections(db: Db, ctx: DailyOpsMetricsContext) {
   const notes: string[] = []
-  const cron = await db.collection('bork_sales_by_cron').countDocuments(borkCronMatch(ctx), { limit: 1 })
-  const hours = await db.collection('bork_sales_by_hour').countDocuments(borkCronMatch(ctx), { limit: 1 })
+  const sfx = resolveBorkAggReadSuffix()
+  const matchV2 = borkV2SalesMatch(ctx)
+  const cron = await db.collection(`bork_business_days${sfx}`).countDocuments(matchV2, { limit: 1 })
+  const hours = await db.collection(`bork_sales_by_hour${sfx}`).countDocuments(matchV2, { limit: 1 })
   const eitje = await db.collection('eitje_time_registration_aggregation').countDocuments(eitjeAggMatch(ctx), { limit: 1 })
-  if (cron === 0) notes.push('No rows in bork_sales_by_cron for this range — run Bork sync/rebuild aggregations.')
-  if (hours === 0) notes.push('No rows in bork_sales_by_hour for this range.')
+  if (cron === 0)
+    notes.push(
+      `No rows in bork_business_days${sfx} for this range — run Bork sync / V2 rebuild (rebuildBorkSalesAggregationV2).`
+    )
+  if (hours === 0) notes.push(`No rows in bork_sales_by_hour${sfx} for this range.`)
   if (eitje === 0) notes.push('No rows in eitje_time_registration_aggregation for this range — rebuild Eitje aggregation.')
   notes.push('Food vs drinks uses a name-pattern heuristic on `bork_sales_by_hour.products` (from Bork rebuild); tune DRINK_NAME_PATTERN as needed.')
   notes.push('Hour-level labor cost uses daily labor prorated by that day’s hourly revenue share.')
@@ -814,6 +1016,10 @@ export type LaborMetricsPipelineInput = {
   revMap: Map<string, number>
   revByDateLocation: Map<string, number>
   labMap: Awaited<ReturnType<typeof fetchLaborByDate>>
+  revenueSplit: {
+    businessDaysPeriodTotal: number
+    hourlyPeriodTotal: number
+  }
 }
 
 export async function fetchLaborMetricsPipelineInput(db: Db, ctx: DailyOpsMetricsContext): Promise<LaborMetricsPipelineInput> {
@@ -824,8 +1030,10 @@ export async function fetchLaborMetricsPipelineInput(db: Db, ctx: DailyOpsMetric
     contractTypeByDay,
     productivityByLocationDay,
     inventory,
-    revMap,
-    revByDateLocation,
+    revMapDays,
+    revByDateLocationDays,
+    revMapHours,
+    revByDateLocationHours,
     labMap,
   ] = await Promise.all([
     fetchWorkersByTeamLocation(db, ctx),
@@ -836,8 +1044,16 @@ export async function fetchLaborMetricsPipelineInput(db: Db, ctx: DailyOpsMetric
     inventoryCollections(db, ctx),
     fetchRevenueByDate(db, ctx),
     fetchRevenueByDateAndLocation(db, ctx),
+    fetchRevenueByDateFromHourly(db, ctx),
+    fetchRevenueByDateAndLocationFromHourly(db, ctx),
     fetchLaborByDate(db, ctx),
   ])
+  const revMap = mergeRevenueByDateMaps(revMapDays, revMapHours)
+  const revByDateLocation = mergeLocationRevenueMaps(revByDateLocationDays, revByDateLocationHours)
+  const revenueSplit = {
+    businessDaysPeriodTotal: Math.round(sumMapValues(revMapDays) * 100) / 100,
+    hourlyPeriodTotal: Math.round(sumMapValues(revMapHours) * 100) / 100,
+  }
   return {
     workersByTeamLocation,
     workersByTeamLocationByDayRaw,
@@ -848,6 +1064,7 @@ export async function fetchLaborMetricsPipelineInput(db: Db, ctx: DailyOpsMetric
     revMap,
     revByDateLocation,
     labMap,
+    revenueSplit,
   }
 }
 
@@ -973,13 +1190,47 @@ export function assembleDailyOpsLaborMetricsDto(
   }
 }
 
+/**
+ * Closed register single-day views: Basis Report (full business day, morning inbox) is the operational source of truth when ingested.
+ * In-progress `today` stays API-led (hourly sync). Multi-day ranges stay API-sum until we aggregate inbox per day.
+ */
+function resolveHeadlineRevenue(
+  ctx: DailyOpsMetricsContext,
+  apiMergedTotal: number,
+  revenueSourcesDetail?: {
+    inboxBasisExVat: number | null
+  }
+): { headline: number; leadSource: 'inbox_basis_ex_vat' | 'bork_api_merged' } {
+  const inbox = revenueSourcesDetail?.inboxBasisExVat
+  const singleCompletedDay =
+    ctx.startDate === ctx.endDate && ctx.period !== 'today'
+  const useInboxLead =
+    singleCompletedDay && inbox != null && inbox > 0
+
+  if (useInboxLead) {
+    return {
+      headline: Math.round(inbox * 100) / 100,
+      leadSource: 'inbox_basis_ex_vat',
+    }
+  }
+  return {
+    headline: Math.round(apiMergedTotal * 100) / 100,
+    leadSource: 'bork_api_merged',
+  }
+}
+
 export function buildDailyOpsSummaryDto(
   ctx: DailyOpsMetricsContext,
   revMap: Map<string, number>,
-  labMap: LaborMetricsPipelineInput['labMap']
+  labMap: LaborMetricsPipelineInput['labMap'],
+  revenueSourcesDetail?: {
+    apiBusinessDaysTotal: number
+    inboxBasisExVat: number | null
+  }
 ): DailyOpsSummaryDto {
-  let totalRevenue = 0
-  for (const v of revMap.values()) totalRevenue += v
+  let apiMergedTotal = 0
+  for (const v of revMap.values()) apiMergedTotal += v
+  const { headline: totalRevenue, leadSource } = resolveHeadlineRevenue(ctx, apiMergedTotal, revenueSourcesDetail)
   let totalLaborCost = 0
   let totalLaborHours = 0
   for (const v of labMap.values()) {
@@ -998,7 +1249,7 @@ export function buildDailyOpsSummaryDto(
       endDate: ctx.endDate,
     },
     summary: {
-      totalRevenue: Math.round(totalRevenue * 100) / 100,
+      totalRevenue,
       totalLaborCost: Math.round(totalLaborCost * 100) / 100,
       totalLaborHours: Math.round(totalLaborHours * 100) / 100,
       profit: Math.round(profit * 100) / 100,
@@ -1007,6 +1258,13 @@ export function buildDailyOpsSummaryDto(
         revenuePerLaborHour != null ? Math.round(revenuePerLaborHour * 100) / 100 : null,
       laborCostPctOfRevenue:
         laborCostPctOfRevenue != null ? Math.round(laborCostPctOfRevenue * 10) / 10 : null,
+      revenueLeadSource: revenueSourcesDetail ? leadSource : undefined,
+      revenueSources: revenueSourcesDetail
+        ? {
+            apiBusinessDaysTotal: revenueSourcesDetail.apiBusinessDaysTotal,
+            inboxBasisExVat: revenueSourcesDetail.inboxBasisExVat,
+          }
+        : undefined,
     },
     vatDisclaimer: VAT_DISCLAIMER,
   }
@@ -1017,7 +1275,8 @@ export function buildDailyOpsRevenueBreakdownDto(
   cat: { drinks: number; food: number },
   hourBundle: BorkHourAggregatesBundle,
   revMap: Map<string, number>,
-  labMap: LaborMetricsPipelineInput['labMap']
+  labMap: LaborMetricsPipelineInput['labMap'],
+  todayExtras?: TodayRevenueExtras
 ): DailyOpsRevenueBreakdownDto {
   const tp = revenueByTimePeriodFromHourTotals(hourBundle.byHourOnly)
   const best = computeMostProfitableHour(hourBundle.byDayHour, revMap, labMap)
@@ -1056,6 +1315,12 @@ export function buildDailyOpsRevenueBreakdownDto(
       laborCost: Math.round(best.laborCost * 100) / 100,
       profit: Math.round(best.profit * 100) / 100,
     },
+    todayRevenueDetail: todayExtras
+      ? {
+          apiHourlyByCalendarHour: todayExtras.apiHourlyByCalendarHour,
+          inboxBasisCronSnapshots: todayExtras.inboxBasisCronSnapshots,
+        }
+      : undefined,
   }
 }
 

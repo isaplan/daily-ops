@@ -1,9 +1,9 @@
 /**
  * @registry-id: eitjeRebuildAggregationService
  * @created: 2026-04-05T12:00:00.000Z
- * @last-modified: 2026-04-05T12:00:00.000Z
+ * @last-modified: 2026-04-26T19:45:00.000Z
  * @description: Rebuilds eitje_time_registration_aggregation day rows from eitje_raw_data for a date range
- * @last-fix: [2026-04-05] Initial pipeline aligned with dataIntegrityService + member hours
+ * @last-fix: [2026-04-26] Apply business day logic (06:00-05:59:59) to aggregation period + hour fields
  *
  * @exports-to:
  * ✓ server/services/eitjeSyncService.ts
@@ -12,6 +12,27 @@
 
 import type { Db } from 'mongodb'
 import { EITJE_HOURS_ADD_FIELDS } from '../utils/eitjeHours'
+
+/**
+ * Convert UTC calendar date + hour to business day period.
+ * Business day: 06:00-05:59:59 next morning.
+ * business_hour: 0 = 06:00-06:59, 18 = 00:00-00:59 next day, 23 = 05:00-05:59 next day.
+ */
+function calendarToBusinessDay(
+  calendarDateStr: string,
+  calendarHour: number
+): { businessDate: string; businessHour: number } {
+  if (calendarHour >= 6 && calendarHour <= 23) {
+    return { businessDate: calendarDateStr, businessHour: calendarHour - 6 }
+  }
+  const [y, m, d] = calendarDateStr.split('-').map(Number)
+  const prevDate = new Date(Date.UTC(y, (m ?? 1) - 1, (d ?? 1) - 1))
+  const yy = prevDate.getUTCFullYear()
+  const mm = String(prevDate.getUTCMonth() + 1).padStart(2, '0')
+  const dd = String(prevDate.getUTCDate()).padStart(2, '0')
+  const prevDateStr = `${yy}-${mm}-${dd}`
+  return { businessDate: prevDateStr, businessHour: calendarHour + 18 }
+}
 
 export type RebuildAggResult = {
   deletedPeriods: number
@@ -55,8 +76,11 @@ export async function rebuildEitjeTimeRegistrationAggregation (
     {
       $addFields: {
         ...EITJE_HOURS_ADD_FIELDS,
-        period: {
+        calendarDate: {
           $dateToString: { format: '%Y-%m-%d', date: '$date', timezone: 'UTC' },
+        },
+        calendarHour: {
+          $hour: { date: '$date', timezone: 'UTC' },
         },
         userId: { $ifNull: ['$extracted.userId', '$rawApiResponse.user_id'] },
         teamId: { $ifNull: ['$extracted.teamId', '$rawApiResponse.team_id'] },
@@ -67,6 +91,32 @@ export async function rebuildEitjeTimeRegistrationAggregation (
             '$rawApiResponse.environment_id',
             '$rawApiResponse.environmentId',
             '$rawApiResponse.environment.id',
+          ],
+        },
+      },
+    },
+    {
+      $addFields: {
+        period: {
+          $cond: [
+            { $and: [{ $gte: ['$calendarHour', 6] }, { $lte: ['$calendarHour', 23] }] },
+            '$calendarDate',
+            {
+              $dateToString: {
+                format: '%Y-%m-%d',
+                date: {
+                  $subtract: [{ $toDate: '$calendarDate' }, 86400000]
+                },
+                timezone: 'UTC',
+              },
+            },
+          ],
+        },
+        business_hour: {
+          $cond: [
+            { $and: [{ $gte: ['$calendarHour', 6] }, { $lte: ['$calendarHour', 23] }] },
+            { $subtract: ['$calendarHour', 6] },
+            { $add: ['$calendarHour', 18] },
           ],
         },
       },

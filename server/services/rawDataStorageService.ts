@@ -45,7 +45,7 @@ function getCollectionName(documentType: DocumentType): string {
 }
 
 export function isTestDataType(documentType: DocumentType): boolean {
-  return ['sales', 'product_mix', 'food_beverage', 'basis_report', 'product_sales_per_hour'].includes(documentType)
+  return ['sales', 'product_mix', 'food_beverage', 'product_sales_per_hour'].includes(documentType)
 }
 
 export async function storeRawData(

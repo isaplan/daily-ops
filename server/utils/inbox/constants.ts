@@ -11,6 +11,8 @@ export const INBOX_COLLECTIONS = {
   emailAttachment: 'emailattachments',
   parsedData: 'parseddatas',
   processingLog: 'processinglogs',
+  gmailOAuthToken: 'gmail_oauth_tokens',
+  basisReports: 'basis_reports',
 } as const
 
 /** Target collections created by ensureInboxCollections (from next-js-old inbox-collections) */
@@ -22,6 +24,7 @@ export const INBOX_TARGET_COLLECTIONS = [
   'inbox-bork-food-beverage',
   'inbox-bork-product-mix',
   'inbox-bork-basis-report',
+  'basis_reports',
   'bork_sales',
   'power_bi_exports',
   'other_documents',

@@ -5,7 +5,16 @@ const disableIntegrationsSchedule = process.env.DISABLE_INTEGRATIONS_SCHEDULED =
 
 const scheduledTasks: Record<string, string[]> = {}
 if (!disableInboxSchedule) {
-  scheduledTasks['0 8 * * *'] = ['inbox:gmail-sync']
+  /**
+   * Gmail inbox poll 3×/day at **08:05, 18:05, 23:05 Europe/Amsterdam** (+5m slack).
+   * Nitro Croner uses the **server local clock** (DigitalOcean Node is **UTC** by default).
+   * With **UTC** as local time, use **06:05 / 16:05 / 21:05 UTC** = those Amsterdam times during **CEST**.
+   * Do **not** set `TZ=Europe/Amsterdam` unless you change these crons to `5 8`, `5 18`, `5 23`.
+   * **CET (winter):** use `5 7`, `5 17`, `5 22` UTC instead for the same wall-clock slots.
+   */
+  scheduledTasks['5 6 * * *'] = ['inbox:gmail-sync']
+  scheduledTasks['5 16 * * *'] = ['inbox:gmail-sync']
+  scheduledTasks['5 21 * * *'] = ['inbox:gmail-sync']
 }
 if (!disableIntegrationsSchedule) {
   /** Same UTC slots as `.github/workflows/daily-ops-sync.yml` — disable that workflow `schedule` to avoid duplicate API load. */
@@ -14,6 +23,15 @@ if (!disableIntegrationsSchedule) {
 
 export default defineNuxtConfig({
   ssr: false,
+  /** Sales-V2 API (`/api/sales-aggregated-v2`) — version suffix (default `_v2`). */
+  runtimeConfig: {
+    borkAggVersionSuffix: process.env.BORK_AGG_VERSION_SUFFIX ?? process.env.BORK_AGG_V2_SUFFIX ?? '_v2',
+    borkAggV2Suffix: process.env.BORK_AGG_V2_SUFFIX ?? '',
+    /** Default BTW % for “ex BTW” display on day-breakdown (Bork lines are incl. BTW). Override per session in UI. */
+    public: {
+      borkDisplayExVatPercent: process.env.BORK_DISPLAY_EX_VAT_PERCENT ?? '21',
+    },
+  },
   modules: ['@nuxt/ui'],
   srcDir: '.',
   /** Avoid trailing slash — prevents bad joins like `.nuxt//dist` in generated dev paths. */
@@ -38,8 +56,7 @@ export default defineNuxtConfig({
     },
   },
   /**
-   * Inbox Gmail poll: one run per day on the DO Node process (no extra DO Job component).
-   * `0 8 * * *` UTC ≈ 10:00 Europe/Amsterdam in CEST (UTC+2). In CET (winter) same cron is ~09:00 local — adjust if needed.
+   * Inbox Gmail poll: 3× daily (`5 6`, `5 16`, `5 21` UTC = 08:05 / 18:05 / 23:05 Amsterdam CEST on a UTC host).
    * GitHub inbox-daily-sync.yml is manual-only to avoid duplicate fetches + Actions minutes.
    *
    * Bork + Eitje: Nitro `0 6,13,16,18,20,22 * * *` UTC matches daily-ops-sync.yml; turn off that workflow schedule when this is on.

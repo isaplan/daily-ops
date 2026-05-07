@@ -120,14 +120,17 @@ const periodOptions: { id: DailyOpsPeriodId; label: string }[] = [
   { id: 'last-week', label: 'Last Week' },
 ]
 
-const navItems = [
-  { key: 'overview' as const, label: 'Daily Ops', path: '/daily-ops' },
-  { key: 'revenue' as const, label: 'Revenue', path: '/daily-ops/revenue' },
-  { key: 'productivity' as const, label: 'Productivity', path: '/daily-ops/productivity' },
-  { key: 'products' as const, label: 'Products', path: '/daily-ops/products' },
-  { key: 'insights' as const, label: 'Insights', path: '/daily-ops/insights' },
-  { key: 'inbox' as const, label: 'Inbox', path: '/daily-ops/inbox' },
-]
+const navItems = computed(() => {
+  const prefix = '/daily-ops'
+  return [
+    { key: 'overview' as const, label: 'Daily Ops', path: prefix },
+    { key: 'revenue' as const, label: 'Revenue', path: `${prefix}/revenue` },
+    { key: 'productivity' as const, label: 'Productivity', path: `${prefix}/productivity` },
+    { key: 'products' as const, label: 'Products', path: `${prefix}/products` },
+    { key: 'insights' as const, label: 'Insights', path: `${prefix}/insights` },
+    { key: 'inbox' as const, label: 'Inbox', path: `${prefix}/inbox` },
+  ]
+})
 
 const { data: locationsRes } = await useFetch<{ success: boolean; data: LocationRow[] }>('/api/daily-ops/locations')
 

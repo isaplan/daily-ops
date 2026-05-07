@@ -6,9 +6,9 @@ import nodeCrypto, { createHash } from 'node:crypto';
 import { parentPort, threadId } from 'node:worker_threads';
 import { escapeHtml } from 'file:///Users/alviniomolina/Documents/GitHub/daily-ops/node_modules/@vue/shared/dist/shared.cjs.js';
 import { Cron } from 'file:///Users/alviniomolina/Documents/GitHub/daily-ops/node_modules/croner/dist/croner.js';
+import { google } from 'file:///Users/alviniomolina/Documents/GitHub/daily-ops/node_modules/.pnpm/googleapis@171.4.0/node_modules/googleapis/build/src/index.js';
 import { MongoClient, ObjectId } from 'file:///Users/alviniomolina/Documents/GitHub/daily-ops/node_modules/.pnpm/mongodb@7.1.1/node_modules/mongodb/lib/index.js';
 import { Buffer as Buffer$1 } from 'node:buffer';
-import { google } from 'file:///Users/alviniomolina/Documents/GitHub/daily-ops/node_modules/.pnpm/googleapis@171.4.0/node_modules/googleapis/build/src/index.js';
 import Papa from 'file:///Users/alviniomolina/Documents/GitHub/daily-ops/node_modules/.pnpm/papaparse@5.5.3/node_modules/papaparse/papaparse.js';
 import * as cpexcel from '/Users/alviniomolina/Documents/GitHub/daily-ops/node_modules/.pnpm/xlsx@0.18.5/node_modules/xlsx/dist/cpexcel.js';
 import * as node_fs from 'node:fs';
@@ -970,7 +970,11 @@ const _inlineRuntimeConfig = {
       }
     }
   },
-  "public": {},
+  "public": {
+    "borkDisplayExVatPercent": "21"
+  },
+  "borkAggVersionSuffix": "_v2",
+  "borkAggV2Suffix": "",
   "icon": {
     "serverKnownCssClasses": []
   }
@@ -2557,9 +2561,13 @@ async function getMenuVersionsCollection() {
   const db = await getDb();
   return db.collection("menu_versions");
 }
+async function connectToDatabase() {
+  return getDb();
+}
 
 const db = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
   __proto__: null,
+  connectToDatabase: connectToDatabase,
   getDb: getDb,
   getMenuItemsCollection: getMenuItemsCollection,
   getMenuVersionsCollection: getMenuVersionsCollection,
@@ -2573,7 +2581,9 @@ const INBOX_COLLECTIONS = {
   inboxEmail: "inboxemails",
   emailAttachment: "emailattachments",
   parsedData: "parseddatas",
-  processingLog: "processinglogs"
+  processingLog: "processinglogs",
+  gmailOAuthToken: "gmail_oauth_tokens",
+  basisReports: "basis_reports"
 };
 const INBOX_TARGET_COLLECTIONS = [
   "inbox-eitje-hours",
@@ -2583,6 +2593,7 @@ const INBOX_TARGET_COLLECTIONS = [
   "inbox-bork-food-beverage",
   "inbox-bork-product-mix",
   "inbox-bork-basis-report",
+  "basis_reports",
   "bork_sales",
   "power_bi_exports",
   "other_documents"
@@ -2609,6 +2620,7 @@ async function ensureInboxIndexes() {
   const attachments = db.collection(INBOX_COLLECTIONS.emailAttachment);
   const parsed = db.collection(INBOX_COLLECTIONS.parsedData);
   const logs = db.collection(INBOX_COLLECTIONS.processingLog);
+  const oauthTokens = db.collection(INBOX_COLLECTIONS.gmailOAuthToken);
   await Promise.all([
     emails.createIndex({ messageId: 1 }, { unique: true }),
     emails.createIndex({ from: 1 }),
@@ -2621,16 +2633,11 @@ async function ensureInboxIndexes() {
     parsed.createIndex({ attachmentId: 1, documentType: 1 }),
     parsed.createIndex({ emailId: 1, documentType: 1 }),
     logs.createIndex({ emailId: 1, timestamp: -1 }),
-    logs.createIndex({ attachmentId: 1, timestamp: -1 })
+    logs.createIndex({ attachmentId: 1, timestamp: -1 }),
+    oauthTokens.createIndex({ accountId: 1 }, { unique: true }),
+    oauthTokens.createIndex({ createdAt: -1 })
   ]).catch(() => {
   });
-}
-
-function getGmailOAuthRedirectUri() {
-  const raw = process.env.GMAIL_REDIRECT_URI;
-  const trimmed = typeof raw === "string" ? raw.trim() : "";
-  if (trimmed) return trimmed;
-  return "http://localhost:8080";
 }
 
 var __defProp$1 = Object.defineProperty;
@@ -2898,7 +2905,7 @@ function extractHour(timeStr) {
   const match = timeStr.match(/^(\d{1,2}):/);
   return match ? parseInt(match[1], 10) : 0;
 }
-function addCalendarDaysISO(dateStr, deltaDays) {
+function addCalendarDaysISO$1(dateStr, deltaDays) {
   const [y, m, d] = dateStr.split("-").map(Number);
   const dt = new Date(Date.UTC(y, m - 1, d + deltaDays));
   const yy = dt.getUTCFullYear();
@@ -2907,54 +2914,97 @@ function addCalendarDaysISO(dateStr, deltaDays) {
   return `${yy}-${mm}-${dd}`;
 }
 function calendarToBusinessDay(calendarDateStr, calendarHour) {
-  if (calendarHour >= 6 && calendarHour <= 23) {
-    return { businessDate: calendarDateStr, businessHour: calendarHour - 6 };
+  if (calendarHour >= 8 && calendarHour <= 23) {
+    return { businessDate: calendarDateStr, businessHour: calendarHour - 8 };
   }
   return {
-    businessDate: addCalendarDaysISO(calendarDateStr, -1),
-    businessHour: calendarHour + 18
+    businessDate: addCalendarDaysISO$1(calendarDateStr, -1),
+    businessHour: calendarHour + 16
   };
 }
-async function rebuildBorkSalesAggregation(db, startDate, endDate, collectionSuffix = "", cronTime = /* @__PURE__ */ new Date()) {
+function isBorkTicketOpenUnsettled(ticket) {
+  if (!ticket || typeof ticket !== "object") return false;
+  const ad = ticket.ActualDate;
+  return ad === 10101 || ad === "10101";
+}
+function sortByRevenueDesc(arr) {
+  return [...arr].sort((a, b) => {
+    var _a, _b, _c, _d;
+    return ((_b = (_a = b.total_revenue) != null ? _a : b.revenue) != null ? _b : 0) - ((_d = (_c = a.total_revenue) != null ? _c : a.revenue) != null ? _d : 0);
+  });
+}
+async function rebuildBorkSalesAggregationV2(db, startDate, endDate, collectionSuffix = "") {
+  var _a, _b;
   const result = {
-    byCron: 0,
-    byHour: 0,
-    byTable: 0,
-    byWorker: 0,
-    byGuestAccount: 0,
-    productsMaster: 0
+    businessDays: 0,
+    salesByDay: 0,
+    salesHours: 0,
+    tables: 0,
+    workers: 0,
+    guestAccounts: 0,
+    productLines: 0
   };
   const [startYear, startMonth, startDay] = startDate.split("-").map(Number);
   const [endYear, endMonth, endDay] = endDate.split("-").map(Number);
   const startBorkDate = startYear * 1e4 + startMonth * 100 + startDay;
   const endBorkDate = endYear * 1e4 + endMonth * 100 + endDay;
   const locMappings = await db.collection("bork_unified_location_mapping").find({}).toArray();
+  const locMap = new Map(
+    locMappings.map((l) => [String(l.borkLocationId), { unifiedId: l.unifiedLocationId, name: l.unifiedLocationName }])
+  );
   const userMappings = await db.collection("bork_unified_user_mapping").find({}).toArray();
-  const locMap = new Map(locMappings.map((l) => [String(l.borkLocationId), { unifiedId: l.unifiedLocationId, name: l.unifiedLocationName }]));
-  const userMap = new Map(userMappings.map((u) => [u.borkUserId || u.borkUserName, { unifiedId: u.unifiedUserId, name: u.unifiedUserName }]));
-  const cursor = db.collection("bork_raw_data").find({ endpoint: "bork_daily" }).batchSize(32);
-  const byCronMap = /* @__PURE__ */ new Map();
+  const userMap = new Map(
+    userMappings.map((u) => [u.borkUserId || u.borkUserName, { unifiedId: u.unifiedUserId, name: u.unifiedUserName }])
+  );
+  const hoursCollection = `bork_sales_by_hour${collectionSuffix}`;
+  const daysCollection = `bork_business_days${collectionSuffix}`;
+  const salesByDayCollection = `bork_sales_by_day${collectionSuffix}`;
+  const tablesCollection = `bork_sales_by_table${collectionSuffix}`;
+  const workersCollection = `bork_sales_by_worker${collectionSuffix}`;
+  const guestsCollection = `bork_sales_by_guest_account${collectionSuffix}`;
+  const productsCollection = `bork_sales_by_product${collectionSuffix}`;
   const byHourMap = /* @__PURE__ */ new Map();
+  const dayRollupMap = /* @__PURE__ */ new Map();
   const byTableMap = /* @__PURE__ */ new Map();
   const byWorkerMap = /* @__PURE__ */ new Map();
-  const byGuestAccountMap = /* @__PURE__ */ new Map();
-  const productsMasterMap = /* @__PURE__ */ new Map();
+  const byGuestMap = /* @__PURE__ */ new Map();
+  const byProductMap = /* @__PURE__ */ new Map();
+  const cursor = db.collection("bork_raw_data").find({ endpoint: "bork_daily" }).batchSize(32);
+  const ensureDayRollup = (dayKey, unifiedLocationId, unifiedLocationName, businessDate) => {
+    if (!dayRollupMap.has(dayKey)) {
+      dayRollupMap.set(dayKey, {
+        schema_version: 2,
+        locationId: unifiedLocationId,
+        locationName: unifiedLocationName,
+        business_date: businessDate,
+        status: "aggregated",
+        total_revenue: 0,
+        total_quantity: 0,
+        record_count: 0,
+        paymode_total: 0,
+        products: /* @__PURE__ */ new Map(),
+        workers: /* @__PURE__ */ new Map(),
+        guests: /* @__PURE__ */ new Map(),
+        paymodes: /* @__PURE__ */ new Map()
+      });
+    }
+    return dayRollupMap.get(dayKey);
+  };
   try {
     for await (const rawDoc of cursor) {
       const borkLocationId = rawDoc.locationId;
       const locMapping = locMap.get(String(borkLocationId));
-      if (!locMapping) {
-        console.warn(`No unified location mapping for Bork location ${borkLocationId}`);
-        continue;
-      }
+      if (!locMapping) continue;
       const unifiedLocationId = locMapping.unifiedId;
       const unifiedLocationName = locMapping.name;
       const tickets = Array.isArray(rawDoc.rawApiResponse) ? rawDoc.rawApiResponse : [rawDoc.rawApiResponse];
       for (const ticket of tickets) {
         if (!ticket || typeof ticket !== "object") continue;
+        if (isBorkTicketOpenUnsettled(ticket)) continue;
+        const calendarHour = extractHour(ticket.Time);
         const borkWorkerName = ticket.UserName || "Unknown";
         const userMapping = userMap.get(borkWorkerName) || userMap.get(ticket.UserId);
-        const unifiedWorkerId = (userMapping == null ? void 0 : userMapping.unifiedId) || "unknown";
+        const unifiedWorkerId = String((userMapping == null ? void 0 : userMapping.unifiedId) || "unknown");
         const unifiedWorkerName = (userMapping == null ? void 0 : userMapping.name) || borkWorkerName;
         const orders = Array.isArray(ticket.Orders) ? ticket.Orders : [];
         for (const order of orders) {
@@ -2963,7 +3013,9 @@ async function rebuildBorkSalesAggregation(db, startDate, endDate, collectionSuf
           if (!orderDate || orderDate === "00000000") continue;
           const orderBorkDate = parseInt(orderDate, 10);
           if (orderBorkDate < startBorkDate || orderBorkDate > endBorkDate) continue;
-          const dateStr = borkDateToISO(orderBorkDate);
+          const isoDate = borkDateToISO(orderBorkDate);
+          const { businessDate, businessHour } = calendarToBusinessDay(isoDate, calendarHour);
+          const dayKey = `${unifiedLocationId}:${businessDate}`;
           const tableNumber = String(order.TableNr || "").trim();
           const hasTable = tableNumber.length > 0;
           const lines = Array.isArray(order.Lines) ? order.Lines : [];
@@ -2973,61 +3025,83 @@ async function rebuildBorkSalesAggregation(db, startDate, endDate, collectionSuf
             const qty = Number(line.Qty || 0);
             const totalPrice = price * qty;
             const productName = line.ProductName || "Unknown";
-            const productKey = line.ProductKey || "unknown";
-            const hour = extractHour(ticket.Time);
-            const { businessDate, businessHour } = calendarToBusinessDay(dateStr, hour);
-            const cronKey = `${unifiedLocationId}:${dateStr}`;
-            if (!byCronMap.has(cronKey)) {
-              byCronMap.set(cronKey, {
-                cronTime,
-                locationId: unifiedLocationId,
-                locationName: unifiedLocationName,
-                date: dateStr,
-                total_revenue: 0,
-                total_quantity: 0,
-                record_count: 0
-              });
-            }
-            const cronEntry = byCronMap.get(cronKey);
-            cronEntry.total_revenue = cronEntry.total_revenue + totalPrice;
-            cronEntry.total_quantity = cronEntry.total_quantity + qty;
-            cronEntry.record_count = cronEntry.record_count + 1;
-            const hourKey = `${unifiedLocationId}:${dateStr}:${hour}`;
+            const productKey = String(line.ProductKey || "unknown");
+            const hourKey = `${unifiedLocationId}:${businessDate}:${businessHour}`;
             if (!byHourMap.has(hourKey)) {
               byHourMap.set(hourKey, {
-                date: dateStr,
-                hour,
-                business_date: businessDate,
-                business_hour: businessHour,
+                schema_version: 2,
                 locationId: unifiedLocationId,
                 locationName: unifiedLocationName,
+                business_date: businessDate,
+                business_hour: businessHour,
+                calendar_date: isoDate,
+                calendar_hour: calendarHour,
                 total_revenue: 0,
                 total_quantity: 0,
                 record_count: 0,
                 products: /* @__PURE__ */ new Map()
               });
             }
-            const hourEntry = byHourMap.get(hourKey);
-            hourEntry.total_revenue = hourEntry.total_revenue + totalPrice;
-            hourEntry.total_quantity = hourEntry.total_quantity + qty;
-            hourEntry.record_count = hourEntry.record_count + 1;
-            if (!hourEntry.products.has(productKey)) {
-              hourEntry.products.set(productKey, {
-                productId: productKey,
-                productName,
-                revenue: 0,
-                quantity: 0
+            const he = byHourMap.get(hourKey);
+            he.total_revenue = he.total_revenue + totalPrice;
+            he.total_quantity = he.total_quantity + qty;
+            he.record_count = he.record_count + 1;
+            const pmap = he.products;
+            if (!pmap.has(productKey)) {
+              pmap.set(productKey, { productId: productKey, productName, revenue: 0, quantity: 0 });
+            }
+            const hp = pmap.get(productKey);
+            hp.revenue += totalPrice;
+            hp.quantity += qty;
+            const dr = ensureDayRollup(dayKey, unifiedLocationId, unifiedLocationName, businessDate);
+            dr.total_revenue += totalPrice;
+            dr.total_quantity += qty;
+            dr.record_count += 1;
+            if (!dr.products.has(productKey)) {
+              dr.products.set(productKey, { productId: productKey, productName, revenue: 0, quantity: 0 });
+            }
+            const dp = dr.products.get(productKey);
+            dp.revenue += totalPrice;
+            dp.quantity += qty;
+            if (!dr.workers.has(unifiedWorkerId)) {
+              dr.workers.set(unifiedWorkerId, {
+                workerId: unifiedWorkerId,
+                workerName: unifiedWorkerName,
+                total_revenue: 0,
+                total_quantity: 0,
+                record_count: 0
               });
             }
-            const prod = hourEntry.products.get(productKey);
-            prod.revenue += totalPrice;
-            prod.quantity += qty;
+            const dw = dr.workers.get(unifiedWorkerId);
+            dw.total_revenue += totalPrice;
+            dw.total_quantity += qty;
+            dw.record_count += 1;
+            const productAggKey = `${unifiedLocationId}:${businessDate}:${productKey}:${price}`;
+            if (!byProductMap.has(productAggKey)) {
+              byProductMap.set(productAggKey, {
+                schema_version: 2,
+                locationId: unifiedLocationId,
+                locationName: unifiedLocationName,
+                business_date: businessDate,
+                productId: productKey,
+                productName,
+                unit_price: price,
+                total_revenue: 0,
+                total_quantity: 0,
+                record_count: 0
+              });
+            }
+            const pe = byProductMap.get(productAggKey);
+            pe.total_revenue = pe.total_revenue + totalPrice;
+            pe.total_quantity = pe.total_quantity + qty;
+            pe.record_count = pe.record_count + 1;
             if (hasTable) {
-              const tableKey = `${unifiedLocationId}:${dateStr}:${hour}:${tableNumber}`;
+              const tableKey = `${unifiedLocationId}:${businessDate}:${businessHour}:${tableNumber}`;
               if (!byTableMap.has(tableKey)) {
                 byTableMap.set(tableKey, {
-                  date: dateStr,
-                  hour,
+                  schema_version: 2,
+                  date: isoDate,
+                  hour: calendarHour,
                   business_date: businessDate,
                   business_hour: businessHour,
                   locationId: unifiedLocationId,
@@ -3035,29 +3109,28 @@ async function rebuildBorkSalesAggregation(db, startDate, endDate, collectionSuf
                   tableNumber,
                   total_revenue: 0,
                   total_quantity: 0,
+                  record_count: 0,
                   products: /* @__PURE__ */ new Map()
                 });
               }
-              const tableEntry = byTableMap.get(tableKey);
-              tableEntry.total_revenue = tableEntry.total_revenue + totalPrice;
-              tableEntry.total_quantity = tableEntry.total_quantity + qty;
-              if (!tableEntry.products.has(productKey)) {
-                tableEntry.products.set(productKey, {
-                  productId: productKey,
-                  productName,
-                  revenue: 0,
-                  quantity: 0
-                });
+              const te = byTableMap.get(tableKey);
+              te.total_revenue = te.total_revenue + totalPrice;
+              te.total_quantity = te.total_quantity + qty;
+              te.record_count = te.record_count + 1;
+              const tm = te.products;
+              if (!tm.has(productKey)) {
+                tm.set(productKey, { productId: productKey, productName, revenue: 0, quantity: 0 });
               }
-              const tableProd = tableEntry.products.get(productKey);
-              tableProd.revenue += totalPrice;
-              tableProd.quantity += qty;
+              const tp = tm.get(productKey);
+              tp.revenue += totalPrice;
+              tp.quantity += qty;
             }
-            const workerKey = `${unifiedLocationId}:${dateStr}:${hour}:${unifiedWorkerId}`;
+            const workerKey = `${unifiedLocationId}:${businessDate}:${businessHour}:${unifiedWorkerId}`;
             if (!byWorkerMap.has(workerKey)) {
               byWorkerMap.set(workerKey, {
-                date: dateStr,
-                hour,
+                schema_version: 2,
+                date: isoDate,
+                hour: calendarHour,
                 business_date: businessDate,
                 business_hour: businessHour,
                 locationId: unifiedLocationId,
@@ -3070,28 +3143,25 @@ async function rebuildBorkSalesAggregation(db, startDate, endDate, collectionSuf
                 products: /* @__PURE__ */ new Map()
               });
             }
-            const workerEntry = byWorkerMap.get(workerKey);
-            workerEntry.total_revenue = workerEntry.total_revenue + totalPrice;
-            workerEntry.total_quantity = workerEntry.total_quantity + qty;
-            workerEntry.record_count = workerEntry.record_count + 1;
-            if (!workerEntry.products.has(productKey)) {
-              workerEntry.products.set(productKey, {
-                productId: productKey,
-                productName,
-                revenue: 0,
-                quantity: 0
-              });
+            const we = byWorkerMap.get(workerKey);
+            we.total_revenue = we.total_revenue + totalPrice;
+            we.total_quantity = we.total_quantity + qty;
+            we.record_count = we.record_count + 1;
+            const wm = we.products;
+            if (!wm.has(productKey)) {
+              wm.set(productKey, { productId: productKey, productName, revenue: 0, quantity: 0 });
             }
-            const workerProd = workerEntry.products.get(productKey);
-            workerProd.revenue += totalPrice;
-            workerProd.quantity += qty;
+            const wp = wm.get(productKey);
+            wp.revenue += totalPrice;
+            wp.quantity += qty;
             if (!hasTable) {
               const guestAccountName = ticket.AccountName || "Unknown Account";
-              const guestKey = `${unifiedLocationId}:${dateStr}:${hour}:${guestAccountName}`;
-              if (!byGuestAccountMap.has(guestKey)) {
-                byGuestAccountMap.set(guestKey, {
-                  date: dateStr,
-                  hour,
+              const guestKey = `${unifiedLocationId}:${businessDate}:${businessHour}:${guestAccountName}`;
+              if (!byGuestMap.has(guestKey)) {
+                byGuestMap.set(guestKey, {
+                  schema_version: 2,
+                  date: isoDate,
+                  hour: calendarHour,
                   business_date: businessDate,
                   business_hour: businessHour,
                   locationId: unifiedLocationId,
@@ -3101,36 +3171,49 @@ async function rebuildBorkSalesAggregation(db, startDate, endDate, collectionSuf
                   workerName: unifiedWorkerName,
                   total_revenue: 0,
                   total_quantity: 0,
+                  record_count: 0,
                   products: /* @__PURE__ */ new Map()
                 });
               }
-              const guestEntry = byGuestAccountMap.get(guestKey);
-              guestEntry.total_revenue = guestEntry.total_revenue + totalPrice;
-              guestEntry.total_quantity = guestEntry.total_quantity + qty;
-              if (!guestEntry.products.has(productKey)) {
-                guestEntry.products.set(productKey, {
-                  productId: productKey,
-                  productName,
-                  revenue: 0,
-                  quantity: 0
+              const ge = byGuestMap.get(guestKey);
+              ge.total_revenue = ge.total_revenue + totalPrice;
+              ge.total_quantity = ge.total_quantity + qty;
+              ge.record_count = ge.record_count + 1;
+              const gm = ge.products;
+              if (!gm.has(productKey)) {
+                gm.set(productKey, { productId: productKey, productName, revenue: 0, quantity: 0 });
+              }
+              const gp = gm.get(productKey);
+              gp.revenue += totalPrice;
+              gp.quantity += qty;
+              if (!dr.guests.has(guestAccountName)) {
+                dr.guests.set(guestAccountName, {
+                  accountName: guestAccountName,
+                  total_revenue: 0,
+                  total_quantity: 0
                 });
               }
-              const guestProd = guestEntry.products.get(productKey);
-              guestProd.revenue += totalPrice;
-              guestProd.quantity += qty;
+              const dg = dr.guests.get(guestAccountName);
+              dg.total_revenue += totalPrice;
+              dg.total_quantity += qty;
             }
-            if (!productsMasterMap.has(productKey)) {
-              productsMasterMap.set(productKey, {
-                productId: productKey,
-                productName,
-                locationIds: /* @__PURE__ */ new Set(),
-                createdAt: /* @__PURE__ */ new Date(),
-                updatedAt: /* @__PURE__ */ new Date()
-              });
+          }
+          const paymodes = Array.isArray(order.Paymodes) ? order.Paymodes : [];
+          for (const pm of paymodes) {
+            if (!pm || typeof pm !== "object") continue;
+            const p = pm;
+            const amt = Number((_b = (_a = p.Total) != null ? _a : p.Price) != null ? _b : 0);
+            if (!Number.isFinite(amt) || amt === 0) continue;
+            const paymodeName = String(p.PaymodeName || "Unknown");
+            const groupName = String(p.GroupName || "");
+            const payKey = `${paymodeName}	${groupName}`;
+            const drPay = ensureDayRollup(dayKey, unifiedLocationId, unifiedLocationName, businessDate);
+            drPay.paymode_total += amt;
+            if (!drPay.paymodes.has(payKey)) {
+              drPay.paymodes.set(payKey, { paymodeName, groupName, total_revenue: 0 });
             }
-            const prodMaster = productsMasterMap.get(productKey);
-            prodMaster.locationIds.add(String(unifiedLocationId));
-            prodMaster.updatedAt = /* @__PURE__ */ new Date();
+            const pmR = drPay.paymodes.get(payKey);
+            pmR.total_revenue += amt;
           }
         }
       }
@@ -3138,11 +3221,52 @@ async function rebuildBorkSalesAggregation(db, startDate, endDate, collectionSuf
   } finally {
     await cursor.close();
   }
-  const cronDocs = Array.from(byCronMap.values());
+  const clearStartBusiness = addCalendarDaysISO$1(startDate, -1);
+  const clearEndBusiness = endDate;
   const hourDocs = Array.from(byHourMap.values()).map((doc) => ({
     ...doc,
     products: Array.from(doc.products.values())
   }));
+  const distinctHoursPerDay = /* @__PURE__ */ new Map();
+  for (const d of hourDocs) {
+    const k = `${d.locationId}:${d.business_date}`;
+    if (!distinctHoursPerDay.has(k)) distinctHoursPerDay.set(k, /* @__PURE__ */ new Set());
+    distinctHoursPerDay.get(k).add(d.business_hour);
+  }
+  const slimDayDocs = [];
+  const salesByDayDocs = [];
+  for (const dr of dayRollupMap.values()) {
+    const k = `${dr.locationId}:${dr.business_date}`;
+    const set = distinctHoursPerDay.get(k);
+    const hour_buckets = set ? set.size : 0;
+    slimDayDocs.push({
+      schema_version: 2,
+      locationId: dr.locationId,
+      locationName: dr.locationName,
+      business_date: dr.business_date,
+      status: dr.status,
+      total_revenue: dr.total_revenue,
+      total_quantity: dr.total_quantity,
+      record_count: dr.record_count,
+      hour_buckets
+    });
+    salesByDayDocs.push({
+      schema_version: 2,
+      locationId: dr.locationId,
+      locationName: dr.locationName,
+      business_date: dr.business_date,
+      status: dr.status,
+      total_revenue: dr.total_revenue,
+      total_quantity: dr.total_quantity,
+      record_count: dr.record_count,
+      hour_buckets,
+      paymode_total: dr.paymode_total,
+      products_day: sortByRevenueDesc(Array.from(dr.products.values())),
+      workers_day: sortByRevenueDesc(Array.from(dr.workers.values())),
+      guest_accounts_day: sortByRevenueDesc(Array.from(dr.guests.values())),
+      paymodes_day: sortByRevenueDesc(Array.from(dr.paymodes.values()))
+    });
+  }
   const tableDocs = Array.from(byTableMap.values()).map((doc) => ({
     ...doc,
     products: Array.from(doc.products.values())
@@ -3151,59 +3275,1047 @@ async function rebuildBorkSalesAggregation(db, startDate, endDate, collectionSuf
     ...doc,
     products: Array.from(doc.products.values())
   }));
-  const guestAccountDocs = Array.from(byGuestAccountMap.values()).map((doc) => ({
+  const guestDocs = Array.from(byGuestMap.values()).map((doc) => ({
     ...doc,
     products: Array.from(doc.products.values())
   }));
-  const productDocs = Array.from(productsMasterMap.values()).map((doc) => ({
-    ...doc,
-    locationIds: Array.from(doc.locationIds)
-  }));
-  const clearStartDate = borkDateToISO(startBorkDate);
-  const clearEndDate = borkDateToISO(endBorkDate);
-  console.log(`[rebuildBorkSalesAggregation] Clearing existing aggregations for ${clearStartDate} to ${clearEndDate}...`);
-  await db.collection(`bork_sales_by_cron${collectionSuffix}`).deleteMany({ date: { $gte: clearStartDate, $lte: clearEndDate } });
-  await db.collection(`bork_sales_by_hour${collectionSuffix}`).deleteMany({ date: { $gte: clearStartDate, $lte: clearEndDate } });
-  await db.collection(`bork_sales_by_table${collectionSuffix}`).deleteMany({ date: { $gte: clearStartDate, $lte: clearEndDate } });
-  await db.collection(`bork_sales_by_worker${collectionSuffix}`).deleteMany({ date: { $gte: clearStartDate, $lte: clearEndDate } });
-  await db.collection(`bork_sales_by_guest_account${collectionSuffix}`).deleteMany({ date: { $gte: clearStartDate, $lte: clearEndDate } });
-  if (cronDocs.length > 0) {
-    await db.collection(`bork_sales_by_cron${collectionSuffix}`).insertMany(cronDocs);
-    result.byCron = cronDocs.length;
-  }
+  const productDocs = Array.from(byProductMap.values());
+  const clearFilter = { business_date: { $gte: clearStartBusiness, $lte: clearEndBusiness } };
+  console.log(
+    `[rebuildBorkSalesAggregationV2] Clearing V2 collections for business_date ${clearStartBusiness}..${clearEndBusiness}...`
+  );
+  await Promise.all([
+    db.collection(hoursCollection).deleteMany(clearFilter),
+    db.collection(daysCollection).deleteMany(clearFilter),
+    db.collection(salesByDayCollection).deleteMany(clearFilter),
+    db.collection(tablesCollection).deleteMany(clearFilter),
+    db.collection(workersCollection).deleteMany(clearFilter),
+    db.collection(guestsCollection).deleteMany(clearFilter),
+    db.collection(productsCollection).deleteMany(clearFilter)
+  ]);
   if (hourDocs.length > 0) {
-    await db.collection(`bork_sales_by_hour${collectionSuffix}`).insertMany(hourDocs);
-    result.byHour = hourDocs.length;
+    await db.collection(hoursCollection).insertMany(hourDocs);
+    result.salesHours = hourDocs.length;
+  }
+  if (slimDayDocs.length > 0) {
+    await db.collection(daysCollection).insertMany(slimDayDocs);
+    result.businessDays = slimDayDocs.length;
+  }
+  if (salesByDayDocs.length > 0) {
+    await db.collection(salesByDayCollection).insertMany(salesByDayDocs);
+    result.salesByDay = salesByDayDocs.length;
   }
   if (tableDocs.length > 0) {
-    await db.collection(`bork_sales_by_table${collectionSuffix}`).insertMany(tableDocs);
-    result.byTable = tableDocs.length;
+    await db.collection(tablesCollection).insertMany(tableDocs);
+    result.tables = tableDocs.length;
   }
   if (workerDocs.length > 0) {
-    await db.collection(`bork_sales_by_worker${collectionSuffix}`).insertMany(workerDocs);
-    result.byWorker = workerDocs.length;
+    await db.collection(workersCollection).insertMany(workerDocs);
+    result.workers = workerDocs.length;
   }
-  if (guestAccountDocs.length > 0) {
-    await db.collection(`bork_sales_by_guest_account${collectionSuffix}`).insertMany(guestAccountDocs);
-    result.byGuestAccount = guestAccountDocs.length;
+  if (guestDocs.length > 0) {
+    await db.collection(guestsCollection).insertMany(guestDocs);
+    result.guestAccounts = guestDocs.length;
   }
-  for (const prodDoc of productDocs) {
-    await db.collection("bork_products_master").updateOne(
-      { productId: prodDoc.productId },
-      {
-        $set: {
-          productId: prodDoc.productId,
-          productName: prodDoc.productName,
-          updatedAt: prodDoc.updatedAt
-        },
-        $addToSet: { locationIds: { $each: prodDoc.locationIds } },
-        $setOnInsert: { createdAt: prodDoc.createdAt }
-      },
-      { upsert: true }
-    );
+  if (productDocs.length > 0) {
+    await db.collection(productsCollection).insertMany(productDocs);
+    result.productLines = productDocs.length;
   }
-  result.productsMaster = productDocs.length;
   return result;
+}
+
+function resolveBorkAggReadSuffix() {
+  var _a, _b;
+  const cfg = useRuntimeConfig();
+  const fromCfg = typeof cfg.borkAggVersionSuffix === "string" ? cfg.borkAggVersionSuffix : typeof cfg.borkAggV2Suffix === "string" ? cfg.borkAggV2Suffix : "";
+  if (fromCfg !== "") return fromCfg;
+  return (_b = (_a = process.env.BORK_AGG_VERSION_SUFFIX) != null ? _a : process.env.BORK_AGG_V2_SUFFIX) != null ? _b : "_v2";
+}
+function listBorkAggReadSuffixCandidates() {
+  const primary = resolveBorkAggReadSuffix();
+  const fallbacks = ["", "_v2"];
+  const out = [primary];
+  for (const f of fallbacks) {
+    if (f !== primary && !out.includes(f)) out.push(f);
+  }
+  return out;
+}
+function resolveBorkAggRebuildSuffix() {
+  var _a, _b, _c;
+  const inherit = process.env.BORK_AGG_REBUILD_USE_READ_SUFFIX === "1" || process.env.BORK_AGG_REBUILD_USE_READ_SUFFIX === "yes" || process.env.BORK_AGG_V2_REBUILD_USE_READ_SUFFIX === "1" || process.env.BORK_AGG_V2_REBUILD_USE_READ_SUFFIX === "yes";
+  if (inherit) return resolveBorkAggReadSuffix();
+  return (_c = (_b = (_a = process.env.BORK_AGG_REBUILD_SUFFIX) != null ? _a : process.env.BORK_AGG_V2_REBUILD_SUFFIX) != null ? _b : process.env.BORK_AGG_VERSION_SUFFIX) != null ? _c : "_v2";
+}
+
+function getBusinessDate(date = /* @__PURE__ */ new Date()) {
+  var _a;
+  const utcDate = new Date(date);
+  const hour = utcDate.getUTCHours();
+  if (hour < 6) {
+    utcDate.setUTCDate(utcDate.getUTCDate() - 1);
+  }
+  return (_a = utcDate.toISOString().split("T")[0]) != null ? _a : "";
+}
+function getBusinessDayStart(businessDate) {
+  const [year, month, day] = businessDate.split("-").map(Number);
+  return new Date(Date.UTC(year, (month != null ? month : 1) - 1, day != null ? day : 1, 6, 0, 0, 0));
+}
+function getBusinessDayEnd(businessDate) {
+  const [year, month, day] = businessDate.split("-").map(Number);
+  const endDate = new Date(Date.UTC(year, (month != null ? month : 1) - 1, (day != null ? day : 1) + 1, 5, 59, 59, 999));
+  return endDate;
+}
+function getBusinessDayPart1Date(businessDate) {
+  const [year, month, day] = businessDate.split("-").map(Number);
+  return new Date(Date.UTC(year, (month != null ? month : 1) - 1, day != null ? day : 1, 0, 0, 0, 0));
+}
+function getBusinessDayPart2Date(businessDate) {
+  const [year, month, day] = businessDate.split("-").map(Number);
+  const part2Date = new Date(Date.UTC(year, (month != null ? month : 1) - 1, (day != null ? day : 1) + 1, 0, 0, 0, 0));
+  return part2Date;
+}
+function getCurrentBusinessDate() {
+  return getBusinessDate(/* @__PURE__ */ new Date());
+}
+
+const V3_COLLECTIONS = {
+  // V3 Working Day Snapshots (updated 6x daily)
+  SALES_WORKING_DAY_SNAPSHOT: "v3_sales_working_day_snapshots",
+  LABOR_WORKING_DAY_SNAPSHOT: "v3_labor_working_day_snapshots",
+  DASHBOARD_SNAPSHOT: "v3_daily_ops_dashboard_snapshots",
+  // V3 Aggregation metadata (for tracking sync runs)
+  AGGREGATION_METADATA: "v3_aggregation_metadata"
+};
+
+async function getSalesSnapshot(db, locationId, businessDate) {
+  return db.collection(V3_COLLECTIONS.SALES_WORKING_DAY_SNAPSHOT).findOne({ locationId, businessDate });
+}
+async function getLaborSnapshot(db, locationId, businessDate) {
+  return db.collection(V3_COLLECTIONS.LABOR_WORKING_DAY_SNAPSHOT).findOne({ locationId, businessDate });
+}
+async function getDashboardSnapshot(db, locationId, businessDate) {
+  return db.collection(V3_COLLECTIONS.DASHBOARD_SNAPSHOT).findOne({ locationId, businessDate });
+}
+async function upsertSalesSnapshot(db, snapshot) {
+  const result = await db.collection(V3_COLLECTIONS.SALES_WORKING_DAY_SNAPSHOT).updateOne(
+    { locationId: snapshot.locationId, businessDate: snapshot.businessDate },
+    { $set: snapshot },
+    { upsert: true }
+  );
+  return snapshot._id || result.upsertedId || new ObjectId();
+}
+async function upsertLaborSnapshot(db, snapshot) {
+  const result = await db.collection(V3_COLLECTIONS.LABOR_WORKING_DAY_SNAPSHOT).updateOne(
+    { locationId: snapshot.locationId, businessDate: snapshot.businessDate },
+    { $set: snapshot },
+    { upsert: true }
+  );
+  return snapshot._id || result.upsertedId || new ObjectId();
+}
+async function upsertDashboardSnapshot(db, snapshot) {
+  const result = await db.collection(V3_COLLECTIONS.DASHBOARD_SNAPSHOT).updateOne(
+    { locationId: snapshot.locationId, businessDate: snapshot.businessDate },
+    { $set: snapshot },
+    { upsert: true }
+  );
+  return snapshot._id || result.upsertedId || new ObjectId();
+}
+async function getSalesSnapshotsByLocationRange(db, locationId, startDate, endDate) {
+  return db.collection(V3_COLLECTIONS.SALES_WORKING_DAY_SNAPSHOT).find({
+    locationId,
+    businessDate: { $gte: startDate, $lte: endDate }
+  }).sort({ businessDate: -1 }).toArray();
+}
+async function getLatestSalesSnapshotsAllLocations(db, businessDate) {
+  return db.collection(V3_COLLECTIONS.SALES_WORKING_DAY_SNAPSHOT).find({ businessDate }).toArray();
+}
+async function recordAggregationMetadata(db, result) {
+  await db.collection(V3_COLLECTIONS.AGGREGATION_METADATA).insertOne({
+    ...result,
+    recordedAt: /* @__PURE__ */ new Date()
+  });
+}
+function shouldUpdateSnapshot(snapshot, maxAgeMins = 15) {
+  if (!snapshot) return true;
+  const now = /* @__PURE__ */ new Date();
+  const lastUpdate = new Date(snapshot.lastUpdatedAt);
+  const ageMs = now.getTime() - lastUpdate.getTime();
+  const ageMins = ageMs / (1e3 * 60);
+  return ageMins > maxAgeMins;
+}
+
+async function rebuildV3SaleSnapshot(db, locationId, locationName, businessDate) {
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p;
+  const startTime = Date.now();
+  const stepsExecuted = [];
+  try {
+    stepsExecuted.push("starting_aggregation");
+    const workingDayStart = getBusinessDayStart(businessDate);
+    const workingDayEnd = getBusinessDayEnd(businessDate);
+    const part1Date = getBusinessDayPart1Date(businessDate);
+    const part2Date = getBusinessDayPart2Date(businessDate);
+    stepsExecuted.push("fetched_business_day_boundaries");
+    const existingSnapshot = await getSalesSnapshot(db, locationId, businessDate);
+    const shouldUpdate = shouldUpdateSnapshot(existingSnapshot, 15);
+    if (!shouldUpdate && existingSnapshot) {
+      stepsExecuted.push("snapshot_recent_skipped_update");
+      return {
+        success: true,
+        message: "Snapshot already up-to-date",
+        locationId,
+        locationName,
+        businessDate,
+        timestamp: /* @__PURE__ */ new Date(),
+        syncCount: existingSnapshot.syncCount + 1,
+        durationMs: Date.now() - startTime,
+        stepsExecuted,
+        salesSnapshot: existingSnapshot
+      };
+    }
+    stepsExecuted.push("querying_raw_sales_data");
+    const part1Pipeline = [
+      {
+        $match: {
+          locationId,
+          date: {
+            $gte: workingDayStart,
+            $lt: new Date(part1Date.getTime() + 24 * 60 * 60 * 1e3)
+            // End of part1Date
+          }
+        }
+      },
+      {
+        $addFields: {
+          isoDate: {
+            $dateToString: { format: "%Y-%m-%d", date: "$date", timezone: "UTC" }
+          },
+          hour: { $hour: { date: "$date", timezone: "UTC" } }
+        }
+      },
+      {
+        $group: {
+          _id: {
+            isoDate: "$isoDate",
+            hour: "$hour"
+          },
+          totalRevenue: { $sum: "$lineTotal" },
+          totalRevenueExVat: { $sum: { $ifNull: ["$lineTotalExVat", "$lineTotal"] } },
+          totalRevenueIncVat: { $sum: { $ifNull: ["$lineTotalIncVat", "$lineTotal"] } },
+          totalVat: { $sum: { $subtract: [{ $ifNull: ["$lineTotalIncVat", "$lineTotal"] }, "$lineTotal"] } },
+          totalQuantity: { $sum: "$quantity" },
+          drinksRevenue: {
+            $sum: {
+              $cond: [
+                { $regexMatch: { input: "$productName", regex: /drink|beverage|coffee|tea|juice|water/i } },
+                "$lineTotal",
+                0
+              ]
+            }
+          },
+          transactions: { $addToSet: "$transactionId" },
+          waiters: { $addToSet: "$waiterName" },
+          tables: { $addToSet: "$tableNumber" },
+          categories: { $push: { category: "$productCategory", revenue: "$lineTotal" } }
+        }
+      }
+    ];
+    const part1Data = await db.collection("bork_raw_sales").aggregate(part1Pipeline).toArray();
+    stepsExecuted.push("aggregated_part1_data");
+    const part2Pipeline = [
+      {
+        $match: {
+          locationId,
+          date: {
+            $gte: part2Date,
+            $lt: workingDayEnd
+          }
+        }
+      },
+      {
+        $addFields: {
+          isoDate: {
+            $dateToString: { format: "%Y-%m-%d", date: "$date", timezone: "UTC" }
+          },
+          hour: { $hour: { date: "$date", timezone: "UTC" } }
+        }
+      },
+      {
+        $group: {
+          _id: {
+            isoDate: "$isoDate",
+            hour: "$hour"
+          },
+          totalRevenue: { $sum: "$lineTotal" },
+          totalRevenueExVat: { $sum: { $ifNull: ["$lineTotalExVat", "$lineTotal"] } },
+          totalRevenueIncVat: { $sum: { $ifNull: ["$lineTotalIncVat", "$lineTotal"] } },
+          totalVat: { $sum: { $subtract: [{ $ifNull: ["$lineTotalIncVat", "$lineTotal"] }, "$lineTotal"] } },
+          totalQuantity: { $sum: "$quantity" },
+          drinksRevenue: {
+            $sum: {
+              $cond: [
+                { $regexMatch: { input: "$productName", regex: /drink|beverage|coffee|tea|juice|water/i } },
+                "$lineTotal",
+                0
+              ]
+            }
+          },
+          transactions: { $addToSet: "$transactionId" },
+          waiters: { $addToSet: "$waiterName" },
+          tables: { $addToSet: "$tableNumber" },
+          categories: { $push: { category: "$productCategory", revenue: "$lineTotal" } }
+        }
+      }
+    ];
+    const part2Data = await db.collection("bork_raw_sales").aggregate(part2Pipeline).toArray();
+    stepsExecuted.push("aggregated_part2_data");
+    const part1 = buildDayPartSummary(part1Data, part1Date);
+    stepsExecuted.push("built_part1_summary");
+    const part2 = buildDayPartSummary(part2Data, part2Date);
+    stepsExecuted.push("built_part2_summary");
+    const allData = [...part1Data, ...part2Data];
+    const hourlyBreakdown = buildHourlyBreakdown(allData);
+    stepsExecuted.push("built_hourly_breakdown");
+    const totalRevenue = ((_a = part1 == null ? void 0 : part1.totalRevenue) != null ? _a : 0) + ((_b = part2 == null ? void 0 : part2.totalRevenue) != null ? _b : 0);
+    const totalRevenueExVat = ((_c = part1 == null ? void 0 : part1.totalRevenueExVat) != null ? _c : 0) + ((_d = part2 == null ? void 0 : part2.totalRevenueExVat) != null ? _d : 0);
+    const totalRevenueIncVat = ((_e = part1 == null ? void 0 : part1.totalRevenueIncVat) != null ? _e : 0) + ((_f = part2 == null ? void 0 : part2.totalRevenueIncVat) != null ? _f : 0);
+    const totalVat = ((_g = part1 == null ? void 0 : part1.totalVat) != null ? _g : 0) + ((_h = part2 == null ? void 0 : part2.totalVat) != null ? _h : 0);
+    const totalQuantity = ((_i = part1 == null ? void 0 : part1.totalQuantity) != null ? _i : 0) + ((_j = part2 == null ? void 0 : part2.totalQuantity) != null ? _j : 0);
+    const totalTransactions = ((_k = part1 == null ? void 0 : part1.totalTransactions) != null ? _k : 0) + ((_l = part2 == null ? void 0 : part2.totalTransactions) != null ? _l : 0);
+    const drinksRevenue = ((_m = part1 == null ? void 0 : part1.drinksRevenue) != null ? _m : 0) + ((_n = part2 == null ? void 0 : part2.drinksRevenue) != null ? _n : 0);
+    const foodRevenue = totalRevenue - drinksRevenue;
+    stepsExecuted.push("calculated_combined_totals");
+    const revenueByCategory = {};
+    for (const entry of allData) {
+      if (entry.categories) {
+        for (const cat of entry.categories) {
+          revenueByCategory[cat.category] = ((_o = revenueByCategory[cat.category]) != null ? _o : 0) + cat.revenue;
+        }
+      }
+    }
+    const byWaiter = await buildWaiterBreakdown(db, locationId, businessDate);
+    stepsExecuted.push("built_waiter_breakdown");
+    const byTable = await buildTableBreakdown(db, locationId, businessDate);
+    stepsExecuted.push("built_table_breakdown");
+    const byPaymentMethod = await buildPaymentMethodBreakdown(db, locationId, businessDate);
+    stepsExecuted.push("built_payment_method_breakdown");
+    const snapshot = {
+      locationId,
+      locationName,
+      businessDate,
+      workingDayStart,
+      workingDayEnd,
+      workingDayStarted: true,
+      workingDayFinished: getBusinessDate(/* @__PURE__ */ new Date()) !== businessDate,
+      // True if past this business day
+      part1: (part1 == null ? void 0 : part1.totalRevenue) > 0 ? part1 : void 0,
+      part2: (part2 == null ? void 0 : part2.totalRevenue) > 0 ? part2 : void 0,
+      totalRevenue,
+      totalRevenueExVat,
+      totalRevenueIncVat,
+      totalVat,
+      totalQuantity,
+      totalTransactions,
+      avgRevenuePerTransaction: totalTransactions > 0 ? totalRevenue / totalTransactions : 0,
+      revenueByCategory,
+      drinksRevenue,
+      foodRevenue,
+      drinksRevenuePercent: totalRevenue > 0 ? drinksRevenue / totalRevenue * 100 : 0,
+      hourlyBreakdown,
+      byWaiter,
+      byTable,
+      byPaymentMethod,
+      lastUpdatedAt: /* @__PURE__ */ new Date(),
+      syncCount: ((_p = existingSnapshot == null ? void 0 : existingSnapshot.syncCount) != null ? _p : 0) + 1,
+      version: 3
+    };
+    stepsExecuted.push("created_snapshot_object");
+    await upsertSalesSnapshot(db, snapshot);
+    stepsExecuted.push("upserted_snapshot");
+    return {
+      success: true,
+      message: "Sales snapshot updated successfully",
+      locationId,
+      locationName,
+      businessDate,
+      timestamp: /* @__PURE__ */ new Date(),
+      syncCount: snapshot.syncCount,
+      durationMs: Date.now() - startTime,
+      stepsExecuted,
+      salesSnapshot: snapshot
+    };
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    return {
+      success: false,
+      message: "Sales snapshot aggregation failed",
+      locationId,
+      locationName,
+      businessDate,
+      timestamp: /* @__PURE__ */ new Date(),
+      syncCount: 0,
+      durationMs: Date.now() - startTime,
+      stepsExecuted,
+      error: errorMsg
+    };
+  }
+}
+function buildDayPartSummary(data, date) {
+  var _a, _b, _c, _d, _e, _f;
+  let totalRevenue = 0;
+  let totalRevenueExVat = 0;
+  let totalRevenueIncVat = 0;
+  let totalVat = 0;
+  let totalQuantity = 0;
+  let transactions = /* @__PURE__ */ new Set();
+  let drinksRevenue = 0;
+  for (const entry of data) {
+    totalRevenue += (_a = entry.totalRevenue) != null ? _a : 0;
+    totalRevenueExVat += (_b = entry.totalRevenueExVat) != null ? _b : 0;
+    totalRevenueIncVat += (_c = entry.totalRevenueIncVat) != null ? _c : 0;
+    totalVat += (_d = entry.totalVat) != null ? _d : 0;
+    totalQuantity += (_e = entry.totalQuantity) != null ? _e : 0;
+    drinksRevenue += (_f = entry.drinksRevenue) != null ? _f : 0;
+    if (entry.transactions) {
+      for (const txn of entry.transactions) {
+        transactions.add(txn);
+      }
+    }
+  }
+  return {
+    date,
+    totalRevenue,
+    totalRevenueExVat,
+    totalRevenueIncVat,
+    totalVat,
+    totalQuantity,
+    totalTransactions: transactions.size,
+    revenueByCategory: {},
+    drinksRevenue,
+    foodRevenue: totalRevenue - drinksRevenue
+  };
+}
+function buildHourlyBreakdown(data) {
+  var _a, _b, _c, _d;
+  const hourMap = /* @__PURE__ */ new Map();
+  for (const entry of data) {
+    const hour = entry._id.hour;
+    if (!hourMap.has(hour)) {
+      hourMap.set(hour, {
+        hour,
+        totalRevenue: 0,
+        totalQuantity: 0,
+        totalTransactions: 0
+      });
+    }
+    const hourEntry = hourMap.get(hour);
+    hourEntry.totalRevenue += (_a = entry.totalRevenue) != null ? _a : 0;
+    hourEntry.totalQuantity += (_b = entry.totalQuantity) != null ? _b : 0;
+    hourEntry.totalTransactions += (_d = (_c = entry.transactions) == null ? void 0 : _c.length) != null ? _d : 0;
+  }
+  const sortedHours = Array.from(hourMap.entries()).sort(([a], [b]) => a - b).map(([, data2]) => data2);
+  let cumulativeRevenue = 0;
+  const breakdown = [];
+  for (const hourEntry of sortedHours) {
+    cumulativeRevenue += hourEntry.totalRevenue;
+    breakdown.push({
+      hour: hourEntry.hour,
+      isoDate: /* @__PURE__ */ new Date(),
+      totalRevenue: cumulativeRevenue,
+      totalQuantity: hourEntry.totalQuantity,
+      totalTransactions: hourEntry.totalTransactions
+    });
+  }
+  return breakdown;
+}
+async function buildWaiterBreakdown(db, locationId, businessDate) {
+  const workingDayStart = getBusinessDayStart(businessDate);
+  const workingDayEnd = getBusinessDayEnd(businessDate);
+  const pipeline = [
+    {
+      $match: {
+        locationId,
+        date: { $gte: workingDayStart, $lt: workingDayEnd }
+      }
+    },
+    {
+      $group: {
+        _id: "$waiterName",
+        revenue: { $sum: "$lineTotal" },
+        transactions: { $addToSet: "$transactionId" },
+        itemsSold: { $sum: "$quantity" }
+      }
+    },
+    { $sort: { revenue: -1 } },
+    { $limit: 20 }
+  ];
+  const results = await db.collection("bork_raw_sales").aggregate(pipeline).toArray();
+  return results.map((r) => {
+    var _a, _b, _c, _d, _e;
+    return {
+      name: (_a = r._id) != null ? _a : "Unknown",
+      revenue: (_b = r.revenue) != null ? _b : 0,
+      transactions: (_d = (_c = r.transactions) == null ? void 0 : _c.length) != null ? _d : 0,
+      itemsSold: (_e = r.itemsSold) != null ? _e : 0
+    };
+  });
+}
+async function buildTableBreakdown(db, locationId, businessDate) {
+  const workingDayStart = getBusinessDayStart(businessDate);
+  const workingDayEnd = getBusinessDayEnd(businessDate);
+  const pipeline = [
+    {
+      $match: {
+        locationId,
+        date: { $gte: workingDayStart, $lt: workingDayEnd }
+      }
+    },
+    {
+      $group: {
+        _id: "$tableNumber",
+        revenue: { $sum: "$lineTotal" },
+        transactions: { $addToSet: "$transactionId" }
+      }
+    },
+    { $sort: { revenue: -1 } },
+    { $limit: 50 }
+  ];
+  const results = await db.collection("bork_raw_sales").aggregate(pipeline).toArray();
+  return results.map((r) => {
+    var _a, _b, _c, _d;
+    return {
+      tableNumber: (_a = r._id) != null ? _a : "Unknown",
+      revenue: (_b = r.revenue) != null ? _b : 0,
+      transactions: (_d = (_c = r.transactions) == null ? void 0 : _c.length) != null ? _d : 0
+    };
+  });
+}
+async function buildPaymentMethodBreakdown(db, locationId, businessDate) {
+  const workingDayStart = getBusinessDayStart(businessDate);
+  const workingDayEnd = getBusinessDayEnd(businessDate);
+  const pipeline = [
+    {
+      $match: {
+        locationId,
+        date: { $gte: workingDayStart, $lt: workingDayEnd }
+      }
+    },
+    {
+      $group: {
+        _id: "$paymentMethod",
+        revenue: { $sum: "$lineTotal" },
+        transactions: { $addToSet: "$transactionId" }
+      }
+    },
+    { $sort: { revenue: -1 } }
+  ];
+  const results = await db.collection("bork_raw_sales").aggregate(pipeline).toArray();
+  return results.map((r) => {
+    var _a, _b, _c, _d;
+    return {
+      method: (_a = r._id) != null ? _a : "Unknown",
+      revenue: (_b = r.revenue) != null ? _b : 0,
+      transactions: (_d = (_c = r.transactions) == null ? void 0 : _c.length) != null ? _d : 0
+    };
+  });
+}
+
+async function rebuildV3LaborSnapshot(db, locationId, locationName, businessDate) {
+  var _a, _b, _c, _d, _e, _f, _g;
+  const startTime = Date.now();
+  const stepsExecuted = [];
+  try {
+    stepsExecuted.push("starting_aggregation");
+    const workingDayStart = getBusinessDayStart(businessDate);
+    const workingDayEnd = getBusinessDayEnd(businessDate);
+    stepsExecuted.push("fetched_business_day_boundaries");
+    const existingSnapshot = await getLaborSnapshot(db, locationId, businessDate);
+    const shouldUpdate = shouldUpdateSnapshot(existingSnapshot, 15);
+    if (!shouldUpdate && existingSnapshot) {
+      stepsExecuted.push("snapshot_recent_skipped_update");
+      return {
+        success: true,
+        message: "Snapshot already up-to-date",
+        locationId,
+        locationName,
+        businessDate,
+        timestamp: /* @__PURE__ */ new Date(),
+        syncCount: existingSnapshot.syncCount + 1,
+        durationMs: Date.now() - startTime,
+        stepsExecuted,
+        laborSnapshot: existingSnapshot
+      };
+    }
+    stepsExecuted.push("querying_raw_labor_data");
+    const laborPipeline = [
+      {
+        $match: {
+          locationId,
+          date: { $gte: workingDayStart, $lt: workingDayEnd }
+        }
+      },
+      {
+        $addFields: {
+          hour: { $hour: { date: "$date", timezone: "UTC" } }
+        }
+      },
+      {
+        $group: {
+          _id: {
+            workerId: "$workerId",
+            team: "$team",
+            contract: "$contractType"
+          },
+          totalHours: { $sum: "$hours" },
+          totalCost: { $sum: "$cost" },
+          hourlyBreakdown: {
+            $push: {
+              hour: "$hour",
+              hours: "$hours",
+              cost: "$cost"
+            }
+          }
+        }
+      }
+    ];
+    const laborData = await db.collection("eitje_raw_time_registrations").aggregate(laborPipeline).toArray();
+    stepsExecuted.push("aggregated_labor_data");
+    let totalHours = 0;
+    let totalCost = 0;
+    const workersSet = /* @__PURE__ */ new Set();
+    const teamsMap = /* @__PURE__ */ new Map();
+    const contractsMap = /* @__PURE__ */ new Map();
+    const hourlyMap = /* @__PURE__ */ new Map();
+    for (const entry of laborData) {
+      const hours = (_a = entry.totalHours) != null ? _a : 0;
+      const cost = (_b = entry.totalCost) != null ? _b : 0;
+      const team = (_c = entry._id.team) != null ? _c : "Unassigned";
+      const contract = (_d = entry._id.contract) != null ? _d : "Unknown";
+      totalHours += hours;
+      totalCost += cost;
+      workersSet.add(entry._id.workerId);
+      if (!teamsMap.has(team)) {
+        teamsMap.set(team, {
+          teamId: entry._id.workerId,
+          teamName: team,
+          workerCount: 0,
+          totalHours: 0,
+          totalCost: 0,
+          pctOfTotalHours: 0
+        });
+      }
+      const teamSummary = teamsMap.get(team);
+      teamSummary.workerCount += 1;
+      teamSummary.totalHours += hours;
+      teamSummary.totalCost += cost;
+      if (!contractsMap.has(contract)) {
+        contractsMap.set(contract, {
+          contractType: contract,
+          workerCount: 0,
+          totalHours: 0,
+          totalCost: 0,
+          pctOfTotalHours: 0
+        });
+      }
+      const contractSummary = contractsMap.get(contract);
+      contractSummary.workerCount += 1;
+      contractSummary.totalHours += hours;
+      contractSummary.totalCost += cost;
+      if (entry.hourlyBreakdown) {
+        for (const hourEntry of entry.hourlyBreakdown) {
+          const hour = hourEntry.hour;
+          if (!hourlyMap.has(hour)) {
+            hourlyMap.set(hour, { hours: 0, cost: 0 });
+          }
+          const hourData = hourlyMap.get(hour);
+          hourData.hours += (_e = hourEntry.hours) != null ? _e : 0;
+          hourData.cost += (_f = hourEntry.cost) != null ? _f : 0;
+        }
+      }
+    }
+    stepsExecuted.push("aggregated_by_team_contract");
+    for (const team of teamsMap.values()) {
+      team.pctOfTotalHours = totalHours > 0 ? team.totalHours / totalHours * 100 : 0;
+    }
+    for (const contract of contractsMap.values()) {
+      contract.pctOfTotalHours = totalHours > 0 ? contract.totalHours / totalHours * 100 : 0;
+    }
+    stepsExecuted.push("calculated_percentages");
+    const hourlyBreakdown = Array.from(hourlyMap.entries()).sort(([a], [b]) => a - b).map(([hour, data]) => ({
+      hour,
+      isoDate: /* @__PURE__ */ new Date(),
+      totalRevenue: 0,
+      // Will be filled in from sales snapshot
+      totalHours: data.hours,
+      totalCost: data.cost
+    }));
+    stepsExecuted.push("built_hourly_breakdown");
+    const productivity = calculateProductivityMetrics(
+      laborData,
+      totalHours,
+      totalCost,
+      hourlyBreakdown
+    );
+    stepsExecuted.push("calculated_productivity_metrics");
+    const snapshot = {
+      locationId,
+      locationName,
+      businessDate,
+      workingDayStart,
+      workingDayEnd,
+      workingDayStarted: true,
+      workingDayFinished: getBusinessDate(/* @__PURE__ */ new Date()) !== businessDate,
+      totalHours,
+      totalCost,
+      totalWorkers: workersSet.size,
+      costPerHour: totalHours > 0 ? totalCost / totalHours : 0,
+      teams: Array.from(teamsMap.values()).sort((a, b) => b.totalHours - a.totalHours),
+      contracts: Array.from(contractsMap.values()).sort((a, b) => b.totalHours - a.totalHours),
+      productivity,
+      hourlyBreakdown,
+      lastUpdatedAt: /* @__PURE__ */ new Date(),
+      syncCount: ((_g = existingSnapshot == null ? void 0 : existingSnapshot.syncCount) != null ? _g : 0) + 1,
+      version: 3
+    };
+    stepsExecuted.push("created_snapshot_object");
+    await upsertLaborSnapshot(db, snapshot);
+    stepsExecuted.push("upserted_snapshot");
+    return {
+      success: true,
+      message: "Labor snapshot updated successfully",
+      locationId,
+      locationName,
+      businessDate,
+      timestamp: /* @__PURE__ */ new Date(),
+      syncCount: snapshot.syncCount,
+      durationMs: Date.now() - startTime,
+      stepsExecuted,
+      laborSnapshot: snapshot
+    };
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    return {
+      success: false,
+      message: "Labor snapshot aggregation failed",
+      locationId,
+      locationName,
+      businessDate,
+      timestamp: /* @__PURE__ */ new Date(),
+      syncCount: 0,
+      durationMs: Date.now() - startTime,
+      stepsExecuted,
+      error: errorMsg
+    };
+  }
+}
+function calculateProductivityMetrics(laborData, totalHours, totalCost, hourlyBreakdown) {
+  var _a;
+  const metrics = {};
+  metrics.laborCostPctOfRevenue = void 0;
+  metrics.revenuePerLaborHour = void 0;
+  let bestHour;
+  let worstHour;
+  let bestEfficiency = Infinity;
+  let worstEfficiency = 0;
+  for (const entry of hourlyBreakdown) {
+    if (entry.totalHours && entry.totalHours > 0) {
+      const costPerHour = ((_a = entry.totalCost) != null ? _a : 0) / entry.totalHours;
+      if (costPerHour < bestEfficiency) {
+        bestEfficiency = costPerHour;
+        bestHour = entry.hour;
+      }
+      if (costPerHour > worstEfficiency) {
+        worstEfficiency = costPerHour;
+        worstHour = entry.hour;
+      }
+    }
+  }
+  metrics.bestHour = bestHour;
+  metrics.bestHourEfficiency = bestEfficiency === Infinity ? void 0 : bestEfficiency;
+  metrics.worstHour = worstHour;
+  metrics.worstHourEfficiency = worstEfficiency === 0 ? void 0 : worstEfficiency;
+  return metrics;
+}
+
+async function rebuildV3DashboardSnapshot(db, locationId, locationName, businessDate) {
+  var _a, _b;
+  const startTime = Date.now();
+  const stepsExecuted = [];
+  try {
+    stepsExecuted.push("starting_aggregation");
+    const salesSnapshot = await getSalesSnapshot(db, locationId, businessDate);
+    stepsExecuted.push("fetched_sales_snapshot");
+    const laborSnapshot = await getLaborSnapshot(db, locationId, businessDate);
+    stepsExecuted.push("fetched_labor_snapshot");
+    if (!salesSnapshot || !laborSnapshot) {
+      stepsExecuted.push("missing_source_snapshots");
+      return {
+        success: false,
+        message: "Sales or labor snapshot not found - cannot build dashboard",
+        locationId,
+        locationName,
+        businessDate,
+        timestamp: /* @__PURE__ */ new Date(),
+        syncCount: 0,
+        durationMs: Date.now() - startTime,
+        stepsExecuted,
+        error: "Missing source data"
+      };
+    }
+    stepsExecuted.push("building_dashboard_snapshot");
+    const revenuePerLaborHour = laborSnapshot.totalHours > 0 ? salesSnapshot.totalRevenue / laborSnapshot.totalHours : 0;
+    const laborCostPctOfRevenue = salesSnapshot.totalRevenue > 0 ? laborSnapshot.totalCost / salesSnapshot.totalRevenue * 100 : 0;
+    stepsExecuted.push("calculated_combined_metrics");
+    const topProducts = buildTopProducts(salesSnapshot);
+    stepsExecuted.push("built_top_products");
+    const topTeams = laborSnapshot.teams.slice(0, 10).map((team) => ({
+      teamName: team.teamName,
+      workerCount: team.workerCount,
+      totalHours: team.totalHours,
+      totalCost: team.totalCost
+    }));
+    stepsExecuted.push("built_top_teams");
+    const topContracts = laborSnapshot.contracts.slice(0, 10).map((contract) => ({
+      contractType: contract.contractType,
+      workerCount: contract.workerCount,
+      totalHours: contract.totalHours
+    }));
+    stepsExecuted.push("built_top_contracts");
+    const hourlyRevenue = salesSnapshot.hourlyBreakdown || [];
+    const hourlyLabor = laborSnapshot.hourlyBreakdown || [];
+    for (const laborEntry of hourlyLabor) {
+      const revenueEntry = hourlyRevenue.find((r) => r.hour === laborEntry.hour);
+      if (revenueEntry) {
+        laborEntry.totalRevenue = revenueEntry.totalRevenue;
+      }
+    }
+    stepsExecuted.push("merged_hourly_data");
+    const snapshot = {
+      locationId,
+      locationName,
+      businessDate,
+      workingDayFinished: getBusinessDate(/* @__PURE__ */ new Date()) !== businessDate,
+      currentHour: (/* @__PURE__ */ new Date()).getUTCHours(),
+      cards: {
+        totalRevenue: salesSnapshot.totalRevenue,
+        totalLaborCost: laborSnapshot.totalCost,
+        laborCostPctOfRevenue,
+        revenuePerLaborHour
+      },
+      revenue: {
+        totalRevenue: salesSnapshot.totalRevenue,
+        totalRevenueExVat: salesSnapshot.totalRevenueExVat,
+        totalTransactions: salesSnapshot.totalTransactions,
+        avgTransactionValue: salesSnapshot.totalTransactions > 0 ? salesSnapshot.totalRevenue / salesSnapshot.totalTransactions : 0,
+        drinksRevenue: salesSnapshot.drinksRevenue,
+        foodRevenue: salesSnapshot.foodRevenue,
+        drinksRevenuePercent: salesSnapshot.drinksRevenuePercent
+      },
+      labor: {
+        totalHours: laborSnapshot.totalHours,
+        totalCost: laborSnapshot.totalCost,
+        totalWorkers: laborSnapshot.totalWorkers,
+        costPerHour: laborSnapshot.costPerHour,
+        revenuePerLaborHour,
+        laborCostPctOfRevenue
+      },
+      productivity: {
+        revenuePerLaborHour,
+        laborCostPctOfRevenue,
+        bestHour: laborSnapshot.productivity.bestHour !== void 0 ? {
+          hour: laborSnapshot.productivity.bestHour,
+          efficiency: (_a = laborSnapshot.productivity.bestHourEfficiency) != null ? _a : 0
+        } : void 0,
+        worstHour: laborSnapshot.productivity.worstHour !== void 0 ? {
+          hour: laborSnapshot.productivity.worstHour,
+          efficiency: (_b = laborSnapshot.productivity.worstHourEfficiency) != null ? _b : 0
+        } : void 0
+      },
+      topProducts,
+      topTeams,
+      topContracts,
+      hourlyRevenue,
+      hourlyLabor,
+      lastUpdatedAt: /* @__PURE__ */ new Date(),
+      syncCount: Math.max(salesSnapshot.syncCount, laborSnapshot.syncCount),
+      version: 3
+    };
+    stepsExecuted.push("created_dashboard_snapshot_object");
+    await upsertDashboardSnapshot(db, snapshot);
+    stepsExecuted.push("upserted_snapshot");
+    return {
+      success: true,
+      message: "Dashboard snapshot updated successfully",
+      locationId,
+      locationName,
+      businessDate,
+      timestamp: /* @__PURE__ */ new Date(),
+      syncCount: snapshot.syncCount,
+      durationMs: Date.now() - startTime,
+      stepsExecuted,
+      dashboardSnapshot: snapshot
+    };
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    return {
+      success: false,
+      message: "Dashboard snapshot aggregation failed",
+      locationId,
+      locationName,
+      businessDate,
+      timestamp: /* @__PURE__ */ new Date(),
+      syncCount: 0,
+      durationMs: Date.now() - startTime,
+      stepsExecuted,
+      error: errorMsg
+    };
+  }
+}
+function buildTopProducts(salesSnapshot) {
+  const products = [];
+  for (const [category, revenue] of Object.entries(salesSnapshot.revenueByCategory)) {
+    products.push({
+      name: category,
+      quantity: 0,
+      // Would need raw data to calculate properly
+      revenue,
+      profitPercent: void 0
+    });
+  }
+  return products.sort((a, b) => b.revenue - a.revenue).slice(0, 20);
+}
+
+async function runV3AggregationPipeline(db, businessDate, logFn) {
+  const startTime = Date.now();
+  const log = logFn || console.log;
+  try {
+    const targetBusinessDate = businessDate || getCurrentBusinessDate();
+    log(`[V3 Aggregation] Starting pipeline for business date: ${targetBusinessDate}`);
+    const locations = await db.collection("locations").find({}).toArray();
+    log(`[V3 Aggregation] Found ${locations.length} locations`);
+    if (locations.length === 0) {
+      return {
+        success: false,
+        startedAt: /* @__PURE__ */ new Date(),
+        completedAt: /* @__PURE__ */ new Date(),
+        durationMs: 0,
+        locations: [],
+        totalLocations: 0,
+        successCount: 0,
+        failureCount: 0,
+        businessDate: targetBusinessDate,
+        workingDayFinished: false,
+        syncCount: 0,
+        message: "No locations found",
+        error: "No locations"
+      };
+    }
+    const results = [];
+    let successCount = 0;
+    let failureCount = 0;
+    const allSteps = [];
+    for (const location of locations) {
+      const locationId = location._id;
+      const locationName = location.name || `Location ${locationId}`;
+      try {
+        log(`[V3 Aggregation] Processing location: ${locationName}`);
+        log(`  \u2192 Building sales snapshot...`);
+        const salesResult = await rebuildV3SaleSnapshot(db, locationId, locationName, targetBusinessDate);
+        allSteps.push(...salesResult.stepsExecuted);
+        if (!salesResult.success) {
+          log(`  \u2717 Sales snapshot failed: ${salesResult.error}`);
+          results.push(salesResult);
+          failureCount += 1;
+          continue;
+        }
+        log(`  \u2713 Sales snapshot completed (${salesResult.durationMs}ms, sync #${salesResult.syncCount})`);
+        log(`  \u2192 Building labor snapshot...`);
+        const laborResult = await rebuildV3LaborSnapshot(db, locationId, locationName, targetBusinessDate);
+        allSteps.push(...laborResult.stepsExecuted);
+        if (!laborResult.success) {
+          log(`  \u2717 Labor snapshot failed: ${laborResult.error}`);
+          results.push(laborResult);
+          failureCount += 1;
+          continue;
+        }
+        log(`  \u2713 Labor snapshot completed (${laborResult.durationMs}ms, sync #${laborResult.syncCount})`);
+        log(`  \u2192 Building dashboard snapshot...`);
+        const dashboardResult = await rebuildV3DashboardSnapshot(
+          db,
+          locationId,
+          locationName,
+          targetBusinessDate
+        );
+        allSteps.push(...dashboardResult.stepsExecuted);
+        if (!dashboardResult.success) {
+          log(`  \u2717 Dashboard snapshot failed: ${dashboardResult.error}`);
+          results.push(dashboardResult);
+          failureCount += 1;
+          continue;
+        }
+        log(
+          `  \u2713 Dashboard snapshot completed (${dashboardResult.durationMs}ms, sync #${dashboardResult.syncCount})`
+        );
+        await recordAggregationMetadata(db, dashboardResult);
+        results.push(dashboardResult);
+        successCount += 1;
+        log(`  \u2705 Location complete: ${locationName}`);
+      } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        log(`  \u2717 Location failed: ${errorMsg}`);
+        failureCount += 1;
+        results.push({
+          success: false,
+          message: "Unexpected error in aggregation",
+          locationId,
+          locationName,
+          businessDate: targetBusinessDate,
+          timestamp: /* @__PURE__ */ new Date(),
+          syncCount: 0,
+          durationMs: Date.now() - startTime,
+          stepsExecuted: allSteps,
+          error: errorMsg
+        });
+      }
+    }
+    const completedAt = /* @__PURE__ */ new Date();
+    const totalDurationMs = completedAt.getTime() - startTime;
+    log(`[V3 Aggregation] Pipeline completed`);
+    log(`  \u2192 Success: ${successCount}/${locations.length}`);
+    log(`  \u2192 Failed: ${failureCount}/${locations.length}`);
+    log(`  \u2192 Total time: ${totalDurationMs}ms`);
+    return {
+      success: successCount === locations.length,
+      startedAt: new Date(startTime),
+      completedAt,
+      durationMs: totalDurationMs,
+      locations: results,
+      totalLocations: locations.length,
+      successCount,
+      failureCount,
+      businessDate: targetBusinessDate,
+      workingDayFinished: false,
+      syncCount: Math.max(...results.map((r) => r.syncCount), 0),
+      message: `V3 aggregation completed: ${successCount} success, ${failureCount} failed`
+    };
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    log(`[V3 Aggregation] Pipeline failed: ${errorMsg}`);
+    return {
+      success: false,
+      startedAt: new Date(startTime),
+      completedAt: /* @__PURE__ */ new Date(),
+      durationMs: Date.now() - startTime,
+      locations: [],
+      totalLocations: 0,
+      successCount: 0,
+      failureCount: 1,
+      businessDate: businessDate || getCurrentBusinessDate(),
+      workingDayFinished: false,
+      syncCount: 0,
+      message: "V3 aggregation pipeline failed",
+      error: errorMsg
+    };
+  }
 }
 
 function getDateRangeForJobType(jobType) {
@@ -3305,6 +4417,7 @@ async function loadBorkCredentials(db) {
   }).sort({ updatedAt: -1, createdAt: -1 }).toArray();
 }
 async function executeBorkJob(db, jobType) {
+  var _a;
   const creds = await loadBorkCredentials(db);
   if (creds.length === 0) {
     return {
@@ -3321,16 +4434,27 @@ async function executeBorkJob(db, jobType) {
   const okCount = locations.filter((x) => x.ok).length;
   const syncOk = okCount > 0;
   const message = syncOk ? `Synced ${okCount}/${creds.length} location(s) into bork_raw_data` : `0/${creds.length} locations succeeded \u2014 check Bork API credentials and network access`;
-  let aggregationResult = {};
+  let v2AggregationResult = null;
+  let v2RebuildSuffix = "";
+  let v3AggregationResult = null;
   if (syncOk && jobType === "daily-data") {
     try {
-      const today = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
-      aggregationResult = await rebuildBorkSalesAggregation(db, today, today);
+      const today = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
+      const yesterday = /* @__PURE__ */ new Date();
+      yesterday.setUTCDate(yesterday.getUTCDate() - 1);
+      const yesterdayStr = yesterday.toISOString().slice(0, 10);
+      v2RebuildSuffix = (_a = resolveBorkAggRebuildSuffix()) != null ? _a : "_v2";
+      v2AggregationResult = await rebuildBorkSalesAggregationV2(db, yesterdayStr, today, v2RebuildSuffix);
+      console.log("[borkSyncService] Triggering V3 aggregation pipeline...");
+      v3AggregationResult = await runV3AggregationPipeline(db, today, (msg) => console.log(`[V3] ${msg}`));
     } catch (e) {
       console.error("[borkSyncService] Aggregation error:", e);
     }
   }
-  const finalMessage = aggregationResult.byCron ? `${message}; Aggregated: ${aggregationResult.byCron} cron snapshots, ${aggregationResult.byHour} hours, ${aggregationResult.byTable} tables, ${aggregationResult.byWorker} workers` : message;
+  const v3Message = v3AggregationResult ? `; V3: ${v3AggregationResult.successCount}/${v3AggregationResult.totalLocations} locations (${v3AggregationResult.durationMs}ms)` : "";
+  const v2 = v2AggregationResult;
+  const v2Message = v2 && (v2.businessDays > 0 || v2.salesHours > 0 || v2.tables > 0 || v2.workers > 0 || v2.productLines > 0) ? `; V2 (${v2RebuildSuffix || "none"}): ${v2.businessDays} business days, ${v2.salesHours} hour buckets, ${v2.tables} tables, ${v2.workers} workers, ${v2.guestAccounts} guest slices, ${v2.productLines} product lines` : "";
+  const finalMessage = `${message}${v2Message}${v3Message}`;
   return {
     ok: syncOk,
     jobType,
@@ -3751,8 +4875,11 @@ async function rebuildEitjeTimeRegistrationAggregation(db, startDate, endDate) {
     {
       $addFields: {
         ...EITJE_HOURS_ADD_FIELDS,
-        period: {
+        calendarDate: {
           $dateToString: { format: "%Y-%m-%d", date: "$date", timezone: "UTC" }
+        },
+        calendarHour: {
+          $hour: { date: "$date", timezone: "UTC" }
         },
         userId: { $ifNull: ["$extracted.userId", "$rawApiResponse.user_id"] },
         teamId: { $ifNull: ["$extracted.teamId", "$rawApiResponse.team_id"] },
@@ -3763,6 +4890,32 @@ async function rebuildEitjeTimeRegistrationAggregation(db, startDate, endDate) {
             "$rawApiResponse.environment_id",
             "$rawApiResponse.environmentId",
             "$rawApiResponse.environment.id"
+          ]
+        }
+      }
+    },
+    {
+      $addFields: {
+        period: {
+          $cond: [
+            { $and: [{ $gte: ["$calendarHour", 6] }, { $lte: ["$calendarHour", 23] }] },
+            "$calendarDate",
+            {
+              $dateToString: {
+                format: "%Y-%m-%d",
+                date: {
+                  $subtract: [{ $toDate: "$calendarDate" }, 864e5]
+                },
+                timezone: "UTC"
+              }
+            }
+          ]
+        },
+        business_hour: {
+          $cond: [
+            { $and: [{ $gte: ["$calendarHour", 6] }, { $lte: ["$calendarHour", 23] }] },
+            { $subtract: ["$calendarHour", 6] },
+            { $add: ["$calendarHour", 18] }
           ]
         }
       }
@@ -4371,7 +5524,7 @@ async function pingEitjeApi(creds) {
   return { ok: false, message: base };
 }
 async function executeEitjeJob(db, jobType) {
-  var _a2, _b;
+  var _a2, _b, _c, _d, _e;
   const creds = await loadActiveEitjeCredentials(db);
   if (!creds) {
     return {
@@ -4406,15 +5559,44 @@ async function executeEitjeJob(db, jobType) {
       master
     };
   }
-  const dailyDays = envInt("EITJE_DAILY_SYNC_DAYS", 14);
+  if (jobType === "daily-data") {
+    const now = /* @__PURE__ */ new Date();
+    const todayUtc = (_a2 = now.toISOString().split("T")[0]) != null ? _a2 : "";
+    const tr2 = await syncTimeRegistrationShifts(db, creds, todayUtc, todayUtc);
+    let agg2;
+    let v3AggResult2 = null;
+    try {
+      agg2 = await rebuildEitjeTimeRegistrationAggregation(db, todayUtc, todayUtc);
+      await syncUnifiedCollectionsFromRawData(db);
+      console.log("[eitjeSyncService] Triggering V3 aggregation pipeline for daily data...");
+      v3AggResult2 = await runV3AggregationPipeline(db, todayUtc, (msg) => console.log(`[V3] ${msg}`));
+    } catch (e) {
+      agg2 = {
+        deletedPeriods: 0,
+        inserted: 0,
+        error: e instanceof Error ? e.message : String(e)
+      };
+    }
+    const ok2 = !tr2.error && (tr2.fetched > 0 || tr2.upserted > 0 || ((_b = agg2 == null ? void 0 : agg2.inserted) != null ? _b : 0) > 0);
+    const v3Message2 = v3AggResult2 ? `; V3: ${v3AggResult2.successCount}/${v3AggResult2.totalLocations} locations` : "";
+    return {
+      ok: ok2,
+      jobType,
+      message: tr2.error ? `Time registration: ${tr2.error}` : `Synced ${tr2.fetched} shifts (${tr2.upserted} writes), aggregation +${(_c = agg2 == null ? void 0 : agg2.inserted) != null ? _c : 0} rows for today${v3Message2}`,
+      timeRegistration: tr2,
+      aggregation: agg2
+    };
+  }
   const histDays = envInt("EITJE_HISTORICAL_SYNC_DAYS", 30);
-  const days = jobType === "historical-data" ? histDays : dailyDays;
-  const { start, end } = dateRangeDays(days);
+  const { start, end } = dateRangeDays(histDays);
   const tr = await syncTimeRegistrationShifts(db, creds, start, end);
   let agg;
+  let v3AggResult = null;
   try {
     agg = await rebuildEitjeTimeRegistrationAggregation(db, start, end);
     await syncUnifiedCollectionsFromRawData(db);
+    console.log("[eitjeSyncService] Triggering V3 aggregation pipeline for historical data...");
+    v3AggResult = await runV3AggregationPipeline(db, end, (msg) => console.log(`[V3] ${msg}`));
   } catch (e) {
     agg = {
       deletedPeriods: 0,
@@ -4422,11 +5604,12 @@ async function executeEitjeJob(db, jobType) {
       error: e instanceof Error ? e.message : String(e)
     };
   }
-  const ok = !tr.error && (tr.fetched > 0 || tr.upserted > 0 || ((_a2 = agg == null ? void 0 : agg.inserted) != null ? _a2 : 0) > 0);
+  const ok = !tr.error && (tr.fetched > 0 || tr.upserted > 0 || ((_d = agg == null ? void 0 : agg.inserted) != null ? _d : 0) > 0);
+  const v3Message = v3AggResult ? `; V3: ${v3AggResult.successCount}/${v3AggResult.totalLocations} locations` : "";
   return {
     ok,
     jobType,
-    message: tr.error ? `Time registration: ${tr.error}` : `Synced ${tr.fetched} shifts (${tr.upserted} writes), aggregation +${(_b = agg == null ? void 0 : agg.inserted) != null ? _b : 0} rows`,
+    message: tr.error ? `Time registration: ${tr.error}` : `Synced ${tr.fetched} shifts (${tr.upserted} writes), aggregation +${(_e = agg == null ? void 0 : agg.inserted) != null ? _e : 0} rows (${jobType})${v3Message}`,
     timeRegistration: tr,
     aggregation: agg
   };
@@ -4730,16 +5913,16 @@ _bZ9Ni6V2HtIpJeulfSLzyAQaoMJdeQllxN50TS5qNvY
 const assets = {
   "/index.mjs": {
     "type": "text/javascript; charset=utf-8",
-    "etag": "\"15bc93-XtxHbogrpxw3gewOR9Wt01m2Uw8\"",
-    "mtime": "2026-04-23T23:11:16.202Z",
-    "size": 1424531,
+    "etag": "\"179859-+AC1j/jpXNY3XqIGY/DJ7/ESj0E\"",
+    "mtime": "2026-05-07T22:02:26.665Z",
+    "size": 1546329,
     "path": "index.mjs"
   },
   "/index.mjs.map": {
     "type": "application/json",
-    "etag": "\"578f7b-twjwa0gRA3FSEIgUyY4+Hpfx1vE\"",
-    "mtime": "2026-04-23T23:11:16.443Z",
-    "size": 5738363,
+    "etag": "\"5e6bd2-B+jwzKx/kyLvk3UKw21uUC/o8so\"",
+    "mtime": "2026-05-07T22:02:26.800Z",
+    "size": 6187986,
     "path": "index.mjs.map"
   }
 };
@@ -5229,7 +6412,7 @@ function defineRenderHandler(render) {
 
 const r=Object.create(null),i=e=>globalThis.process?.env||globalThis._importMeta_.env||globalThis.Deno?.env.toObject()||globalThis.__env__||(e?r:globalThis),o=new Proxy(r,{get(e,s){return i()[s]??r[s]},has(e,s){const E=i();return s in E||s in r},set(e,s,E){const B=i(true);return B[s]=E,true},deleteProperty(e,s){if(!s)return  false;const E=i(true);return delete E[s],true},ownKeys(){const e=i(true);return Object.keys(e)}}),t=typeof process<"u"&&process.env&&"development"||"",f=[["APPVEYOR"],["AWS_AMPLIFY","AWS_APP_ID",{ci:true}],["AZURE_PIPELINES","SYSTEM_TEAMFOUNDATIONCOLLECTIONURI"],["AZURE_STATIC","INPUT_AZURE_STATIC_WEB_APPS_API_TOKEN"],["APPCIRCLE","AC_APPCIRCLE"],["BAMBOO","bamboo_planKey"],["BITBUCKET","BITBUCKET_COMMIT"],["BITRISE","BITRISE_IO"],["BUDDY","BUDDY_WORKSPACE_ID"],["BUILDKITE"],["CIRCLE","CIRCLECI"],["CIRRUS","CIRRUS_CI"],["CLOUDFLARE_PAGES","CF_PAGES",{ci:true}],["CLOUDFLARE_WORKERS","WORKERS_CI",{ci:true}],["CODEBUILD","CODEBUILD_BUILD_ARN"],["CODEFRESH","CF_BUILD_ID"],["DRONE"],["DRONE","DRONE_BUILD_EVENT"],["DSARI"],["GITHUB_ACTIONS"],["GITLAB","GITLAB_CI"],["GITLAB","CI_MERGE_REQUEST_ID"],["GOCD","GO_PIPELINE_LABEL"],["LAYERCI"],["HUDSON","HUDSON_URL"],["JENKINS","JENKINS_URL"],["MAGNUM"],["NETLIFY"],["NETLIFY","NETLIFY_LOCAL",{ci:false}],["NEVERCODE"],["RENDER"],["SAIL","SAILCI"],["SEMAPHORE"],["SCREWDRIVER"],["SHIPPABLE"],["SOLANO","TDDIUM"],["STRIDER"],["TEAMCITY","TEAMCITY_VERSION"],["TRAVIS"],["VERCEL","NOW_BUILDER"],["VERCEL","VERCEL",{ci:false}],["VERCEL","VERCEL_ENV",{ci:false}],["APPCENTER","APPCENTER_BUILD_ID"],["CODESANDBOX","CODESANDBOX_SSE",{ci:false}],["CODESANDBOX","CODESANDBOX_HOST",{ci:false}],["STACKBLITZ"],["STORMKIT"],["CLEAVR"],["ZEABUR"],["CODESPHERE","CODESPHERE_APP_ID",{ci:true}],["RAILWAY","RAILWAY_PROJECT_ID"],["RAILWAY","RAILWAY_SERVICE_ID"],["DENO-DEPLOY","DENO_DEPLOYMENT_ID"],["FIREBASE_APP_HOSTING","FIREBASE_APP_HOSTING",{ci:true}]];function b(){if(globalThis.process?.env)for(const e of f){const s=e[1]||e[0];if(globalThis.process?.env[s])return {name:e[0].toLowerCase(),...e[2]}}return globalThis.process?.env?.SHELL==="/bin/jsh"&&globalThis.process?.versions?.webcontainer?{name:"stackblitz",ci:false}:{name:"",ci:false}}const l=b();l.name;function n(e){return e?e!=="false":false}const I=globalThis.process?.platform||"",T=n(o.CI)||l.ci!==false,R=n(globalThis.process?.stdout&&globalThis.process?.stdout.isTTY);n(o.DEBUG);const a=t==="test"||n(o.TEST);n(o.MINIMAL)||T||a||!R;const A=/^win/i.test(I);!n(o.NO_COLOR)&&(n(o.FORCE_COLOR)||(R||A)&&o.TERM!=="dumb"||T);const C=(globalThis.process?.versions?.node||"").replace(/^v/,"")||null;Number(C?.split(".")[0])||null;const W=globalThis.process||Object.create(null),_={versions:{}};new Proxy(W,{get(e,s){if(s==="env")return o;if(s in e)return e[s];if(s in _)return _[s]}});const O=globalThis.process?.release?.name==="node",c=!!globalThis.Bun||!!globalThis.process?.versions?.bun,D=!!globalThis.Deno,L=!!globalThis.fastly,S=!!globalThis.Netlify,u=!!globalThis.EdgeRuntime,N=globalThis.navigator?.userAgent==="Cloudflare-Workers",F=[[S,"netlify"],[u,"edge-light"],[N,"workerd"],[L,"fastly"],[D,"deno"],[c,"bun"],[O,"node"]];function G(){const e=F.find(s=>s[0]);if(e)return {name:e[1]}}const P=G();P?.name||"";
 
-const scheduledTasks = [{"cron":"0 8 * * *","tasks":["inbox:gmail-sync"]},{"cron":"0 6,13,16,18,20,22 * * *","tasks":["integrations:bork-eitje-daily"]}];
+const scheduledTasks = [{"cron":"5 6 * * *","tasks":["inbox:gmail-sync"]},{"cron":"5 16 * * *","tasks":["inbox:gmail-sync"]},{"cron":"5 21 * * *","tasks":["inbox:gmail-sync"]},{"cron":"0 6,13,16,18,20,22 * * *","tasks":["integrations:bork-eitje-daily"]}];
 
 const tasks = {
   "inbox:gmail-sync": {
@@ -5413,9 +6596,9 @@ function timePeriodKey(hour) {
   if (hour >= 22 || hour <= 3) return "after_drinks";
   return "other";
 }
-function borkCronMatch(ctx) {
+function borkV2SalesMatch(ctx) {
   const q = {
-    date: { $gte: ctx.startDate, $lte: ctx.endDate }
+    business_date: { $gte: ctx.startDate, $lte: ctx.endDate }
   };
   if (ctx.locationId !== void 0) q.locationId = ctx.locationId;
   return q;
@@ -5430,8 +6613,9 @@ function eitjeAggMatch(ctx) {
 }
 async function fetchRevenueByCategoryFromHourAggregates(db, ctx) {
   var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k;
-  const match = borkCronMatch(ctx);
-  const [facetRow] = await db.collection("bork_sales_by_hour").aggregate([
+  const sfx = resolveBorkAggReadSuffix();
+  const match = borkV2SalesMatch(ctx);
+  const [facetRow] = await db.collection(`bork_sales_by_hour${sfx}`).aggregate([
     { $match: match },
     {
       $facet: {
@@ -5482,14 +6666,15 @@ async function fetchRevenueByCategoryFromHourAggregates(db, ctx) {
 }
 async function fetchBorkHourAggregatesBundle(db, ctx) {
   var _a, _b;
-  const [row] = await db.collection("bork_sales_by_hour").aggregate([
-    { $match: borkCronMatch(ctx) },
+  const sfx = resolveBorkAggReadSuffix();
+  const [row] = await db.collection(`bork_sales_by_hour${sfx}`).aggregate([
+    { $match: borkV2SalesMatch(ctx) },
     {
       $facet: {
         byHourOnly: [
           {
             $group: {
-              _id: "$hour",
+              _id: "$calendar_hour",
               amount: { $sum: { $ifNull: ["$total_revenue", 0] } }
             }
           }
@@ -5497,7 +6682,7 @@ async function fetchBorkHourAggregatesBundle(db, ctx) {
         byDayHour: [
           {
             $group: {
-              _id: { d: "$date", h: "$hour" },
+              _id: { d: "$calendar_date", h: "$calendar_hour" },
               revenue: { $sum: { $ifNull: ["$total_revenue", 0] } }
             }
           }
@@ -5525,11 +6710,147 @@ function revenueByTimePeriodFromHourTotals(rows) {
   return sums;
 }
 async function fetchRevenueByDate(db, ctx) {
-  const rows = await db.collection("bork_sales_by_cron").aggregate([
-    { $match: borkCronMatch(ctx) },
-    { $group: { _id: "$date", revenue: { $sum: { $ifNull: ["$total_revenue", 0] } } } }
+  const sfx = resolveBorkAggReadSuffix();
+  const rows = await db.collection(`bork_business_days${sfx}`).aggregate([
+    { $match: borkV2SalesMatch(ctx) },
+    {
+      $group: {
+        _id: "$business_date",
+        revenue: { $sum: { $ifNull: ["$total_revenue", 0] } }
+      }
+    }
   ]).toArray();
   return new Map(rows.map((r) => [r._id, r.revenue]));
+}
+async function fetchRevenueByDateFromHourly(db, ctx) {
+  const sfx = resolveBorkAggReadSuffix();
+  const rows = await db.collection(`bork_sales_by_hour${sfx}`).aggregate([
+    { $match: borkV2SalesMatch(ctx) },
+    {
+      $group: {
+        _id: "$business_date",
+        revenue: { $sum: { $ifNull: ["$total_revenue", 0] } }
+      }
+    }
+  ]).toArray();
+  return new Map(rows.map((r) => [r._id, r.revenue]));
+}
+function sumMapValues(m) {
+  let s = 0;
+  for (const v of m.values()) s += v;
+  return s;
+}
+function mergeRevenueByDateMaps(fromBusinessDays, fromHourly) {
+  var _a, _b;
+  const keys = /* @__PURE__ */ new Set([...fromBusinessDays.keys(), ...fromHourly.keys()]);
+  const out = /* @__PURE__ */ new Map();
+  for (const d of keys) {
+    const a = (_a = fromBusinessDays.get(d)) != null ? _a : 0;
+    const b = (_b = fromHourly.get(d)) != null ? _b : 0;
+    out.set(d, a > 0 ? a : b);
+  }
+  return out;
+}
+function mergeLocationRevenueMaps(fromBusinessDays, fromHourly) {
+  var _a, _b;
+  const keys = /* @__PURE__ */ new Set([...fromBusinessDays.keys(), ...fromHourly.keys()]);
+  const out = /* @__PURE__ */ new Map();
+  for (const k of keys) {
+    const a = (_a = fromBusinessDays.get(k)) != null ? _a : 0;
+    const b = (_b = fromHourly.get(k)) != null ? _b : 0;
+    out.set(k, a > 0 ? a : b);
+  }
+  return out;
+}
+async function fetchRevenueByDateAndLocationFromHourly(db, ctx) {
+  const sfx = resolveBorkAggReadSuffix();
+  const rows = await db.collection(`bork_sales_by_hour${sfx}`).aggregate([
+    { $match: borkV2SalesMatch(ctx) },
+    {
+      $group: {
+        _id: { date: "$business_date", locationId: "$locationId" },
+        revenue: { $sum: { $ifNull: ["$total_revenue", 0] } }
+      }
+    }
+  ]).toArray();
+  const map = /* @__PURE__ */ new Map();
+  for (const r of rows) {
+    const lid = r._id.locationId != null ? String(r._id.locationId) : "unknown";
+    map.set(locationDayKey(r._id.date, lid), r.revenue);
+  }
+  return map;
+}
+function normalizeBasisLocationLabel(s) {
+  return s.trim().toLowerCase().replace(/\s+/g, " ");
+}
+function pickBasisReportsPerLocation$1(reports) {
+  const sorted = [...reports].sort((a, b) => {
+    var _a, _b, _c, _d;
+    const bh = ((_a = b.business_hour) != null ? _a : -1) - ((_b = a.business_hour) != null ? _b : -1);
+    if (bh !== 0) return bh;
+    const ch = ((_c = b.cron_hour) != null ? _c : -1) - ((_d = a.cron_hour) != null ? _d : -1);
+    if (ch !== 0) return ch;
+    const ra = a.received_at ? new Date(a.received_at).getTime() : 0;
+    const rb = b.received_at ? new Date(b.received_at).getTime() : 0;
+    return rb - ra;
+  });
+  const byNorm = /* @__PURE__ */ new Map();
+  for (const r of sorted) {
+    const key = normalizeBasisLocationLabel(r.location);
+    if (!key || key === "unspecified") continue;
+    if (!byNorm.has(key)) byNorm.set(key, r);
+  }
+  return byNorm;
+}
+async function fetchInboxBasisRevenueTotalExVat(db, ctx) {
+  var _a;
+  const rows = await db.collection("inbox-bork-basis-report").find({
+    date: { $gte: ctx.startDate, $lte: ctx.endDate }
+  }).toArray();
+  if (rows.length === 0) return null;
+  const byDate = /* @__PURE__ */ new Map();
+  for (const r of rows) {
+    const d = r.date;
+    if (!byDate.has(d)) byDate.set(d, []);
+    byDate.get(d).push(r);
+  }
+  let sum = 0;
+  for (const list of byDate.values()) {
+    const picked = pickBasisReportsPerLocation$1(list);
+    for (const rep of picked.values()) {
+      sum += Number((_a = rep.final_revenue_ex_vat) != null ? _a : 0);
+    }
+  }
+  return Math.round(sum * 100) / 100;
+}
+async function fetchTodayDashboardRevenueExtras(db, ctx, hourBundle) {
+  var _a;
+  if (ctx.period !== "today") return void 0;
+  const dateStr = ctx.startDate;
+  const byH = /* @__PURE__ */ new Map();
+  for (const row of hourBundle.byDayHour) {
+    if (row._id.d !== dateStr) continue;
+    const h = Number(row._id.h);
+    byH.set(h, ((_a = byH.get(h)) != null ? _a : 0) + row.revenue);
+  }
+  const apiHourlyByCalendarHour = [...byH.entries()].sort((a, b) => a[0] - b[0]).map(([calendarHour, revenue]) => ({
+    calendarHour,
+    revenue: Math.round(revenue * 100) / 100
+  }));
+  const raw = await db.collection("inbox-bork-basis-report").find({
+    date: dateStr,
+    cron_hour: { $in: [15, 23] }
+  }).sort({ location: 1, cron_hour: 1 }).toArray();
+  const inboxBasisCronSnapshots = raw.map((doc) => {
+    var _a2, _b, _c;
+    const b = doc;
+    return {
+      cronHour: Number((_a2 = doc.cron_hour) != null ? _a2 : 0),
+      finalRevenueExVat: Math.round(Number((_b = b.final_revenue_ex_vat) != null ? _b : 0) * 100) / 100,
+      locationLabel: String((_c = b.location) != null ? _c : "")
+    };
+  });
+  return { apiHourlyByCalendarHour, inboxBasisCronSnapshots };
 }
 const LOC_DAY_KEY_SEP = "";
 function locationDayKey(date, locationId) {
@@ -5541,11 +6862,12 @@ function parseLocationDayKey(key) {
   return { date: key.slice(0, i), locationId: key.slice(i + LOC_DAY_KEY_SEP.length) };
 }
 async function fetchRevenueByDateAndLocation(db, ctx) {
-  const rows = await db.collection("bork_sales_by_cron").aggregate([
-    { $match: borkCronMatch(ctx) },
+  const sfx = resolveBorkAggReadSuffix();
+  const rows = await db.collection(`bork_business_days${sfx}`).aggregate([
+    { $match: borkV2SalesMatch(ctx) },
     {
       $group: {
-        _id: { date: "$date", locationId: "$locationId" },
+        _id: { date: "$business_date", locationId: "$locationId" },
         revenue: { $sum: { $ifNull: ["$total_revenue", 0] } }
       }
     }
@@ -5831,11 +7153,12 @@ async function fetchHoursCostByContractType(db, ctx) {
 }
 async function fetchLaborProductivityByLocationDay(db, ctx) {
   var _a, _b;
-  const revRows = await db.collection("bork_sales_by_cron").aggregate([
-    { $match: borkCronMatch(ctx) },
+  const sfx = resolveBorkAggReadSuffix();
+  const revRows = await db.collection(`bork_business_days${sfx}`).aggregate([
+    { $match: borkV2SalesMatch(ctx) },
     {
       $group: {
-        _id: { date: "$date", locationId: "$locationId", locationName: "$locationName" },
+        _id: { date: "$business_date", locationId: "$locationId", locationName: "$locationName" },
         revenue: { $sum: { $ifNull: ["$total_revenue", 0] } }
       }
     }
@@ -5917,11 +7240,16 @@ async function fetchLaborProductivityByLocationDay(db, ctx) {
 }
 async function inventoryCollections(db, ctx) {
   const notes = [];
-  const cron = await db.collection("bork_sales_by_cron").countDocuments(borkCronMatch(ctx), { limit: 1 });
-  const hours = await db.collection("bork_sales_by_hour").countDocuments(borkCronMatch(ctx), { limit: 1 });
+  const sfx = resolveBorkAggReadSuffix();
+  const matchV2 = borkV2SalesMatch(ctx);
+  const cron = await db.collection(`bork_business_days${sfx}`).countDocuments(matchV2, { limit: 1 });
+  const hours = await db.collection(`bork_sales_by_hour${sfx}`).countDocuments(matchV2, { limit: 1 });
   const eitje = await db.collection("eitje_time_registration_aggregation").countDocuments(eitjeAggMatch(ctx), { limit: 1 });
-  if (cron === 0) notes.push("No rows in bork_sales_by_cron for this range \u2014 run Bork sync/rebuild aggregations.");
-  if (hours === 0) notes.push("No rows in bork_sales_by_hour for this range.");
+  if (cron === 0)
+    notes.push(
+      `No rows in bork_business_days${sfx} for this range \u2014 run Bork sync / V2 rebuild (rebuildBorkSalesAggregationV2).`
+    );
+  if (hours === 0) notes.push(`No rows in bork_sales_by_hour${sfx} for this range.`);
   if (eitje === 0) notes.push("No rows in eitje_time_registration_aggregation for this range \u2014 rebuild Eitje aggregation.");
   notes.push("Food vs drinks uses a name-pattern heuristic on `bork_sales_by_hour.products` (from Bork rebuild); tune DRINK_NAME_PATTERN as needed.");
   notes.push("Hour-level labor cost uses daily labor prorated by that day\u2019s hourly revenue share.");
@@ -5943,8 +7271,10 @@ async function fetchLaborMetricsPipelineInput(db, ctx) {
     contractTypeByDay,
     productivityByLocationDay,
     inventory,
-    revMap,
-    revByDateLocation,
+    revMapDays,
+    revByDateLocationDays,
+    revMapHours,
+    revByDateLocationHours,
     labMap
   ] = await Promise.all([
     fetchWorkersByTeamLocation(db, ctx),
@@ -5955,8 +7285,16 @@ async function fetchLaborMetricsPipelineInput(db, ctx) {
     inventoryCollections(db, ctx),
     fetchRevenueByDate(db, ctx),
     fetchRevenueByDateAndLocation(db, ctx),
+    fetchRevenueByDateFromHourly(db, ctx),
+    fetchRevenueByDateAndLocationFromHourly(db, ctx),
     fetchLaborByDate(db, ctx)
   ]);
+  const revMap = mergeRevenueByDateMaps(revMapDays, revMapHours);
+  const revByDateLocation = mergeLocationRevenueMaps(revByDateLocationDays, revByDateLocationHours);
+  const revenueSplit = {
+    businessDaysPeriodTotal: Math.round(sumMapValues(revMapDays) * 100) / 100,
+    hourlyPeriodTotal: Math.round(sumMapValues(revMapHours) * 100) / 100
+  };
   return {
     workersByTeamLocation,
     workersByTeamLocationByDayRaw,
@@ -5966,7 +7304,8 @@ async function fetchLaborMetricsPipelineInput(db, ctx) {
     inventory,
     revMap,
     revByDateLocation,
-    labMap
+    labMap,
+    revenueSplit
   };
 }
 function assembleDailyOpsLaborMetricsDto(ctx, input) {
@@ -6073,9 +7412,25 @@ function assembleDailyOpsLaborMetricsDto(ctx, input) {
     productivityByLocationDay
   };
 }
-function buildDailyOpsSummaryDto(ctx, revMap, labMap) {
-  let totalRevenue = 0;
-  for (const v of revMap.values()) totalRevenue += v;
+function resolveHeadlineRevenue(ctx, apiMergedTotal, revenueSourcesDetail) {
+  const inbox = revenueSourcesDetail == null ? void 0 : revenueSourcesDetail.inboxBasisExVat;
+  const singleCompletedDay = ctx.startDate === ctx.endDate && ctx.period !== "today";
+  const useInboxLead = singleCompletedDay && inbox != null && inbox > 0;
+  if (useInboxLead) {
+    return {
+      headline: Math.round(inbox * 100) / 100,
+      leadSource: "inbox_basis_ex_vat"
+    };
+  }
+  return {
+    headline: Math.round(apiMergedTotal * 100) / 100,
+    leadSource: "bork_api_merged"
+  };
+}
+function buildDailyOpsSummaryDto(ctx, revMap, labMap, revenueSourcesDetail) {
+  let apiMergedTotal = 0;
+  for (const v of revMap.values()) apiMergedTotal += v;
+  const { headline: totalRevenue, leadSource } = resolveHeadlineRevenue(ctx, apiMergedTotal, revenueSourcesDetail);
   let totalLaborCost = 0;
   let totalLaborHours = 0;
   for (const v of labMap.values()) {
@@ -6093,18 +7448,23 @@ function buildDailyOpsSummaryDto(ctx, revMap, labMap) {
       endDate: ctx.endDate
     },
     summary: {
-      totalRevenue: Math.round(totalRevenue * 100) / 100,
+      totalRevenue,
       totalLaborCost: Math.round(totalLaborCost * 100) / 100,
       totalLaborHours: Math.round(totalLaborHours * 100) / 100,
       profit: Math.round(profit * 100) / 100,
       profitMarginPct: Math.round(profitMarginPct * 10) / 10,
       revenuePerLaborHour: revenuePerLaborHour != null ? Math.round(revenuePerLaborHour * 100) / 100 : null,
-      laborCostPctOfRevenue: laborCostPctOfRevenue != null ? Math.round(laborCostPctOfRevenue * 10) / 10 : null
+      laborCostPctOfRevenue: laborCostPctOfRevenue != null ? Math.round(laborCostPctOfRevenue * 10) / 10 : null,
+      revenueLeadSource: revenueSourcesDetail ? leadSource : void 0,
+      revenueSources: revenueSourcesDetail ? {
+        apiBusinessDaysTotal: revenueSourcesDetail.apiBusinessDaysTotal,
+        inboxBasisExVat: revenueSourcesDetail.inboxBasisExVat
+      } : void 0
     },
     vatDisclaimer: VAT_DISCLAIMER
   };
 }
-function buildDailyOpsRevenueBreakdownDto(ctx, cat, hourBundle, revMap, labMap) {
+function buildDailyOpsRevenueBreakdownDto(ctx, cat, hourBundle, revMap, labMap, todayExtras) {
   const tp = revenueByTimePeriodFromHourTotals(hourBundle.byHourOnly);
   const best = computeMostProfitableHour(hourBundle.byDayHour, revMap, labMap);
   const revenueByCategory = [
@@ -6138,7 +7498,11 @@ function buildDailyOpsRevenueBreakdownDto(ctx, cat, hourBundle, revMap, labMap) 
       revenue: Math.round(best.revenue * 100) / 100,
       laborCost: Math.round(best.laborCost * 100) / 100,
       profit: Math.round(best.profit * 100) / 100
-    }
+    },
+    todayRevenueDetail: todayExtras ? {
+      apiHourlyByCalendarHour: todayExtras.apiHourlyByCalendarHour,
+      inboxBasisCronSnapshots: todayExtras.inboxBasisCronSnapshots
+    } : void 0
   };
 }
 
@@ -6166,6 +7530,416 @@ function getGmailInvalidGrantHint(redirectUriEnv, redirectUriUsed) {
   }
   return "Redirect URI matches Playground. invalid_grant here almost always means GMAIL_REFRESH_TOKEN is revoked or was issued for different GMAIL_CLIENT_ID / GMAIL_CLIENT_SECRET than on the server. In OAuth Playground use the exact same OAuth client as DigitalOcean, authorize Gmail API scopes, copy the new refresh token into GMAIL_REFRESH_TOKEN (DO secrets), save, redeploy.";
 }
+
+function getGmailRedirectUri() {
+  const baseUrl = process.env.NUXT_PUBLIC_SITE_URL || "http://localhost:8080";
+  return `${baseUrl}/api/auth/gmail/callback`;
+}
+
+function normalizeLooseLabel(s) {
+  return s.trim().toLowerCase().replace(/\s+/g, " ");
+}
+function canonicalVenueKeyForBorkMatching(raw) {
+  const n = normalizeLooseLabel(raw);
+  if (!n || n === "unspecified" || n === "unknown") return "";
+  const compact = n.replace(/[^a-z0-9]/g, "");
+  if (compact.includes("kinsbergen")) return "venue:k";
+  if (compact === "barbea" || compact.includes("bar") && compact.includes("bea")) return "venue:bb";
+  if (compact.includes("toujours") || compact.includes("amour") && compact.includes("toujours")) return "venue:lat";
+  if (compact === "lamour") return "venue:lat";
+  return `venue:${n}`;
+}
+function matchVenueLocationFromText(text) {
+  const s = text.replace(/\s+/g, " ").trim();
+  if (s.length < 2) return null;
+  if (/kinsbergen/i.test(s)) return "Kinsbergen";
+  if (/bar\s*bea/i.test(s) || /barbea/i.test(s)) return "Barbea";
+  if (/toujours/i.test(s) && /amour/i.test(s)) return "l'Amour Toujours";
+  if (/l\s*['']?\s*amour|lamour/i.test(s)) return "l'Amour Toujours";
+  if (/\bbea\b/i.test(s) && !/barbea/i.test(s)) return "Bea";
+  return null;
+}
+function extractLocationFromBasisSpreadsheet(rows, fileName) {
+  const maxRow = Math.min(40, rows.length);
+  for (let i = 0; i < maxRow; i++) {
+    const row = rows[i];
+    const vals = Object.values(row).map((v) => String(v != null ? v : "").trim()).filter(Boolean);
+    for (const val of vals) {
+      const hit = matchVenueLocationFromText(val);
+      if (hit) return hit;
+    }
+    const joined = vals.join(" ");
+    if (joined.length > 3) {
+      const rowHit = matchVenueLocationFromText(joined);
+      if (rowHit) return rowHit;
+    }
+  }
+  return extractLocationFromBasisFileName(fileName);
+}
+function extractLocationFromBasisFileName(fileName) {
+  const lower = fileName.toLowerCase();
+  if (lower.includes("kinsbergen")) return "Kinsbergen";
+  if (lower.includes("toujours") || lower.includes("lamour") || lower.includes("l'amour"))
+    return "l'Amour Toujours";
+  if (lower.includes("barbea") || lower.includes("bar-bea")) return "Barbea";
+  if (/\bbea\b/.test(lower) && !lower.includes("barbea")) return "Bea";
+  return "";
+}
+
+async function mapBasisReportXLSX(parseResult, fileName, emailData, db) {
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l;
+  if (!parseResult.success || parseResult.rows.length === 0) {
+    return null;
+  }
+  const rows = parseResult.rows;
+  let subject = emailData == null ? void 0 : emailData.subject;
+  if (!subject && db && (emailData == null ? void 0 : emailData.emailId)) {
+    try {
+      const { ObjectId } = await import('file:///Users/alviniomolina/Documents/GitHub/daily-ops/node_modules/.pnpm/mongodb@7.1.1/node_modules/mongodb/lib/index.js');
+      const email = await db.collection("inboxemails").findOne({ _id: new ObjectId(emailData.emailId) });
+      subject = email == null ? void 0 : email.subject;
+    } catch {
+    }
+  }
+  const dateFromSubject = extractDateFromSubject(subject) || "";
+  const locationFromSubject = matchVenueLocationFromText(subject != null ? subject : "") || "";
+  const dateFromMetadata = String(((_a = parseResult.metadata) == null ? void 0 : _a.extracted_date) || "");
+  const locationFromMetadata = String(((_b = parseResult.metadata) == null ? void 0 : _b.extracted_location) || "");
+  const dateStr = dateFromSubject || dateFromMetadata || extractDateFromFile(rows) || "";
+  const locationRaw = locationFromSubject || (locationFromMetadata && locationFromMetadata !== "undefined" ? locationFromMetadata : "") || extractLocationFromBasisSpreadsheet(rows, fileName) || "";
+  let locationId;
+  if (db && locationRaw && locationRaw !== "Unknown" && locationRaw !== "Unspecified") {
+    try {
+      const locDoc = await db.collection("unified_location").findOne({
+        $or: [
+          { name: locationRaw },
+          { primaryName: locationRaw },
+          { canonicalName: locationRaw },
+          { abbreviation: locationRaw },
+          { "borkMapping.borkLocationName": locationRaw }
+        ]
+      });
+      if (locDoc) {
+        locationId = String(locDoc._id);
+      }
+    } catch (err) {
+    }
+  }
+  const batchHourFromSubject = extractBatchHourFromSubject(subject);
+  const receivedRaw = emailData == null ? void 0 : emailData.receivedAt;
+  const receivedDate = receivedRaw instanceof Date ? receivedRaw : receivedRaw != null ? new Date(String(receivedRaw)) : void 0;
+  const amsterdamWallHour = receivedDate && !Number.isNaN(receivedDate.getTime()) ? getAmsterdamWallHour(receivedDate) : void 0;
+  const cronHour = batchHourFromSubject != null ? batchHourFromSubject : amsterdamWallHour;
+  const businessHour = cronHour !== void 0 ? (cronHour - 8 + 24) % 24 : void 0;
+  const sections = {};
+  const sectionMarkers = [];
+  for (let i = 0; i < rows.length; i++) {
+    const rowStr = Object.values(rows[i]).map((v) => String(v || "").toLowerCase()).join(" ");
+    if (rowStr.includes("betalingen") || rowStr.includes("betaalwijze")) {
+      if (!sectionMarkers.find((m) => m.sectionType === "payments")) {
+        sectionMarkers.push({ keyword: "betalingen", sectionType: "payments", rowIdx: i });
+      }
+    } else if (rowStr.includes("correctie")) {
+      if (!sectionMarkers.find((m) => m.sectionType === "corrections")) {
+        sectionMarkers.push({ keyword: "correcties", sectionType: "corrections", rowIdx: i });
+      }
+    } else if (rowStr.includes("interne") && rowStr.includes("verkoop")) {
+      if (!sectionMarkers.find((m) => m.sectionType === "internal_sales")) {
+        sectionMarkers.push({ keyword: "interne verkoop", sectionType: "internal_sales", rowIdx: i });
+      }
+    }
+  }
+  sectionMarkers.sort((a, b) => a.rowIdx - b.rowIdx);
+  const getRowsForSection = (startIdx, endIdx) => {
+    if (startIdx >= endIdx || startIdx < 0) return [];
+    const result = rows.slice(startIdx, endIdx).filter((row) => {
+      const rowStr = Object.values(row).map((v) => String(v || "").toLowerCase()).join(" ");
+      const isSectionHeader = ["betalingen", "betaalwijze", "correctie", "interne", "verkoop"].some((kw) => rowStr.includes(kw));
+      return !isSectionHeader && Object.values(row).some((v) => v);
+    });
+    return result;
+  };
+  const nettoEndIdx = sectionMarkers.length > 0 ? sectionMarkers[0].rowIdx : rows.length;
+  const nettoData = getRowsForSection(0, nettoEndIdx);
+  if (nettoData.length > 0) {
+    sections.netto_sales = mapNettoSales(nettoData, parseResult.headers);
+  }
+  const paymentMarker = sectionMarkers.find((m) => m.sectionType === "payments");
+  if (paymentMarker) {
+    const paymentEndIdx = (_d = (_c = sectionMarkers.find((m) => m.rowIdx > paymentMarker.rowIdx)) == null ? void 0 : _c.rowIdx) != null ? _d : rows.length;
+    const paymentData = getRowsForSection(paymentMarker.rowIdx + 1, paymentEndIdx);
+    if (paymentData.length > 0) {
+      sections.payments = mapPayments(paymentData);
+    }
+  }
+  const correctionMarker = sectionMarkers.find((m) => m.sectionType === "corrections");
+  if (correctionMarker) {
+    const correctionEndIdx = (_f = (_e = sectionMarkers.find((m) => m.rowIdx > correctionMarker.rowIdx)) == null ? void 0 : _e.rowIdx) != null ? _f : rows.length;
+    const correctionData = getRowsForSection(correctionMarker.rowIdx + 1, correctionEndIdx);
+    if (correctionData.length > 0) {
+      sections.corrections = mapCorrections(correctionData, parseResult.headers);
+    }
+  }
+  const internalMarker = sectionMarkers.find((m) => m.sectionType === "internal_sales");
+  if (internalMarker) {
+    const internalData = getRowsForSection(internalMarker.rowIdx + 1, rows.length);
+    if (internalData.length > 0) {
+      sections.internal_sales = mapInternalSales(internalData, parseResult.headers);
+    }
+  }
+  if (db) {
+    if ((_g = sections.corrections) == null ? void 0 : _g.adjustments) {
+      await normalizeUserNames(sections.corrections.adjustments, db);
+    }
+    if ((_h = sections.internal_sales) == null ? void 0 : _h.staff) {
+      await normalizeUserNames(sections.internal_sales.staff, db);
+    }
+  }
+  const finalRevenueIncl = ((_j = (_i = sections.netto_sales) == null ? void 0 : _i.grand_total) == null ? void 0 : _j.price_incl_vat) || 0;
+  const finalRevenueEx = ((_l = (_k = sections.netto_sales) == null ? void 0 : _k.grand_total) == null ? void 0 : _l.price_ex_vat) || 0;
+  return {
+    date: dateStr || "UNKNOWN",
+    location: locationRaw || "Unspecified",
+    location_id: locationId,
+    location_raw: locationRaw,
+    cron_hour: cronHour,
+    business_hour: businessHour,
+    received_at: emailData == null ? void 0 : emailData.receivedAt,
+    sections,
+    final_revenue_incl_vat: finalRevenueIncl,
+    final_revenue_ex_vat: finalRevenueEx,
+    metadata: {
+      email_subject: subject,
+      attachment_filename: fileName,
+      parsed_at: /* @__PURE__ */ new Date(),
+      ...(emailData == null ? void 0 : emailData.attachmentId) ? { source_attachment_id: emailData.attachmentId } : {},
+      ...(emailData == null ? void 0 : emailData.emailId) ? { source_email_id: emailData.emailId } : {}
+    }
+  };
+}
+function extractDateFromFile(rows) {
+  for (let i = 0; i < Math.min(5, rows.length); i++) {
+    const vals = Object.values(rows[i]);
+    for (const val of vals) {
+      const str = String(val).trim();
+      if (/\d{1,2}\/\d{1,2}\/\d{4}/.test(str)) {
+        const match = str.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})\s*-\s*(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+        if (match) {
+          const [, d, m, y] = match;
+          return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+        }
+        const matchSingle = str.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+        if (matchSingle) {
+          const [, d, m, y] = matchSingle;
+          return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+        }
+      }
+    }
+  }
+  return (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
+}
+function mapNettoSales(rows, headers) {
+  if (rows.length === 0) {
+    return { categories: [], grand_total: { quantity: 0, price_incl_vat: 0, price_ex_vat: 0 } };
+  }
+  const categories = [];
+  let grandTotalQty = 0;
+  let grandTotalIncl = 0;
+  let grandTotalEx = 0;
+  for (const row of rows) {
+    const nameVal = row["Groep1"] || row["Product"] || row["Naam"] || "";
+    const nameStr = String(nameVal || "").trim();
+    const isGrandTotal = nameStr.toLowerCase().includes("grand total") || nameStr.toLowerCase().includes("totaal") || nameStr.toLowerCase().includes("algemeen") || nameStr.toLowerCase().includes("total");
+    if (isGrandTotal) {
+      const qty = String(row["Hoeveelheid"] || row["Quantity"] || 0).trim();
+      const incl = String(row["Totale prijs"] || row["Total Price"] || 0).trim();
+      const ex = String(row["Ex BTW"] || row["Ex VAT"] || 0).trim();
+      grandTotalQty = parseFloat(qty);
+      grandTotalIncl = parsePrice(incl);
+      grandTotalEx = parsePrice(ex);
+      continue;
+    }
+    if (nameStr && !nameStr.toLowerCase().includes("groep")) {
+      const qty = parseFloat(String(row["Hoeveelheid"] || row["Quantity"] || 0));
+      const incl = parsePrice(String(row["Totale prijs"] || row["Total Price"] || 0));
+      const ex = parsePrice(String(row["Ex BTW"] || row["Ex VAT"] || 0));
+      if (!Number.isNaN(qty) && qty > 0) {
+        categories.push({
+          name: nameStr,
+          quantity: qty,
+          price_incl_vat: incl,
+          price_ex_vat: ex
+        });
+      }
+    }
+  }
+  return {
+    categories,
+    grand_total: {
+      quantity: grandTotalQty,
+      price_incl_vat: grandTotalIncl,
+      price_ex_vat: grandTotalEx
+    }
+  };
+}
+function mapPayments(rows) {
+  const methods = [];
+  let grandTotalQty = 0;
+  for (const row of rows) {
+    const method = String(row["Betaalwijze"] || row["Method"] || row[Object.keys(row)[0]] || "").trim();
+    if (method.toLowerCase() === "grand total" || method.toLowerCase().includes("totaal")) {
+      grandTotalQty = parseFloat(String(row["Hoeveelheid"] || row["Quantity"] || 0));
+      continue;
+    }
+    if (method && !method.includes("Betaalwijze")) {
+      const qty = parseFloat(String(row["Hoeveelheid"] || row["Quantity"] || 0));
+      if (!Number.isNaN(qty)) {
+        methods.push({ method, quantity: qty });
+      }
+    }
+  }
+  return {
+    methods,
+    grand_total_qty: grandTotalQty
+  };
+}
+function mapCorrections(rows, headers) {
+  const adjustments = [];
+  let grandTotalQty = 0;
+  let grandTotalIncl = 0;
+  let grandTotalEx = 0;
+  for (const row of rows) {
+    const user = String(row["Gebruiker"] || row["User"] || row[Object.keys(row)[0]] || "").trim();
+    if (user.toLowerCase() === "grand total" || user.toLowerCase().includes("totaal")) {
+      grandTotalQty = parseFloat(String(row["Hoeveelheid"] || row["Quantity"] || 0));
+      grandTotalIncl = parsePrice(String(row["Totale prijs"] || row["Total Price"] || 0));
+      grandTotalEx = parsePrice(String(row["Ex BTW"] || row["Ex VAT"] || 0));
+      continue;
+    }
+    if (user && !user.includes("Gebruiker")) {
+      const qty = parseFloat(String(row["Hoeveelheid"] || row["Quantity"] || 0));
+      const incl = parsePrice(String(row["Totale prijs"] || row["Total Price"] || 0));
+      const ex = parsePrice(String(row["Ex BTW"] || row["Ex VAT"] || 0));
+      if (!Number.isNaN(qty)) {
+        adjustments.push({
+          user,
+          quantity: qty,
+          price_incl_vat: incl,
+          price_ex_vat: ex
+        });
+      }
+    }
+  }
+  return {
+    adjustments,
+    grand_total: {
+      quantity: grandTotalQty,
+      price_incl_vat: grandTotalIncl,
+      price_ex_vat: grandTotalEx
+    }
+  };
+}
+function mapInternalSales(rows, headers) {
+  const staff = [];
+  let grandTotalQty = 0;
+  let grandTotalIncl = 0;
+  let grandTotalEx = 0;
+  for (const row of rows) {
+    const user = String(row["Gebruiker"] || row["User"] || row[Object.keys(row)[0]] || "").trim();
+    if (user.toLowerCase() === "grand total" || user.toLowerCase().includes("totaal")) {
+      grandTotalQty = parseFloat(String(row["Hoeveelheid"] || row["Quantity"] || 0));
+      grandTotalIncl = parsePrice(String(row["Totale prijs"] || row["Total Price"] || 0));
+      grandTotalEx = parsePrice(String(row["Ex BTW"] || row["Ex VAT"] || 0));
+      continue;
+    }
+    if (user && !user.includes("Gebruiker")) {
+      const qty = parseFloat(String(row["Hoeveelheid"] || row["Quantity"] || 0));
+      const incl = parsePrice(String(row["Totale prijs"] || row["Total Price"] || 0));
+      const ex = parsePrice(String(row["Ex BTW"] || row["Ex VAT"] || 0));
+      if (!Number.isNaN(qty)) {
+        staff.push({
+          user,
+          quantity: qty,
+          price_incl_vat: incl,
+          price_ex_vat: ex
+        });
+      }
+    }
+  }
+  return {
+    staff,
+    grand_total: {
+      quantity: grandTotalQty,
+      price_incl_vat: grandTotalIncl,
+      price_ex_vat: grandTotalEx
+    }
+  };
+}
+function parsePrice(priceStr) {
+  const cleaned = String(priceStr).replace(/[€\s]/g, "").replace(",", ".");
+  return parseFloat(cleaned) || 0;
+}
+async function normalizeUserNames(items, db) {
+  for (const item of items) {
+    if (!item.user) continue;
+    item.user_raw = item.user;
+    try {
+      const userDoc = await db.collection("unified_user").findOne({
+        $or: [
+          { primaryName: item.user },
+          { canonicalName: item.user },
+          { "eitjeNames": item.user },
+          { "allIds.name": item.user }
+        ]
+      });
+      if (userDoc) {
+        item.user_id = String(userDoc._id);
+        item.user = userDoc.canonicalName || userDoc.primaryName;
+      }
+    } catch (e) {
+      console.warn("[normalizeUserNames] Failed to normalize:", item.user, e);
+    }
+  }
+}
+function extractDateFromSubject(subject) {
+  if (!subject) return null;
+  const match = subject.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (match) {
+    const [, d, m, y] = match;
+    return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+  }
+  return null;
+}
+function extractBatchHourFromSubject(subject) {
+  if (!subject) return void 0;
+  const patterns = [/Daily Report Sales\s*(\d{1,2}):(\d{2})\b/i, /Daily Sales Report\s+(\d{1,2}):(\d{2})\b/i];
+  for (const re of patterns) {
+    const m = subject.match(re);
+    if (m) {
+      const h = parseInt(m[1], 10);
+      if (Number.isFinite(h) && h >= 0 && h <= 23) return h;
+    }
+  }
+  return void 0;
+}
+function getAmsterdamWallHour(d) {
+  var _a, _b;
+  const parts = new Intl.DateTimeFormat("sv-SE", {
+    timeZone: "Europe/Amsterdam",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    hourCycle: "h23"
+  }).formatToParts(d);
+  const h = (_b = (_a = parts.find((p) => p.type === "hour")) == null ? void 0 : _a.value) != null ? _b : "0";
+  const n = parseInt(h, 10);
+  return Number.isFinite(n) ? Math.min(23, Math.max(0, n)) : 0;
+}
+
+const basisReportMapper = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+  __proto__: null,
+  mapBasisReportXLSX: mapBasisReportXLSX
+}, Symbol.toStringTag, { value: 'Module' }));
 
 function detectDelimiter(csvText) {
   const delimiters = [",", ";", "|", "	"];
@@ -6302,6 +8076,9 @@ async function parseCSV(csvText, options = {}) {
 
 function classifyByFilename(fileName) {
   const lowerName = fileName.toLowerCase();
+  if (lowerName.includes("dagelijkse-uren-export")) {
+    return { type: "hours", confidence: "high", reason: "Eitje daily hours export" };
+  }
   if (lowerName.includes("hours") || lowerName.includes("uren")) {
     return { type: "hours", confidence: "high", reason: 'Filename contains "hours" or "uren"' };
   }
@@ -6396,18 +8173,15 @@ function classifyByContent(headers) {
   return { type: "other", confidence: "low", reason: "No matching pattern found in headers" };
 }
 function classifyDocument(fileName, headers) {
-  if (headers && headers.length > 0) {
-    const contentResult = classifyByContent(headers);
-    if (contentResult.confidence === "high") {
-      return contentResult;
-    }
-  }
   const filenameResult = classifyByFilename(fileName);
   if (filenameResult.confidence === "high") {
     return filenameResult;
   }
   if (headers && headers.length > 0) {
     const contentResult = classifyByContent(headers);
+    if (contentResult.confidence === "high") {
+      return contentResult;
+    }
     if (contentResult.confidence === "medium" && filenameResult.confidence === "low") {
       return contentResult;
     }
@@ -31309,6 +33083,30 @@ async function getInboxImportTablePayload(documentType, input) {
 let pdfjsLib$1 = null;
 async function getPdfJsLib() {
   if (!pdfjsLib$1) {
+    if (typeof globalThis.DOMMatrix === "undefined") {
+      globalThis.DOMMatrix = class DOMMatrix {
+        constructor(values = []) {
+          this.values = values;
+        }
+        static fromMatrix() {
+          return new DOMMatrix();
+        }
+        static fromFloat32Array() {
+          return new DOMMatrix();
+        }
+        static fromFloat64Array() {
+          return new DOMMatrix();
+        }
+      };
+    }
+    if (typeof globalThis.DOMPoint === "undefined") {
+      globalThis.DOMPoint = class DOMPoint {
+        constructor(x = 0, y = 0) {
+          this.x = x;
+          this.y = y;
+        }
+      };
+    }
     pdfjsLib$1 = await import('file:///Users/alviniomolina/Documents/GitHub/daily-ops/node_modules/.pnpm/pdfjs-dist@5.6.205/node_modules/pdfjs-dist/build/pdf.mjs');
     pdfjsLib$1.GlobalWorkerOptions.workerSrc = "";
   }
@@ -32170,6 +33968,82 @@ async function parseMenuFileToRows(buffer, filename) {
   };
 }
 
+function normalizeLoose(s) {
+  return s.trim().toLowerCase().replace(/\s+/g, " ");
+}
+function compactAlpha(s) {
+  return normalizeLoose(s).replace(/[^a-z0-9]/g, "");
+}
+function keyVariants(raw) {
+  const n = normalizeLoose(raw);
+  const c = compactAlpha(raw);
+  const out = [];
+  if (n.length > 0) out.push(`n:${n}`);
+  if (c.length > 0) out.push(`c:${c}`);
+  return out;
+}
+function registerAlias(aliasToGroup, raw, groupKey) {
+  if (raw == null || typeof raw !== "string") return;
+  const t = raw.trim();
+  if (!t) return;
+  for (const vk of keyVariants(t)) {
+    const existing = aliasToGroup.get(vk);
+    if (existing === groupKey) continue;
+    if (existing && existing !== groupKey) continue;
+    aliasToGroup.set(vk, groupKey);
+  }
+}
+async function loadUnifiedLocationGroupResolver(db) {
+  var _a;
+  const aliasToGroup = /* @__PURE__ */ new Map();
+  const locDocs = await db.collection("unified_location").find(
+    {},
+    {
+      projection: {
+        name: 1,
+        primaryName: 1,
+        canonicalName: 1,
+        abbreviation: 1,
+        borkMapping: 1
+      }
+    }
+  ).toArray();
+  for (const doc of locDocs) {
+    const id = String(doc._id);
+    const groupKey = `u:${id}`;
+    registerAlias(aliasToGroup, doc.name, groupKey);
+    registerAlias(aliasToGroup, doc.primaryName, groupKey);
+    registerAlias(aliasToGroup, doc.canonicalName, groupKey);
+    registerAlias(aliasToGroup, doc.abbreviation, groupKey);
+    const bm = doc.borkMapping;
+    if (bm == null ? void 0 : bm.borkLocationName) registerAlias(aliasToGroup, bm.borkLocationName, groupKey);
+  }
+  const mappingRows = await db.collection("bork_unified_location_mapping").find({}).toArray();
+  for (const row of mappingRows) {
+    const uid = (_a = row.unifiedLocationId) != null ? _a : row.unified_location_id;
+    if (uid == null) continue;
+    const groupKey = `u:${String(uid)}`;
+    registerAlias(aliasToGroup, row.unifiedLocationName, groupKey);
+    registerAlias(aliasToGroup, row.borkLocationName, groupKey);
+  }
+  const resolveGroupKey = (raw) => {
+    if (raw == null || typeof raw !== "string") return null;
+    const t = raw.trim();
+    if (!t) return null;
+    for (const vk of keyVariants(t)) {
+      const g = aliasToGroup.get(vk);
+      if (g) return g;
+    }
+    const fb = canonicalVenueKeyForBorkMatching(t);
+    return fb ? `f:${fb}` : null;
+  };
+  const groupKeyFromBasisLocationId = (id) => {
+    if (id == null || String(id).trim() === "") return null;
+    return `u:${String(id).trim()}`;
+  };
+  return { resolveGroupKey, groupKeyFromBasisLocationId };
+}
+
 const warnOnceSet = /* @__PURE__ */ new Set();
 const DEFAULT_ENDPOINT = "https://api.iconify.design";
 const _rkMhOj = defineCachedEventHandler(async (event) => {
@@ -32230,10 +34104,14 @@ const _rkMhOj = defineCachedEventHandler(async (event) => {
   // 1 week
 });
 
+const _lazy_YeQtu5 = () => Promise.resolve().then(function () { return authorize_get$1; });
+const _lazy_mFBrTd = () => Promise.resolve().then(function () { return callback_get$1; });
+const _lazy_ld8Iwt = () => Promise.resolve().then(function () { return sales_get$7; });
 const _lazy_rpoMxL = () => Promise.resolve().then(function () { return credentials_get$3; });
 const _lazy_Fk11Zg = () => Promise.resolve().then(function () { return credentials_post$3; });
 const _lazy_0fNa4b = () => Promise.resolve().then(function () { return cron_get$3; });
 const _lazy_56hgXw = () => Promise.resolve().then(function () { return cron_post$3; });
+const _lazy_XUGIDA = () => Promise.resolve().then(function () { return dayBreakdownV2_get$1; });
 const _lazy_9B1hFx = () => Promise.resolve().then(function () { return dayBreakdown_get$1; });
 const _lazy_VkZeTR = () => Promise.resolve().then(function () { return locations_get$3; });
 const _lazy_GrR807 = () => Promise.resolve().then(function () { return runScheduled_get$3; });
@@ -32242,14 +34120,14 @@ const _lazy_ir2wis = () => Promise.resolve().then(function () { return dataInteg
 const _lazy_fiyqpy = () => Promise.resolve().then(function () { return insights_get$1; });
 const _lazy_gJJ0yZ = () => Promise.resolve().then(function () { return locations_get$1; });
 const _lazy_7ki8Q4 = () => Promise.resolve().then(function () { return bundle_get$1; });
-const _lazy_GI_DGY = () => Promise.resolve().then(function () { return labor_get$1; });
+const _lazy_GI_DGY = () => Promise.resolve().then(function () { return labor_get$3; });
 const _lazy_Bpe9Sc = () => Promise.resolve().then(function () { return revenueBreakdown_get$1; });
 const _lazy_3d9XzO = () => Promise.resolve().then(function () { return summary_get$1; });
 const _lazy_ddvbvh = () => Promise.resolve().then(function () { return overview_get$1; });
 const _lazy_b9OPGV = () => Promise.resolve().then(function () { return productivity_get$1; });
 const _lazy_PkLaTv = () => Promise.resolve().then(function () { return products_get$1; });
 const _lazy_JmL3hN = () => Promise.resolve().then(function () { return revenue_get$1; });
-const _lazy_xkC3wT = () => Promise.resolve().then(function () { return sales_get$3; });
+const _lazy_xkC3wT = () => Promise.resolve().then(function () { return sales_get$5; });
 const _lazy_6ws9ek = () => Promise.resolve().then(function () { return workload_get$1; });
 const _lazy_vALsC_ = () => Promise.resolve().then(function () { return run_get$1; });
 const _lazy_4juWGc = () => Promise.resolve().then(function () { return fieldMapping_get$1; });
@@ -32267,22 +34145,28 @@ const _lazy_YbJ2l7 = () => Promise.resolve().then(function () { return hoursCons
 const _lazy_FFzJl2 = () => Promise.resolve().then(function () { return hoursRowDetail_get$1; });
 const _lazy_r81Cx2 = () => Promise.resolve().then(function () { return hoursRowRecords_get$1; });
 const _lazy_K_T_pb = () => Promise.resolve().then(function () { return _id__get$7; });
+const _lazy_rb2mwi = () => Promise.resolve().then(function () { return backfillBasisReports_post$1; });
 const _lazy_t9l008 = () => Promise.resolve().then(function () { return basisReport_get$1; });
 const _lazy_5uSL73 = () => Promise.resolve().then(function () { return foodBeverage_get$1; });
 const _lazy_1Py5Rg = () => Promise.resolve().then(function () { return productMix_get$1; });
 const _lazy_xKhjZi = () => Promise.resolve().then(function () { return salesPerHour_get$1; });
-const _lazy_cOPVhi = () => Promise.resolve().then(function () { return sales_get$1; });
+const _lazy_cOPVhi = () => Promise.resolve().then(function () { return sales_get$3; });
+const _lazy_03hk_w = () => Promise.resolve().then(function () { return debugBarbea_get$1; });
 const _lazy_74gf57 = () => Promise.resolve().then(function () { return contracts_get$1; });
 const _lazy_6hI7Mq = () => Promise.resolve().then(function () { return finance_get$1; });
 const _lazy_OQ7Ga7 = () => Promise.resolve().then(function () { return hours_get$1; });
+const _lazy_YMZXzj = () => Promise.resolve().then(function () { return gmailStatus_get$1; });
 const _lazy_NCD9cK = () => Promise.resolve().then(function () { return list_get$1; });
+const _lazy_wCkXGx = () => Promise.resolve().then(function () { return manualProcessBasis_get$1; });
 const _lazy_qL75kA = () => Promise.resolve().then(function () { return parse_post$1; });
 const _lazy_ly3CSO = () => Promise.resolve().then(function () { return reports_get$1; });
 const _lazy_BTczVc = () => Promise.resolve().then(function () { return processAll_post$1; });
 const _lazy_J1_a1w = () => Promise.resolve().then(function () { return _emailId__post$1; });
+const _lazy_LVnrgB = () => Promise.resolve().then(function () { return reprocessAll_post$1; });
 const _lazy_gQHuwM = () => Promise.resolve().then(function () { return syncScheduled_get$1; });
 const _lazy_LLP8jF = () => Promise.resolve().then(function () { return sync_post$1; });
 const _lazy_mHjFM_ = () => Promise.resolve().then(function () { return _type__get$1; });
+const _lazy_V_PwaS = () => Promise.resolve().then(function () { return testMapper_get$1; });
 const _lazy_jQ_Fom = () => Promise.resolve().then(function () { return unprocessedCount_get$1; });
 const _lazy_FLr57B = () => Promise.resolve().then(function () { return upload_post$1; });
 const _lazy_vrz_G7 = () => Promise.resolve().then(function () { return watch_delete$1; });
@@ -32321,22 +34205,31 @@ const _lazy_cTKOaU = () => Promise.resolve().then(function () { return _todoId__
 const _lazy_aPaNV5 = () => Promise.resolve().then(function () { return index_get$9; });
 const _lazy_GiLNIi = () => Promise.resolve().then(function () { return index_post$3; });
 const _lazy_8bAYYr = () => Promise.resolve().then(function () { return salesAggregatedProducts_get$1; });
+const _lazy_Efi6wb = () => Promise.resolve().then(function () { return salesAggregatedV2_get; });
 const _lazy_MxW0tk = () => Promise.resolve().then(function () { return salesAggregated_get$1; });
 const _lazy_Mwgp_z = () => Promise.resolve().then(function () { return index_get$7; });
 const _lazy_l24SXQ = () => Promise.resolve().then(function () { return _id__delete$1; });
 const _lazy_s6toDC = () => Promise.resolve().then(function () { return index_get$5; });
 const _lazy_225H4_ = () => Promise.resolve().then(function () { return index_post$1; });
 const _lazy_jRvml4 = () => Promise.resolve().then(function () { return index_get$3; });
+const _lazy_705EJ4 = () => Promise.resolve().then(function () { return trigger_post$1; });
+const _lazy_NYaGeS = () => Promise.resolve().then(function () { return dashboard_get$1; });
+const _lazy_k5UGFT = () => Promise.resolve().then(function () { return labor_get$1; });
+const _lazy_DuZCYP = () => Promise.resolve().then(function () { return sales_get$1; });
 const _lazy_90ItQx = () => Promise.resolve().then(function () { return active_get$1; });
 const _lazy_ILK1q4 = () => Promise.resolve().then(function () { return index_get$1; });
 const _lazy_kONC8c = () => Promise.resolve().then(function () { return renderer$1; });
 
 const handlers = [
   { route: '', handler: _hOix36, lazy: false, middleware: true, method: undefined },
+  { route: '/api/auth/gmail/authorize', handler: _lazy_YeQtu5, lazy: true, middleware: false, method: "get" },
+  { route: '/api/auth/gmail/callback', handler: _lazy_mFBrTd, lazy: true, middleware: false, method: "get" },
+  { route: '/api/bork/sales', handler: _lazy_ld8Iwt, lazy: true, middleware: false, method: "get" },
   { route: '/api/bork/v2/credentials', handler: _lazy_rpoMxL, lazy: true, middleware: false, method: "get" },
   { route: '/api/bork/v2/credentials', handler: _lazy_Fk11Zg, lazy: true, middleware: false, method: "post" },
   { route: '/api/bork/v2/cron', handler: _lazy_0fNa4b, lazy: true, middleware: false, method: "get" },
   { route: '/api/bork/v2/cron', handler: _lazy_56hgXw, lazy: true, middleware: false, method: "post" },
+  { route: '/api/bork/v2/day-breakdown-v2', handler: _lazy_XUGIDA, lazy: true, middleware: false, method: "get" },
   { route: '/api/bork/v2/day-breakdown', handler: _lazy_9B1hFx, lazy: true, middleware: false, method: "get" },
   { route: '/api/bork/v2/locations', handler: _lazy_VkZeTR, lazy: true, middleware: false, method: "get" },
   { route: '/api/bork/v2/run-scheduled', handler: _lazy_GrR807, lazy: true, middleware: false, method: "get" },
@@ -32370,22 +34263,28 @@ const handlers = [
   { route: '/api/hours-row-detail', handler: _lazy_FFzJl2, lazy: true, middleware: false, method: "get" },
   { route: '/api/hours-row-records', handler: _lazy_r81Cx2, lazy: true, middleware: false, method: "get" },
   { route: '/api/inbox/:id', handler: _lazy_K_T_pb, lazy: true, middleware: false, method: "get" },
+  { route: '/api/inbox/backfill-basis-reports', handler: _lazy_rb2mwi, lazy: true, middleware: false, method: "post" },
   { route: '/api/inbox/bork/basis-report', handler: _lazy_t9l008, lazy: true, middleware: false, method: "get" },
   { route: '/api/inbox/bork/food-beverage', handler: _lazy_5uSL73, lazy: true, middleware: false, method: "get" },
   { route: '/api/inbox/bork/product-mix', handler: _lazy_1Py5Rg, lazy: true, middleware: false, method: "get" },
   { route: '/api/inbox/bork/sales-per-hour', handler: _lazy_xKhjZi, lazy: true, middleware: false, method: "get" },
   { route: '/api/inbox/bork/sales', handler: _lazy_cOPVhi, lazy: true, middleware: false, method: "get" },
+  { route: '/api/inbox/debug-barbea', handler: _lazy_03hk_w, lazy: true, middleware: false, method: "get" },
   { route: '/api/inbox/eitje/contracts', handler: _lazy_74gf57, lazy: true, middleware: false, method: "get" },
   { route: '/api/inbox/eitje/finance', handler: _lazy_6hI7Mq, lazy: true, middleware: false, method: "get" },
   { route: '/api/inbox/eitje/hours', handler: _lazy_OQ7Ga7, lazy: true, middleware: false, method: "get" },
+  { route: '/api/inbox/gmail-status', handler: _lazy_YMZXzj, lazy: true, middleware: false, method: "get" },
   { route: '/api/inbox/list', handler: _lazy_NCD9cK, lazy: true, middleware: false, method: "get" },
+  { route: '/api/inbox/manual-process-basis', handler: _lazy_wCkXGx, lazy: true, middleware: false, method: "get" },
   { route: '/api/inbox/parse', handler: _lazy_qL75kA, lazy: true, middleware: false, method: "post" },
   { route: '/api/inbox/power-bi/reports', handler: _lazy_ly3CSO, lazy: true, middleware: false, method: "get" },
   { route: '/api/inbox/process-all', handler: _lazy_BTczVc, lazy: true, middleware: false, method: "post" },
   { route: '/api/inbox/process/:emailId', handler: _lazy_J1_a1w, lazy: true, middleware: false, method: "post" },
+  { route: '/api/inbox/reprocess-all', handler: _lazy_LVnrgB, lazy: true, middleware: false, method: "post" },
   { route: '/api/inbox/sync-scheduled', handler: _lazy_gQHuwM, lazy: true, middleware: false, method: "get" },
   { route: '/api/inbox/sync', handler: _lazy_LLP8jF, lazy: true, middleware: false, method: "post" },
   { route: '/api/inbox/test-data/:type', handler: _lazy_mHjFM_, lazy: true, middleware: false, method: "get" },
+  { route: '/api/inbox/test-mapper', handler: _lazy_V_PwaS, lazy: true, middleware: false, method: "get" },
   { route: '/api/inbox/unprocessed-count', handler: _lazy_jQ_Fom, lazy: true, middleware: false, method: "get" },
   { route: '/api/inbox/upload', handler: _lazy_FLr57B, lazy: true, middleware: false, method: "post" },
   { route: '/api/inbox/watch', handler: _lazy_vrz_G7, lazy: true, middleware: false, method: "delete" },
@@ -32424,12 +34323,17 @@ const handlers = [
   { route: '/api/notes', handler: _lazy_aPaNV5, lazy: true, middleware: false, method: "get" },
   { route: '/api/notes', handler: _lazy_GiLNIi, lazy: true, middleware: false, method: "post" },
   { route: '/api/sales-aggregated-products', handler: _lazy_8bAYYr, lazy: true, middleware: false, method: "get" },
+  { route: '/api/sales-aggregated-v2', handler: _lazy_Efi6wb, lazy: true, middleware: false, method: "get" },
   { route: '/api/sales-aggregated', handler: _lazy_MxW0tk, lazy: true, middleware: false, method: "get" },
   { route: '/api/tags', handler: _lazy_Mwgp_z, lazy: true, middleware: false, method: "get" },
   { route: '/api/teams/:id', handler: _lazy_l24SXQ, lazy: true, middleware: false, method: "delete" },
   { route: '/api/teams', handler: _lazy_s6toDC, lazy: true, middleware: false, method: "get" },
   { route: '/api/teams', handler: _lazy_225H4_, lazy: true, middleware: false, method: "post" },
   { route: '/api/unified-users', handler: _lazy_jRvml4, lazy: true, middleware: false, method: "get" },
+  { route: '/api/v3/aggregation/trigger', handler: _lazy_705EJ4, lazy: true, middleware: false, method: "post" },
+  { route: '/api/v3/dashboard', handler: _lazy_NYaGeS, lazy: true, middleware: false, method: "get" },
+  { route: '/api/v3/labor', handler: _lazy_k5UGFT, lazy: true, middleware: false, method: "get" },
+  { route: '/api/v3/sales', handler: _lazy_DuZCYP, lazy: true, middleware: false, method: "get" },
   { route: '/api/workers/active', handler: _lazy_90ItQx, lazy: true, middleware: false, method: "get" },
   { route: '/api/workers', handler: _lazy_ILK1q4, lazy: true, middleware: false, method: "get" },
   { route: '/__nuxt_error', handler: _lazy_kONC8c, lazy: true, middleware: false, method: undefined },
@@ -32710,6 +34614,39 @@ const styles$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
   default: styles
 }, Symbol.toStringTag, { value: 'Module' }));
 
+const ACCOUNT_ID = "default";
+async function saveGmailRefreshToken(refreshToken) {
+  const db = await getDb();
+  const col = db.collection(INBOX_COLLECTIONS.gmailOAuthToken);
+  await col.updateOne(
+    { accountId: ACCOUNT_ID },
+    {
+      $set: {
+        refreshToken,
+        updatedAt: /* @__PURE__ */ new Date()
+      },
+      $setOnInsert: {
+        accountId: ACCOUNT_ID,
+        createdAt: /* @__PURE__ */ new Date()
+      }
+    },
+    { upsert: true }
+  );
+}
+async function getGmailRefreshToken() {
+  var _a;
+  const db = await getDb();
+  const col = db.collection(INBOX_COLLECTIONS.gmailOAuthToken);
+  const doc = await col.findOne({ accountId: ACCOUNT_ID });
+  const token = (_a = doc == null ? void 0 : doc.refreshToken) != null ? _a : null;
+  console.log("[gmailOAuthService] getGmailRefreshToken found:", !!token, token ? `${token.substring(0, 20)}...` : "null");
+  return token;
+}
+async function isGmailConnected() {
+  const token = await getGmailRefreshToken();
+  return token !== null && token.length > 0;
+}
+
 var __defProp = Object.defineProperty;
 var __defNormalProp = (obj, key, value) => key in obj ? __defProp(obj, key, { enumerable: true, configurable: true, writable: true, value }) : obj[key] = value;
 var __publicField = (obj, key, value) => __defNormalProp(obj, typeof key !== "symbol" ? key + "" : key, value);
@@ -32721,13 +34658,25 @@ class GmailApiService {
   async initialize() {
     const clientId = process.env.GMAIL_CLIENT_ID;
     const clientSecret = process.env.GMAIL_CLIENT_SECRET;
-    const refreshToken = process.env.GMAIL_REFRESH_TOKEN;
-    const redirectUri = getGmailOAuthRedirectUri();
-    if (!clientId || !clientSecret || !refreshToken) {
+    if (!clientId || !clientSecret) {
       throw new Error(
-        "Gmail OAuth2 credentials missing. Set GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, and GMAIL_REFRESH_TOKEN in .env"
+        "GMAIL_CLIENT_ID or GMAIL_CLIENT_SECRET missing"
       );
     }
+    let refreshToken = process.env.GMAIL_REFRESH_TOKEN;
+    if (!refreshToken) {
+      refreshToken = await getGmailRefreshToken();
+    }
+    if (!refreshToken) {
+      throw new Error(
+        "No refresh token found. Connect Gmail using the UI first."
+      );
+    }
+    const redirectUri = getGmailRedirectUri();
+    console.log("[gmailApiService] Initializing with:");
+    console.log("  - clientId:", clientId.slice(0, 20) + "...");
+    console.log("  - redirectUri:", redirectUri);
+    console.log("  - refreshToken:", refreshToken.slice(0, 20) + "...");
     const oauth2Client = new google.auth.OAuth2(clientId, clientSecret, redirectUri);
     oauth2Client.setCredentials({ refresh_token: refreshToken });
     this.auth = oauth2Client;
@@ -32739,34 +34688,39 @@ class GmailApiService {
     }
   }
   async fetchEmails(options = {}) {
-    var _a;
+    var _a, _b;
     await this.ensureInitialized();
     if (!this.gmail) {
       throw new Error("Gmail client not initialized");
     }
-    const inboxAddress = process.env.GMAIL_INBOX_ADDRESS || "inboxhaagsenieuwehorecagroep@gmail.com";
-    const query = options.query || `to:${inboxAddress}`;
-    const response = await this.gmail.users.messages.list({
-      userId: "me",
-      maxResults: options.maxResults || 50,
-      q: query,
-      pageToken: options.pageToken
-    });
-    const messageIds = ((_a = response.data.messages) == null ? void 0 : _a.map((msg) => msg.id || "").filter(Boolean)) || [];
-    if (messageIds.length === 0) {
+    const envQuery = (_a = process.env.GMAIL_SYNC_QUERY) == null ? void 0 : _a.trim();
+    const query = options.query || envQuery || "in:inbox";
+    try {
+      const response = await this.gmail.users.messages.list({
+        userId: "me",
+        maxResults: options.maxResults || 50,
+        q: query,
+        pageToken: options.pageToken
+      });
+      const messageIds = ((_b = response.data.messages) == null ? void 0 : _b.map((msg) => msg.id || "").filter(Boolean)) || [];
+      if (messageIds.length === 0) {
+        return {
+          messages: [],
+          nextPageToken: response.data.nextPageToken || void 0,
+          resultSizeEstimate: response.data.resultSizeEstimate || 0
+        };
+      }
+      const messagePromises = messageIds.map((id) => this.getMessage(id));
+      const messages = await Promise.all(messagePromises);
       return {
-        messages: [],
+        messages: messages.filter((msg) => msg !== null),
         nextPageToken: response.data.nextPageToken || void 0,
         resultSizeEstimate: response.data.resultSizeEstimate || 0
       };
+    } catch (err) {
+      console.error("[gmailApiService] fetchEmails error:", err);
+      throw err;
     }
-    const messagePromises = messageIds.map((id) => this.getMessage(id));
-    const messages = await Promise.all(messagePromises);
-    return {
-      messages: messages.filter((msg) => msg !== null),
-      nextPageToken: response.data.nextPageToken || void 0,
-      resultSizeEstimate: response.data.resultSizeEstimate || 0
-    };
   }
   async getMessage(messageId) {
     await this.ensureInitialized();
@@ -32808,25 +34762,10 @@ class GmailApiService {
       id: attachmentId
     });
     return {
-      attachmentId,
+      attachmentId: response.data.id || attachmentId,
       size: parseInt(response.data.size || "0", 10),
       data: response.data.data || void 0
     };
-  }
-  getAuthorizationUrl() {
-    const clientId = process.env.GMAIL_CLIENT_ID;
-    const clientSecret = process.env.GMAIL_CLIENT_SECRET;
-    const redirectUri = getGmailOAuthRedirectUri();
-    if (!clientId || !clientSecret) {
-      throw new Error("Gmail OAuth2 credentials missing");
-    }
-    const oauth2Client = new google.auth.OAuth2(clientId, clientSecret, redirectUri);
-    const scopes = ["https://www.googleapis.com/auth/gmail.readonly"];
-    return oauth2Client.generateAuthUrl({
-      access_type: "offline",
-      scope: scopes,
-      prompt: "consent"
-    });
   }
 }
 const gmailApiService = new GmailApiService();
@@ -33448,7 +35387,7 @@ function getCollectionName(documentType) {
   }
 }
 function isTestDataType(documentType) {
-  return ["sales", "product_mix", "food_beverage", "basis_report", "product_sales_per_hour"].includes(documentType);
+  return ["sales", "product_mix", "food_beverage", "product_sales_per_hour"].includes(documentType);
 }
 async function storeRawData(parsedData, documentType, options) {
   if (!isTestDataType(documentType)) {
@@ -33856,7 +35795,8 @@ async function getEmailDocById(id) {
   }
 }
 
-async function handleParsedMapping(parseResult, attachmentId, emailId, parsedDataId) {
+async function handleParsedMapping(parseResult, attachmentId, emailId, parsedDataId, emailData) {
+  const db = await getDb();
   if (!parseResult.documentType) return;
   const base = {
     attachmentId,
@@ -33890,34 +35830,62 @@ async function handleParsedMapping(parseResult, attachmentId, emailId, parsedDat
       }))
     });
   } else if (parseResult.documentType !== "formitabele" && parseResult.documentType !== "pasy" && parseResult.documentType !== "coming_soon") {
-    const mappingResult = await dataMappingService.mapToCollection(
-      {
-        ...base,
-        data: { headers: parseResult.headers, rows: parseResult.rows }
-      },
-      parseResult.documentType
-    );
-    await updateParsedData(String(parsedDataId), {
-      mapping: {
-        mappedToCollection: mappingResult.mappedToCollection,
-        matchedRecords: mappingResult.matchedRecords,
-        createdRecords: mappingResult.createdRecords,
-        updatedRecords: mappingResult.updatedRecords
-      },
-      rowsValid: mappingResult.createdRecords + mappingResult.updatedRecords,
-      rowsFailed: mappingResult.failedRecords,
-      validationErrors: mappingResult.errors.map((e) => ({
-        row: e.row,
-        column: "",
-        error: e.error
-      }))
-    });
-    if (parseResult.documentType === "sales") {
-      try {
-        const emailOid = new ObjectId(emailId);
-        await aggregateDailySalesForEmail(emailOid);
-      } catch (error) {
-        console.error("[inboxProcessService] Failed to aggregate daily sales:", error);
+    if (parseResult.documentType === "basis_report" || parseResult.format === "xlsx") {
+      const basisReport = await mapBasisReportXLSX(
+        parseResult,
+        (emailData == null ? void 0 : emailData.fileName) || "",
+        emailData,
+        db
+      );
+      if (basisReport) {
+        const attKey = emailData == null ? void 0 : emailData.attachmentId;
+        const filter = attKey ? { "metadata.source_attachment_id": attKey } : { date: basisReport.date, location: basisReport.location };
+        await db.collection("inbox-bork-basis-report").updateOne(
+          filter,
+          { $set: { ...basisReport, updated_at: /* @__PURE__ */ new Date() } },
+          { upsert: true }
+        );
+        await updateParsedData(String(parsedDataId), {
+          mapping: {
+            mappedToCollection: "inbox-bork-basis-report",
+            matchedRecords: 1,
+            createdRecords: 1,
+            updatedRecords: 0
+          },
+          rowsValid: 1,
+          rowsFailed: 0
+        });
+      }
+    } else {
+      const mappingResult = await dataMappingService.mapToCollection(
+        {
+          ...base,
+          data: { headers: parseResult.headers, rows: parseResult.rows }
+        },
+        parseResult.documentType
+      );
+      await updateParsedData(String(parsedDataId), {
+        mapping: {
+          mappedToCollection: mappingResult.mappedToCollection,
+          matchedRecords: mappingResult.matchedRecords,
+          createdRecords: mappingResult.createdRecords,
+          updatedRecords: mappingResult.updatedRecords
+        },
+        rowsValid: mappingResult.createdRecords + mappingResult.updatedRecords,
+        rowsFailed: mappingResult.failedRecords,
+        validationErrors: mappingResult.errors.map((e) => ({
+          row: e.row,
+          column: "",
+          error: e.error
+        }))
+      });
+      if (parseResult.documentType === "sales") {
+        try {
+          const emailOid = new ObjectId(emailId);
+          await aggregateDailySalesForEmail(emailOid);
+        } catch (error) {
+          console.error("[inboxProcessService] Failed to aggregate daily sales:", error);
+        }
       }
     }
   }
@@ -33996,6 +35964,19 @@ async function processEmailAttachments(emailId) {
         attachmentsFailed++;
         continue;
       }
+      const emailMetadata = {};
+      if (email.subject) {
+        const dateMatch = email.subject.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+        if (dateMatch) {
+          const [, d, m, y] = dateMatch;
+          emailMetadata.extracted_date = `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+        }
+        const subjectLocation = matchVenueLocationFromText(email.subject);
+        if (subjectLocation) {
+          emailMetadata.extracted_location = subjectLocation;
+        }
+        emailMetadata.email_subject = email.subject;
+      }
       const meta = (_c = attachment.metadata) != null ? _c : {};
       await updateAttachment(attId, {
         documentType: parseResult.documentType,
@@ -34020,11 +36001,24 @@ async function processEmailAttachments(emailId) {
         data: {
           headers: parseResult.headers,
           rows: parseResult.rows,
-          metadata: parseResult.metadata
+          metadata: { ...parseResult.metadata, ...emailMetadata }
         }
       });
       await updateAttachment(attId, { parsedDataRef: parsedInsert._id });
-      await handleParsedMapping(parseResult, attId, emailId, parsedInsert._id);
+      await handleParsedMapping(
+        parseResult,
+        attId,
+        emailId,
+        parsedInsert._id,
+        {
+          emailId,
+          subject: email.subject,
+          receivedAt: email.receivedAt,
+          fileName: String(attachment.fileName),
+          messageId,
+          attachmentId: attId
+        }
+      );
       await updateAttachment(attId, { parseStatus: "success" });
       await insertProcessingLog({
         emailId,
@@ -34060,12 +36054,9 @@ async function processEmailAttachments(emailId) {
   };
 }
 async function processAllUnprocessed(maxEmails) {
-  var _a, _b, _c, _d;
-  const { getDb } = await Promise.resolve().then(function () { return db; });
   const { INBOX_COLLECTIONS } = await Promise.resolve().then(function () { return constants; });
-  const db$1 = await getDb();
-  const col = db$1.collection(INBOX_COLLECTIONS.inboxEmail);
-  const emails = await col.find({
+  const db = await getDb();
+  const emails = await db.collection(INBOX_COLLECTIONS.inboxEmail).find({
     $or: [{ status: { $ne: "completed" } }, { status: { $exists: false } }]
   }).sort({ receivedAt: -1 }).limit(maxEmails).toArray();
   let totalProcessed = 0;
@@ -34073,193 +36064,31 @@ async function processAllUnprocessed(maxEmails) {
   const results = [];
   for (const email of emails) {
     const emailIdStr = String(email._id);
-    const unprocessed = await findAttachmentsByEmail(email._id, {
-      parseStatus: { $ne: "success" }
-    });
-    if (unprocessed.length === 0) {
-      await updateEmail(emailIdStr, { status: "completed" });
-      continue;
-    }
-    const messageId = String(email.messageId);
-    await updateEmail(emailIdStr, { status: "processing", lastAttempt: /* @__PURE__ */ new Date() });
-    let attachmentsProcessed = 0;
-    let attachmentsFailed = 0;
-    for (const attachment of unprocessed) {
-      const attId = String(attachment._id);
-      try {
-        await updateAttachment(attId, { parseStatus: "parsing" });
-        const gmailAttachment = await gmailApiService.downloadAttachment(
-          messageId,
-          String(attachment.googleAttachmentId)
-        );
-        if (!gmailAttachment.data) {
-          throw new Error("Failed to download attachment data");
-        }
-        const fileBuffer = Buffer$1.from(gmailAttachment.data, "base64");
-        const lowerName = String(attachment.fileName).toLowerCase();
-        const lowerMime = String(attachment.mimeType).toLowerCase();
-        const isHtml = lowerName.endsWith(".html") || lowerName.endsWith(".htm") || lowerMime.includes("text/html");
-        if (isHtml) {
-          await updateAttachment(attId, {
-            parseStatus: "success",
-            documentType: "other",
-            metadata: { ...attachment.metadata, format: "unknown" }
-          });
-          attachmentsProcessed++;
-          continue;
-        }
-        const isCsvByMimeOrExt = lowerMime.includes("csv") || lowerName.endsWith(".csv");
-        const parseResult = await documentParserService.parseDocument({
-          fileName: String(attachment.fileName),
-          mimeType: String(attachment.mimeType),
-          data: isCsvByMimeOrExt ? fileBuffer.toString("utf-8") : fileBuffer,
-          autoDetectType: true
-        });
-        if (!parseResult.success || !parseResult.documentType) {
-          await updateAttachment(attId, {
-            parseStatus: "failed",
-            parseError: parseResult.error || "Parsing failed"
-          });
-          attachmentsFailed++;
-          continue;
-        }
-        const meta = (_a = attachment.metadata) != null ? _a : {};
-        await updateAttachment(attId, {
-          documentType: parseResult.documentType,
-          metadata: {
-            format: parseResult.format,
-            sheets: (_b = parseResult.metadata) == null ? void 0 : _b.sheets,
-            delimiter: (_c = parseResult.metadata) == null ? void 0 : _c.delimiter,
-            rowCount: parseResult.rowCount,
-            columnCount: parseResult.headers.length,
-            userInfo: (_d = parseResult.metadata) == null ? void 0 : _d.userInfo,
-            ...meta
-          }
-        });
-        const parsedInsert = await insertParsedData({
-          attachmentId: attId,
+    try {
+      const result = await processEmailAttachments(emailIdStr);
+      if (result.attachmentsProcessed > 0) {
+        totalProcessed++;
+        results.push({
           emailId: emailIdStr,
-          documentType: parseResult.documentType,
-          format: parseResult.format,
-          rowsProcessed: parseResult.rowCount,
-          rowsValid: parseResult.rowCount,
-          rowsFailed: 0,
-          data: {
-            headers: parseResult.headers,
-            rows: parseResult.rows,
-            metadata: parseResult.metadata
-          }
+          success: result.success,
+          attachmentsProcessed: result.attachmentsProcessed
         });
-        await updateAttachment(attId, { parsedDataRef: parsedInsert._id });
-        if (isTestDataType(parseResult.documentType)) {
-          const rawStorageResult = await storeRawData(
-            {
-              attachmentId: attId,
-              emailId: emailIdStr,
-              documentType: parseResult.documentType,
-              format: parseResult.format,
-              rowsProcessed: parseResult.rowCount,
-              rowsValid: parseResult.rowCount,
-              rowsFailed: 0,
-              data: {
-                headers: parseResult.headers,
-                rows: parseResult.rows,
-                metadata: parseResult.metadata
-              }
-            },
-            parseResult.documentType,
-            { fileName: String(attachment.fileName) }
-          );
-          await updateParsedData(String(parsedInsert._id), {
-            mapping: {
-              mappedToCollection: rawStorageResult.collectionName,
-              matchedRecords: 0,
-              createdRecords: rawStorageResult.recordsCreated,
-              updatedRecords: 0
-            },
-            rowsValid: rawStorageResult.recordsCreated,
-            rowsFailed: rawStorageResult.recordsFailed,
-            validationErrors: rawStorageResult.errors.map((e) => ({
-              row: e.row,
-              column: "",
-              error: e.error
-            }))
-          });
-        } else if (parseResult.documentType !== "formitabele" && parseResult.documentType !== "pasy" && parseResult.documentType !== "coming_soon") {
-          const mappingResult = await dataMappingService.mapToCollection(
-            {
-              attachmentId: attId,
-              emailId: emailIdStr,
-              documentType: parseResult.documentType,
-              format: parseResult.format,
-              rowsProcessed: parseResult.rowCount,
-              rowsValid: parseResult.rowCount,
-              rowsFailed: 0,
-              data: {
-                headers: parseResult.headers,
-                rows: parseResult.rows
-              }
-            },
-            parseResult.documentType
-          );
-          await updateParsedData(String(parsedInsert._id), {
-            mapping: {
-              mappedToCollection: mappingResult.mappedToCollection,
-              matchedRecords: mappingResult.matchedRecords,
-              createdRecords: mappingResult.createdRecords,
-              updatedRecords: mappingResult.updatedRecords
-            },
-            rowsValid: mappingResult.createdRecords + mappingResult.updatedRecords,
-            rowsFailed: mappingResult.failedRecords,
-            validationErrors: mappingResult.errors.map((e) => ({
-              row: e.row,
-              column: "",
-              error: e.error
-            }))
-          });
-        }
-        await updateAttachment(attId, { parseStatus: "success" });
-        await insertProcessingLog({
+      } else {
+        totalFailed++;
+        results.push({
           emailId: emailIdStr,
-          attachmentId: attId,
-          eventType: "store",
-          status: "success",
-          message: `Successfully parsed and stored ${parseResult.rowCount} rows`
+          success: false,
+          attachmentsProcessed: 0,
+          error: "No attachments processed"
         });
-        attachmentsProcessed++;
-      } catch (error) {
-        await updateAttachment(attId, {
-          parseStatus: "failed",
-          parseError: error instanceof Error ? error.message : "Unknown error"
-        });
-        await insertProcessingLog({
-          emailId: emailIdStr,
-          attachmentId: attId,
-          eventType: "error",
-          status: "error",
-          message: `Processing failed: ${error instanceof Error ? error.message : "Unknown error"}`
-        });
-        attachmentsFailed++;
       }
-    }
-    await updateEmail(emailIdStr, {
-      status: attachmentsFailed === 0 ? "completed" : "failed",
-      processedAt: /* @__PURE__ */ new Date()
-    });
-    if (attachmentsProcessed > 0) {
-      totalProcessed++;
-      results.push({
-        emailId: emailIdStr,
-        success: attachmentsFailed === 0,
-        attachmentsProcessed
-      });
-    } else {
+    } catch (error) {
       totalFailed++;
       results.push({
         emailId: emailIdStr,
         success: false,
         attachmentsProcessed: 0,
-        error: "No attachments processed"
+        error: error instanceof Error ? error.message : "Unknown error"
       });
     }
   }
@@ -34284,6 +36113,12 @@ async function processAllUnprocessed(maxEmails) {
     results
   };
 }
+
+const inboxProcessService = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+  __proto__: null,
+  processAllUnprocessed: processAllUnprocessed,
+  processEmailAttachments: processEmailAttachments
+}, Symbol.toStringTag, { value: 'Module' }));
 
 async function runInboxGmailSync(options) {
   var _a;
@@ -34403,6 +36238,119 @@ const borkEitjeDaily = defineTask({
 const borkEitjeDaily$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
   __proto__: null,
   default: borkEitjeDaily
+}, Symbol.toStringTag, { value: 'Module' }));
+
+const authorize_get = defineEventHandler(async (event) => {
+  const clientId = process.env.GMAIL_CLIENT_ID;
+  const clientSecret = process.env.GMAIL_CLIENT_SECRET;
+  if (!clientId || !clientSecret) {
+    throw createError({
+      statusCode: 500,
+      statusMessage: "Gmail OAuth credentials not configured on server"
+    });
+  }
+  const redirectUri = getGmailRedirectUri();
+  const oauth2Client = new google.auth.OAuth2(clientId, clientSecret, redirectUri);
+  const authUrl = oauth2Client.generateAuthUrl({
+    access_type: "offline",
+    scope: ["https://www.googleapis.com/auth/gmail.readonly"],
+    prompt: "consent"
+  });
+  console.log("[authorize] Redirecting to Google with redirectUri:", redirectUri);
+  return sendRedirect(event, authUrl);
+});
+
+const authorize_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+  __proto__: null,
+  default: authorize_get
+}, Symbol.toStringTag, { value: 'Module' }));
+
+const callback_get = defineEventHandler(async (event) => {
+  const clientId = process.env.GMAIL_CLIENT_ID;
+  const clientSecret = process.env.GMAIL_CLIENT_SECRET;
+  if (!clientId || !clientSecret) {
+    return sendRedirect(event, "/daily-ops/inbox?error=server_misconfigured");
+  }
+  const query = getQuery$1(event);
+  const code = query.code;
+  const error = query.error;
+  if (error) {
+    console.log("[callback] OAuth error:", error);
+    return sendRedirect(event, `/daily-ops/inbox?error=${error}`);
+  }
+  if (!code) {
+    console.log("[callback] No code in query");
+    return sendRedirect(event, "/daily-ops/inbox?error=missing_code");
+  }
+  try {
+    const redirectUri = getGmailRedirectUri();
+    const oauth2Client = new google.auth.OAuth2(clientId, clientSecret, redirectUri);
+    console.log("[callback] Exchanging code with redirectUri:", redirectUri);
+    const { tokens } = await oauth2Client.getToken(code);
+    console.log("[callback] Received tokens:", {
+      hasRefresh: !!tokens.refresh_token,
+      hasAccess: !!tokens.access_token,
+      refreshPrefix: tokens.refresh_token ? tokens.refresh_token.slice(0, 20) : "none"
+    });
+    if (!tokens.refresh_token) {
+      console.log("[callback] No refresh_token in response");
+      return sendRedirect(
+        event,
+        "/daily-ops/inbox?error=no_refresh_token&hint=use_prompt_consent"
+      );
+    }
+    await saveGmailRefreshToken(tokens.refresh_token);
+    console.log("[callback] Token saved to DB");
+    return sendRedirect(event, "/daily-ops/inbox?connected=gmail");
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    console.error("[callback] Error:", message);
+    return sendRedirect(
+      event,
+      `/daily-ops/inbox?error=oauth_failed&message=${encodeURIComponent(message)}`
+    );
+  }
+});
+
+const callback_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+  __proto__: null,
+  default: callback_get
+}, Symbol.toStringTag, { value: 'Module' }));
+
+const SALES_LIST_SORT = {
+  date: -1,
+  business_hour: -1,
+  cron_hour: -1,
+  received_at: -1
+};
+const sales_get$6 = defineEventHandler(async (event) => {
+  try {
+    const query = getQuery$1(event);
+    const date = query.date;
+    const location = query.location;
+    const limit = Math.min(parseInt(query.limit) || 30, 365);
+    const db = await getDb();
+    const collection = db.collection("inbox-bork-basis-report");
+    const filter = {};
+    if (date) filter.date = date;
+    if (location) filter.location = { $regex: location, $options: "i" };
+    const reports = await collection.find(filter).sort(SALES_LIST_SORT).limit(limit).toArray();
+    return {
+      success: true,
+      data: reports,
+      count: reports.length
+    };
+  } catch (error) {
+    throw createError({
+      statusCode: 500,
+      statusMessage: error instanceof Error ? error.message : "Failed to fetch sales reports"
+    });
+  }
+});
+
+const sales_get$7 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+  __proto__: null,
+  default: sales_get$6
 }, Symbol.toStringTag, { value: 'Module' }));
 
 const credentials_get$2 = defineEventHandler(async () => {
@@ -34583,7 +36531,231 @@ const cron_post$3 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.definePropert
   default: cron_post$2
 }, Symbol.toStringTag, { value: 'Module' }));
 
+const dayBreakdownV2_get = defineEventHandler(async (event) => {
+  const query = getQuery$1(event);
+  const dateStr = query.date;
+  const location = query.location || "all";
+  const suffix = resolveBorkAggReadSuffix();
+  if (!dateStr) {
+    throw createError({ statusCode: 400, statusMessage: "date parameter required (YYYY-MM-DD)" });
+  }
+  const db = await getDb();
+  const hourlyCollection = `bork_sales_by_hour${suffix}`;
+  const workerCollection = `bork_sales_by_worker${suffix}`;
+  const tableCollection = `bork_sales_by_table${suffix}`;
+  try {
+    const baseQuery = { business_date: dateStr };
+    if (location !== "all") baseQuery.locationName = location;
+    const [hourly, worker, table, product] = await Promise.all([
+      db.collection(hourlyCollection).find(baseQuery).sort({ business_hour: 1 }).toArray(),
+      db.collection(workerCollection).find(baseQuery).sort({ total_revenue: -1 }).toArray(),
+      db.collection(tableCollection).find(baseQuery).sort({ total_revenue: -1 }).toArray(),
+      db.collection(tableCollection).aggregate([
+        { $match: baseQuery },
+        { $unwind: { path: "$products", preserveNullAndEmptyArrays: false } },
+        {
+          $group: {
+            _id: {
+              productId: "$products.productId",
+              productName: "$products.productName"
+            },
+            total_revenue: { $sum: { $ifNull: ["$products.revenue", 0] } },
+            total_quantity: { $sum: { $ifNull: ["$products.quantity", 0] } }
+          }
+        },
+        {
+          $project: {
+            _id: 0,
+            productId: "$_id.productId",
+            productName: "$_id.productName",
+            total_revenue: 1,
+            total_quantity: 1
+          }
+        },
+        { $sort: { total_revenue: -1 } }
+      ]).toArray()
+    ]);
+    return {
+      businessDate: dateStr,
+      location,
+      collectionSuffix: suffix || null,
+      collections: {
+        hourly: hourlyCollection,
+        worker: workerCollection,
+        table: tableCollection,
+        product: tableCollection
+      },
+      hourly,
+      worker,
+      table,
+      product
+    };
+  } catch (e) {
+    console.error("[borkDayBreakdownV2Api]", e);
+    throw createError({ statusCode: 500, statusMessage: String(e) });
+  }
+});
+
+const dayBreakdownV2_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+  __proto__: null,
+  default: dayBreakdownV2_get
+}, Symbol.toStringTag, { value: 'Module' }));
+
+const BASIS_VS_API_TOLERANCE_EUR = 0.02;
+function registerBusinessDateForInstant(d) {
+  var _a, _b;
+  const AMSTERDAM_TZ = "Europe/Amsterdam";
+  const p = new Intl.DateTimeFormat("en-CA", {
+    timeZone: AMSTERDAM_TZ,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).formatToParts(d);
+  const g = (t) => {
+    var _a2, _b2;
+    return (_b2 = (_a2 = p.find((x) => x.type === t)) == null ? void 0 : _a2.value) != null ? _b2 : "";
+  };
+  const cal = `${g("year")}-${g("month")}-${g("day")}`;
+  const hour = parseInt(
+    (_b = (_a = new Intl.DateTimeFormat("en-GB", {
+      timeZone: AMSTERDAM_TZ,
+      hour: "2-digit",
+      hour12: false
+    }).formatToParts(d).find((x) => x.type === "hour")) == null ? void 0 : _a.value) != null ? _b : "0",
+    10
+  );
+  if (hour < 8) return addCalendarDaysISO(cal, -1);
+  return cal;
+}
+function isCompletedRegisterBusinessDate(dateStr, now = /* @__PURE__ */ new Date()) {
+  return dateStr < registerBusinessDateForInstant(now);
+}
+function normalizeLocationLabel(s) {
+  return s.trim().toLowerCase().replace(/\s+/g, " ");
+}
+function sumHourlyRevenueByLocation(rows, locationFilter) {
+  var _a, _b, _c;
+  const m = /* @__PURE__ */ new Map();
+  for (const r of rows) {
+    const loc = String((_a = r.locationName) != null ? _a : "").trim();
+    if (!loc) continue;
+    if (locationFilter !== "all" && loc !== locationFilter) continue;
+    const rev = Number((_b = r.total_revenue) != null ? _b : 0);
+    m.set(loc, ((_c = m.get(loc)) != null ? _c : 0) + rev);
+  }
+  return m;
+}
+function betterBasisReport(a, b) {
+  var _a, _b;
+  const ra = (_a = a.final_revenue_incl_vat) != null ? _a : 0;
+  const rb = (_b = b.final_revenue_incl_vat) != null ? _b : 0;
+  if (ra > 0.02 && rb <= 0.02) return a;
+  if (rb > 0.02 && ra <= 0.02) return b;
+  if (Math.abs(ra - rb) > 0.02) return ra >= rb ? a : b;
+  const ta = a.received_at ? new Date(a.received_at).getTime() : 0;
+  const tb = b.received_at ? new Date(b.received_at).getTime() : 0;
+  return ta >= tb ? a : b;
+}
+function basisReportGroupKey(r, resolver) {
+  var _a, _b, _c;
+  const idKey = resolver.groupKeyFromBasisLocationId(r.location_id);
+  if (idKey) return idKey;
+  return (_c = (_b = resolver.resolveGroupKey(r.location)) != null ? _b : resolver.resolveGroupKey((_a = r.location_raw) != null ? _a : "")) != null ? _c : `legacy:${normalizeLocationLabel(r.location)}`;
+}
+function pickBasisReportsPerLocation(reports, resolver) {
+  const sorted = [...reports].sort((a, b) => {
+    var _a, _b, _c, _d;
+    const bh = ((_a = b.business_hour) != null ? _a : -1) - ((_b = a.business_hour) != null ? _b : -1);
+    if (bh !== 0) return bh;
+    const ch = ((_c = b.cron_hour) != null ? _c : -1) - ((_d = a.cron_hour) != null ? _d : -1);
+    if (ch !== 0) return ch;
+    const ra = a.received_at ? new Date(a.received_at).getTime() : 0;
+    const rb = b.received_at ? new Date(b.received_at).getTime() : 0;
+    return rb - ra;
+  });
+  const byGroup = /* @__PURE__ */ new Map();
+  for (const r of sorted) {
+    const key = basisReportGroupKey(r, resolver);
+    const existing = byGroup.get(key);
+    byGroup.set(key, existing ? betterBasisReport(r, existing) : r);
+  }
+  return byGroup;
+}
+function mapGroupKeyToApiLocation(apiLocations, resolver) {
+  const m = /* @__PURE__ */ new Map();
+  for (const loc of apiLocations) {
+    const g = resolver.resolveGroupKey(loc);
+    if (g && !m.has(g)) m.set(g, loc);
+  }
+  return m;
+}
+function matchApiLocationForBasisReport(report, apiByGroup, resolver) {
+  var _a;
+  const g = basisReportGroupKey(report, resolver);
+  return (_a = apiByGroup.get(g)) != null ? _a : null;
+}
+function addCalendarDaysISO(dateStr, deltaDays) {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d + deltaDays));
+  const yy = dt.getUTCFullYear();
+  const mm = String(dt.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(dt.getUTCDate()).padStart(2, "0");
+  return `${yy}-${mm}-${dd}`;
+}
+function ticketDateHourForBusinessSlot(businessDate, businessHour) {
+  const hour = (businessHour + 8) % 24;
+  if (businessHour <= 15) return { date: businessDate, hour };
+  return { date: addCalendarDaysISO(businessDate, 1), hour };
+}
+function padHourlyFullRegisterDay(rows, businessDate, location) {
+  var _a;
+  const locations = location === "all" ? [...new Set(rows.map((r) => {
+    var _a2;
+    return String((_a2 = r.locationName) != null ? _a2 : "");
+  }).filter(Boolean))].sort() : [location];
+  if (locations.length === 0) return rows;
+  const key = (loc, bh) => `${loc}	${bh}`;
+  const map = /* @__PURE__ */ new Map();
+  for (const r of rows) {
+    const loc = String((_a = r.locationName) != null ? _a : "");
+    const bh = r.business_hour;
+    if (!loc || typeof bh !== "number") continue;
+    map.set(key(loc, bh), r);
+  }
+  const out = [];
+  for (const loc of locations) {
+    for (let bh = 0; bh < 24; bh++) {
+      const k = key(loc, bh);
+      if (map.has(k)) {
+        out.push(map.get(k));
+        continue;
+      }
+      const { date: tDate, hour: tHour } = ticketDateHourForBusinessSlot(businessDate, bh);
+      out.push({
+        _id: `synthetic-hour-${businessDate}-${loc}-${bh}`,
+        business_date: businessDate,
+        business_hour: bh,
+        locationName: loc,
+        date: tDate,
+        hour: tHour,
+        total_revenue: 0,
+        total_quantity: 0,
+        record_count: 0,
+        products: []
+      });
+    }
+  }
+  return out;
+}
+function matchBusinessDayFilter(dateStr, locationQuery) {
+  const dayOrLegacy = {
+    $or: [{ business_date: dateStr }, { business_date: { $exists: false }, date: dateStr }]
+  };
+  if (Object.keys(locationQuery).length === 0) return dayOrLegacy;
+  return { $and: [dayOrLegacy, locationQuery] };
+}
 const dayBreakdown_get = defineEventHandler(async (event) => {
+  var _a, _b, _c;
   const query = getQuery$1(event);
   const dateStr = query.date;
   const location = query.location || "all";
@@ -34591,30 +36763,142 @@ const dayBreakdown_get = defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: "date parameter required (YYYY-MM-DD)" });
   }
   const db = await getDb();
+  const suffixCandidates = listBorkAggReadSuffixCandidates();
   try {
-    const startDate = /* @__PURE__ */ new Date(`${dateStr}T08:00:00Z`);
-    const endDate = new Date(startDate);
-    endDate.setDate(endDate.getDate() + 1);
-    const startDateStr = startDate.toISOString().split("T")[0];
-    const endDateStr = endDate.toISOString().split("T")[0];
-    const dateQuery = { date: { $gte: startDateStr, $lte: endDateStr } };
     const locationQuery = location === "all" ? {} : { locationName: location };
-    const hourly = await db.collection("bork_sales_by_hour").find({ ...dateQuery, ...locationQuery }).sort({ date: 1, hour: 1 }).toArray();
-    const worker = await db.collection("bork_sales_by_worker").find({ ...dateQuery, ...locationQuery }).sort({ total_revenue: -1 }).toArray();
-    const table = await db.collection("bork_sales_by_table").find({ ...dateQuery, ...locationQuery }).sort({ total_revenue: -1 }).toArray();
-    const product = await db.collection("bork_products_master").find({ ...dateQuery, ...locationQuery }).sort({ total_revenue: -1 }).toArray();
+    const dayMatch = matchBusinessDayFilter(dateStr, locationQuery);
+    let suffix = (_a = suffixCandidates[0]) != null ? _a : "";
+    let pickedViaFallback = false;
+    for (let i = 0; i < suffixCandidates.length; i++) {
+      const sfx = (_b = suffixCandidates[i]) != null ? _b : "";
+      const probe = await db.collection(`bork_sales_by_hour${sfx}`).findOne(dayMatch);
+      if (probe) {
+        suffix = sfx;
+        pickedViaFallback = i > 0;
+        break;
+      }
+    }
+    const hourlyColl = `bork_sales_by_hour${suffix}`;
+    const workerColl = `bork_sales_by_worker${suffix}`;
+    const tableColl = `bork_sales_by_table${suffix}`;
+    const guestColl = `bork_sales_by_guest_account${suffix}`;
+    const productColl = `bork_sales_by_product${suffix}`;
+    const hourlyRaw = await db.collection(hourlyColl).find(dayMatch).sort({ business_hour: 1, locationName: 1 }).toArray();
+    const hourly = padHourlyFullRegisterDay(hourlyRaw, dateStr, location);
+    const worker = await db.collection(workerColl).find(dayMatch).sort({ business_hour: 1, locationName: 1, total_revenue: -1 }).toArray();
+    const table = await db.collection(tableColl).find(dayMatch).sort({ business_hour: 1, locationName: 1, total_revenue: -1 }).toArray();
+    const guest = await db.collection(guestColl).find(dayMatch).sort({ business_hour: 1, locationName: 1, total_revenue: -1 }).toArray();
+    const product = await db.collection(productColl).find(dayMatch).sort({ total_revenue: -1 }).toArray();
+    const apiByLoc = sumHourlyRevenueByLocation(hourlyRaw, location === "all" ? "all" : location);
+    const dataHealth = {
+      aggregateSuffixUsed: suffix,
+      aggregateSuffixCandidatesTried: suffixCandidates,
+      pickedViaFallback,
+      hourlyRawCount: hourlyRaw.length,
+      hourlyCollection: hourlyColl,
+      emptyAggregatesMessage: hourlyRaw.length === 0 ? `No documents matched hourly aggregates for this business_date after trying suffixes ${suffixCandidates.map((s) => `"${s || "(none)"}"`).join(", ")} (last read: ${hourlyColl}). Align BORK_AGG_VERSION_SUFFIX with your Mongo collection names or run the V2 rebuild for this date range.` : void 0,
+      fallbackNotice: pickedViaFallback && hourlyRaw.length > 0 ? `Data was loaded from ${hourlyColl}. Consider setting BORK_AGG_VERSION_SUFFIX so the primary suffix matches your DB.` : void 0
+    };
+    let basisReference;
+    if (!isCompletedRegisterBusinessDate(dateStr)) {
+      basisReference = {
+        eligible: false,
+        reason: "Basis comparison runs only for completed register days (business_date strictly before today\u2019s open register day)."
+      };
+    } else {
+      const basisDocs = await db.collection("inbox-bork-basis-report").find({ date: dateStr }).toArray();
+      const resolver = await loadUnifiedLocationGroupResolver(db);
+      const perLoc = pickBasisReportsPerLocation(basisDocs, resolver);
+      const apiLocKeys = [...apiByLoc.keys()].sort((a, b) => a.localeCompare(b, "nl"));
+      const apiByGroup = mapGroupKeyToApiLocation(apiLocKeys, resolver);
+      const rows = [];
+      const usedApi = /* @__PURE__ */ new Set();
+      let basisGrandTotal = 0;
+      let apiGrandTotal = 0;
+      for (const report of perLoc.values()) {
+        if (location !== "all") {
+          const want = resolver.resolveGroupKey(location);
+          if (!want || basisReportGroupKey(report, resolver) !== want) continue;
+        }
+        const basisRev = report.final_revenue_incl_vat;
+        const apiLoc = matchApiLocationForBasisReport(report, apiByGroup, resolver);
+        const apiRev = apiLoc != null ? (_c = apiByLoc.get(apiLoc)) != null ? _c : null : null;
+        if (apiLoc) usedApi.add(apiLoc);
+        const apiNum = apiRev != null ? apiRev : 0;
+        const diff = Math.abs(basisRev - apiNum);
+        const match = diff < BASIS_VS_API_TOLERANCE_EUR;
+        basisGrandTotal += basisRev;
+        apiGrandTotal += apiNum;
+        rows.push({
+          basisLocationLabel: report.location_raw || report.location,
+          matchedApiLocation: apiLoc,
+          basisInclVat: basisRev,
+          apiInclVat: apiRev,
+          diff,
+          match
+        });
+      }
+      for (const [apiLoc, rev] of apiByLoc.entries()) {
+        if (usedApi.has(apiLoc)) continue;
+        rows.push({
+          basisLocationLabel: "\u2014",
+          matchedApiLocation: apiLoc,
+          basisInclVat: null,
+          apiInclVat: rev,
+          diff: rev,
+          match: false
+        });
+        apiGrandTotal += rev;
+      }
+      rows.sort(
+        (a, b) => {
+          var _a2, _b2;
+          return ((_a2 = a.matchedApiLocation) != null ? _a2 : a.basisLocationLabel).localeCompare((_b2 = b.matchedApiLocation) != null ? _b2 : b.basisLocationLabel, "nl");
+        }
+      );
+      let note;
+      if (perLoc.size === 0) {
+        note = "No rows in inbox-bork-basis-report for this date \u2014 ingest Basis Report emails first.";
+      }
+      if (hourlyRaw.length === 0 && perLoc.size > 0) {
+        const extra = "Hourly API aggregates are empty for this date (\u03A3 API = \u20AC0). Fix aggregate collections / rebuild V2 for this business_date before trusting Basis vs API.";
+        note = note ? `${note} ${extra}` : extra;
+      }
+      const overallMatch = rows.length > 0 && rows.every((r) => r.match) && Math.abs(basisGrandTotal - apiGrandTotal) < BASIS_VS_API_TOLERANCE_EUR;
+      basisReference = {
+        eligible: true,
+        collectionSuffix: suffix || null,
+        basisSource: "inbox-bork-basis-report.final_revenue_incl_vat (Netto Sales grand total, incl. VAT)",
+        rows,
+        basisGrandTotal,
+        apiGrandTotal,
+        overallMatch,
+        ...note ? { note } : {}
+      };
+    }
     return {
+      businessDate: dateStr,
       dateRange: {
-        startDate: startDateStr,
-        endDate: endDateStr,
-        startTime: startDate.toISOString(),
-        endTime: endDate.toISOString()
+        startDate: dateStr,
+        endDate: dateStr,
+        note: "Register day = business_date: 08:00 day D through 07:59 morning D+1 (BH0\u2013BH23). Rebuild aggregates after changing the boundary."
       },
+      collectionSuffix: suffix || null,
+      aggregateCollections: {
+        hourly: hourlyColl,
+        worker: workerColl,
+        table: tableColl,
+        guest: guestColl,
+        product: productColl
+      },
+      dataHealth,
       location,
       hourly,
       worker,
       table,
-      product
+      guest,
+      product,
+      basisReference
     };
   } catch (e) {
     console.error("[borkDayBreakdownApi]", e);
@@ -35308,13 +37592,19 @@ const bundle_get = defineEventHandler(async (event) => {
       console.error("[bundle] Failed to resolve location:", e);
     }
   }
-  const [cat, hourBundle, laborInput] = await Promise.all([
+  const [cat, hourBundle, laborInput, inboxBasisExVat] = await Promise.all([
     fetchRevenueByCategoryFromHourAggregates(db, ctx),
     fetchBorkHourAggregatesBundle(db, ctx),
-    fetchLaborMetricsPipelineInput(db, ctx)
+    fetchLaborMetricsPipelineInput(db, ctx),
+    fetchInboxBasisRevenueTotalExVat(db, ctx)
   ]);
-  const summary = buildDailyOpsSummaryDto(ctx, laborInput.revMap, laborInput.labMap);
-  const revenue = buildDailyOpsRevenueBreakdownDto(ctx, cat, hourBundle, laborInput.revMap, laborInput.labMap);
+  const todayExtras = await fetchTodayDashboardRevenueExtras(db, ctx, hourBundle);
+  const summary = buildDailyOpsSummaryDto(ctx, laborInput.revMap, laborInput.labMap, {
+    apiBusinessDaysTotal: laborInput.revenueSplit.businessDaysPeriodTotal,
+    apiHourlySumTotal: laborInput.revenueSplit.hourlyPeriodTotal,
+    inboxBasisExVat
+  });
+  const revenue = buildDailyOpsRevenueBreakdownDto(ctx, cat, hourBundle, laborInput.revMap, laborInput.labMap, todayExtras);
   const labor = assembleDailyOpsLaborMetricsDto(ctx, laborInput);
   return { summary, revenue, labor };
 });
@@ -35324,7 +37614,7 @@ const bundle_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProper
   default: bundle_get
 }, Symbol.toStringTag, { value: 'Module' }));
 
-const labor_get = defineEventHandler(async (event) => {
+const labor_get$2 = defineEventHandler(async (event) => {
   setResponseHeader(event, "Cache-Control", "private, max-age=30, stale-while-revalidate=120");
   const ctx = parseDailyOpsMetricsQuery(getQuery$1(event));
   const db = await getDb();
@@ -35332,9 +37622,9 @@ const labor_get = defineEventHandler(async (event) => {
   return assembleDailyOpsLaborMetricsDto(ctx, input);
 });
 
-const labor_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+const labor_get$3 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
   __proto__: null,
-  default: labor_get
+  default: labor_get$2
 }, Symbol.toStringTag, { value: 'Module' }));
 
 const revenueBreakdown_get = defineEventHandler(async (event) => {
@@ -35498,7 +37788,7 @@ const revenue_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.definePrope
   default: revenue_get
 }, Symbol.toStringTag, { value: 'Module' }));
 
-const sales_get$2 = defineEventHandler((event) => {
+const sales_get$4 = defineEventHandler((event) => {
   const q = getQuery$1(event);
   const period = typeof q.period === "string" ? q.period : "today";
   const anchor = typeof q.anchor === "string" ? q.anchor : void 0;
@@ -35515,9 +37805,9 @@ const sales_get$2 = defineEventHandler((event) => {
   };
 });
 
-const sales_get$3 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+const sales_get$5 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
   __proto__: null,
-  default: sales_get$2
+  default: sales_get$4
 }, Symbol.toStringTag, { value: 'Module' }));
 
 const workload_get = defineEventHandler((event) => {
@@ -36904,6 +39194,128 @@ const _id__get$7 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty
   default: _id__get$6
 }, Symbol.toStringTag, { value: 'Module' }));
 
+const STALE_LOCATIONS = ["Unknown", "Unspecified", "UNKNOWN"];
+async function backfillBasisReportsFromParsedData(options = {}) {
+  var _a, _b, _c, _d;
+  const dryRun = Boolean(options.dryRun);
+  const cleanupStaleLegacy = options.cleanupStaleLegacy !== false;
+  const db = await getDb();
+  const parsedCol = db.collection(INBOX_COLLECTIONS.parsedData);
+  const grouped = await parsedCol.aggregate([
+    { $match: { documentType: "basis_report" } },
+    { $sort: { extractedAt: -1, _id: -1 } },
+    {
+      $group: {
+        _id: "$attachmentId",
+        doc: { $first: "$$ROOT" }
+      }
+    }
+  ]).toArray();
+  let processed = 0;
+  let upserted = 0;
+  let skipped = 0;
+  const errors = [];
+  for (const g of grouped) {
+    const doc = g.doc;
+    const rawAtt = (_a = doc == null ? void 0 : doc.attachmentId) != null ? _a : g._id;
+    if (rawAtt == null || rawAtt === "") {
+      skipped++;
+      continue;
+    }
+    const attachmentIdStr = String(rawAtt);
+    processed++;
+    try {
+      const attOid = rawAtt instanceof ObjectId ? rawAtt : new ObjectId(attachmentIdStr);
+      const attachment = await db.collection(INBOX_COLLECTIONS.emailAttachment).findOne({ _id: attOid });
+      const emailOidRaw = (_b = doc == null ? void 0 : doc.emailId) != null ? _b : attachment == null ? void 0 : attachment.emailId;
+      const emailOid = emailOidRaw instanceof ObjectId ? emailOidRaw : emailOidRaw ? new ObjectId(String(emailOidRaw)) : null;
+      const email = emailOid ? await db.collection(INBOX_COLLECTIONS.inboxEmail).findOne({ _id: emailOid }) : null;
+      const data = doc == null ? void 0 : doc.data;
+      const headers = Array.isArray(data == null ? void 0 : data.headers) ? data.headers : [];
+      const rows = Array.isArray(data == null ? void 0 : data.rows) ? data.rows : [];
+      const rowCount = rows.length;
+      const parseResult = {
+        success: true,
+        format: (doc == null ? void 0 : doc.format) || "xlsx",
+        headers,
+        rows,
+        rowCount,
+        metadata: (_c = data == null ? void 0 : data.metadata) != null ? _c : {}
+      };
+      const fileName = (attachment == null ? void 0 : attachment.fileName) != null ? String(attachment.fileName) : "basis.xlsx";
+      const basisReport = await mapBasisReportXLSX(
+        parseResult,
+        fileName,
+        {
+          subject: (email == null ? void 0 : email.subject) != null ? String(email.subject) : void 0,
+          receivedAt: (email == null ? void 0 : email.receivedAt) instanceof Date ? email.receivedAt : (email == null ? void 0 : email.receivedAt) != null ? new Date(String(email.receivedAt)) : void 0,
+          emailId: emailOid ? String(emailOid) : void 0,
+          attachmentId: attachmentIdStr
+        },
+        db
+      );
+      if (!basisReport) {
+        errors.push({ attachmentId: attachmentIdStr, message: "Mapper returned null (empty or invalid rows)" });
+        continue;
+      }
+      if (!dryRun) {
+        await db.collection("inbox-bork-basis-report").updateOne(
+          { "metadata.source_attachment_id": attachmentIdStr },
+          { $set: { ...basisReport, updated_at: /* @__PURE__ */ new Date() } },
+          { upsert: true }
+        );
+      }
+      upserted++;
+    } catch (e) {
+      errors.push({
+        attachmentId: attachmentIdStr,
+        message: e instanceof Error ? e.message : String(e)
+      });
+    }
+  }
+  let staleLegacyRemoved = 0;
+  if (!dryRun && cleanupStaleLegacy) {
+    const r = await db.collection("inbox-bork-basis-report").deleteMany({
+      location: { $in: [...STALE_LOCATIONS] },
+      "metadata.source_attachment_id": { $exists: false }
+    });
+    staleLegacyRemoved = (_d = r.deletedCount) != null ? _d : 0;
+  }
+  return {
+    parsedGroups: grouped.length,
+    processed,
+    upserted,
+    skipped,
+    staleLegacyRemoved,
+    errors
+  };
+}
+
+const backfillBasisReports_post = defineEventHandler(async (event) => {
+  try {
+    const q = getQuery$1(event);
+    const dryRun = q.dryRun === "true" || q.dryRun === "1";
+    const cleanupStaleLegacy = !(q.cleanupStaleLegacy === "false" || q.cleanupStaleLegacy === "0");
+    const result = await backfillBasisReportsFromParsedData({ dryRun, cleanupStaleLegacy });
+    return {
+      success: true,
+      dryRun,
+      cleanupStaleLegacy,
+      ...result
+    };
+  } catch (err) {
+    throw createError({
+      statusCode: 500,
+      statusMessage: err instanceof Error ? err.message : "Basis report backfill failed"
+    });
+  }
+});
+
+const backfillBasisReports_post$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+  __proto__: null,
+  default: backfillBasisReports_post
+}, Symbol.toStringTag, { value: 'Module' }));
+
 const basisReport_get = defineEventHandler(async (event) => {
   try {
     const q = getQuery$1(event);
@@ -36980,7 +39392,7 @@ const salesPerHour_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.define
   default: salesPerHour_get
 }, Symbol.toStringTag, { value: 'Module' }));
 
-const sales_get = defineEventHandler(async (event) => {
+const sales_get$2 = defineEventHandler(async (event) => {
   try {
     const q = getQuery$1(event);
     const data = await getInboxImportTablePayload("sales", parseInboxImportTableQuery(q));
@@ -36994,9 +39406,43 @@ const sales_get = defineEventHandler(async (event) => {
   }
 });
 
-const sales_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+const sales_get$3 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
   __proto__: null,
-  default: sales_get
+  default: sales_get$2
+}, Symbol.toStringTag, { value: 'Module' }));
+
+const debugBarbea_get = defineEventHandler(async () => {
+  try {
+    const { getDb } = await Promise.resolve().then(function () { return db; });
+    const db$1 = await getDb();
+    const records = await db$1.collection("inbox-bork-basis-report").find({
+      location: { $regex: /Barbea/i },
+      date: "2026-05-05"
+    }).toArray();
+    return {
+      found: records.length,
+      records: records.map((r) => {
+        var _a, _b, _c, _d, _e, _f, _g, _h, _i;
+        return {
+          date: r.date,
+          location: r.location,
+          business_hour: r.business_hour,
+          final_revenue_incl_vat: r.final_revenue_incl_vat,
+          final_revenue_ex_vat: r.final_revenue_ex_vat,
+          netto_grand_total_qty: (_c = (_b = (_a = r.sections) == null ? void 0 : _a.netto_sales) == null ? void 0 : _b.grand_total) == null ? void 0 : _c.quantity,
+          netto_grand_total_incl: (_f = (_e = (_d = r.sections) == null ? void 0 : _d.netto_sales) == null ? void 0 : _e.grand_total) == null ? void 0 : _f.price_incl_vat,
+          netto_grand_total_ex: (_i = (_h = (_g = r.sections) == null ? void 0 : _g.netto_sales) == null ? void 0 : _h.grand_total) == null ? void 0 : _i.price_ex_vat
+        };
+      })
+    };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : String(err) };
+  }
+});
+
+const debugBarbea_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+  __proto__: null,
+  default: debugBarbea_get
 }, Symbol.toStringTag, { value: 'Module' }));
 
 const contracts_get = defineEventHandler(async (event) => {
@@ -37056,6 +39502,16 @@ const hours_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.definePropert
   default: hours_get
 }, Symbol.toStringTag, { value: 'Module' }));
 
+const gmailStatus_get = defineEventHandler(async () => {
+  const connected = await isGmailConnected();
+  return { success: true, data: { connected } };
+});
+
+const gmailStatus_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+  __proto__: null,
+  default: gmailStatus_get
+}, Symbol.toStringTag, { value: 'Module' }));
+
 const list_get = defineEventHandler(async (event) => {
   try {
     await ensureInboxCollections();
@@ -37084,6 +39540,32 @@ const list_get = defineEventHandler(async (event) => {
 const list_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
   __proto__: null,
   default: list_get
+}, Symbol.toStringTag, { value: 'Module' }));
+
+const manualProcessBasis_get = defineEventHandler(async () => {
+  try {
+    const { getDb } = await Promise.resolve().then(function () { return db; });
+    const { processEmailAttachments } = await Promise.resolve().then(function () { return inboxProcessService; });
+    const db$1 = await getDb();
+    const email = await db$1.collection("inboxemails").findOne({ from: /trivecgroup/ });
+    if (!email) return { error: "No email found" };
+    console.log("[manual-process-basis] Processing email:", email._id);
+    const result = await processEmailAttachments(String(email._id));
+    return {
+      success: true,
+      emailId: String(email._id),
+      subject: email.subject,
+      attachmentsProcessed: result.attachmentsProcessed,
+      attachmentsFailed: result.attachmentsFailed
+    };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : String(err) };
+  }
+});
+
+const manualProcessBasis_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+  __proto__: null,
+  default: manualProcessBasis_get
 }, Symbol.toStringTag, { value: 'Module' }));
 
 const MAX$1 = 10 * 1024 * 1024;
@@ -37176,6 +39658,50 @@ const _emailId__post = defineEventHandler(async (event) => {
 const _emailId__post$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
   __proto__: null,
   default: _emailId__post
+}, Symbol.toStringTag, { value: 'Module' }));
+
+const reprocessAll_post = defineEventHandler(async () => {
+  try {
+    const { getDb } = await Promise.resolve().then(function () { return db; });
+    const { processEmailAttachments } = await Promise.resolve().then(function () { return inboxProcessService; });
+    const db$1 = await getDb();
+    const attachments = await db$1.collection("emailattachments").find({ documentType: "basis_report" }).toArray();
+    console.log(`[reprocess-all] Found ${attachments.length} basis_report attachments`);
+    let reprocessed = 0;
+    let failed = 0;
+    for (const att of attachments) {
+      try {
+        await db$1.collection("emailattachments").updateOne(
+          { _id: att._id },
+          { $set: { parseStatus: null, parseError: null } }
+        );
+        const emailId = String(att.emailId);
+        const result = await processEmailAttachments(emailId);
+        if (result.attachmentsProcessed > 0) {
+          reprocessed++;
+        } else {
+          failed++;
+        }
+      } catch (err) {
+        failed++;
+        console.error(`[reprocess-all] Failed for attachment ${att._id}:`, err);
+      }
+    }
+    return {
+      success: true,
+      reprocessed,
+      failed,
+      total: attachments.length,
+      message: `Reprocessed ${reprocessed} attachments, ${failed} failed`
+    };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : String(err) };
+  }
+});
+
+const reprocessAll_post$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+  __proto__: null,
+  default: reprocessAll_post
 }, Symbol.toStringTag, { value: 'Module' }));
 
 const syncScheduled_get = defineEventHandler(async (event) => {
@@ -37280,6 +39806,51 @@ const _type__get = defineEventHandler(async (event) => {
 const _type__get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
   __proto__: null,
   default: _type__get
+}, Symbol.toStringTag, { value: 'Module' }));
+
+const testMapper_get = defineEventHandler(async () => {
+  try {
+    const { getDb } = await Promise.resolve().then(function () { return db; });
+    const { mapBasisReportXLSX } = await Promise.resolve().then(function () { return basisReportMapper; });
+    const db$1 = await getDb();
+    const mockParseResult = {
+      success: true,
+      documentType: "basis_report",
+      format: "xlsx",
+      headers: ["Col1", "Col2"],
+      rows: [{ Col1: "test", Col2: "data" }],
+      rowCount: 1,
+      metadata: {}
+    };
+    const basisReport = await mapBasisReportXLSX(
+      mockParseResult,
+      "test.xlsx",
+      {
+        subject: "Daily Report Sales Yesterday Barbea - report from 04/05/2026",
+        receivedAt: /* @__PURE__ */ new Date()
+      },
+      db$1
+    );
+    if (!basisReport) {
+      return { error: "Mapper returned null" };
+    }
+    const result = await db$1.collection("inbox-bork-basis-report").updateOne(
+      { date: basisReport.date, location: basisReport.location },
+      { $set: { ...basisReport, updated_at: /* @__PURE__ */ new Date() } },
+      { upsert: true }
+    );
+    return {
+      mapperReturned: { date: basisReport.date, location: basisReport.location, revenue: basisReport.final_revenue_incl_vat },
+      upsertResult: { matchedCount: result.matchedCount, upsertedId: result.upsertedId ? String(result.upsertedId) : null }
+    };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : String(err) };
+  }
+});
+
+const testMapper_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+  __proto__: null,
+  default: testMapper_get
 }, Symbol.toStringTag, { value: 'Module' }));
 
 const unprocessedCount_get = defineEventHandler(async () => {
@@ -39426,23 +41997,32 @@ const salesAggregatedProducts_get = defineEventHandler(async (event) => {
     }
     const locationId = parseLocationId(typeof q.locationId === "string" ? q.locationId : void 0);
     const db = await getDb();
+    const suffix = resolveBorkAggReadSuffix();
     let collectionName = "";
-    const filter = { date, hour, locationId };
+    const filter = { locationId };
     if (groupBy === "hour" || groupBy === "date_location") {
-      collectionName = "bork_sales_by_hour";
+      filter.calendar_date = date;
+      filter.calendar_hour = hour;
+      collectionName = `bork_sales_by_hour${suffix}`;
     } else if (groupBy === "table") {
-      collectionName = "bork_sales_by_table";
+      filter.date = date;
+      filter.hour = hour;
+      collectionName = `bork_sales_by_table${suffix}`;
       const tn = typeof q.tableNumber === "string" ? q.tableNumber : String((_a = q.tableNumber) != null ? _a : "");
       if (!tn) {
         throw createError({ statusCode: 400, message: "tableNumber is required for table detail" });
       }
       filter.tableNumber = tn;
     } else if (groupBy === "worker") {
-      collectionName = "bork_sales_by_worker";
+      filter.date = date;
+      filter.hour = hour;
+      collectionName = `bork_sales_by_worker${suffix}`;
       const wid = typeof q.workerId === "string" ? q.workerId : String((_b = q.workerId) != null ? _b : "");
       filter.workerId = parseWorkerIdForFilter(wid.length > 0 ? wid : "unknown");
     } else if (groupBy === "guestAccount") {
-      collectionName = "bork_sales_by_guest_account";
+      filter.date = date;
+      filter.hour = hour;
+      collectionName = `bork_sales_by_guest_account${suffix}`;
       const acc = typeof q.accountName === "string" ? q.accountName : "";
       if (!acc) {
         throw createError({ statusCode: 400, message: "accountName is required for guestAccount detail" });
@@ -39474,18 +42054,17 @@ function parsePageParams(query) {
   const pageSize = Math.min(MAX_PAGE_SIZE, Math.max(1, rawSize));
   return { page, pageSize, skip: (page - 1) * pageSize };
 }
-function normalizeDateRange(startDate, endDate) {
-  const todayStr = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
-  const thirtyBack = /* @__PURE__ */ new Date();
-  thirtyBack.setDate(thirtyBack.getDate() - 30);
-  const thirtyStr = thirtyBack.toISOString().split("T")[0];
-  if (!startDate && !endDate) return { start: thirtyStr, end: todayStr };
-  if (startDate && !endDate) return { start: startDate, end: todayStr };
+function normalizeV2BusinessDateRange(startDate, endDate) {
+  const yesterday = amsterdamYmdForOffset(-1);
+  const thirtyBeforeYesterday = amsterdamYmdForOffset(-30);
+  if (!startDate && !endDate) return { start: thirtyBeforeYesterday, end: yesterday };
+  if (startDate && !endDate) return { start: startDate, end: yesterday };
   if (!startDate && endDate) {
-    const e = new Date(endDate);
-    const s = new Date(e);
-    s.setDate(s.getDate() - 30);
-    return { start: s.toISOString().split("T")[0], end: endDate };
+    const e = /* @__PURE__ */ new Date(`${endDate}T12:00:00Z`);
+    const s = new Date(e.getTime() - 29 * 24 * 60 * 60 * 1e3);
+    const pad = (n) => String(n).padStart(2, "0");
+    const start = `${s.getUTCFullYear()}-${pad(s.getUTCMonth() + 1)}-${pad(s.getUTCDate())}`;
+    return { start, end: endDate };
   }
   return { start: startDate, end: endDate };
 }
@@ -39497,137 +42076,102 @@ function parseLocationFilter(locationId) {
     return locationId;
   }
 }
-function isoDateToBorkYmdInt(iso) {
-  const [y, m, d] = iso.split("-").map((x) => parseInt(x, 10));
-  return y * 1e4 + m * 100 + d;
-}
-async function aggregateSalesByProductFromRaw(db, rangeStartIso, rangeEndIso, unifiedLocationId, productSearch, minLineTotal, sortObj, skip, pageSize) {
-  var _a, _b, _c, _d, _e, _f, _g;
-  const startYmd = isoDateToBorkYmdInt(rangeStartIso);
-  const endYmd = isoDateToBorkYmdInt(rangeEndIso);
-  const rawMatch = { rawApiResponse: { $exists: true, $ne: null } };
-  if (unifiedLocationId !== void 0) {
-    const maps = await db.collection("bork_unified_location_mapping").find({ unifiedLocationId }).project({ borkLocationId: 1 }).toArray();
-    const borkIds = maps.map((m) => m.borkLocationId).filter((id) => id != null);
-    if (borkIds.length === 0) {
-      return { results: [], totalCount: 0, totals: { total_revenue: 0, total_quantity: 0, record_count: 0 } };
+async function sumMatchedMetrics(db, collection, match) {
+  var _a, _b, _c;
+  const [row] = await db.collection(collection).aggregate([
+    { $match: match },
+    {
+      $group: {
+        _id: null,
+        total_revenue: { $sum: { $ifNull: ["$total_revenue", 0] } },
+        total_quantity: { $sum: { $ifNull: ["$total_quantity", 0] } },
+        record_count: { $sum: { $ifNull: ["$record_count", 0] } }
+      }
     }
-    rawMatch.locationId = { $in: borkIds };
-  }
+  ]).toArray();
+  const r = row;
+  return {
+    total_revenue: (_a = r == null ? void 0 : r.total_revenue) != null ? _a : 0,
+    total_quantity: (_b = r == null ? void 0 : r.total_quantity) != null ? _b : 0,
+    record_count: (_c = r == null ? void 0 : r.record_count) != null ? _c : 0
+  };
+}
+async function findPaged(db, collection, match, sortObj, skip, limit, excludeProducts) {
+  const projection = excludeProducts ? { products: 0 } : {};
+  const col = db.collection(collection);
+  const [results, totalCount, totals] = await Promise.all([
+    col.find(match, { projection }).sort(sortObj).skip(skip).limit(limit).toArray(),
+    col.countDocuments(match),
+    sumMatchedMetrics(db, collection, match)
+  ]);
+  return { results, totalCount, totals };
+}
+async function aggregateLocationFromBusinessDays(db, collection, match, sortObj, skip, pageSize) {
+  var _a, _b, _c;
+  const pipeline = [
+    { $match: match },
+    {
+      $group: {
+        _id: { locationId: "$locationId", locationName: "$locationName" },
+        total_revenue: { $sum: { $ifNull: ["$total_revenue", 0] } },
+        total_quantity: { $sum: { $ifNull: ["$total_quantity", 0] } },
+        record_count: { $sum: { $ifNull: ["$record_count", 0] } }
+      }
+    },
+    {
+      $project: {
+        _id: 0,
+        locationId: "$_id.locationId",
+        location_name: "$_id.locationName",
+        total_revenue: { $round: ["$total_revenue", 2] },
+        total_quantity: { $round: ["$total_quantity", 2] },
+        record_count: 1,
+        product_count: { $literal: 0 }
+      }
+    },
+    { $sort: sortObj },
+    {
+      $facet: {
+        total: [{ $count: "count" }],
+        data: [{ $skip: skip }, { $limit: pageSize }]
+      }
+    }
+  ];
+  const agg = await db.collection(collection).aggregate(pipeline).toArray();
+  const facet = agg[0];
+  const totals = await sumMatchedMetrics(db, collection, match);
+  return {
+    results: (_a = facet == null ? void 0 : facet.data) != null ? _a : [],
+    totalCount: (_c = (_b = facet == null ? void 0 : facet.total[0]) == null ? void 0 : _b.count) != null ? _c : 0,
+    totals
+  };
+}
+async function aggregateSalesByProductFromV2Collection(db, collection, rangeStart, rangeEnd, unifiedLocationId, productSearch, minLineTotal, sortObj, skip, pageSize) {
+  var _a, _b, _c, _d, _e, _f, _g;
+  const match = {
+    business_date: { $gte: rangeStart, $lte: rangeEnd }
+  };
+  if (unifiedLocationId !== void 0) match.locationId = unifiedLocationId;
   const escapedSearch = productSearch.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const pipeline = [
-    { $match: rawMatch },
+    { $match: match },
     {
-      $addFields: {
-        _tickets: {
-          $cond: {
-            if: { $isArray: "$rawApiResponse" },
-            then: "$rawApiResponse",
-            else: {
-              $cond: {
-                if: { $ne: ["$rawApiResponse", null] },
-                then: ["$rawApiResponse"],
-                else: []
-              }
-            }
-          }
-        }
-      }
-    },
-    { $unwind: { path: "$_tickets", preserveNullAndEmptyArrays: false } },
-    { $unwind: { path: "$_tickets.Orders", preserveNullAndEmptyArrays: false } },
-    {
-      $addFields: {
-        _ord: "$_tickets.Orders",
-        borkLocationId: "$locationId"
-      }
-    },
-    {
-      $addFields: {
-        odRaw: { $ifNull: ["$_ord.Date", "$_ord.ActualDate"] }
-      }
-    },
-    {
-      $addFields: {
-        orderYmd: {
-          $convert: {
-            input: {
-              $substrCP: [
-                { $concat: ["00000000", { $toString: { $ifNull: ["$odRaw", ""] } }] },
-                {
-                  $subtract: [
-                    { $strLenCP: { $concat: ["00000000", { $toString: { $ifNull: ["$odRaw", ""] } }] } },
-                    8
-                  ]
-                },
-                8
-              ]
-            },
-            to: "int",
-            onError: null,
-            onNull: null
-          }
-        }
-      }
-    },
-    { $match: { orderYmd: { $gte: startYmd, $lte: endYmd } } },
-    { $unwind: { path: "$_ord.Lines", preserveNullAndEmptyArrays: false } },
-    {
-      $addFields: {
-        line: "$_ord.Lines",
-        lineUnitPrice: { $toDouble: { $ifNull: ["$_ord.Lines.Price", 0] } },
-        lineQty: { $toDouble: { $ifNull: ["$_ord.Lines.Qty", 0] } },
-        productKey: { $toString: { $ifNull: ["$_ord.Lines.ProductKey", "unknown"] } },
-        productName: { $ifNull: ["$_ord.Lines.ProductName", "Unknown"] }
-      }
-    },
-    {
-      $addFields: {
-        lineValue: { $multiply: ["$lineUnitPrice", "$lineQty"] }
-      }
-    },
-    {
-      $lookup: {
-        from: "bork_unified_location_mapping",
-        let: { bid: "$borkLocationId" },
-        pipeline: [
-          {
-            $match: {
-              $expr: { $eq: [{ $toString: "$borkLocationId" }, { $toString: "$$bid" }] }
-            }
-          },
-          { $limit: 1 }
-        ],
-        as: "_loc"
-      }
-    },
-    { $match: { "_loc.0": { $exists: true } } },
-    {
-      $addFields: {
-        unifiedLocationId: { $arrayElemAt: ["$_loc.unifiedLocationId", 0] },
-        unifiedLocationName: { $arrayElemAt: ["$_loc.unifiedLocationName", 0] }
+      $group: {
+        _id: {
+          productId: "$productId",
+          unitPrice: "$unit_price",
+          locationId: "$locationId",
+          locationName: "$locationName"
+        },
+        productName: { $first: "$productName" },
+        quantity: { $sum: { $ifNull: ["$total_quantity", 0] } },
+        lineTotal: { $sum: { $ifNull: ["$total_revenue", 0] } }
       }
     },
     {
       $group: {
-        _id: {
-          productKey: "$productKey",
-          productName: "$productName",
-          unitPrice: "$lineUnitPrice",
-          locationId: "$unifiedLocationId",
-          locationName: "$unifiedLocationName"
-        },
-        quantity: { $sum: "$lineQty" },
-        lineTotal: { $sum: "$lineValue" }
-      }
-    },
-    {
-      $group: {
-        _id: {
-          productKey: "$_id.productKey",
-          unitPrice: "$_id.unitPrice"
-        },
-        productName: { $first: "$_id.productName" },
+        _id: { productKey: "$_id.productId", unitPrice: "$_id.unitPrice" },
+        productName: { $first: "$productName" },
         unit_price: { $first: "$_id.unitPrice" },
         total_quantity: { $sum: "$quantity" },
         total_revenue: { $sum: "$lineTotal" },
@@ -39675,7 +42219,7 @@ async function aggregateSalesByProductFromRaw(db, rangeStartIso, rangeEndIso, un
       data: [{ $skip: skip }, { $limit: pageSize }]
     }
   });
-  const agg = await db.collection("bork_raw_data").aggregate(pipeline, { allowDiskUse: true }).toArray();
+  const agg = await db.collection(collection).aggregate(pipeline, { allowDiskUse: true }).toArray();
   const facet = agg[0];
   const t = facet == null ? void 0 : facet.totals[0];
   return {
@@ -39688,47 +42232,47 @@ async function aggregateSalesByProductFromRaw(db, rangeStartIso, rangeEndIso, un
     }
   };
 }
-async function sumMatchedMetrics(db, collection, match) {
-  var _a, _b, _c;
-  const [row] = await db.collection(collection).aggregate([
-    { $match: match },
-    {
-      $group: {
-        _id: null,
-        total_revenue: { $sum: { $ifNull: ["$total_revenue", 0] } },
-        total_quantity: { $sum: { $ifNull: ["$total_quantity", 0] } },
-        record_count: { $sum: { $ifNull: ["$record_count", 0] } }
-      }
+function mapSalesRowsForUi(groupBy, rows) {
+  return rows.map((raw) => {
+    var _a, _b, _c, _d, _e, _f, _g;
+    const r = raw;
+    const out = { ...r };
+    if (groupBy === "hour" || groupBy === "table" || groupBy === "worker" || groupBy === "guestAccount") {
+      out.date = (_b = (_a = r.calendar_date) != null ? _a : r.date) != null ? _b : r.business_date;
+      out.hour = (_d = (_c = r.calendar_hour) != null ? _c : r.hour) != null ? _d : r.business_hour;
     }
-  ]).toArray();
-  const r = row;
-  return {
-    total_revenue: (_a = r == null ? void 0 : r.total_revenue) != null ? _a : 0,
-    total_quantity: (_b = r == null ? void 0 : r.total_quantity) != null ? _b : 0,
-    record_count: (_c = r == null ? void 0 : r.record_count) != null ? _c : 0
-  };
-}
-async function findPaged(db, collection, match, sortObj, skip, limit, excludeProducts) {
-  const projection = excludeProducts ? { products: 0 } : {};
-  const col = db.collection(collection);
-  const [results, totalCount, totals] = await Promise.all([
-    col.find(match, { projection }).sort(sortObj).skip(skip).limit(limit).toArray(),
-    col.countDocuments(match),
-    sumMatchedMetrics(db, collection, match)
-  ]);
-  return { results, totalCount, totals };
+    if (groupBy === "date" || groupBy === "date_location") {
+      out.date = (_e = r.business_date) != null ? _e : r.date;
+      out.location_count = 1;
+      out.location_name = (_f = r.locationName) != null ? _f : r.location_name;
+    }
+    if (groupBy === "product") {
+      out.product_name = (_g = r.productName) != null ? _g : r.product_name;
+      const bl = r.byLocation;
+      out.location_count = Array.isArray(bl) ? bl.length : 0;
+    }
+    return out;
+  });
 }
 const salesAggregated_get = defineEventHandler(async (event) => {
-  var _a, _b, _c;
   try {
     const db = await getDb();
     const query = getQuery$1(event);
     const { page, pageSize, skip } = parsePageParams(query);
+    const suffix = resolveBorkAggReadSuffix();
     const rawStart = typeof query.startDate === "string" ? query.startDate : void 0;
     const rawEnd = typeof query.endDate === "string" ? query.endDate : void 0;
-    const { start: rangeStart, end: rangeEnd } = normalizeDateRange(rawStart, rawEnd);
+    let { start: rangeStart, end: rangeEnd } = normalizeV2BusinessDateRange(rawStart, rawEnd);
+    const todayAmsterdam = amsterdamTodayYmd();
+    if (rangeEnd >= todayAmsterdam) {
+      rangeEnd = amsterdamYmdForOffset(-1);
+    }
+    if (rangeStart > rangeEnd) {
+      rangeStart = amsterdamYmdForOffset(-30);
+    }
     const locationId = typeof query.locationId === "string" ? query.locationId : void 0;
-    const groupBy = query.groupBy || "date";
+    let groupBy = query.groupBy || "date";
+    if (groupBy === "day") groupBy = "date";
     const sortBy = query.sortBy || "date";
     const sortOrder = query.sortOrder || "desc";
     const includeProducts = query.includeProducts === "true" || query.includeProducts === "1";
@@ -39736,13 +42280,17 @@ const salesAggregated_get = defineEventHandler(async (event) => {
     const productSearch = typeof query.productSearch === "string" ? query.productSearch.trim() : "";
     const minRevenueRaw = query.minRevenue;
     const minRevenue = typeof minRevenueRaw === "string" || typeof minRevenueRaw === "number" ? Math.max(0, Number(minRevenueRaw) || 0) : 0;
+    const fullDaysOnly = query.fullDaysOnly === "true" || query.fullDaysOnly === "1";
     const dateFilter = {
       $gte: rangeStart,
       $lte: rangeEnd
     };
-    const q = { date: dateFilter };
+    const q = { business_date: dateFilter };
     const locationFilter = parseLocationFilter(locationId);
     if (locationFilter !== void 0) q.locationId = locationFilter;
+    if ((groupBy === "date" || groupBy === "day") && fullDaysOnly) {
+      q.hour_buckets = 24;
+    }
     const sortField = sortBy === "location" || sortBy === "location_name" ? "locationName" : sortBy === "product_name" ? "product_name" : sortBy === "unit_price" ? "unit_price" : sortBy === "total_revenue" ? "total_revenue" : sortBy === "total_quantity" ? "total_quantity" : "date";
     let resolvedSortKey = sortField;
     if (groupBy === "location" && (sortBy === "location" || sortBy === "location_name")) {
@@ -39755,58 +42303,47 @@ const salesAggregated_get = defineEventHandler(async (event) => {
     if (groupBy === "product" && resolvedSortKey === "date") {
       resolvedSortKey = "total_revenue";
     }
+    const usesBusinessDate = groupBy === "date" || groupBy === "date_location" || groupBy === "hour" || groupBy === "table" || groupBy === "worker" || groupBy === "guestAccount";
+    if (resolvedSortKey === "date" && usesBusinessDate) {
+      resolvedSortKey = "business_date";
+    }
     const sortDirection = sortOrder === "asc" ? 1 : -1;
-    const sortObj = { [resolvedSortKey]: sortDirection };
+    let sortObj;
+    if (groupBy === "hour") {
+      if (sortBy === "hour" || sortBy === "business_hour") {
+        sortObj = { business_date: -1, business_hour: sortDirection };
+      } else {
+        sortObj = { business_date: sortDirection === 1 ? 1 : -1, business_hour: 1 };
+      }
+    } else if (groupBy === "product") {
+      const sk = sortBy === "product_name" ? "productName" : sortBy === "unit_price" ? "unit_price" : sortBy === "total_quantity" ? "total_quantity" : "total_revenue";
+      sortObj = { [sk]: sortDirection };
+    } else {
+      const sf = resolvedSortKey === "date" ? "business_date" : resolvedSortKey === "location_name" ? "location_name" : resolvedSortKey === "product_name" ? "product_name" : resolvedSortKey;
+      sortObj = { [sf]: sortDirection };
+    }
     let results = [];
-    let collectionName = "bork_sales_by_cron";
+    let collectionName = `bork_business_days${suffix}`;
     let totalCount = 0;
     let totals = { total_revenue: 0, total_quantity: 0, record_count: 0 };
     const excludeProducts = !includeProducts;
     if (groupBy === "date") {
-      collectionName = "bork_sales_by_cron";
+      collectionName = `bork_business_days${suffix}`;
       const out = await findPaged(db, collectionName, q, sortObj, skip, pageSize, false);
       results = out.results;
       totalCount = out.totalCount;
       totals = out.totals;
     } else if (groupBy === "location") {
-      collectionName = "bork_sales_by_cron";
-      const pipeline = [
-        { $match: q },
-        {
-          $group: {
-            _id: { locationId: "$locationId", locationName: "$locationName" },
-            total_revenue: { $sum: "$total_revenue" },
-            total_quantity: { $sum: "$total_quantity" },
-            record_count: { $sum: "$record_count" }
-          }
-        },
-        {
-          $project: {
-            _id: 0,
-            locationId: "$_id.locationId",
-            location_name: "$_id.locationName",
-            total_revenue: { $round: ["$total_revenue", 2] },
-            total_quantity: { $round: ["$total_quantity", 2] },
-            record_count: 1
-          }
-        },
-        { $sort: sortObj },
-        {
-          $facet: {
-            total: [{ $count: "count" }],
-            data: [{ $skip: skip }, { $limit: pageSize }]
-          }
-        }
-      ];
-      const agg = await db.collection(collectionName).aggregate(pipeline).toArray();
-      const facet = agg[0];
-      totalCount = (_b = (_a = facet == null ? void 0 : facet.total[0]) == null ? void 0 : _a.count) != null ? _b : 0;
-      results = (_c = facet == null ? void 0 : facet.data) != null ? _c : [];
-      totals = await sumMatchedMetrics(db, collectionName, q);
+      collectionName = `bork_business_days${suffix}`;
+      const out = await aggregateLocationFromBusinessDays(db, collectionName, q, sortObj, skip, pageSize);
+      results = out.results;
+      totalCount = out.totalCount;
+      totals = out.totals;
     } else if (groupBy === "product") {
-      collectionName = "bork_raw_data";
-      const out = await aggregateSalesByProductFromRaw(
+      collectionName = `bork_sales_by_product${suffix}`;
+      const out = await aggregateSalesByProductFromV2Collection(
         db,
+        collectionName,
         rangeStart,
         rangeEnd,
         locationFilter,
@@ -39819,22 +42356,44 @@ const salesAggregated_get = defineEventHandler(async (event) => {
       results = out.results;
       totalCount = out.totalCount;
       totals = out.totals;
-    } else if (groupBy === "guestAccount" || groupBy === "hour" || groupBy === "table" || groupBy === "worker" || groupBy === "date_location") {
-      if (groupBy === "table") collectionName = "bork_sales_by_table";
-      else if (groupBy === "worker") collectionName = "bork_sales_by_worker";
-      else if (groupBy === "guestAccount") collectionName = "bork_sales_by_guest_account";
-      else collectionName = "bork_sales_by_hour";
+    } else if (groupBy === "date_location") {
+      collectionName = `bork_business_days${suffix}`;
+      const out = await findPaged(db, collectionName, q, sortObj, skip, pageSize, false);
+      results = out.results;
+      totalCount = out.totalCount;
+      totals = out.totals;
+    } else if (groupBy === "hour") {
+      collectionName = `bork_sales_by_hour${suffix}`;
+      const out = await findPaged(db, collectionName, q, sortObj, skip, pageSize, excludeProducts);
+      results = out.results;
+      totalCount = out.totalCount;
+      totals = out.totals;
+    } else if (groupBy === "table") {
+      collectionName = `bork_sales_by_table${suffix}`;
+      const out = await findPaged(db, collectionName, q, sortObj, skip, pageSize, excludeProducts);
+      results = out.results;
+      totalCount = out.totalCount;
+      totals = out.totals;
+    } else if (groupBy === "worker") {
+      collectionName = `bork_sales_by_worker${suffix}`;
+      const out = await findPaged(db, collectionName, q, sortObj, skip, pageSize, excludeProducts);
+      results = out.results;
+      totalCount = out.totalCount;
+      totals = out.totals;
+    } else if (groupBy === "guestAccount") {
+      collectionName = `bork_sales_by_guest_account${suffix}`;
       const out = await findPaged(db, collectionName, q, sortObj, skip, pageSize, excludeProducts);
       results = out.results;
       totalCount = out.totalCount;
       totals = out.totals;
     } else {
-      collectionName = "bork_sales_by_hour";
-      const out = await findPaged(db, collectionName, q, sortObj, skip, pageSize, excludeProducts);
+      collectionName = `bork_business_days${suffix}`;
+      const out = await findPaged(db, collectionName, q, sortObj, skip, pageSize, false);
       results = out.results;
       totalCount = out.totalCount;
       totals = out.totals;
     }
+    results = mapSalesRowsForUi(groupBy, results);
     let locations = [];
     if (includeLocations && groupBy !== "location") {
       const locs = await db.collection("locations").find({}, { projection: { name: 1 } }).sort({ name: 1 }).toArray();
@@ -39854,7 +42413,8 @@ const salesAggregated_get = defineEventHandler(async (event) => {
       totals,
       summary: {
         group_by: groupBy,
-        collection: collectionName
+        collection: collectionName,
+        v2_suffix: suffix || null
       },
       locations
     };
@@ -39865,6 +42425,11 @@ const salesAggregated_get = defineEventHandler(async (event) => {
 });
 
 const salesAggregated_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+  __proto__: null,
+  default: salesAggregated_get
+}, Symbol.toStringTag, { value: 'Module' }));
+
+const salesAggregatedV2_get = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
   __proto__: null,
   default: salesAggregated_get
 }, Symbol.toStringTag, { value: 'Module' }));
@@ -40033,6 +42598,257 @@ const index_get$2 = defineEventHandler(async () => {
 const index_get$3 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
   __proto__: null,
   default: index_get$2
+}, Symbol.toStringTag, { value: 'Module' }));
+
+const trigger_post = defineEventHandler(async (event) => {
+  const db = await getDb();
+  const body = await readBody(event);
+  try {
+    const businessDate = (body == null ? void 0 : body.businessDate) || getCurrentBusinessDate();
+    console.log(`[v3-aggregation-trigger] Manual trigger for business date: ${businessDate}`);
+    const result = await runV3AggregationPipeline(db, businessDate, (msg) => {
+      console.log(`[V3-Manual] ${msg}`);
+    });
+    return {
+      success: result.success,
+      message: result.message,
+      businessDate: result.businessDate,
+      startedAt: result.startedAt,
+      completedAt: result.completedAt,
+      durationMs: result.durationMs,
+      totalLocations: result.totalLocations,
+      successCount: result.successCount,
+      failureCount: result.failureCount,
+      locations: result.locations.map((r) => ({
+        locationId: r.locationId.toString(),
+        locationName: r.locationName,
+        success: r.success,
+        syncCount: r.syncCount,
+        durationMs: r.durationMs,
+        message: r.message,
+        error: r.error
+      }))
+    };
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    console.error("[v3-aggregation-trigger] Error:", errorMsg);
+    return createError({
+      statusCode: 500,
+      statusMessage: `V3 aggregation trigger failed: ${errorMsg}`
+    });
+  }
+});
+
+const trigger_post$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+  __proto__: null,
+  default: trigger_post
+}, Symbol.toStringTag, { value: 'Module' }));
+
+const dashboard_get = defineEventHandler(async (event) => {
+  const query = getQuery$1(event);
+  try {
+    const db = await getDb();
+    if (query.all === "true" || query.all === "1") {
+      const businessDate2 = query.businessDate || getCurrentBusinessDate();
+      const snapshots = await db.collection("v3_daily_ops_dashboard_snapshots").find({ businessDate: businessDate2 }).toArray();
+      return {
+        success: true,
+        data: snapshots,
+        businessDate: businessDate2,
+        count: snapshots.length
+      };
+    }
+    const locationId = query.locationId;
+    const businessDate = query.businessDate || getCurrentBusinessDate();
+    if (!locationId) {
+      return createError({
+        statusCode: 400,
+        statusMessage: "Missing parameter: locationId"
+      });
+    }
+    const snapshot = await getDashboardSnapshot(db, new ObjectId(locationId), businessDate);
+    if (!snapshot) {
+      return {
+        success: false,
+        data: null,
+        message: "Dashboard snapshot not found",
+        locationId,
+        businessDate
+      };
+    }
+    return {
+      success: true,
+      data: snapshot,
+      locationId,
+      businessDate
+    };
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    console.error("[v3-dashboard-api]", errorMsg);
+    return createError({
+      statusCode: 500,
+      statusMessage: `Failed to fetch dashboard snapshot: ${errorMsg}`
+    });
+  }
+});
+
+const dashboard_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+  __proto__: null,
+  default: dashboard_get
+}, Symbol.toStringTag, { value: 'Module' }));
+
+const labor_get = defineEventHandler(async (event) => {
+  const query = getQuery$1(event);
+  try {
+    const db = await getDb();
+    if (query.all === "true" || query.all === "1") {
+      const businessDate2 = query.businessDate || getCurrentBusinessDate();
+      const snapshots = await db.collection("v3_labor_working_day_snapshots").find({ businessDate: businessDate2 }).toArray();
+      return {
+        success: true,
+        data: snapshots,
+        businessDate: businessDate2,
+        count: snapshots.length
+      };
+    }
+    if (query.range === "true" || query.range === "1") {
+      const locationId2 = query.locationId;
+      const startDate = query.startDate;
+      const endDate = query.endDate;
+      if (!locationId2 || !startDate || !endDate) {
+        return createError({
+          statusCode: 400,
+          statusMessage: "Missing parameters: locationId, startDate, endDate"
+        });
+      }
+      const snapshots = await db.collection("v3_labor_working_day_snapshots").find({
+        locationId: new ObjectId(locationId2),
+        businessDate: { $gte: startDate, $lte: endDate }
+      }).sort({ businessDate: -1 }).toArray();
+      return {
+        success: true,
+        data: snapshots,
+        locationId: locationId2,
+        startDate,
+        endDate,
+        count: snapshots.length
+      };
+    }
+    const locationId = query.locationId;
+    const businessDate = query.businessDate || getCurrentBusinessDate();
+    if (!locationId) {
+      return createError({
+        statusCode: 400,
+        statusMessage: "Missing parameter: locationId"
+      });
+    }
+    const snapshot = await getLaborSnapshot(db, new ObjectId(locationId), businessDate);
+    if (!snapshot) {
+      return {
+        success: false,
+        data: null,
+        message: "Snapshot not found",
+        locationId,
+        businessDate
+      };
+    }
+    return {
+      success: true,
+      data: snapshot,
+      locationId,
+      businessDate
+    };
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    console.error("[v3-labor-api]", errorMsg);
+    return createError({
+      statusCode: 500,
+      statusMessage: `Failed to fetch labor snapshot: ${errorMsg}`
+    });
+  }
+});
+
+const labor_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+  __proto__: null,
+  default: labor_get
+}, Symbol.toStringTag, { value: 'Module' }));
+
+const sales_get = defineEventHandler(async (event) => {
+  const query = getQuery$1(event);
+  try {
+    const db = await getDb();
+    if (query.all === "true" || query.all === "1") {
+      const businessDate2 = query.businessDate || getCurrentBusinessDate();
+      const snapshots = await getLatestSalesSnapshotsAllLocations(db, businessDate2);
+      return {
+        success: true,
+        data: snapshots,
+        businessDate: businessDate2,
+        count: snapshots.length
+      };
+    }
+    if (query.range === "true" || query.range === "1") {
+      const locationId2 = query.locationId;
+      const startDate = query.startDate;
+      const endDate = query.endDate;
+      if (!locationId2 || !startDate || !endDate) {
+        return createError({
+          statusCode: 400,
+          statusMessage: "Missing parameters: locationId, startDate, endDate"
+        });
+      }
+      const snapshots = await getSalesSnapshotsByLocationRange(
+        db,
+        new ObjectId(locationId2),
+        startDate,
+        endDate
+      );
+      return {
+        success: true,
+        data: snapshots,
+        locationId: locationId2,
+        startDate,
+        endDate,
+        count: snapshots.length
+      };
+    }
+    const locationId = query.locationId;
+    const businessDate = query.businessDate || getCurrentBusinessDate();
+    if (!locationId) {
+      return createError({
+        statusCode: 400,
+        statusMessage: "Missing parameter: locationId"
+      });
+    }
+    const snapshot = await getSalesSnapshot(db, new ObjectId(locationId), businessDate);
+    if (!snapshot) {
+      return {
+        success: false,
+        data: null,
+        message: "Snapshot not found",
+        locationId,
+        businessDate
+      };
+    }
+    return {
+      success: true,
+      data: snapshot,
+      locationId,
+      businessDate
+    };
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    console.error("[v3-sales-api]", errorMsg);
+    return createError({
+      statusCode: 500,
+      statusMessage: `Failed to fetch sales snapshot: ${errorMsg}`
+    });
+  }
+});
+
+const sales_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+  __proto__: null,
+  default: sales_get
 }, Symbol.toStringTag, { value: 'Module' }));
 
 const active_get = defineEventHandler(async () => {

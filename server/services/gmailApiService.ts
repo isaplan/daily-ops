@@ -1,19 +1,19 @@
 /**
- * @registry-id: gmailApiService
- * @created: 2026-01-26T00:00:00.000Z
- * @last-modified: 2026-04-21T22:35:00.000Z
- * @description: Gmail API — OAuth2 + fetch (Nuxt Nitro server only)
- * @last-fix: [2026-04-21] Redirect via getGmailOAuthRedirectUri — no silent localhost in production
+ * @registry-id: gmailApiServiceV2
+ * @created: 2026-05-02T15:00:00.000Z
+ * @last-modified: 2026-05-06T16:30:00.000Z
+ * @description: Clean rebuild of Gmail API service — explicit token + redirect_uri handling
+ * @last-fix: [2026-05-06] Default list query `in:inbox` (replacing `to:`-only) so inbox matches Gmail UI; optional GMAIL_SYNC_QUERY override
  *
  * @exports-to:
  * ✓ server/services/emailProcessorService.ts
  * ✓ server/services/inboxProcessService.ts
- * ✓ server/services/inboxWebhookService.ts
  */
 
 import { google } from 'googleapis'
 import type { gmail_v1 } from 'googleapis'
-import { getGmailOAuthRedirectUri } from '../utils/gmailOAuthRedirect'
+import { getGmailRefreshToken } from './gmailOAuthService'
+import { getGmailRedirectUri } from '../utils/gmailRedirectUri'
 
 export type GmailMessage = {
   id: string
@@ -51,14 +51,31 @@ class GmailApiService {
   async initialize(): Promise<void> {
     const clientId = process.env.GMAIL_CLIENT_ID
     const clientSecret = process.env.GMAIL_CLIENT_SECRET
-    const refreshToken = process.env.GMAIL_REFRESH_TOKEN
-    const redirectUri = getGmailOAuthRedirectUri()
 
-    if (!clientId || !clientSecret || !refreshToken) {
+    if (!clientId || !clientSecret) {
       throw new Error(
-        'Gmail OAuth2 credentials missing. Set GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, and GMAIL_REFRESH_TOKEN in .env',
+        'GMAIL_CLIENT_ID or GMAIL_CLIENT_SECRET missing',
       )
     }
+
+    let refreshToken = process.env.GMAIL_REFRESH_TOKEN
+
+    if (!refreshToken) {
+      refreshToken = await getGmailRefreshToken()
+    }
+
+    if (!refreshToken) {
+      throw new Error(
+        'No refresh token found. Connect Gmail using the UI first.',
+      )
+    }
+
+    const redirectUri = getGmailRedirectUri()
+
+    console.log('[gmailApiService] Initializing with:')
+    console.log('  - clientId:', clientId.slice(0, 20) + '...')
+    console.log('  - redirectUri:', redirectUri)
+    console.log('  - refreshToken:', refreshToken.slice(0, 20) + '...')
 
     const oauth2Client = new google.auth.OAuth2(clientId, clientSecret, redirectUri)
     oauth2Client.setCredentials({ refresh_token: refreshToken })
@@ -80,33 +97,39 @@ class GmailApiService {
       throw new Error('Gmail client not initialized')
     }
 
-    const inboxAddress = process.env.GMAIL_INBOX_ADDRESS || 'inboxhaagsenieuwehorecagroep@gmail.com'
-    const query = options.query || `to:${inboxAddress}`
+    const envQuery = process.env.GMAIL_SYNC_QUERY?.trim()
+    /** Match the mailbox inbox like the Gmail UI. Narrow with env e.g. `to:user@` if needed. */
+    const query = options.query || envQuery || 'in:inbox'
 
-    const response = await this.gmail.users.messages.list({
-      userId: 'me',
-      maxResults: options.maxResults || 50,
-      q: query,
-      pageToken: options.pageToken,
-    })
+    try {
+      const response = await this.gmail.users.messages.list({
+        userId: 'me',
+        maxResults: options.maxResults || 50,
+        q: query,
+        pageToken: options.pageToken,
+      })
 
-    const messageIds = response.data.messages?.map((msg) => msg.id || '').filter(Boolean) || []
+      const messageIds = response.data.messages?.map((msg) => msg.id || '').filter(Boolean) || []
 
-    if (messageIds.length === 0) {
+      if (messageIds.length === 0) {
+        return {
+          messages: [],
+          nextPageToken: response.data.nextPageToken || undefined,
+          resultSizeEstimate: response.data.resultSizeEstimate || 0,
+        }
+      }
+
+      const messagePromises = messageIds.map((id) => this.getMessage(id))
+      const messages = await Promise.all(messagePromises)
+
       return {
-        messages: [],
+        messages: messages.filter((msg): msg is GmailMessage => msg !== null),
         nextPageToken: response.data.nextPageToken || undefined,
         resultSizeEstimate: response.data.resultSizeEstimate || 0,
       }
-    }
-
-    const messagePromises = messageIds.map((id) => this.getMessage(id))
-    const messages = await Promise.all(messagePromises)
-
-    return {
-      messages: messages.filter((msg): msg is GmailMessage => msg !== null),
-      nextPageToken: response.data.nextPageToken || undefined,
-      resultSizeEstimate: response.data.resultSizeEstimate || 0,
+    } catch (err) {
+      console.error('[gmailApiService] fetchEmails error:', err)
+      throw err
     }
   }
 
@@ -159,30 +182,10 @@ class GmailApiService {
     })
 
     return {
-      attachmentId,
+      attachmentId: response.data.id || attachmentId,
       size: parseInt(response.data.size || '0', 10),
       data: response.data.data || undefined,
     }
-  }
-
-  getAuthorizationUrl(): string {
-    const clientId = process.env.GMAIL_CLIENT_ID
-    const clientSecret = process.env.GMAIL_CLIENT_SECRET
-    const redirectUri = getGmailOAuthRedirectUri()
-
-    if (!clientId || !clientSecret) {
-      throw new Error('Gmail OAuth2 credentials missing')
-    }
-
-    const oauth2Client = new google.auth.OAuth2(clientId, clientSecret, redirectUri)
-
-    const scopes = ['https://www.googleapis.com/auth/gmail.readonly']
-
-    return oauth2Client.generateAuthUrl({
-      access_type: 'offline',
-      scope: scopes,
-      prompt: 'consent',
-    })
   }
 }
 

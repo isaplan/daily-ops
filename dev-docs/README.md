@@ -7,16 +7,17 @@ This directory contains all development-related documentation, scripts, and reso
 ```
 dev-docs/
 ├── README.md                    # This file
-├── scripts/                      # Development and utility scripts
-│   ├── dev-start.sh             # Development server startup script
-│   ├── generate-registry.ts     # Function registry generator
-│   ├── migrate-to-associations.ts # Database migration script
-│   ├── seed-dummy-data.js       # Seed script (JS version)
-│   ├── seed-dummy-data.ts       # Seed script (TS version)
-│   └── validate-metadata.ts     # Metadata validation script
-├── cursor-old/                   # Old Cursor IDE configuration files
-└── *.md                          # Development documentation files
+├── scripts/                     # Registry, seeds, metadata (see package.json)
+│   ├── dev-start.sh
+│   ├── generate-registry.ts
+│   ├── migrate-to-associations.ts
+│   ├── seed-dummy-data.{js,ts}
+│   └── validate-metadata.ts
+├── cursor-old/                  # Archived Cursor / agent notes
+└── *.md                         # All long-form dev docs (including items moved from repo root)
 ```
+
+One-off Mongo / cron debug scripts live in the repository **`scripts/`** folder at the project root (next to `package.json`), not under `dev-docs/scripts/`.
 
 ## Documentation Files
 
@@ -30,13 +31,19 @@ dev-docs/
 - **DASHBOARD_ACCESS_GUIDE.md** - Dashboard access control guide
 - **PERMISSION_UPDATES.md** - Permission system updates
 - **README-POC.md** - Proof of concept documentation
+- **CRON_SCHEDULER_SETUP.md** — External cron / scheduler for Bork & Eitje jobs
+- **V3-QUICK-START.md**, **V3-AGGREGATION-BUILD-PLAN.md**, **V3-AGGREGATION-IMPLEMENTATION-COMPLETE.md**, **V3-STRUCTURE-REFACTORED.md** — V3 aggregation notes
+- **AGGREGATION-LOGIC-VERIFICATION.md**, **DASHBOARD-STRUCTURE-COMPLETE.md**, **STRUCTURE-ISOLATION-COMPLETE.md**, **FINAL-ISOLATION-COMPLETE.md**, **V2-V3-PAGES-SETUP.md** — Structure / verification write-ups
+- **DEBUG_BUSINESS_HOUR_MAPPING.md** — Hour mapping & Bork CSV vs API investigations (updated by some `scripts/*.ts` tools)
+- **QUICK_START_WORKERS.md**, **WORKER_IMPORT_SUMMARY.md** — Workers import notes
+- **raw_data_example.md** — Sample raw data reference
 
 ## Scripts
 
-All development scripts are located in the `scripts/` subdirectory. See `package.json` for npm scripts that use these files.
+- **`dev-docs/scripts/`** — registry generator, metadata validation, seed templates (see `package.json` scripts).
+- **`scripts/`** (project root) — data checks, backfills, migrations, and ad-hoc `.mjs` / `.ts` utilities.
 
 ## Notes
 
-- All development documentation should be placed in this directory
-- Scripts should be placed in `dev-docs/scripts/`
-- Keep the root directory clean of development-only files
+- Place new development documentation in this `dev-docs/` directory (not the repository root).
+- Keep the repository root limited to app config, `README.md`, and standard tooling files.

@@ -7,7 +7,7 @@
  * 1) Per-register-day **totals** (sum of 3 locations): Σ V2 vs Σ CSV, gap, match
  * 2) Per-location rows for the same days (aligned columns)
  *
- * Replaces <!-- BORK_DAILY_OMZET_CSV_START --> … <!-- BORK_DAILY_OMZET_CSV_END --> in DEBUG_BUSINESS_HOUR_MAPPING.md
+ * Replaces <!-- BORK_DAILY_OMZET_CSV_START --> … <!-- BORK_DAILY_OMZET_CSV_END --> in dev-docs/DEBUG_BUSINESS_HOUR_MAPPING.md
  *
  * Usage: node --experimental-strip-types scripts/compare-bork-daily-omzet-csv.ts
  */
@@ -220,7 +220,7 @@ async function main() {
     }
   }
 
-  const path = resolve(process.cwd(), 'DEBUG_BUSINESS_HOUR_MAPPING.md')
+  const path = resolve(process.cwd(), 'dev-docs/DEBUG_BUSINESS_HOUR_MAPPING.md')
   let raw = readFileSync(path, 'utf-8')
   const markerStart = '<!-- BORK_DAILY_OMZET_CSV_START -->'
   const markerEnd = '<!-- BORK_DAILY_OMZET_CSV_END -->'
@@ -230,7 +230,7 @@ async function main() {
   const re = new RegExp(`${markerStart}[\\s\\S]*?${markerEnd}`)
   raw = raw.replace(re, `${markerStart}\n${md}\n${markerEnd}`)
   writeFileSync(path, raw)
-  console.log(`Updated DEBUG_BUSINESS_HOUR_MAPPING.md — ${last14.length} day(s) + ${last14.length * 3} location rows.`)
+  console.log(`Updated dev-docs/DEBUG_BUSINESS_HOUR_MAPPING.md — ${last14.length} day(s) + ${last14.length * 3} location rows.`)
   await client.close()
 }
 
