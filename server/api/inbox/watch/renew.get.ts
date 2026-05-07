@@ -17,7 +17,6 @@ import {
   getGmailOAuthErrorMessage,
   isInvalidGrantError,
 } from '../../../utils/gmailOAuthError'
-import { getGmailOAuthRedirectUri } from '../../../utils/gmailOAuthRedirect'
 
 const GMAIL_WATCH_JOB = { source: 'gmail', jobType: 'inbox-watch' } as const
 

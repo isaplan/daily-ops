@@ -30,6 +30,7 @@ export async function ensureInboxIndexes(): Promise<void> {
   const attachments = db.collection(INBOX_COLLECTIONS.emailAttachment)
   const parsed = db.collection(INBOX_COLLECTIONS.parsedData)
   const logs = db.collection(INBOX_COLLECTIONS.processingLog)
+  const oauthTokens = db.collection(INBOX_COLLECTIONS.gmailOAuthToken)
 
   await Promise.all([
     emails.createIndex({ messageId: 1 }, { unique: true }),
@@ -44,6 +45,8 @@ export async function ensureInboxIndexes(): Promise<void> {
     parsed.createIndex({ emailId: 1, documentType: 1 }),
     logs.createIndex({ emailId: 1, timestamp: -1 }),
     logs.createIndex({ attachmentId: 1, timestamp: -1 }),
+    oauthTokens.createIndex({ accountId: 1 }, { unique: true }),
+    oauthTokens.createIndex({ createdAt: -1 }),
   ]).catch(() => {
     /* index may already exist with different options */
   })

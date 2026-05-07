@@ -24,6 +24,7 @@ declare global {
   const cachedFunction: typeof import('../../node_modules/nitropack/dist/runtime/internal/cache').cachedFunction
   const callNodeListener: typeof import('../../node_modules/h3').callNodeListener
   const canonicalInboxSalesRow: typeof import('../../server/utils/inbox/inbox-sales-row-canonical').canonicalInboxSalesRow
+  const canonicalVenueKeyForBorkMatching: typeof import('../../server/utils/inbox/basis-report-location').canonicalVenueKeyForBorkMatching
   const classifyByContent: typeof import('../../server/utils/inbox/document-classifier').classifyByContent
   const classifyByFilename: typeof import('../../server/utils/inbox/document-classifier').classifyByFilename
   const classifyDocument: typeof import('../../server/utils/inbox/document-classifier').classifyDocument
@@ -68,6 +69,8 @@ declare global {
   const enumerateUtcDatesInclusive: typeof import('../../server/utils/dailyOpsDashboardMetrics').enumerateUtcDatesInclusive
   const eventHandler: typeof import('../../node_modules/h3').eventHandler
   const extractDumpRows: typeof import('../../server/utils/parseMenuDump').extractDumpRows
+  const extractLocationFromBasisFileName: typeof import('../../server/utils/inbox/basis-report-location').extractLocationFromBasisFileName
+  const extractLocationFromBasisSpreadsheet: typeof import('../../server/utils/inbox/basis-report-location').extractLocationFromBasisSpreadsheet
   const extractLocationFromTrivecCsv: typeof import('../../server/utils/inbox/trivec-sales-csv').extractLocationFromTrivecCsv
   const extractMentionSlug: typeof import('../../server/utils/noteMentions').extractMentionSlug
   const extractWijnkaartItems: typeof import('../../server/utils/parseMenuFile').extractWijnkaartItems
@@ -78,6 +81,7 @@ declare global {
   const fetchHourlyRevenueForRange: typeof import('../../server/utils/dailyOpsDashboardMetrics').fetchHourlyRevenueForRange
   const fetchHoursCostByContractType: typeof import('../../server/utils/dailyOpsDashboardMetrics').fetchHoursCostByContractType
   const fetchHoursCostByContractTypeByDay: typeof import('../../server/utils/dailyOpsDashboardMetrics').fetchHoursCostByContractTypeByDay
+  const fetchInboxBasisRevenueTotalExVat: typeof import('../../server/utils/dailyOpsDashboardMetrics').fetchInboxBasisRevenueTotalExVat
   const fetchLaborByDate: typeof import('../../server/utils/dailyOpsDashboardMetrics').fetchLaborByDate
   const fetchLaborMetricsPipelineInput: typeof import('../../server/utils/dailyOpsDashboardMetrics').fetchLaborMetricsPipelineInput
   const fetchLaborProductivityByLocationDay: typeof import('../../server/utils/dailyOpsDashboardMetrics').fetchLaborProductivityByLocationDay
@@ -86,7 +90,10 @@ declare global {
   const fetchRevenueByCategoryFromRaw: typeof import('../../server/utils/dailyOpsDashboardMetrics').fetchRevenueByCategoryFromRaw
   const fetchRevenueByDate: typeof import('../../server/utils/dailyOpsDashboardMetrics').fetchRevenueByDate
   const fetchRevenueByDateAndLocation: typeof import('../../server/utils/dailyOpsDashboardMetrics').fetchRevenueByDateAndLocation
+  const fetchRevenueByDateAndLocationFromHourly: typeof import('../../server/utils/dailyOpsDashboardMetrics').fetchRevenueByDateAndLocationFromHourly
+  const fetchRevenueByDateFromHourly: typeof import('../../server/utils/dailyOpsDashboardMetrics').fetchRevenueByDateFromHourly
   const fetchRevenueByTimePeriod: typeof import('../../server/utils/dailyOpsDashboardMetrics').fetchRevenueByTimePeriod
+  const fetchTodayDashboardRevenueExtras: typeof import('../../server/utils/dailyOpsDashboardMetrics').fetchTodayDashboardRevenueExtras
   const fetchWithEvent: typeof import('../../node_modules/h3').fetchWithEvent
   const fetchWorkersByTeamLocation: typeof import('../../server/utils/dailyOpsDashboardMetrics').fetchWorkersByTeamLocation
   const fetchWorkersByTeamLocationByDay: typeof import('../../server/utils/dailyOpsDashboardMetrics').fetchWorkersByTeamLocationByDay
@@ -110,7 +117,7 @@ declare global {
   const getDb: typeof import('../../server/utils/db').getDb
   const getGmailInvalidGrantHint: typeof import('../../server/utils/gmailOAuthError').getGmailInvalidGrantHint
   const getGmailOAuthErrorMessage: typeof import('../../server/utils/gmailOAuthError').getGmailOAuthErrorMessage
-  const getGmailOAuthRedirectUri: typeof import('../../server/utils/gmailOAuthRedirect').getGmailOAuthRedirectUri
+  const getGmailRedirectUri: typeof import('../../server/utils/gmailRedirectUri').getGmailRedirectUri
   const getHeader: typeof import('../../node_modules/h3').getHeader
   const getHeaders: typeof import('../../node_modules/h3').getHeaders
   const getHourFromDate: typeof import('../../server/utils/v3BusinessDay').getHourFromDate
@@ -168,9 +175,15 @@ declare global {
   const isValidBusinessDateFormat: typeof import('../../server/utils/v3BusinessDay').isValidBusinessDateFormat
   const isWebResponse: typeof import('../../node_modules/h3').isWebResponse
   const lazyEventHandler: typeof import('../../node_modules/h3').lazyEventHandler
+  const listBorkAggReadSuffixCandidates: typeof import('../../server/utils/borkAggVersionSuffix').listBorkAggReadSuffixCandidates
+  const loadUnifiedLocationGroupResolver: typeof import('../../server/utils/unifiedLocationGroupResolver').loadUnifiedLocationGroupResolver
   const locationDayKey: typeof import('../../server/utils/dailyOpsDashboardMetrics').locationDayKey
   const looksLikeTrivecSemicolonSales: typeof import('../../server/utils/inbox/csv-parser').looksLikeTrivecSemicolonSales
+  const mapBasisReportXLSX: typeof import('../../server/utils/inbox/basis-report-mapper').mapBasisReportXLSX
   const mapWijnkaartRowToItem: typeof import('../../server/utils/parseMenuFile').mapWijnkaartRowToItem
+  const matchVenueLocationFromText: typeof import('../../server/utils/inbox/basis-report-location').matchVenueLocationFromText
+  const mergeLocationRevenueMaps: typeof import('../../server/utils/dailyOpsDashboardMetrics').mergeLocationRevenueMaps
+  const mergeRevenueByDateMaps: typeof import('../../server/utils/dailyOpsDashboardMetrics').mergeRevenueByDateMaps
   const mergeWorkedAndPlanned: typeof import('../../server/utils/memberEitjeContext').mergeWorkedAndPlanned
   const nitroPlugin: typeof import('../../node_modules/nitropack/dist/runtime/internal/plugin').nitroPlugin
   const normalizeTrivecSemicolonSalesParse: typeof import('../../server/utils/inbox/trivec-sales-csv').normalizeTrivecSemicolonSalesParse
@@ -247,6 +260,7 @@ declare global {
   const useRuntimeConfig: typeof import('../../node_modules/nitropack/dist/runtime/internal/config').useRuntimeConfig
   const useSession: typeof import('../../node_modules/h3').useSession
   const useStorage: typeof import('../../node_modules/nitropack/dist/runtime/internal/storage').useStorage
+  const v3ValidationComplete: typeof import('../../server/utils/v3ValidationChecklist').v3ValidationComplete
   const writeEarlyHints: typeof import('../../node_modules/h3').writeEarlyHints
 }
 // for type re-export
@@ -255,7 +269,7 @@ declare global {
   export type { EventHandler, EventHandlerRequest, EventHandlerResponse, EventHandlerObject, H3EventContext } from '../../node_modules/h3'
   import('../../node_modules/h3')
   // @ts-ignore
-  export type { DailyOpsMetricsContext, BorkHourAggregatesBundle, ContractTypeDayRow, WorkersTeamLocationDayRow, LaborMetricsPipelineInput } from '../../server/utils/dailyOpsDashboardMetrics'
+  export type { DailyOpsMetricsContext, BorkHourAggregatesBundle, TodayRevenueExtras, ContractTypeDayRow, WorkersTeamLocationDayRow, LaborMetricsPipelineInput } from '../../server/utils/dailyOpsDashboardMetrics'
   import('../../server/utils/dailyOpsDashboardMetrics')
   // @ts-ignore
   export type { DailyOpsDateRange } from '../../server/utils/dailyOpsPeriod'
@@ -263,6 +277,9 @@ declare global {
   // @ts-ignore
   export type { UtcDayRange } from '../../server/utils/eitjeHours'
   import('../../server/utils/eitjeHours')
+  // @ts-ignore
+  export type { BasisReportData } from '../../server/utils/inbox/basis-report-mapper'
+  import('../../server/utils/inbox/basis-report-mapper')
   // @ts-ignore
   export type { CsvParseOptions } from '../../server/utils/inbox/csv-parser'
   import('../../server/utils/inbox/csv-parser')
@@ -293,6 +310,9 @@ declare global {
   // @ts-ignore
   export type { ParsePdfResult } from '../../server/utils/parsePdf'
   import('../../server/utils/parsePdf')
+  // @ts-ignore
+  export type { UnifiedLocationGroupResolver } from '../../server/utils/unifiedLocationGroupResolver'
+  import('../../server/utils/unifiedLocationGroupResolver')
 }
 export { H3Event, H3Error, appendCorsHeaders, appendCorsPreflightHeaders, appendHeader, appendHeaders, appendResponseHeader, appendResponseHeaders, assertMethod, callNodeListener, clearResponseHeaders, clearSession, createApp, createAppEventHandler, createError, createEvent, createEventStream, createRouter, defaultContentType, defineEventHandler, defineLazyEventHandler, defineNodeListener, defineNodeMiddleware, defineRequestMiddleware, defineResponseMiddleware, defineWebSocket, defineWebSocketHandler, deleteCookie, dynamicEventHandler, eventHandler, fetchWithEvent, fromNodeMiddleware, fromPlainHandler, fromWebHandler, getCookie, getHeader, getHeaders, getMethod, getProxyRequestHeaders, getQuery, getRequestFingerprint, getRequestHeader, getRequestHeaders, getRequestHost, getRequestIP, getRequestPath, getRequestProtocol, getRequestURL, getRequestWebStream, getResponseHeader, getResponseHeaders, getResponseStatus, getResponseStatusText, getRouterParam, getRouterParams, getSession, getValidatedQuery, getValidatedRouterParams, handleCacheHeaders, handleCors, isCorsOriginAllowed, isError, isEvent, isEventHandler, isMethod, isPreflightRequest, isStream, isWebResponse, lazyEventHandler, parseCookies, promisifyNodeListener, proxyRequest, readBody, readFormData, readMultipartFormData, readRawBody, readValidatedBody, removeResponseHeader, sanitizeStatusCode, sanitizeStatusMessage, sealSession, send, sendError, sendIterable, sendNoContent, sendProxy, sendRedirect, sendStream, sendWebResponse, serveStatic, setCookie, setHeader, setHeaders, setResponseHeader, setResponseHeaders, setResponseStatus, splitCookiesString, toEventHandler, toNodeListener, toPlainHandler, toWebHandler, toWebRequest, unsealSession, updateSession, useBase, useSession, writeEarlyHints } from 'h3';
 export { useNitroApp } from 'nitropack/runtime/internal/app';
@@ -308,15 +328,17 @@ export { defineTask, runTask } from 'nitropack/runtime/internal/task';
 export { defineNitroErrorHandler } from 'nitropack/runtime/internal/error/utils';
 export { buildAssetsURL as __buildAssetsURL, publicAssetsURL as __publicAssetsURL } from '/Users/alviniomolina/Documents/GitHub/daily-ops/node_modules/@nuxt/nitro-server/dist/runtime/utils/paths';
 export { defineAppConfig } from '/Users/alviniomolina/Documents/GitHub/daily-ops/node_modules/@nuxt/nitro-server/dist/runtime/utils/config';
-export { resolveBorkAggReadSuffix, resolveBorkAggRebuildSuffix } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/borkAggVersionSuffix';
+export { resolveBorkAggReadSuffix, listBorkAggReadSuffixCandidates, resolveBorkAggRebuildSuffix } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/borkAggVersionSuffix';
 export { resolveV2RebuildCollectionSuffix } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/borkV2RebuildSuffix';
-export { parseDailyOpsMetricsQuery, resolveUnifiedLocationToEitjeId, enumerateUtcDatesInclusive, fetchBorkRevenueTotals, fetchEitjeLaborTotals, fetchRevenueByCategoryFromHourAggregates, fetchRevenueByCategoryFromRaw, fetchBorkHourAggregatesBundle, revenueByTimePeriodFromHourTotals, fetchRevenueByTimePeriod, fetchHourlyRevenueForRange, fetchRevenueByDate, locationDayKey, parseLocationDayKey, fetchRevenueByDateAndLocation, fetchLaborByDate, fetchHoursCostByContractTypeByDay, computeMostProfitableHour, fetchWorkersByTeamLocation, fetchWorkersByTeamLocationByDay, fetchHoursCostByContractType, fetchLaborProductivityByLocationDay, inventoryCollections, fetchLaborMetricsPipelineInput, assembleDailyOpsLaborMetricsDto, buildDailyOpsSummaryDto, buildDailyOpsRevenueBreakdownDto, VAT_DISCLAIMER } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/dailyOpsDashboardMetrics';
+export { parseDailyOpsMetricsQuery, resolveUnifiedLocationToEitjeId, enumerateUtcDatesInclusive, fetchBorkRevenueTotals, fetchEitjeLaborTotals, fetchRevenueByCategoryFromHourAggregates, fetchRevenueByCategoryFromRaw, fetchBorkHourAggregatesBundle, revenueByTimePeriodFromHourTotals, fetchRevenueByTimePeriod, fetchHourlyRevenueForRange, fetchRevenueByDate, fetchRevenueByDateFromHourly, mergeRevenueByDateMaps, mergeLocationRevenueMaps, fetchRevenueByDateAndLocationFromHourly, fetchInboxBasisRevenueTotalExVat, fetchTodayDashboardRevenueExtras, locationDayKey, parseLocationDayKey, fetchRevenueByDateAndLocation, fetchLaborByDate, fetchHoursCostByContractTypeByDay, computeMostProfitableHour, fetchWorkersByTeamLocation, fetchWorkersByTeamLocationByDay, fetchHoursCostByContractType, fetchLaborProductivityByLocationDay, inventoryCollections, fetchLaborMetricsPipelineInput, assembleDailyOpsLaborMetricsDto, buildDailyOpsSummaryDto, buildDailyOpsRevenueBreakdownDto, VAT_DISCLAIMER } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/dailyOpsDashboardMetrics';
 export { resolveDailyOpsPeriod } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/dailyOpsPeriod';
 export { getMongoDatabaseName, getDb, getNotesCollection, getUnifiedUsersCollection, getMenuItemsCollection, getMenusCollection, getMenuVersionsCollection, connectToDatabase } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/db';
 export { findEitjeCredentialDocument, documentToEitjeStoredCredentials, documentToCredentialsApiShape } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/eitjeApiCredentials';
 export { EITJE_HOURS_ADD_FIELDS, getUtcDayRange } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/eitjeHours';
 export { getGmailOAuthErrorMessage, isInvalidGrantError, getGmailInvalidGrantHint } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/gmailOAuthError';
-export { getGmailOAuthRedirectUri } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/gmailOAuthRedirect';
+export { getGmailRedirectUri } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/gmailRedirectUri';
+export { canonicalVenueKeyForBorkMatching, matchVenueLocationFromText, extractLocationFromBasisSpreadsheet, extractLocationFromBasisFileName } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/inbox/basis-report-location';
+export { mapBasisReportXLSX } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/inbox/basis-report-mapper';
 export { ensureInboxCollections, ensureInboxIndexes } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/inbox/collections';
 export { INBOX_COLLECTIONS, INBOX_TARGET_COLLECTIONS } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/inbox/constants';
 export { looksLikeTrivecSemicolonSales, parseCSV } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/inbox/csv-parser';
@@ -333,6 +355,8 @@ export { extractMentionSlug, collectMentionSlugsFromContent, resolveSlugsToUnifi
 export { detectHeaderRow, rowToData, productGroupFromFilename, extractDumpRows } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/parseMenuDump';
 export { parseCsvToRows, parseExcelToRows, mapWijnkaartRowToItem, extractWijnkaartItems, parseMenuFileToRows } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/parseMenuFile';
 export { parsePdfToRows } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/parsePdf';
+export { loadUnifiedLocationGroupResolver } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/unifiedLocationGroupResolver';
 export { getBusinessDate, getBusinessDayStart, getBusinessDayEnd, getBusinessDayPart1Date, getBusinessDayPart2Date, getBusinessDayPart, isBusinessDayFinished, toISODateString, formatBusinessDate, getCurrentBusinessDate, getHourFromDate, isValidBusinessDateFormat, getBusinessDayDurationMs, getBusinessDayProgressPercent, getV3AggregationScheduleHours, isScheduledAggregationTime, getNextAggregationTime } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/v3BusinessDay';
 export { V3_COLLECTIONS, V3_COLLECTION_INDEXES, initializeV3Collections } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/v3Collections';
 export { getSalesSnapshot, getLaborSnapshot, getDashboardSnapshot, upsertSalesSnapshot, upsertLaborSnapshot, upsertDashboardSnapshot, getSalesSnapshotsByLocationRange, getLatestSalesSnapshotsAllLocations, recordAggregationMetadata, getAggregationHistory, cleanupOldSnapshots, shouldUpdateSnapshot } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/v3Snapshots';
+export { v3ValidationComplete } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/v3ValidationChecklist';

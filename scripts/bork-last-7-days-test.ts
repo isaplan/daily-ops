@@ -6,7 +6,7 @@
 import { readFileSync, existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { MongoClient, type Db } from 'mongodb'
-import { rebuildBorkSalesAggregation } from '../server/services/borkRebuildAggregationService.ts'
+import { rebuildBorkSalesAggregationV2 } from '../server/services/borkRebuildAggregationV2Service.ts'
 
 function loadDotEnv() {
   for (const file of ['.env.local', '.env']) {
@@ -66,14 +66,15 @@ async function syncLastSevenDays() {
     aggEndDate.setDate(aggEndDate.getDate() + 1)
     const aggEnd = aggEndDate.toISOString().split('T')[0]
     
-    await rebuildBorkSalesAggregation(db, aggStart, aggEnd, '_test')
-    
-    console.log('✅ Complete! Check TEST collections:')
+    await rebuildBorkSalesAggregationV2(db, aggStart, aggEnd, '_test')
+
+    console.log('✅ Complete! Check TEST collections (V2):')
+    console.log('  - bork_business_days_test')
     console.log('  - bork_sales_by_hour_test')
     console.log('  - bork_sales_by_table_test')
     console.log('  - bork_sales_by_worker_test')
-    console.log('  - bork_sales_by_cron_test')
     console.log('  - bork_sales_by_guest_account_test')
+    console.log('  - bork_sales_by_product_test')
     
   } finally {
     await client.close()

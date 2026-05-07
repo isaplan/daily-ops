@@ -1,16 +1,19 @@
 /**
  * @registry-id: borkRebuildAggregationV2Service
  * @created: 2026-04-14T18:00:00.000Z
- * @last-modified: 2026-04-28T18:40:00.000Z
+ * @last-modified: 2026-05-07T12:00:00.000Z
  * @description: V2 Bork aggregates — writes bork_business_days, bork_sales_by_day, bork_sales_by_hour, bork_sales_by_table, bork_sales_by_worker, bork_sales_by_guest_account, bork_sales_by_product (+ version suffix)
- * @last-fix: [2026-04-28] Aligned V2 rebuild collections to bork_sales_by_* names used by `/api/sales-aggregated-v2` and default version suffix `_v2`
+ * @last-fix: [2026-05-07] Sync/backfill now depend on V2 only (legacy V1 rebuild removed)
  *
  * @CRITICAL: Line revenue uses Lines (Price×Qty); paymode totals use Order.Paymodes (may differ from line totals).
  *
  * @exports-to:
- * ✓ scripts/bork-backfill-weekly-backward.ts (optional BORK_AGG_V2=1)
+ * ✓ scripts/bork-backfill-weekly-backward.ts
  * ✓ scripts/rebuild-bork-v2-date-range.ts
- * ✓ server/api/sales-aggregated-v2.get.ts
+ * ✓ scripts/bork-full-raw-backfill.ts
+ * ✓ scripts/bork-last-7-days-test.ts
+ * ✓ server/services/borkSyncService.ts
+ * ✓ server/api/sales-aggregated.get.ts (read paths via version suffix)
  * ✓ server/utils/borkV2RebuildSuffix.ts (rebuild script write suffix)
  */
 
@@ -43,12 +46,12 @@ function calendarToBusinessDay(
   calendarDateStr: string,
   calendarHour: number
 ): { businessDate: string; businessHour: number } {
-  if (calendarHour >= 6 && calendarHour <= 23) {
-    return { businessDate: calendarDateStr, businessHour: calendarHour - 6 }
+  if (calendarHour >= 8 && calendarHour <= 23) {
+    return { businessDate: calendarDateStr, businessHour: calendarHour - 8 }
   }
   return {
     businessDate: addCalendarDaysISO(calendarDateStr, -1),
-    businessHour: calendarHour + 18,
+    businessHour: calendarHour + 16,
   }
 }
 
