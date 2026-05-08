@@ -14,30 +14,17 @@
         <h2 class="font-semibold">Filters</h2>
         <p class="text-sm text-gray-500">Filter and sort hours data</p>
       </template>
-      <div class="grid gap-4 md:grid-cols-5">
+      <DailyOpsDateLocationFilter
+        :model-value="{ locationId: filters.locationId, startDate: filters.startDate, endDate: filters.endDate }"
+        :locations="locations"
+        @update:model-value="(updates) => { Object.assign(filters, updates); fetchHours(true) }"
+      />
+      <div class="mt-6 grid gap-4 md:grid-cols-3">
         <div class="space-y-2">
           <label class="text-sm font-medium">Endpoint</label>
           <USelectMenu
             v-model="filters.endpoint"
             :items="endpointOptions"
-            value-attribute="value"
-            class="w-full"
-            @update:model-value="() => fetchHours(true)"
-          />
-        </div>
-        <div class="space-y-2">
-          <label class="text-sm font-medium">Start Date</label>
-          <UInput v-model="filters.startDate" type="date" @update:model-value="() => fetchHours(true)" />
-        </div>
-        <div class="space-y-2">
-          <label class="text-sm font-medium">End Date</label>
-          <UInput v-model="filters.endDate" type="date" @update:model-value="() => fetchHours(true)" />
-        </div>
-        <div class="space-y-2">
-          <label class="text-sm font-medium">Location</label>
-          <USelectMenu
-            v-model="filters.locationId"
-            :items="locationOptions"
             value-attribute="value"
             class="w-full"
             @update:model-value="() => fetchHours(true)"
@@ -53,22 +40,20 @@
             @update:model-value="() => fetchHours(true)"
           />
         </div>
-      </div>
-      <div class="mt-4 flex items-center gap-4">
         <div class="space-y-2">
           <label class="text-sm font-medium">Order</label>
           <USelectMenu
             v-model="filters.sortOrder"
             :items="[{ label: 'Descending', value: 'desc' }, { label: 'Ascending', value: 'asc' }]"
             value-attribute="value"
-            class="w-36"
+            class="w-full"
             @update:model-value="() => fetchHours(true)"
           />
         </div>
-        <div class="mt-6 flex flex-wrap gap-2">
-          <UButton variant="outline" @click="resetFilters">Reset Filters</UButton>
-          <UButton :loading="loading" @click="() => fetchHours(true)">Refresh data</UButton>
-        </div>
+      </div>
+      <div class="mt-6 flex flex-wrap gap-2">
+        <UButton variant="outline" @click="resetFilters">Reset Filters</UButton>
+        <UButton :loading="loading" @click="() => fetchHours(true)">Refresh data</UButton>
       </div>
     </UCard>
 
@@ -280,11 +265,6 @@ const consistencyResult = ref<{
   mismatches: { date: string; location_name: string; location_id: string; row_total: number; raw_sum: number; raw_count: number; row_record_count: number; diff: number }[]
   possible_causes: string
 } | null>(null)
-
-const locationOptions = computed(() => [
-  { label: 'All locations', value: 'all' },
-  ...locations.value.map((l: { _id: string; name: string }) => ({ label: l.name, value: l._id })),
-])
 
 const totalHours = computed(() => rangeTotals.value.total_hours)
 const rowDetailSumHours = computed(() => rowDetailRecords.value.reduce((s: number, r: { total_hours: number }) => s + Number(r.total_hours ?? 0), 0))

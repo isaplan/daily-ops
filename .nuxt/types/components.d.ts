@@ -16,6 +16,7 @@ type LazyComponent<T> = DefineComponent<HydrationStrategies, {}, {}, {}, {}, {},
 interface _GlobalComponents {
   AppSidebar: typeof import("../../components/AppSidebar.vue")['default']
   ContentWithMentionAutocomplete: typeof import("../../components/ContentWithMentionAutocomplete.vue")['default']
+  DailyOpsDateLocationFilter: typeof import("../../components/DailyOpsDateLocationFilter.vue")['default']
   NotePdfContent: typeof import("../../components/NotePdfContent.vue")['default']
   NoteReadOnlyView: typeof import("../../components/NoteReadOnlyView.vue")['default']
   NotesForm: typeof import("../../components/NotesForm.vue")['default']
@@ -192,6 +193,7 @@ interface _GlobalComponents {
   NuxtIsland: typeof import("../../node_modules/.pnpm/nuxt@4.4.2_@babel+core@7.29.0_@babel+plugin-syntax-jsx@7.28.6_@babel+core@7.29.0__@emna_17b042fbec102db6cfc876b0c60ffb5d/node_modules/nuxt/dist/app/components/nuxt-island")['default']
   LazyAppSidebar: LazyComponent<typeof import("../../components/AppSidebar.vue")['default']>
   LazyContentWithMentionAutocomplete: LazyComponent<typeof import("../../components/ContentWithMentionAutocomplete.vue")['default']>
+  LazyDailyOpsDateLocationFilter: LazyComponent<typeof import("../../components/DailyOpsDateLocationFilter.vue")['default']>
   LazyNotePdfContent: LazyComponent<typeof import("../../components/NotePdfContent.vue")['default']>
   LazyNoteReadOnlyView: LazyComponent<typeof import("../../components/NoteReadOnlyView.vue")['default']>
   LazyNotesForm: LazyComponent<typeof import("../../components/NotesForm.vue")['default']>

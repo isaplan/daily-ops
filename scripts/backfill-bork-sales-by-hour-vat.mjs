@@ -1,5 +1,6 @@
 /**
  * Backfill script: Add both total_revenue_ex_vat and total_revenue_incl_vat to bork_sales_by_hour_v2
+ * Idempotent: Only updates documents missing the fields
  */
 
 import { MongoClient } from 'mongodb'
@@ -17,8 +18,20 @@ async function backfill() {
     
     console.log('Starting backfill: Adding VAT fields to bork_sales_by_hour_v2...\n')
     
-    const docs = await collection.find({}).toArray()
-    console.log(`Found ${docs.length} documents to update\n`)
+    // Find only documents missing the fields
+    const docs = await collection.find({
+      $or: [
+        { total_revenue_ex_vat: { $exists: false } },
+        { total_revenue_incl_vat: { $exists: false } }
+      ]
+    }).toArray()
+    
+    console.log(`Found ${docs.length} documents to update (skipping already-updated)\n`)
+    
+    if (docs.length === 0) {
+      console.log('✅ All documents already have VAT fields!')
+      return
+    }
     
     let updated = 0
     let errors = 0
@@ -41,7 +54,7 @@ async function backfill() {
         if (result.modifiedCount > 0) {
           updated++
           if (updated % 500 === 0) {
-            console.log(`Updated ${updated} documents...`)
+            console.log(`Updated ${updated} / ${docs.length} documents...`)
           }
         }
       } catch (err) {
@@ -53,6 +66,17 @@ async function backfill() {
     console.log(`\n✅ Backfill complete!`)
     console.log(`Updated: ${updated}`)
     console.log(`Errors: ${errors}`)
+    
+    // Verify
+    const totalDocs = await collection.countDocuments({})
+    const withVat = await collection.countDocuments({
+      total_revenue_ex_vat: { $exists: true }
+    })
+    
+    console.log(`\nVerification:`)
+    console.log(`Total documents: ${totalDocs}`)
+    console.log(`With VAT fields: ${withVat}`)
+    console.log(`Coverage: ${Math.round(withVat / totalDocs * 100)}%`)
     
   } finally {
     await client.close()
