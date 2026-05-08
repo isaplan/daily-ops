@@ -102,7 +102,7 @@
                     </span>
                   </h3>
                   <p class="text-sm text-gray-500 space-x-2">
-                    Business Day Date/Time
+                    Business Day:
                     <span
                       v-if="typeof report.business_date === 'string'"
                       class="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded"
@@ -117,7 +117,7 @@
                     </span>
                   </p>
                   <p class="text-sm text-gray-500 space-x-2">
-                    ISO Day
+                    ISO Day:
                     <span
                       v-if="typeof report.cron_hour === 'number'"
                       class="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded"
