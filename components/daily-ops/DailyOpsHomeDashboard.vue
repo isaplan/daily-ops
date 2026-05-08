@@ -29,7 +29,7 @@
                 Headline = Inbox Basis Report (full business day, ex VAT). Bork API breakdown is for detail verification.
               </span>
               <span v-else-if="summary.summary.revenueLeadSource === 'bork_api_merged'">
-                Headline = Bork API (business-day aggregates rebuilt daily + today in-progress).
+                Headline = Bork API (business-day aggregates, incl VAT).
               </span>
             </p>
             <dl
@@ -46,7 +46,7 @@
                 </dd>
               </div>
               <div class="flex justify-between gap-2">
-                <dt class="text-gray-600">Bork API · business-days (hour · worker · table · product)</dt>
+                <dt class="text-gray-600">Bork API · incl VAT (business-day aggregates)</dt>
                 <dd class="tabular-nums font-medium text-gray-900">{{ formatEur(summary.summary.revenueSources.apiBusinessDaysTotal) }}</dd>
               </div>
             </dl>
