@@ -129,16 +129,13 @@ export async function fetchBorkRevenueTotals(db: Db, ctx: DailyOpsMetricsContext
       {
         $group: {
           _id: null,
-          total_revenue: { $sum: { $ifNull: ['$total_revenue', 0] } },
+          total_revenue_ex_vat: { $sum: { $ifNull: ['$total_revenue_ex_vat', 0] } },
         },
       },
     ])
     .toArray()
-  const r = row as { total_revenue?: number } | undefined
-  const revIncVat = r?.total_revenue ?? 0
-  // Bork stores incl VAT (21%). Convert to ex VAT.
-  const revExVat = Math.round(revIncVat / 1.21 * 100) / 100
-  return { totalRevenue: revExVat }
+  const r = row as { total_revenue_ex_vat?: number } | undefined
+  return { totalRevenue: r?.total_revenue_ex_vat ?? 0 }
 }
 
 export async function fetchEitjeLaborTotals(db: Db, ctx: DailyOpsMetricsContext) {
@@ -329,17 +326,16 @@ export async function fetchRevenueByDate(db: Db, ctx: DailyOpsMetricsContext) {
       {
         $group: {
           _id: '$business_date',
-          revenue: { $sum: { $ifNull: ['$total_revenue', 0] } },
+          revenue: { $sum: { $ifNull: ['$total_revenue_ex_vat', 0] } },
         },
       },
     ])
     .toArray()) as { _id: string; revenue: number }[]
 
-  // Convert incl VAT to ex VAT (divide by 1.21)
-  return new Map(rows.map((r) => [r._id, Math.round(r.revenue / 1.21 * 100) / 100]))
+  return new Map(rows.map((r) => [r._id, Math.round(r.revenue * 100) / 100]))
 }
 
-/** Sum `total_revenue` by business_date from `bork_sales_by_hour` — validates / fills gaps when `bork_business_days` is empty. */
+/** Sum `total_revenue_ex_vat` by business_date from `bork_sales_by_hour` — validates / fills gaps when `bork_business_days` is empty. */
 export async function fetchRevenueByDateFromHourly(db: Db, ctx: DailyOpsMetricsContext): Promise<Map<string, number>> {
   const sfx = resolveBorkAggReadSuffix()
   const rows = (await db
@@ -349,14 +345,13 @@ export async function fetchRevenueByDateFromHourly(db: Db, ctx: DailyOpsMetricsC
       {
         $group: {
           _id: '$business_date',
-          revenue: { $sum: { $ifNull: ['$total_revenue', 0] } },
+          revenue: { $sum: { $ifNull: ['$total_revenue_ex_vat', 0] } },
         },
       },
     ])
     .toArray()) as { _id: string; revenue: number }[]
 
-  // Convert incl VAT to ex VAT (divide by 1.21)
-  return new Map(rows.map((r) => [r._id, Math.round(r.revenue / 1.21 * 100) / 100]))
+  return new Map(rows.map((r) => [r._id, Math.round(r.revenue * 100) / 100]))
 }
 
 function sumMapValues(m: Map<string, number>): number {
@@ -404,7 +399,7 @@ export async function fetchRevenueByDateAndLocationFromHourly(db: Db, ctx: Daily
       {
         $group: {
           _id: { date: '$business_date', locationId: '$locationId' },
-          revenue: { $sum: { $ifNull: ['$total_revenue', 0] } },
+          revenue: { $sum: { $ifNull: ['$total_revenue_ex_vat', 0] } },
         },
       },
     ])
@@ -413,9 +408,7 @@ export async function fetchRevenueByDateAndLocationFromHourly(db: Db, ctx: Daily
   const map = new Map<string, number>()
   for (const r of rows) {
     const lid = r._id.locationId != null ? String(r._id.locationId) : 'unknown'
-    // Convert incl VAT to ex VAT (divide by 1.21)
-    const exVat = Math.round(r.revenue / 1.21 * 100) / 100
-    map.set(locationDayKey(r._id.date, lid), exVat)
+    map.set(locationDayKey(r._id.date, lid), Math.round(r.revenue * 100) / 100)
   }
   return map
 }
@@ -593,7 +586,7 @@ export async function fetchRevenueByDateAndLocation (db: Db, ctx: DailyOpsMetric
       {
         $group: {
           _id: { date: '$business_date', locationId: '$locationId' },
-          revenue: { $sum: { $ifNull: ['$total_revenue', 0] } },
+          revenue: { $sum: { $ifNull: ['$total_revenue_ex_vat', 0] } },
         },
       },
     ])
@@ -602,9 +595,7 @@ export async function fetchRevenueByDateAndLocation (db: Db, ctx: DailyOpsMetric
   const map = new Map<string, number>()
   for (const r of rows) {
     const lid = r._id.locationId != null ? String(r._id.locationId) : 'unknown'
-    // Convert incl VAT to ex VAT (divide by 1.21)
-    const exVat = Math.round(r.revenue / 1.21 * 100) / 100
-    map.set(locationDayKey(r._id.date, lid), exVat)
+    map.set(locationDayKey(r._id.date, lid), Math.round(r.revenue * 100) / 100)
   }
   return map
 }

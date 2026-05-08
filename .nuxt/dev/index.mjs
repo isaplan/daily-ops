@@ -4927,7 +4927,22 @@ _nddW4OgTKHcMIQ8mQhekYcJvlrNi40TbQzTLx2yq5MQ,
 _bZ9Ni6V2HtIpJeulfSLzyAQaoMJdeQllxN50TS5qNvY
 ];
 
-const assets = {};
+const assets = {
+  "/index.mjs": {
+    "type": "text/javascript; charset=utf-8",
+    "etag": "\"1700aa-G8ynn1xLFWQ1OjLtWlts3PdpiN0\"",
+    "mtime": "2026-05-08T18:25:53.870Z",
+    "size": 1507498,
+    "path": "index.mjs"
+  },
+  "/index.mjs.map": {
+    "type": "application/json",
+    "etag": "\"5c1c7a-/bbQeq8NIkVh3ejvqByy42OukiU\"",
+    "mtime": "2026-05-08T18:25:54.054Z",
+    "size": 6036602,
+    "path": "index.mjs.map"
+  }
+};
 
 function readAsset (id) {
   const serverDir = dirname$1(fileURLToPath(globalThis._importMeta_.url));
@@ -5718,11 +5733,11 @@ async function fetchRevenueByDate(db, ctx) {
     {
       $group: {
         _id: "$business_date",
-        revenue: { $sum: { $ifNull: ["$total_revenue", 0] } }
+        revenue: { $sum: { $ifNull: ["$total_revenue_ex_vat", 0] } }
       }
     }
   ]).toArray();
-  return new Map(rows.map((r) => [r._id, Math.round(r.revenue / 1.21 * 100) / 100]));
+  return new Map(rows.map((r) => [r._id, Math.round(r.revenue * 100) / 100]));
 }
 async function fetchRevenueByDateFromHourly(db, ctx) {
   const sfx = resolveBorkAggReadSuffix();
@@ -5731,11 +5746,11 @@ async function fetchRevenueByDateFromHourly(db, ctx) {
     {
       $group: {
         _id: "$business_date",
-        revenue: { $sum: { $ifNull: ["$total_revenue", 0] } }
+        revenue: { $sum: { $ifNull: ["$total_revenue_ex_vat", 0] } }
       }
     }
   ]).toArray();
-  return new Map(rows.map((r) => [r._id, Math.round(r.revenue / 1.21 * 100) / 100]));
+  return new Map(rows.map((r) => [r._id, Math.round(r.revenue * 100) / 100]));
 }
 function sumMapValues(m) {
   let s = 0;
@@ -5771,15 +5786,14 @@ async function fetchRevenueByDateAndLocationFromHourly(db, ctx) {
     {
       $group: {
         _id: { date: "$business_date", locationId: "$locationId" },
-        revenue: { $sum: { $ifNull: ["$total_revenue", 0] } }
+        revenue: { $sum: { $ifNull: ["$total_revenue_ex_vat", 0] } }
       }
     }
   ]).toArray();
   const map = /* @__PURE__ */ new Map();
   for (const r of rows) {
     const lid = r._id.locationId != null ? String(r._id.locationId) : "unknown";
-    const exVat = Math.round(r.revenue / 1.21 * 100) / 100;
-    map.set(locationDayKey(r._id.date, lid), exVat);
+    map.set(locationDayKey(r._id.date, lid), Math.round(r.revenue * 100) / 100);
   }
   return map;
 }
@@ -5886,15 +5900,14 @@ async function fetchRevenueByDateAndLocation(db, ctx) {
     {
       $group: {
         _id: { date: "$business_date", locationId: "$locationId" },
-        revenue: { $sum: { $ifNull: ["$total_revenue", 0] } }
+        revenue: { $sum: { $ifNull: ["$total_revenue_ex_vat", 0] } }
       }
     }
   ]).toArray();
   const map = /* @__PURE__ */ new Map();
   for (const r of rows) {
     const lid = r._id.locationId != null ? String(r._id.locationId) : "unknown";
-    const exVat = Math.round(r.revenue / 1.21 * 100) / 100;
-    map.set(locationDayKey(r._id.date, lid), exVat);
+    map.set(locationDayKey(r._id.date, lid), Math.round(r.revenue * 100) / 100);
   }
   return map;
 }
