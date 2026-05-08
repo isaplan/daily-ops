@@ -4927,22 +4927,7 @@ _nddW4OgTKHcMIQ8mQhekYcJvlrNi40TbQzTLx2yq5MQ,
 _bZ9Ni6V2HtIpJeulfSLzyAQaoMJdeQllxN50TS5qNvY
 ];
 
-const assets = {
-  "/index.mjs": {
-    "type": "text/javascript; charset=utf-8",
-    "etag": "\"16e59d-CDF0OupnKFJafkcfBbxQ8LarOps\"",
-    "mtime": "2026-05-08T09:27:14.249Z",
-    "size": 1500573,
-    "path": "index.mjs"
-  },
-  "/index.mjs.map": {
-    "type": "application/json",
-    "etag": "\"5bac80-nvzThFj8WhLq8NZg4tme486budg\"",
-    "mtime": "2026-05-08T09:27:14.288Z",
-    "size": 6007936,
-    "path": "index.mjs.map"
-  }
-};
+const assets = {};
 
 function readAsset (id) {
   const serverDir = dirname$1(fileURLToPath(globalThis._importMeta_.url));
@@ -5429,7 +5414,7 @@ function defineRenderHandler(render) {
 
 const r=Object.create(null),i=e=>globalThis.process?.env||globalThis._importMeta_.env||globalThis.Deno?.env.toObject()||globalThis.__env__||(e?r:globalThis),o=new Proxy(r,{get(e,s){return i()[s]??r[s]},has(e,s){const E=i();return s in E||s in r},set(e,s,E){const B=i(true);return B[s]=E,true},deleteProperty(e,s){if(!s)return  false;const E=i(true);return delete E[s],true},ownKeys(){const e=i(true);return Object.keys(e)}}),t=typeof process<"u"&&process.env&&"development"||"",f=[["APPVEYOR"],["AWS_AMPLIFY","AWS_APP_ID",{ci:true}],["AZURE_PIPELINES","SYSTEM_TEAMFOUNDATIONCOLLECTIONURI"],["AZURE_STATIC","INPUT_AZURE_STATIC_WEB_APPS_API_TOKEN"],["APPCIRCLE","AC_APPCIRCLE"],["BAMBOO","bamboo_planKey"],["BITBUCKET","BITBUCKET_COMMIT"],["BITRISE","BITRISE_IO"],["BUDDY","BUDDY_WORKSPACE_ID"],["BUILDKITE"],["CIRCLE","CIRCLECI"],["CIRRUS","CIRRUS_CI"],["CLOUDFLARE_PAGES","CF_PAGES",{ci:true}],["CLOUDFLARE_WORKERS","WORKERS_CI",{ci:true}],["CODEBUILD","CODEBUILD_BUILD_ARN"],["CODEFRESH","CF_BUILD_ID"],["DRONE"],["DRONE","DRONE_BUILD_EVENT"],["DSARI"],["GITHUB_ACTIONS"],["GITLAB","GITLAB_CI"],["GITLAB","CI_MERGE_REQUEST_ID"],["GOCD","GO_PIPELINE_LABEL"],["LAYERCI"],["HUDSON","HUDSON_URL"],["JENKINS","JENKINS_URL"],["MAGNUM"],["NETLIFY"],["NETLIFY","NETLIFY_LOCAL",{ci:false}],["NEVERCODE"],["RENDER"],["SAIL","SAILCI"],["SEMAPHORE"],["SCREWDRIVER"],["SHIPPABLE"],["SOLANO","TDDIUM"],["STRIDER"],["TEAMCITY","TEAMCITY_VERSION"],["TRAVIS"],["VERCEL","NOW_BUILDER"],["VERCEL","VERCEL",{ci:false}],["VERCEL","VERCEL_ENV",{ci:false}],["APPCENTER","APPCENTER_BUILD_ID"],["CODESANDBOX","CODESANDBOX_SSE",{ci:false}],["CODESANDBOX","CODESANDBOX_HOST",{ci:false}],["STACKBLITZ"],["STORMKIT"],["CLEAVR"],["ZEABUR"],["CODESPHERE","CODESPHERE_APP_ID",{ci:true}],["RAILWAY","RAILWAY_PROJECT_ID"],["RAILWAY","RAILWAY_SERVICE_ID"],["DENO-DEPLOY","DENO_DEPLOYMENT_ID"],["FIREBASE_APP_HOSTING","FIREBASE_APP_HOSTING",{ci:true}]];function b(){if(globalThis.process?.env)for(const e of f){const s=e[1]||e[0];if(globalThis.process?.env[s])return {name:e[0].toLowerCase(),...e[2]}}return globalThis.process?.env?.SHELL==="/bin/jsh"&&globalThis.process?.versions?.webcontainer?{name:"stackblitz",ci:false}:{name:"",ci:false}}const l=b();l.name;function n(e){return e?e!=="false":false}const I=globalThis.process?.platform||"",T=n(o.CI)||l.ci!==false,R=n(globalThis.process?.stdout&&globalThis.process?.stdout.isTTY);n(o.DEBUG);const a=t==="test"||n(o.TEST);n(o.MINIMAL)||T||a||!R;const A=/^win/i.test(I);!n(o.NO_COLOR)&&(n(o.FORCE_COLOR)||(R||A)&&o.TERM!=="dumb"||T);const C=(globalThis.process?.versions?.node||"").replace(/^v/,"")||null;Number(C?.split(".")[0])||null;const W=globalThis.process||Object.create(null),_={versions:{}};new Proxy(W,{get(e,s){if(s==="env")return o;if(s in e)return e[s];if(s in _)return _[s]}});const O=globalThis.process?.release?.name==="node",c=!!globalThis.Bun||!!globalThis.process?.versions?.bun,D=!!globalThis.Deno,L=!!globalThis.fastly,S=!!globalThis.Netlify,u=!!globalThis.EdgeRuntime,N=globalThis.navigator?.userAgent==="Cloudflare-Workers",F=[[S,"netlify"],[u,"edge-light"],[N,"workerd"],[L,"fastly"],[D,"deno"],[c,"bun"],[O,"node"]];function G(){const e=F.find(s=>s[0]);if(e)return {name:e[1]}}const P=G();P?.name||"";
 
-const scheduledTasks = [{"cron":"5 6 * * *","tasks":["inbox:gmail-sync"]},{"cron":"5 16 * * *","tasks":["inbox:gmail-sync"]},{"cron":"5 21 * * *","tasks":["inbox:gmail-sync"]},{"cron":"0 6,13,16,18,20,22 * * *","tasks":["integrations:bork-eitje-daily"]}];
+const scheduledTasks = [{"cron":"5 8 * * *","tasks":["inbox:gmail-sync"]},{"cron":"5 18 * * *","tasks":["inbox:gmail-sync"]},{"cron":"5 23 * * *","tasks":["inbox:gmail-sync"]},{"cron":"0 6,13,16,18,20,22 * * *","tasks":["integrations:bork-eitje-daily"]}];
 
 const tasks = {
   "inbox:gmail-sync": {
@@ -6603,8 +6588,11 @@ function extractLocationFromBasisFileName(fileName) {
   return "";
 }
 
+function escapeRegExp(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
 async function mapBasisReportXLSX(parseResult, fileName, emailData, db) {
-  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l;
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n;
   if (!parseResult.success || parseResult.rows.length === 0) {
     return null;
   }
@@ -6625,30 +6613,36 @@ async function mapBasisReportXLSX(parseResult, fileName, emailData, db) {
   const dateStr = dateFromSubject || dateFromMetadata || extractDateFromFile(rows) || "";
   const locationRaw = locationFromSubject || (locationFromMetadata && locationFromMetadata !== "undefined" ? locationFromMetadata : "") || extractLocationFromBasisSpreadsheet(rows, fileName) || "";
   let locationId;
+  let locationCanonical;
   if (db && locationRaw && locationRaw !== "Unknown" && locationRaw !== "Unspecified") {
     try {
-      let locDoc = await db.collection("unified_location").findOne({
+      const exact = await db.collection("unified_location").findOne({
         $or: [
           { name: locationRaw },
           { primaryName: locationRaw },
           { canonicalName: locationRaw },
           { abbreviation: locationRaw },
+          { aliases: locationRaw },
           { "borkMapping.borkLocationName": locationRaw }
         ]
       });
+      let locDoc = exact;
       if (!locDoc) {
-        const normalized = locationRaw.toLowerCase().trim();
+        const ci = { $regex: `^${escapeRegExp(locationRaw)}$`, $options: "i" };
         locDoc = await db.collection("unified_location").findOne({
           $or: [
-            { name: { $regex: normalized, $options: "i" } },
-            { primaryName: { $regex: normalized, $options: "i" } },
-            { canonicalName: { $regex: normalized, $options: "i" } },
-            { "borkMapping.borkLocationName": { $regex: normalized, $options: "i" } }
+            { name: ci },
+            { primaryName: ci },
+            { canonicalName: ci },
+            { abbreviation: ci },
+            { aliases: ci },
+            { "borkMapping.borkLocationName": ci }
           ]
         });
       }
       if (locDoc) {
         locationId = String(locDoc._id);
+        locationCanonical = (_d = (_c = locDoc.primaryName) != null ? _c : locDoc.canonicalName) != null ? _d : locDoc.name;
       }
     } catch (err) {
     }
@@ -6694,7 +6688,7 @@ async function mapBasisReportXLSX(parseResult, fileName, emailData, db) {
   }
   const paymentMarker = sectionMarkers.find((m) => m.sectionType === "payments");
   if (paymentMarker) {
-    const paymentEndIdx = (_d = (_c = sectionMarkers.find((m) => m.rowIdx > paymentMarker.rowIdx)) == null ? void 0 : _c.rowIdx) != null ? _d : rows.length;
+    const paymentEndIdx = (_f = (_e = sectionMarkers.find((m) => m.rowIdx > paymentMarker.rowIdx)) == null ? void 0 : _e.rowIdx) != null ? _f : rows.length;
     const paymentData = getRowsForSection(paymentMarker.rowIdx + 1, paymentEndIdx);
     if (paymentData.length > 0) {
       sections.payments = mapPayments(paymentData);
@@ -6702,7 +6696,7 @@ async function mapBasisReportXLSX(parseResult, fileName, emailData, db) {
   }
   const correctionMarker = sectionMarkers.find((m) => m.sectionType === "corrections");
   if (correctionMarker) {
-    const correctionEndIdx = (_f = (_e = sectionMarkers.find((m) => m.rowIdx > correctionMarker.rowIdx)) == null ? void 0 : _e.rowIdx) != null ? _f : rows.length;
+    const correctionEndIdx = (_h = (_g = sectionMarkers.find((m) => m.rowIdx > correctionMarker.rowIdx)) == null ? void 0 : _g.rowIdx) != null ? _h : rows.length;
     const correctionData = getRowsForSection(correctionMarker.rowIdx + 1, correctionEndIdx);
     if (correctionData.length > 0) {
       sections.corrections = mapCorrections(correctionData, parseResult.headers);
@@ -6716,18 +6710,26 @@ async function mapBasisReportXLSX(parseResult, fileName, emailData, db) {
     }
   }
   if (db) {
-    if ((_g = sections.corrections) == null ? void 0 : _g.adjustments) {
+    if ((_i = sections.corrections) == null ? void 0 : _i.adjustments) {
       await normalizeUserNames(sections.corrections.adjustments, db);
     }
-    if ((_h = sections.internal_sales) == null ? void 0 : _h.staff) {
+    if ((_j = sections.internal_sales) == null ? void 0 : _j.staff) {
       await normalizeUserNames(sections.internal_sales.staff, db);
     }
   }
-  const finalRevenueIncl = ((_j = (_i = sections.netto_sales) == null ? void 0 : _i.grand_total) == null ? void 0 : _j.price_incl_vat) || 0;
-  const finalRevenueEx = ((_l = (_k = sections.netto_sales) == null ? void 0 : _k.grand_total) == null ? void 0 : _l.price_ex_vat) || 0;
+  const finalRevenueIncl = ((_l = (_k = sections.netto_sales) == null ? void 0 : _k.grand_total) == null ? void 0 : _l.price_incl_vat) || 0;
+  const finalRevenueEx = ((_n = (_m = sections.netto_sales) == null ? void 0 : _m.grand_total) == null ? void 0 : _n.price_ex_vat) || 0;
+  if (db && locationRaw && !locationId) {
+    try {
+      console.warn(
+        `[basis-report-mapper] Unmapped location label "${locationRaw}" \u2014 add it to unified_location.aliases (subject="${subject != null ? subject : ""}", file="${fileName}")`
+      );
+    } catch {
+    }
+  }
   return {
     date: dateStr || "UNKNOWN",
-    location: locationRaw || "Unspecified",
+    location: locationCanonical || locationRaw || "Unspecified",
     location_id: locationId,
     location_raw: locationRaw,
     cron_hour: cronHour,
@@ -33032,6 +33034,7 @@ async function loadUnifiedLocationGroupResolver(db) {
         primaryName: 1,
         canonicalName: 1,
         abbreviation: 1,
+        aliases: 1,
         borkMapping: 1
       }
     }
@@ -33043,6 +33046,10 @@ async function loadUnifiedLocationGroupResolver(db) {
     registerAlias(aliasToGroup, doc.primaryName, groupKey);
     registerAlias(aliasToGroup, doc.canonicalName, groupKey);
     registerAlias(aliasToGroup, doc.abbreviation, groupKey);
+    const aliases = Array.isArray(doc.aliases) ? doc.aliases : [];
+    for (const a of aliases) {
+      if (typeof a === "string") registerAlias(aliasToGroup, a, groupKey);
+    }
     const bm = doc.borkMapping;
     if (bm == null ? void 0 : bm.borkLocationName) registerAlias(aliasToGroup, bm.borkLocationName, groupKey);
   }
@@ -35208,19 +35215,30 @@ async function runInboxGmailSync(options) {
   };
 }
 
+console.log("[inbox/gmail-sync.ts] Module loaded - this should print on Nitro startup");
 const gmailSync = defineTask({
   meta: {
     name: "inbox:gmail-sync",
     description: "Scheduled Gmail inbox fetch (same as POST /api/inbox/sync)"
   },
   async run() {
+    console.log(
+      "[inbox:gmail-sync] SCHEDULED TASK TRIGGERED AT",
+      (/* @__PURE__ */ new Date()).toISOString(),
+      "(local clock:",
+      (/* @__PURE__ */ new Date()).toLocaleString("en-US", { timeZone: "UTC" }),
+      "UTC)"
+    );
     const maxResults = parseInt(process.env.INBOX_SYNC_MAX_RESULTS || "100", 10);
     const capped = Number.isFinite(maxResults) ? Math.min(500, Math.max(1, maxResults)) : 100;
     try {
+      console.log("[inbox:gmail-sync] Running sync with maxResults=" + capped);
       const result = await runInboxGmailSync({ maxResults: capped });
+      console.log("[inbox:gmail-sync] SUCCESS:", result.data);
       return { result: result.data };
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
+      console.error("[inbox:gmail-sync] ERROR:", message, e);
       return { result: { ok: false, error: message } };
     }
   }
@@ -35231,6 +35249,7 @@ const gmailSync$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.definePropert
   default: gmailSync
 }, Symbol.toStringTag, { value: 'Module' }));
 
+console.log("[integrations/bork-eitje-daily.ts] Module loaded - this should print on Nitro startup");
 const JOB_TYPE = "daily-data";
 const PAUSE_MS = 3e4;
 const borkEitjeDaily = defineTask({
@@ -35239,19 +35258,28 @@ const borkEitjeDaily = defineTask({
     description: "Scheduled Bork + Eitje daily-data raw fetch (matches GitHub daily-ops-sync.yml)"
   },
   async run() {
-    const db = await getDb();
-    const bork = await runIntegrationCronJob(db, "bork", JOB_TYPE);
-    await new Promise((resolve) => {
-      setTimeout(resolve, PAUSE_MS);
-    });
-    const eitje = await runIntegrationCronJob(db, "eitje", JOB_TYPE);
-    return {
-      result: {
-        ok: bork.syncResult.ok && eitje.syncResult.ok,
-        bork: bork.syncResult,
-        eitje: eitje.syncResult
-      }
-    };
+    console.log("[integrations:bork-eitje-daily] SCHEDULED TASK TRIGGERED AT", (/* @__PURE__ */ new Date()).toISOString());
+    try {
+      const db = await getDb();
+      console.log("[integrations:bork-eitje-daily] Got database connection");
+      const bork = await runIntegrationCronJob(db, "bork", JOB_TYPE);
+      console.log("[integrations:bork-eitje-daily] Bork completed, waiting...");
+      await new Promise((resolve) => {
+        setTimeout(resolve, PAUSE_MS);
+      });
+      const eitje = await runIntegrationCronJob(db, "eitje", JOB_TYPE);
+      console.log("[integrations:bork-eitje-daily] Eitje completed");
+      return {
+        result: {
+          ok: bork.syncResult.ok && eitje.syncResult.ok,
+          bork: bork.syncResult,
+          eitje: eitje.syncResult
+        }
+      };
+    } catch (e) {
+      console.error("[integrations:bork-eitje-daily] ERROR:", e);
+      throw e;
+    }
   }
 });
 
@@ -35344,6 +35372,7 @@ const SALES_LIST_SORT = {
   received_at: -1
 };
 const sales_get$4 = defineEventHandler(async (event) => {
+  var _a, _b, _c;
   try {
     const query = getQuery$1(event);
     const date = query.date;
@@ -35354,11 +35383,32 @@ const sales_get$4 = defineEventHandler(async (event) => {
     const filter = {};
     if (date) filter.date = date;
     if (location) filter.location = { $regex: location, $options: "i" };
-    const reports = await collection.find(filter).sort(SALES_LIST_SORT).limit(limit).toArray();
+    const [reports, resolver, unifiedLocations] = await Promise.all([
+      collection.find(filter).sort(SALES_LIST_SORT).limit(limit).toArray(),
+      loadUnifiedLocationGroupResolver(db),
+      db.collection("unified_location").find({}, { projection: { name: 1, primaryName: 1, canonicalName: 1 } }).toArray()
+    ]);
+    const idToName = /* @__PURE__ */ new Map();
+    for (const u of unifiedLocations) {
+      const display = (_c = (_b = (_a = u.canonicalName) != null ? _a : u.primaryName) != null ? _b : u.name) != null ? _c : "";
+      if (display) idToName.set(`u:${String(u._id)}`, display);
+    }
+    const enriched = reports.map((r) => {
+      var _a2, _b2, _c2, _d, _e, _f;
+      const groupKey = (_d = (_c2 = (_a2 = resolver.groupKeyFromBasisLocationId(r.location_id)) != null ? _a2 : resolver.resolveGroupKey(r.location)) != null ? _c2 : resolver.resolveGroupKey((_b2 = r.location_raw) != null ? _b2 : "")) != null ? _d : null;
+      const isUnifiedKey = (_e = groupKey == null ? void 0 : groupKey.startsWith("u:")) != null ? _e : false;
+      const unifiedId = isUnifiedKey ? groupKey.slice(2) : null;
+      const displayName = isUnifiedKey ? (_f = idToName.get(groupKey)) != null ? _f : null : null;
+      return {
+        ...r,
+        unified_location_id: unifiedId,
+        unified_location_name: displayName
+      };
+    });
     return {
       success: true,
-      data: reports,
-      count: reports.length
+      data: enriched,
+      count: enriched.length
     };
   } catch (error) {
     throw createError({

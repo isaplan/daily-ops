@@ -10,6 +10,10 @@ import {
   matchVenueLocationFromText,
 } from './basis-report-location'
 
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
 export type BasisReportData = {
   date: string
   location: string
@@ -127,37 +131,44 @@ export async function mapBasisReportXLSX(
     ''
 
   let locationId: string | undefined
+  let locationCanonical: string | undefined
   if (db && locationRaw && locationRaw !== 'Unknown' && locationRaw !== 'Unspecified') {
     try {
-      // First try exact matches on all common fields
-      let locDoc = await db.collection('unified_location').findOne({
+      const exact = await db.collection('unified_location').findOne({
         $or: [
           { name: locationRaw },
           { primaryName: locationRaw },
           { canonicalName: locationRaw },
           { abbreviation: locationRaw },
+          { aliases: locationRaw },
           { 'borkMapping.borkLocationName': locationRaw },
         ],
       })
-      
-      // Fallback: try case-insensitive partial match for common variations
+
+      let locDoc = exact
       if (!locDoc) {
-        const normalized = locationRaw.toLowerCase().trim()
+        const ci = { $regex: `^${escapeRegExp(locationRaw)}$`, $options: 'i' }
         locDoc = await db.collection('unified_location').findOne({
           $or: [
-            { name: { $regex: normalized, $options: 'i' } },
-            { primaryName: { $regex: normalized, $options: 'i' } },
-            { canonicalName: { $regex: normalized, $options: 'i' } },
-            { 'borkMapping.borkLocationName': { $regex: normalized, $options: 'i' } },
+            { name: ci },
+            { primaryName: ci },
+            { canonicalName: ci },
+            { abbreviation: ci },
+            { aliases: ci },
+            { 'borkMapping.borkLocationName': ci },
           ],
         })
       }
-      
+
       if (locDoc) {
         locationId = String(locDoc._id)
+        locationCanonical =
+          (locDoc.primaryName as string | undefined) ??
+          (locDoc.canonicalName as string | undefined) ??
+          (locDoc.name as string | undefined)
       }
     } catch (err) {
-      // Fail silently
+      // Fail silently — caller will see locationId === undefined
     }
   }
   
@@ -268,9 +279,19 @@ export async function mapBasisReportXLSX(
   const finalRevenueIncl = sections.netto_sales?.grand_total?.price_incl_vat || 0
   const finalRevenueEx = sections.netto_sales?.grand_total?.price_ex_vat || 0
 
+  if (db && locationRaw && !locationId) {
+    try {
+      console.warn(
+        `[basis-report-mapper] Unmapped location label "${locationRaw}" — add it to unified_location.aliases (subject="${subject ?? ''}", file="${fileName}")`,
+      )
+    } catch {
+      // ignore
+    }
+  }
+
   return {
     date: dateStr || 'UNKNOWN',
-    location: locationRaw || 'Unspecified',
+    location: locationCanonical || locationRaw || 'Unspecified',
     location_id: locationId,
     location_raw: locationRaw,
     cron_hour: cronHour,
