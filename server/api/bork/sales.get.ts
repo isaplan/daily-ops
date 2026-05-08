@@ -16,7 +16,7 @@ import { loadUnifiedLocationGroupResolver } from '../../utils/unifiedLocationGro
 
 /** Order reports from most recent business moment to oldest (within-day: higher hour first). */
 const SALES_LIST_SORT: Record<string, 1 | -1> = {
-  date: -1,
+  business_date: -1,
   business_hour: -1,
   cron_hour: -1,
   received_at: -1,

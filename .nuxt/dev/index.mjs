@@ -2905,7 +2905,7 @@ function extractHour(timeStr) {
   const match = timeStr.match(/^(\d{1,2}):/);
   return match ? parseInt(match[1], 10) : 0;
 }
-function addCalendarDaysISO$1(dateStr, deltaDays) {
+function addCalendarDaysISO$2(dateStr, deltaDays) {
   const [y, m, d] = dateStr.split("-").map(Number);
   const dt = new Date(Date.UTC(y, m - 1, d + deltaDays));
   const yy = dt.getUTCFullYear();
@@ -2913,12 +2913,12 @@ function addCalendarDaysISO$1(dateStr, deltaDays) {
   const dd = String(dt.getUTCDate()).padStart(2, "0");
   return `${yy}-${mm}-${dd}`;
 }
-function calendarToBusinessDay(calendarDateStr, calendarHour) {
+function calendarToBusinessDay$1(calendarDateStr, calendarHour) {
   if (calendarHour >= 8 && calendarHour <= 23) {
     return { businessDate: calendarDateStr, businessHour: calendarHour - 8 };
   }
   return {
-    businessDate: addCalendarDaysISO$1(calendarDateStr, -1),
+    businessDate: addCalendarDaysISO$2(calendarDateStr, -1),
     businessHour: calendarHour + 16
   };
 }
@@ -3014,7 +3014,7 @@ async function rebuildBorkSalesAggregationV2(db, startDate, endDate, collectionS
           const orderBorkDate = parseInt(orderDate, 10);
           if (orderBorkDate < startBorkDate || orderBorkDate > endBorkDate) continue;
           const isoDate = borkDateToISO(orderBorkDate);
-          const { businessDate, businessHour } = calendarToBusinessDay(isoDate, calendarHour);
+          const { businessDate, businessHour } = calendarToBusinessDay$1(isoDate, calendarHour);
           const dayKey = `${unifiedLocationId}:${businessDate}`;
           const tableNumber = String(order.TableNr || "").trim();
           const hasTable = tableNumber.length > 0;
@@ -3221,7 +3221,7 @@ async function rebuildBorkSalesAggregationV2(db, startDate, endDate, collectionS
   } finally {
     await cursor.close();
   }
-  const clearStartBusiness = addCalendarDaysISO$1(startDate, -1);
+  const clearStartBusiness = addCalendarDaysISO$2(startDate, -1);
   const clearEndBusiness = endDate;
   const hourDocs = Array.from(byHourMap.values()).map((doc) => ({
     ...doc,
@@ -4930,16 +4930,16 @@ _bZ9Ni6V2HtIpJeulfSLzyAQaoMJdeQllxN50TS5qNvY
 const assets = {
   "/index.mjs": {
     "type": "text/javascript; charset=utf-8",
-    "etag": "\"16fb4b-lvlAgT7dL9HzdZPVwOLNMlEryR8\"",
-    "mtime": "2026-05-08T10:44:03.326Z",
-    "size": 1506123,
+    "etag": "\"16fec9-6JppdJXCvONqZyXZOy3sbi2jR1Y\"",
+    "mtime": "2026-05-08T17:13:43.662Z",
+    "size": 1507017,
     "path": "index.mjs"
   },
   "/index.mjs.map": {
     "type": "application/json",
-    "etag": "\"5c0484-OhxSQVeIKfLEALlBdVdfwVQoqz0\"",
-    "mtime": "2026-05-08T10:44:03.349Z",
-    "size": 6030468,
+    "etag": "\"5c1329-QFYUqwz8zBJBvzQXtibOmnU/FLo\"",
+    "mtime": "2026-05-08T17:13:43.836Z",
+    "size": 6034217,
     "path": "index.mjs.map"
   }
 };
@@ -5801,27 +5801,26 @@ function normalizeBasisLocationLabel(s) {
   return s.trim().toLowerCase().replace(/\s+/g, " ");
 }
 function pickBasisReportsPerLocation$1(reports) {
-  var _a;
-  const byNorm = /* @__PURE__ */ new Map();
+  const byLocDateKey = /* @__PURE__ */ new Map();
   for (const r of reports) {
-    const key = normalizeBasisLocationLabel(r.location);
-    if (!key || key === "unspecified") continue;
-    if (!byNorm.has(key)) {
-      byNorm.set(key, {
-        revenues: [],
-        example: r
-      });
+    const locKey = normalizeBasisLocationLabel(r.location);
+    if (!locKey || locKey === "unspecified") continue;
+    const dateKey = r.business_date || r.date;
+    const key = `${locKey}:::${dateKey}`;
+    if (!byLocDateKey.has(key)) {
+      byLocDateKey.set(key, []);
     }
-    const entry = byNorm.get(key);
-    entry.revenues.push(Number((_a = r.final_revenue_ex_vat) != null ? _a : 0));
+    byLocDateKey.get(key).push(r);
   }
   const result = /* @__PURE__ */ new Map();
-  for (const [key, entry] of byNorm) {
-    const totalRevenue = entry.revenues.reduce((a, b) => a + b, 0);
-    result.set(key, {
-      ...entry.example,
-      final_revenue_ex_vat: totalRevenue
+  for (const [key, list] of byLocDateKey) {
+    const sorted = [...list].sort((a, b) => {
+      var _a, _b, _c, _d;
+      const cronDiff = ((_a = b.cron_hour) != null ? _a : -1) - ((_b = a.cron_hour) != null ? _b : -1);
+      if (cronDiff !== 0) return cronDiff;
+      return ((_c = b.business_hour) != null ? _c : -1) - ((_d = a.business_hour) != null ? _d : -1);
     });
+    result.set(key, sorted[0]);
   }
   return result;
 }
@@ -6650,6 +6649,23 @@ function extractLocationFromBasisFileName(fileName) {
 function escapeRegExp(s) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
+function addCalendarDaysISO$1(dateStr, deltaDays) {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d + deltaDays));
+  const yy = dt.getUTCFullYear();
+  const mm = String(dt.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(dt.getUTCDate()).padStart(2, "0");
+  return `${yy}-${mm}-${dd}`;
+}
+function calendarToBusinessDay(calendarDateStr, calendarHour) {
+  if (calendarHour >= 8 && calendarHour <= 23) {
+    return { businessDate: calendarDateStr, businessHour: calendarHour - 8 };
+  }
+  return {
+    businessDate: addCalendarDaysISO$1(calendarDateStr, -1),
+    businessHour: calendarHour + 16
+  };
+}
 async function mapBasisReportXLSX(parseResult, fileName, emailData, db) {
   var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m;
   if (!parseResult.success || parseResult.rows.length === 0) {
@@ -6727,7 +6743,7 @@ async function mapBasisReportXLSX(parseResult, fileName, emailData, db) {
   const receivedDate = receivedRaw instanceof Date ? receivedRaw : receivedRaw != null ? new Date(String(receivedRaw)) : void 0;
   const amsterdamWallHour = receivedDate && !Number.isNaN(receivedDate.getTime()) ? getAmsterdamWallHour(receivedDate) : void 0;
   const cronHour = batchHourFromSubject != null ? batchHourFromSubject : amsterdamWallHour;
-  const businessHour = cronHour !== void 0 ? (cronHour - 8 + 24) % 24 : void 0;
+  const { businessDate, businessHour } = cronHour !== void 0 && dateStr ? calendarToBusinessDay(dateStr, cronHour) : { businessDate: void 0, businessHour: void 0 };
   const sections = {};
   const sectionMarkers = [];
   for (let i = 0; i < rows.length; i++) {
@@ -6809,6 +6825,7 @@ async function mapBasisReportXLSX(parseResult, fileName, emailData, db) {
     location_raw: locationRaw,
     cron_hour: cronHour,
     business_hour: businessHour,
+    business_date: businessDate,
     received_at: emailData == null ? void 0 : emailData.receivedAt,
     sections,
     final_revenue_incl_vat: finalRevenueIncl,
@@ -35457,7 +35474,7 @@ const callback_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProp
 }, Symbol.toStringTag, { value: 'Module' }));
 
 const SALES_LIST_SORT = {
-  date: -1,
+  business_date: -1,
   business_hour: -1,
   cron_hour: -1,
   received_at: -1

@@ -2,6 +2,9 @@
  * Basis Report Mapper — Transform parsed XLSX data into structured sales format
  * Handles: Netto Sales, Betalingen, Correcties, Interne Verkoop
  * Preserves: Inc VAT, Ex VAT prices
+ * 
+ * @last-modified: 2026-05-08T16:50:00.000Z
+ * @last-fix: [2026-05-08] Added business_date field for proper business day context and filtering
  */
 
 import type { ParseResult } from '~/types/inbox'
@@ -16,6 +19,28 @@ function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
+function addCalendarDaysISO(dateStr: string, deltaDays: number): string {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  const dt = new Date(Date.UTC(y, m - 1, d + deltaDays))
+  const yy = dt.getUTCFullYear()
+  const mm = String(dt.getUTCMonth() + 1).padStart(2, '0')
+  const dd = String(dt.getUTCDate()).padStart(2, '0')
+  return `${yy}-${mm}-${dd}`
+}
+
+function calendarToBusinessDay(
+  calendarDateStr: string,
+  calendarHour: number,
+): { businessDate: string; businessHour: number } {
+  if (calendarHour >= 8 && calendarHour <= 23) {
+    return { businessDate: calendarDateStr, businessHour: calendarHour - 8 }
+  }
+  return {
+    businessDate: addCalendarDaysISO(calendarDateStr, -1),
+    businessHour: calendarHour + 16,
+  }
+}
+
 export type BasisReportData = {
   date: string
   location: string
@@ -24,6 +49,7 @@ export type BasisReportData = {
   
   cron_hour?: number
   business_hour?: number
+  business_date?: string
   received_at?: Date
   
   sections: {
@@ -216,8 +242,10 @@ export async function mapBasisReportXLSX(
   const amsterdamWallHour =
     receivedDate && !Number.isNaN(receivedDate.getTime()) ? getAmsterdamWallHour(receivedDate) : undefined
   const cronHour = batchHourFromSubject ?? amsterdamWallHour
-  const businessHour =
-    cronHour !== undefined ? (cronHour - 8 + 24) % 24 : undefined
+  const { businessDate, businessHour } =
+    cronHour !== undefined && dateStr
+      ? calendarToBusinessDay(dateStr, cronHour)
+      : { businessDate: undefined, businessHour: undefined }
 
   // Parse sections from rows
   const sections: BasisReportData['sections'] = {}
@@ -328,6 +356,7 @@ export async function mapBasisReportXLSX(
     location_raw: locationRaw,
     cron_hour: cronHour,
     business_hour: businessHour,
+    business_date: businessDate,
     received_at: emailData?.receivedAt,
     sections,
     final_revenue_incl_vat: finalRevenueIncl,

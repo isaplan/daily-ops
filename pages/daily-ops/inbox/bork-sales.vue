@@ -36,6 +36,15 @@
             />
           </div>
           <div class="min-w-[200px] flex-1 space-y-1">
+            <label class="text-xs font-medium text-gray-600">Business Day</label>
+            <USelectMenu
+              v-model="filterBusinessDate"
+              :items="businessDateOptions"
+              value-attribute="value"
+              class="w-full"
+            />
+          </div>
+          <div class="min-w-[200px] flex-1 space-y-1">
             <label class="text-xs font-medium text-gray-600">Cron time (Amsterdam)</label>
             <USelectMenu
               v-model="filterCronHour"
@@ -94,6 +103,13 @@
                   </h3>
                   <p class="text-sm text-gray-500">
                     {{ formatDate(report.date) }}
+                    <span
+                      v-if="typeof report.business_date === 'string'"
+                      class="ml-2 text-xs bg-amber-100 text-amber-800 px-2 py-1 rounded"
+                      title="Register day: 08:00 day D through 07:59 day D+1 (matches Bork aggregates)"
+                    >
+                      Business day: {{ formatDate(report.business_date) }}
+                    </span>
                     <span
                       v-if="typeof report.cron_hour === 'number'"
                       class="ml-2 text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded"
@@ -304,6 +320,7 @@ const loading = ref(true)
 const error = ref<string | null>(null)
 const expandedReports = ref(new Set<string>())
 const filterLocation = ref<string>(FILTER_ALL)
+const filterBusinessDate = ref<string>(FILTER_ALL)
 const filterCronHour = ref<string>(FILTER_ALL)
 
 const locationOptions = computed(() => {
@@ -329,6 +346,15 @@ const locationOptions = computed(() => {
   return result
 })
 
+function formatDate(dateStr: string): string {
+  try {
+    const date = new Date(dateStr)
+    return date.toLocaleDateString('nl-NL', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })
+  } catch {
+    return dateStr
+  }
+}
+
 const unmappedCount = computed(() =>
   reports.value.filter((r: EnrichedBasisReport) => !r.unified_location_id).length,
 )
@@ -337,6 +363,18 @@ const unmappedDescription = computed(
   () =>
     `${unmappedCount.value} report(s) use a location label that does not match any unified_location entry (parser noise like "Bar supplementen", legacy "Unspecified"). Pick "Unmapped (review)" to inspect, then add the alias to unified_location so it groups with the right venue.`,
 )
+
+const businessDateOptions = computed(() => {
+  const dates = new Set<string>()
+  for (const r of reports.value) {
+    if (typeof r.business_date === 'string') dates.add(r.business_date)
+  }
+  const opts = [...dates]
+    .sort()
+    .reverse()
+    .map((d) => ({ label: formatDate(d), value: d }))
+  return [{ label: 'All business days', value: FILTER_ALL }, ...opts]
+})
 
 const cronHourOptions = computed(() => {
   const hours = new Set<number>()
@@ -349,23 +387,36 @@ const cronHourOptions = computed(() => {
   return [{ label: 'All cron times', value: FILTER_ALL }, ...opts]
 })
 
-const filteredReports = computed(() =>
-  reports.value.filter((r: EnrichedBasisReport) => {
+const filteredReports = computed(() => {
+  const filtered = reports.value.filter((r: EnrichedBasisReport) => {
     if (filterLocation.value === FILTER_UNMAPPED) {
       if (r.unified_location_id) return false
     } else if (filterLocation.value !== FILTER_ALL) {
       if (r.unified_location_id !== filterLocation.value) return false
+    }
+    if (filterBusinessDate.value !== FILTER_ALL) {
+      if (r.business_date !== filterBusinessDate.value) return false
     }
     if (filterCronHour.value !== FILTER_ALL) {
       const want = Number(filterCronHour.value)
       if (typeof r.cron_hour !== 'number' || r.cron_hour !== want) return false
     }
     return true
-  }),
-)
+  })
+
+  return filtered.sort((a: EnrichedBasisReport, b: EnrichedBasisReport) => {
+    const aDate = (a.business_date ?? a.date) || ''
+    const bDate = (b.business_date ?? b.date) || ''
+    if (aDate !== bDate) return bDate.localeCompare(aDate)
+    const aHour = typeof a.business_hour === 'number' ? a.business_hour : -1
+    const bHour = typeof b.business_hour === 'number' ? b.business_hour : -1
+    return bHour - aHour
+  })
+})
 
 function clearFilters() {
   filterLocation.value = FILTER_ALL
+  filterBusinessDate.value = FILTER_ALL
   filterCronHour.value = FILTER_ALL
 }
 
@@ -393,15 +444,6 @@ function toggleReport(date: string, location: string) {
     expandedReports.value.delete(key)
   } else {
     expandedReports.value.add(key)
-  }
-}
-
-function formatDate(dateStr: string): string {
-  try {
-    const date = new Date(dateStr)
-    return date.toLocaleDateString('nl-NL', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })
-  } catch {
-    return dateStr
   }
 }
 

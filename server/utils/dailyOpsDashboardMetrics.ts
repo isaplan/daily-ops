@@ -1,6 +1,25 @@
 /**
  * Daily Ops dashboard: Bork revenue + Eitje labor aggregations (fast paths on prebuilt collections).
  * @last-fix: [2026-05-07] Completed single-day headline revenue leads with inbox Basis (ex VAT) when present; API merge fallback
+ * 
+ * @business-day-definition:
+ * A "business day" runs 06:00 to 05:59 NEXT day (Amsterdam time).
+ * 
+ * Example: Business Day May 7 = 06:00 May 7 to 05:59 May 8
+ * 
+ * Emails arrive via 3 daily crons (Amsterdam time):
+ *   1. Cron 18:00 (ISO May 7) → Business Day 7 report (partial, ~12 hours in)
+ *   2. Cron 23:00 (ISO May 7) → Business Day 7 report (partial, ~17 hours in)
+ *   3. Cron 07:00 (ISO May 8) → **FINAL** Business Day 7 report (complete, closes day at 05:59)
+ * 
+ * Each morning at 08:00, final revenue for "yesterday" (previous business day) is available.
+ * 
+ * pickBasisReportsPerLocation: ALWAYS picks report with HIGHEST cron_hour per location per business_date.
+ * This ensures we get the FINAL complete report, not partial in-progress versions.
+ * 
+ * @related-files:
+ * ✓ server/tasks/inbox/gmail-sync.ts — runs 3×/day at 08:05, 18:05, 23:05 Amsterdam
+ * ✓ server/utils/inbox/basis-report-mapper.ts — parses emails, sets business_date + cron_hour
  */
 import type { Db } from 'mongodb'
 import { ObjectId } from 'mongodb'
@@ -398,36 +417,45 @@ function normalizeBasisLocationLabel(s: string): string {
 }
 
 /**
- * Aggregate all basis reports per location.
- * Multiple reports per location per date (from different cron runs) should be SUMMED, not picked.
- * Creates synthetic merged report with aggregated final_revenue_ex_vat.
+ * Per-location deduplication: pick FINAL report (highest cron_hour) per business_date per location.
+ * 
+ * Multiple emails per day per location (from 18:00, 23:00, 07:00 crons) → pick the LAST one (07:00 = highest cron_hour).
+ * This ensures we use complete end-of-day revenue, not partial in-progress figures.
+ * 
+ * For business_date aggregation (not ISO date):
+ * - Business date 2026-05-07 has crons: 18:00 (ISO 7), 23:00 (ISO 7), 07:00 (ISO 8)
+ * - Pick the 07:00 report (highest cron_hour) = final complete data for that business day
  */
 function pickBasisReportsPerLocation(reports: BasisReportData[]): Map<string, BasisReportData> {
-  const byNorm = new Map<string, { revenues: number[]; example: BasisReportData }>()
+  const byLocDateKey = new Map<string, BasisReportData[]>()
   
   for (const r of reports) {
-    const key = normalizeBasisLocationLabel(r.location)
-    if (!key || key === 'unspecified') continue
+    const locKey = normalizeBasisLocationLabel(r.location)
+    if (!locKey || locKey === 'unspecified') continue
     
-    if (!byNorm.has(key)) {
-      byNorm.set(key, {
-        revenues: [],
-        example: r,
-      })
+    // Group by location+businessDate (or fallback to ISO date if business_date missing)
+    const dateKey = r.business_date || r.date
+    const key = `${locKey}:::${dateKey}`
+    
+    if (!byLocDateKey.has(key)) {
+      byLocDateKey.set(key, [])
     }
-    
-    const entry = byNorm.get(key)!
-    entry.revenues.push(Number(r.final_revenue_ex_vat ?? 0))
+    byLocDateKey.get(key)!.push(r)
   }
   
   const result = new Map<string, BasisReportData>()
-  for (const [key, entry] of byNorm) {
-    const totalRevenue = entry.revenues.reduce((a, b) => a + b, 0)
-    // Create merged report with aggregated revenue
-    result.set(key, {
-      ...entry.example,
-      final_revenue_ex_vat: totalRevenue,
+  
+  for (const [key, list] of byLocDateKey) {
+    // Sort by cron_hour DESCENDING to get the HIGHEST (most recent/final) cron
+    const sorted = [...list].sort((a, b) => {
+      const cronDiff = (b.cron_hour ?? -1) - (a.cron_hour ?? -1)
+      if (cronDiff !== 0) return cronDiff
+      // Tiebreaker: use highest business_hour
+      return (b.business_hour ?? -1) - (a.business_hour ?? -1)
     })
+    
+    // Pick the first (highest cron_hour = most recent/final report)
+    result.set(key, sorted[0])
   }
   
   return result
