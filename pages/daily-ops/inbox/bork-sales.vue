@@ -136,8 +136,8 @@
             </div>
             <div class="flex items-center gap-6">
               <div class="text-right">
-                <p class="text-lg font-bold text-green-600">€{{ formatCurrency(report.final_revenue_incl_vat) }}</p>
-                <p class="text-xs text-gray-500">ex VAT: €{{ formatCurrency(report.final_revenue_ex_vat) }}</p>
+                <p class="text-lg font-bold text-green-600">€{{ formatCurrency(report.final_revenue_ex_vat) }}</p>
+                <p class="text-xs text-gray-500">inc VAT: €{{ formatCurrency(report.final_revenue_incl_vat) }}</p>
               </div>
               <svg
                 :class="[
