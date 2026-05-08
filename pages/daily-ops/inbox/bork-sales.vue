@@ -104,25 +104,18 @@
                   <p class="text-sm text-gray-500">
                     {{ formatDate(report.date) }}
                     <span
-                      v-if="typeof report.business_date === 'string'"
-                      class="ml-2 text-xs bg-amber-100 text-amber-800 px-2 py-1 rounded"
-                      title="Register day: 08:00 day D through 07:59 day D+1 (matches Bork aggregates)"
-                    >
-                      Business day: {{ formatDate(report.business_date) }}
-                    </span>
-                    <span
                       v-if="typeof report.cron_hour === 'number'"
-                      class="ml-2 text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded"
-                      title="Time in Europe/Amsterdam: batch time from the email subject when present, otherwise the hour the message was received"
+                      class="ml-2 text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded"
+                      title="ISO date/time: Time in Europe/Amsterdam when the email was received (batch time from email subject or Gmail arrival)"
                     >
-                      {{ report.cron_hour }}:00 Amsterdam
+                      ISO: {{ report.cron_hour }}:00 Amsterdam
                     </span>
                     <span
-                      v-if="typeof report.business_hour === 'number'"
-                      class="ml-2 text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded"
-                      title="Register-style hour index (08:00 Amsterdam open = 0), aligned with Bork aggregates"
+                      v-if="typeof report.business_date === 'string'"
+                      class="ml-2 text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded"
+                      title="Business day/hour: Register day 08:00 through 07:59 next day. Hour index (0-23) where 0=08:00 Amsterdam."
                     >
-                      Business hour: {{ report.business_hour }}:00
+                      BD: {{ formatDate(report.business_date) }} {{ report.business_hour ?? '?' }}:00
                     </span>
                   </p>
                 </div>
