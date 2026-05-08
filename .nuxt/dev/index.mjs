@@ -4927,22 +4927,7 @@ _nddW4OgTKHcMIQ8mQhekYcJvlrNi40TbQzTLx2yq5MQ,
 _bZ9Ni6V2HtIpJeulfSLzyAQaoMJdeQllxN50TS5qNvY
 ];
 
-const assets = {
-  "/index.mjs": {
-    "type": "text/javascript; charset=utf-8",
-    "etag": "\"170053-HCMMQFiW8K1C3ku+2JnCCrPLgXs\"",
-    "mtime": "2026-05-08T18:12:51.633Z",
-    "size": 1507411,
-    "path": "index.mjs"
-  },
-  "/index.mjs.map": {
-    "type": "application/json",
-    "etag": "\"5c1abc-AfV7irpq7ecaHI9kLbkeumO9XSg\"",
-    "mtime": "2026-05-08T18:12:51.676Z",
-    "size": 6036156,
-    "path": "index.mjs.map"
-  }
-};
+const assets = {};
 
 function readAsset (id) {
   const serverDir = dirname$1(fileURLToPath(globalThis._importMeta_.url));
@@ -5793,7 +5778,8 @@ async function fetchRevenueByDateAndLocationFromHourly(db, ctx) {
   const map = /* @__PURE__ */ new Map();
   for (const r of rows) {
     const lid = r._id.locationId != null ? String(r._id.locationId) : "unknown";
-    map.set(locationDayKey(r._id.date, lid), r.revenue);
+    const exVat = Math.round(r.revenue / 1.21 * 100) / 100;
+    map.set(locationDayKey(r._id.date, lid), exVat);
   }
   return map;
 }
@@ -5907,7 +5893,8 @@ async function fetchRevenueByDateAndLocation(db, ctx) {
   const map = /* @__PURE__ */ new Map();
   for (const r of rows) {
     const lid = r._id.locationId != null ? String(r._id.locationId) : "unknown";
-    map.set(locationDayKey(r._id.date, lid), r.revenue);
+    const exVat = Math.round(r.revenue / 1.21 * 100) / 100;
+    map.set(locationDayKey(r._id.date, lid), exVat);
   }
   return map;
 }
