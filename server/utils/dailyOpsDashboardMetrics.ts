@@ -417,44 +417,51 @@ function normalizeBasisLocationLabel(s: string): string {
 }
 
 /**
- * Per-location deduplication: pick FINAL report (highest cron_hour) per business_date per location.
+ * Per-location deduplication: pick FINAL report (latest in chronological order) per business_date per location.
  * 
- * Multiple emails per day per location (from 18:00, 23:00, 07:00 crons) → pick the LAST one (07:00 = highest cron_hour).
- * This ensures we use complete end-of-day revenue, not partial in-progress figures.
+ * For business day N, crons arrive in this order:
+ *   1. Cron 18 (18:00, same ISO day)
+ *   2. Cron 23 (23:00, same ISO day)
+ *   3. Cron 7 (07:00 NEXT ISO day) ← FINAL/LATEST (closes business day at 05:59)
  * 
- * For business_date aggregation (not ISO date):
- * - Business date 2026-05-07 has crons: 18:00 (ISO 7), 23:00 (ISO 7), 07:00 (ISO 8)
- * - Pick the 07:00 report (highest cron_hour) = final complete data for that business day
+ * Pick the report from cron 7 if it exists (final), otherwise cron 23, otherwise cron 18.
  */
 function pickBasisReportsPerLocation(reports: BasisReportData[]): Map<string, BasisReportData> {
-  const byLocDateKey = new Map<string, BasisReportData[]>()
+  const byLocDate = new Map<string, BasisReportData[]>()
   
   for (const r of reports) {
     const locKey = normalizeBasisLocationLabel(r.location)
     if (!locKey || locKey === 'unspecified') continue
     
-    // Group by location+businessDate (or fallback to ISO date if business_date missing)
     const dateKey = r.business_date || r.date
     const key = `${locKey}:::${dateKey}`
     
-    if (!byLocDateKey.has(key)) {
-      byLocDateKey.set(key, [])
+    if (!byLocDate.has(key)) {
+      byLocDate.set(key, [])
     }
-    byLocDateKey.get(key)!.push(r)
+    byLocDate.get(key)!.push(r)
   }
   
   const result = new Map<string, BasisReportData>()
   
-  for (const [key, list] of byLocDateKey) {
-    // Sort by cron_hour DESCENDING to get the HIGHEST (most recent/final) cron
+  for (const [key, list] of byLocDate) {
+    // Sort by cron chronological order: prefer cron 7 (final), then 23, then 18
+    // Cron 7 is the morning report that closes the previous business day
+    const cronPriority = (cronHour: number) => {
+      if (cronHour === 7) return 3  // Latest (next morning)
+      if (cronHour === 23) return 2 // Middle
+      if (cronHour === 18) return 1 // Earliest
+      return 0
+    }
+    
     const sorted = [...list].sort((a, b) => {
-      const cronDiff = (b.cron_hour ?? -1) - (a.cron_hour ?? -1)
-      if (cronDiff !== 0) return cronDiff
-      // Tiebreaker: use highest business_hour
-      return (b.business_hour ?? -1) - (a.business_hour ?? -1)
+      const priorityDiff = cronPriority(b.cron_hour ?? -1) - cronPriority(a.cron_hour ?? -1)
+      if (priorityDiff !== 0) return priorityDiff
+      // Tiebreaker: higher cron_hour (shouldn't happen)
+      return (b.cron_hour ?? -1) - (a.cron_hour ?? -1)
     })
     
-    // Pick the first (highest cron_hour = most recent/final report)
+    // Pick the first (highest priority = most recent)
     result.set(key, sorted[0])
   }
   
@@ -467,7 +474,7 @@ function pickBasisReportsPerLocation(reports: BasisReportData[]): Map<string, Ba
  */
 export async function fetchInboxBasisRevenueTotalExVat(db: Db, ctx: DailyOpsMetricsContext): Promise<number | null> {
   const query: Record<string, unknown> = {
-    date: { $gte: ctx.startDate, $lte: ctx.endDate },
+    business_date: { $gte: ctx.startDate, $lte: ctx.endDate },
   }
   
   // If filtering by location, only fetch reports for that location
@@ -484,7 +491,7 @@ export async function fetchInboxBasisRevenueTotalExVat(db: Db, ctx: DailyOpsMetr
 
   const byDate = new Map<string, BasisReportData[]>()
   for (const r of rows) {
-    const d = r.date
+    const d = r.business_date || r.date
     if (!byDate.has(d)) byDate.set(d, [])
     byDate.get(d)!.push(r)
   }

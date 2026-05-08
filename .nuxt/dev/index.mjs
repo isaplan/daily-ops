@@ -4930,16 +4930,16 @@ _bZ9Ni6V2HtIpJeulfSLzyAQaoMJdeQllxN50TS5qNvY
 const assets = {
   "/index.mjs": {
     "type": "text/javascript; charset=utf-8",
-    "etag": "\"16fec9-6JppdJXCvONqZyXZOy3sbi2jR1Y\"",
-    "mtime": "2026-05-08T17:13:43.662Z",
-    "size": 1507017,
+    "etag": "\"16ff99-fL2a73px11PiQOuALbYi5R/R9Vc\"",
+    "mtime": "2026-05-08T17:39:37.590Z",
+    "size": 1507225,
     "path": "index.mjs"
   },
   "/index.mjs.map": {
     "type": "application/json",
-    "etag": "\"5c1329-QFYUqwz8zBJBvzQXtibOmnU/FLo\"",
-    "mtime": "2026-05-08T17:13:43.836Z",
-    "size": 6034217,
+    "etag": "\"5c1790-mFgGurgcagm2gBsMBGhU/gXbq/U\"",
+    "mtime": "2026-05-08T17:39:37.663Z",
+    "size": 6035344,
     "path": "index.mjs.map"
   }
 };
@@ -5801,24 +5801,30 @@ function normalizeBasisLocationLabel(s) {
   return s.trim().toLowerCase().replace(/\s+/g, " ");
 }
 function pickBasisReportsPerLocation$1(reports) {
-  const byLocDateKey = /* @__PURE__ */ new Map();
+  const byLocDate = /* @__PURE__ */ new Map();
   for (const r of reports) {
     const locKey = normalizeBasisLocationLabel(r.location);
     if (!locKey || locKey === "unspecified") continue;
     const dateKey = r.business_date || r.date;
     const key = `${locKey}:::${dateKey}`;
-    if (!byLocDateKey.has(key)) {
-      byLocDateKey.set(key, []);
+    if (!byLocDate.has(key)) {
+      byLocDate.set(key, []);
     }
-    byLocDateKey.get(key).push(r);
+    byLocDate.get(key).push(r);
   }
   const result = /* @__PURE__ */ new Map();
-  for (const [key, list] of byLocDateKey) {
+  for (const [key, list] of byLocDate) {
+    const cronPriority = (cronHour) => {
+      if (cronHour === 7) return 3;
+      if (cronHour === 23) return 2;
+      if (cronHour === 18) return 1;
+      return 0;
+    };
     const sorted = [...list].sort((a, b) => {
       var _a, _b, _c, _d;
-      const cronDiff = ((_a = b.cron_hour) != null ? _a : -1) - ((_b = a.cron_hour) != null ? _b : -1);
-      if (cronDiff !== 0) return cronDiff;
-      return ((_c = b.business_hour) != null ? _c : -1) - ((_d = a.business_hour) != null ? _d : -1);
+      const priorityDiff = cronPriority((_a = b.cron_hour) != null ? _a : -1) - cronPriority((_b = a.cron_hour) != null ? _b : -1);
+      if (priorityDiff !== 0) return priorityDiff;
+      return ((_c = b.cron_hour) != null ? _c : -1) - ((_d = a.cron_hour) != null ? _d : -1);
     });
     result.set(key, sorted[0]);
   }
@@ -5827,7 +5833,7 @@ function pickBasisReportsPerLocation$1(reports) {
 async function fetchInboxBasisRevenueTotalExVat(db, ctx) {
   var _a;
   const query = {
-    date: { $gte: ctx.startDate, $lte: ctx.endDate }
+    business_date: { $gte: ctx.startDate, $lte: ctx.endDate }
   };
   if (ctx.locationId !== void 0) {
     query.location_id = String(ctx.locationId);
@@ -5836,7 +5842,7 @@ async function fetchInboxBasisRevenueTotalExVat(db, ctx) {
   if (rows.length === 0) return null;
   const byDate = /* @__PURE__ */ new Map();
   for (const r of rows) {
-    const d = r.date;
+    const d = r.business_date || r.date;
     if (!byDate.has(d)) byDate.set(d, []);
     byDate.get(d).push(r);
   }
