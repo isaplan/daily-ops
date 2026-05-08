@@ -4927,22 +4927,7 @@ _nddW4OgTKHcMIQ8mQhekYcJvlrNi40TbQzTLx2yq5MQ,
 _bZ9Ni6V2HtIpJeulfSLzyAQaoMJdeQllxN50TS5qNvY
 ];
 
-const assets = {
-  "/index.mjs": {
-    "type": "text/javascript; charset=utf-8",
-    "etag": "\"1700aa-G8ynn1xLFWQ1OjLtWlts3PdpiN0\"",
-    "mtime": "2026-05-08T18:25:53.870Z",
-    "size": 1507498,
-    "path": "index.mjs"
-  },
-  "/index.mjs.map": {
-    "type": "application/json",
-    "etag": "\"5c1c7a-/bbQeq8NIkVh3ejvqByy42OukiU\"",
-    "mtime": "2026-05-08T18:25:54.054Z",
-    "size": 6036602,
-    "path": "index.mjs.map"
-  }
-};
+const assets = {};
 
 function readAsset (id) {
   const serverDir = dirname$1(fileURLToPath(globalThis._importMeta_.url));
@@ -5576,11 +5561,7 @@ function parseDailyOpsMetricsQuery(q) {
   const locRaw = typeof q.location === "string" ? q.location : void 0;
   let locationId;
   if (locRaw && locRaw !== "all") {
-    try {
-      locationId = new ObjectId(locRaw);
-    } catch {
-      locationId = locRaw;
-    }
+    locationId = locRaw;
   }
   return {
     period: range.period,
@@ -5617,7 +5598,13 @@ function borkV2SalesMatch(ctx) {
   const q = {
     business_date: { $gte: ctx.startDate, $lte: ctx.endDate }
   };
-  if (ctx.locationId !== void 0) q.locationId = ctx.locationId;
+  if (ctx.locationId !== void 0) {
+    try {
+      q.locationId = new ObjectId(ctx.locationId);
+    } catch {
+      q.locationId = ctx.locationId;
+    }
+  }
   return q;
 }
 function eitjeAggMatch(ctx) {
@@ -5625,7 +5612,14 @@ function eitjeAggMatch(ctx) {
     period_type: "day",
     period: { $gte: ctx.startDate, $lte: ctx.endDate }
   };
-  if (ctx.locationId !== void 0) q.locationId = ctx.locationId;
+  if (ctx.locationId !== void 0) {
+    try {
+      const objId = new ObjectId(ctx.locationId);
+      q.locationId = { $in: [objId, ctx.locationId] };
+    } catch {
+      q.locationId = ctx.locationId;
+    }
+  }
   return q;
 }
 async function fetchRevenueByCategoryFromHourAggregates(db, ctx) {
@@ -36762,20 +36756,9 @@ const locations_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.definePro
 }, Symbol.toStringTag, { value: 'Module' }));
 
 const bundle_get = defineEventHandler(async (event) => {
-  var _a;
   setResponseHeader(event, "Cache-Control", "no-store");
-  let ctx = parseDailyOpsMetricsQuery(getQuery$1(event));
+  const ctx = parseDailyOpsMetricsQuery(getQuery$1(event));
   const db = await getDb();
-  if (ctx.locationId && typeof ctx.locationId !== "string") {
-    try {
-      const unifiedDoc = await db.collection("unified_location").findOne({ _id: ctx.locationId });
-      if ((_a = unifiedDoc == null ? void 0 : unifiedDoc.eitjeIds) == null ? void 0 : _a[0]) {
-        ctx.locationId = String(unifiedDoc.eitjeIds[0]);
-      }
-    } catch (e) {
-      console.error("[bundle] Failed to resolve location:", e);
-    }
-  }
   const [cat, hourBundle, laborInput, inboxBasisExVat] = await Promise.all([
     fetchRevenueByCategoryFromHourAggregates(db, ctx),
     fetchBorkHourAggregatesBundle(db, ctx),

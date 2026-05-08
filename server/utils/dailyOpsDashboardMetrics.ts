@@ -44,7 +44,7 @@ export type DailyOpsMetricsContext = {
   period: DailyOpsPeriodId
   startDate: string
   endDate: string
-  locationId: ObjectId | string | undefined
+  locationId: string | undefined
   eitjeLocationId?: string | number | undefined
 }
 
@@ -53,13 +53,9 @@ export function parseDailyOpsMetricsQuery(q: Record<string, unknown>): DailyOpsM
   const anchor = typeof q.anchor === 'string' ? q.anchor : undefined
   const range = resolveDailyOpsPeriod(periodRaw, anchor)
   const locRaw = typeof q.location === 'string' ? q.location : undefined
-  let locationId: ObjectId | string | undefined
+  let locationId: string | undefined
   if (locRaw && locRaw !== 'all') {
-    try {
-      locationId = new ObjectId(locRaw)
-    } catch {
-      locationId = locRaw
-    }
+    locationId = locRaw
   }
   return {
     period: range.period,
@@ -107,7 +103,13 @@ function borkV2SalesMatch(ctx: DailyOpsMetricsContext): Record<string, unknown> 
   const q: Record<string, unknown> = {
     business_date: { $gte: ctx.startDate, $lte: ctx.endDate },
   }
-  if (ctx.locationId !== undefined) q.locationId = ctx.locationId
+  if (ctx.locationId !== undefined) {
+    try {
+      q.locationId = new ObjectId(ctx.locationId)
+    } catch {
+      q.locationId = ctx.locationId
+    }
+  }
   return q
 }
 
@@ -116,7 +118,18 @@ function eitjeAggMatch(ctx: DailyOpsMetricsContext): Record<string, unknown> {
     period_type: 'day',
     period: { $gte: ctx.startDate, $lte: ctx.endDate },
   }
-  if (ctx.locationId !== undefined) q.locationId = ctx.locationId
+  if (ctx.locationId !== undefined) {
+    // Eitje data has locationId as both strings (Eitje IDs) and ObjectIds (unified location IDs)
+    // Try to match by ObjectId first, then by string if it doesn't parse as ObjectId
+    try {
+      const objId = new ObjectId(ctx.locationId)
+      // Query both: the ObjectId value OR a string representation (some docs store as ObjectId, some as string)
+      q.locationId = { $in: [objId, ctx.locationId] }
+    } catch {
+      // If it's not a valid ObjectId, just search as string
+      q.locationId = ctx.locationId
+    }
+  }
   return q
 }
 

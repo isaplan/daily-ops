@@ -24,20 +24,8 @@ type DailyOpsDashboardBundleDto = {
 
 export default defineEventHandler(async (event): Promise<DailyOpsDashboardBundleDto> => {
   setResponseHeader(event, 'Cache-Control', 'no-store')
-  let ctx = parseDailyOpsMetricsQuery(getQuery(event) as Record<string, unknown>)
+  const ctx = parseDailyOpsMetricsQuery(getQuery(event) as Record<string, unknown>)
   const db = await getDb()
-
-  // Resolve unified location ID to Eitje ID if location filter is set
-  if (ctx.locationId && typeof ctx.locationId !== 'string') {
-    try {
-      const unifiedDoc = await db.collection('unified_location').findOne({ _id: ctx.locationId })
-      if (unifiedDoc?.eitjeIds?.[0]) {
-        ctx.locationId = String(unifiedDoc.eitjeIds[0])
-      }
-    } catch (e) {
-      console.error('[bundle] Failed to resolve location:', e)
-    }
-  }
 
   const [cat, hourBundle, laborInput, inboxBasisExVat] = await Promise.all([
     fetchRevenueByCategoryFromHourAggregates(db, ctx),
