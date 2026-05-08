@@ -373,7 +373,8 @@ const unmappedDescription = computed(
 const businessDateOptions = computed(() => {
   const dates = new Set<string>()
   for (const r of reports.value) {
-    if (typeof r.business_date === 'string') dates.add(r.business_date)
+    const bd = r.business_date ?? r.date
+    if (typeof bd === 'string') dates.add(bd)
   }
   const opts = [...dates]
     .sort()
@@ -401,7 +402,8 @@ const filteredReports = computed(() => {
       if (r.unified_location_id !== filterLocation.value) return false
     }
     if (filterBusinessDate.value !== FILTER_ALL) {
-      if (r.business_date !== filterBusinessDate.value) return false
+      const reportBd = r.business_date ?? r.date
+      if (reportBd !== filterBusinessDate.value) return false
     }
     if (filterCronHour.value !== FILTER_ALL) {
       const want = Number(filterCronHour.value)
