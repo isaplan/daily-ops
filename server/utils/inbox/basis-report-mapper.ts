@@ -129,7 +129,8 @@ export async function mapBasisReportXLSX(
   let locationId: string | undefined
   if (db && locationRaw && locationRaw !== 'Unknown' && locationRaw !== 'Unspecified') {
     try {
-      const locDoc = await db.collection('unified_location').findOne({
+      // First try exact matches on all common fields
+      let locDoc = await db.collection('unified_location').findOne({
         $or: [
           { name: locationRaw },
           { primaryName: locationRaw },
@@ -138,6 +139,20 @@ export async function mapBasisReportXLSX(
           { 'borkMapping.borkLocationName': locationRaw },
         ],
       })
+      
+      // Fallback: try case-insensitive partial match for common variations
+      if (!locDoc) {
+        const normalized = locationRaw.toLowerCase().trim()
+        locDoc = await db.collection('unified_location').findOne({
+          $or: [
+            { name: { $regex: normalized, $options: 'i' } },
+            { primaryName: { $regex: normalized, $options: 'i' } },
+            { canonicalName: { $regex: normalized, $options: 'i' } },
+            { 'borkMapping.borkLocationName': { $regex: normalized, $options: 'i' } },
+          ],
+        })
+      }
+      
       if (locDoc) {
         locationId = String(locDoc._id)
       }

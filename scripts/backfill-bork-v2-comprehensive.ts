@@ -33,14 +33,30 @@ function isoUtc(d: Date): string {
 }
 
 async function findOldestRawData(db: any): Promise<string | null> {
-  const oldest = await db
-    .collection('bork_raw_data')
-    .findOne({}, { sort: { 'order.Date': 1 }, projection: { 'order.Date': 1 } })
-  
-  if (!oldest || !oldest.order?.Date) return null
-  
-  const d = new Date(oldest.order.Date)
-  return isoUtc(d)
+  try {
+    // Find oldest by rawApiResponse[0].Date (YYYYMMDD format)
+    const oldest = await db
+      .collection('bork_raw_data')
+      .find({ 'rawApiResponse.0.Date': { $exists: true } })
+      .sort({ 'rawApiResponse.0.Date': 1 })
+      .limit(1)
+      .toArray()
+    
+    if (!oldest || !oldest.length || !oldest[0].rawApiResponse?.[0]?.Date) {
+      console.error('[backfill-v2] Could not find Date in rawApiResponse[0]')
+      return null
+    }
+    
+    // Convert YYYYMMDD to YYYY-MM-DD
+    const dateStr = String(oldest[0].rawApiResponse[0].Date)
+    const year = dateStr.slice(0, 4)
+    const month = dateStr.slice(4, 6)
+    const day = dateStr.slice(6, 8)
+    return `${year}-${month}-${day}`
+  } catch (e) {
+    console.error('[backfill-v2] Query error:', e)
+    return null
+  }
 }
 
 async function main() {
