@@ -14,7 +14,7 @@ import type { DailyOpsOverviewDto } from '~/types/daily-ops-dashboard'
 
 /** @deprecated Prefer /api/daily-ops/metrics/* for smaller, parallel responses. */
 export default defineEventHandler(async (event): Promise<DailyOpsOverviewDto> => {
-  setResponseHeader(event, 'Cache-Control', 'private, max-age=30, stale-while-revalidate=120')
+  setResponseHeader(event, 'Cache-Control', 'no-store')
   const ctx = parseDailyOpsMetricsQuery(getQuery(event) as Record<string, unknown>)
   const db = await getDb()
 

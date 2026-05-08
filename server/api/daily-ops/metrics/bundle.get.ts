@@ -23,7 +23,7 @@ type DailyOpsDashboardBundleDto = {
 }
 
 export default defineEventHandler(async (event): Promise<DailyOpsDashboardBundleDto> => {
-  setResponseHeader(event, 'Cache-Control', 'private, max-age=30, stale-while-revalidate=120')
+  setResponseHeader(event, 'Cache-Control', 'no-store')
   let ctx = parseDailyOpsMetricsQuery(getQuery(event) as Record<string, unknown>)
   const db = await getDb()
 
