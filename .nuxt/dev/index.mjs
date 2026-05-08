@@ -4930,16 +4930,16 @@ _bZ9Ni6V2HtIpJeulfSLzyAQaoMJdeQllxN50TS5qNvY
 const assets = {
   "/index.mjs": {
     "type": "text/javascript; charset=utf-8",
-    "etag": "\"170015-mTNkk6IFeJ4V2+GXot59wIQAUD0\"",
-    "mtime": "2026-05-08T17:53:05.994Z",
-    "size": 1507349,
+    "etag": "\"170053-HCMMQFiW8K1C3ku+2JnCCrPLgXs\"",
+    "mtime": "2026-05-08T18:12:51.633Z",
+    "size": 1507411,
     "path": "index.mjs"
   },
   "/index.mjs.map": {
     "type": "application/json",
-    "etag": "\"5c1990-ryL1Kf2Q6tEjS90QZZ6ct6x0lC0\"",
-    "mtime": "2026-05-08T17:53:06.014Z",
-    "size": 6035856,
+    "etag": "\"5c1abc-AfV7irpq7ecaHI9kLbkeumO9XSg\"",
+    "mtime": "2026-05-08T18:12:51.676Z",
+    "size": 6036156,
     "path": "index.mjs.map"
   }
 };
@@ -5737,7 +5737,7 @@ async function fetchRevenueByDate(db, ctx) {
       }
     }
   ]).toArray();
-  return new Map(rows.map((r) => [r._id, r.revenue]));
+  return new Map(rows.map((r) => [r._id, Math.round(r.revenue / 1.21 * 100) / 100]));
 }
 async function fetchRevenueByDateFromHourly(db, ctx) {
   const sfx = resolveBorkAggReadSuffix();
@@ -5750,7 +5750,7 @@ async function fetchRevenueByDateFromHourly(db, ctx) {
       }
     }
   ]).toArray();
-  return new Map(rows.map((r) => [r._id, r.revenue]));
+  return new Map(rows.map((r) => [r._id, Math.round(r.revenue / 1.21 * 100) / 100]));
 }
 function sumMapValues(m) {
   let s = 0;
