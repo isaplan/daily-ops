@@ -102,20 +102,19 @@
                     </span>
                   </h3>
                   <p class="text-sm text-gray-500">
-                    {{ formatDate(report.date) }}
                     <span
                       v-if="typeof report.cron_hour === 'number'"
                       class="ml-2 text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded"
-                      title="ISO date/time: Time in Europe/Amsterdam when the email was received (batch time from email subject or Gmail arrival)"
+                      title="ISO date and time when the email was received"
                     >
-                      ISO: {{ report.cron_hour }}:00 Amsterdam
+                      ISO Date / Time Day {{ formatDate(report.date) }} hour: {{ report.cron_hour }}:00 Amsterdam
                     </span>
                     <span
-                      v-if="typeof report.business_date === 'string'"
+                      v-if="typeof report.business_date === 'string' && typeof report.business_hour === 'number'"
                       class="ml-2 text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded"
-                      title="Business day/hour: Register day 08:00 through 07:59 next day. Hour index (0-23) where 0=08:00 Amsterdam."
+                      title="Business day (register day 08:00-07:59) and hour index"
                     >
-                      BD: {{ formatDate(report.business_date) }} {{ report.business_hour ?? '?' }}:00
+                      Business Day/Time Day {{ formatDate(report.business_date) }} hour: {{ report.business_hour }}:00
                     </span>
                   </p>
                 </div>
