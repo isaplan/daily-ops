@@ -1,21 +1,22 @@
 /**
  * Daily Ops dashboard: Bork revenue + Eitje labor aggregations (fast paths on prebuilt collections).
- * @last-fix: [2026-05-07] Completed single-day headline revenue leads with inbox Basis (ex VAT) when present; API merge fallback
+ * @last-fix: [2026-05-08] Corrected pickBasisReportsPerLocation to use cron 7 (final report from next morning)
  * 
  * @business-day-definition:
  * A "business day" runs 06:00 to 05:59 NEXT day (Amsterdam time).
  * 
- * Example: Business Day May 7 = 06:00 May 7 to 05:59 May 8
+ * Example: Business Day May 6 = 06:00 May 6 to 05:59 May 7
  * 
  * Emails arrive via 3 daily crons (Amsterdam time):
- *   1. Cron 18:00 (ISO May 7) → Business Day 7 report (partial, ~12 hours in)
- *   2. Cron 23:00 (ISO May 7) → Business Day 7 report (partial, ~17 hours in)
- *   3. Cron 07:00 (ISO May 8) → **FINAL** Business Day 7 report (complete, closes day at 05:59)
+ *   1. Cron 18:05 (ISO May 6) → Business Day 6 report (partial, ~12 hours in)
+ *   2. Cron 23:05 (ISO May 6) → Business Day 6 report (partial, ~17 hours in)
+ *   3. Cron 07:00 (ISO May 7) → **FINAL COMPLETE** Business Day 6 report (closes at 05:59)
  * 
- * Each morning at 08:00, final revenue for "yesterday" (previous business day) is available.
+ * Each morning at 08:00 Amsterdam time, final revenue for "yesterday" (previous business day) is available.
  * 
- * pickBasisReportsPerLocation: ALWAYS picks report with HIGHEST cron_hour per location per business_date.
- * This ensures we get the FINAL complete report, not partial in-progress versions.
+ * pickBasisReportsPerLocation: Picks the report with **cron_hour = 7** per location per business_date.
+ * This is the final complete report that arrives on the NEXT ISO calendar day morning.
+ * Falls back to cron 23, then cron 18 if cron 7 missing (shouldn't happen for closed days).
  * 
  * @related-files:
  * ✓ server/tasks/inbox/gmail-sync.ts — runs 3×/day at 08:05, 18:05, 23:05 Amsterdam
@@ -426,6 +427,16 @@ function normalizeBasisLocationLabel(s: string): string {
  * 
  * Pick the report from cron 7 if it exists (final), otherwise cron 23, otherwise cron 18.
  */
+/**
+ * Per-location deduplication: pick ONLY the FINAL report.
+ * 
+ * For business day N:
+ *   - Cron 18:05 (ISO day N): PARTIAL ❌
+ *   - Cron 23:05 (ISO day N): PARTIAL ❌  
+ *   - Cron 07:00 (ISO day N+1): COMPLETE ✅ USE THIS (stored as cron_hour: 7, closes business day at 05:59)
+ * 
+ * The final report arrives next morning ISO date with cron_hour = 7 (from 08:05 cron).
+ */
 function pickBasisReportsPerLocation(reports: BasisReportData[]): Map<string, BasisReportData> {
   const byLocDate = new Map<string, BasisReportData[]>()
   
@@ -445,10 +456,10 @@ function pickBasisReportsPerLocation(reports: BasisReportData[]): Map<string, Ba
   const result = new Map<string, BasisReportData>()
   
   for (const [key, list] of byLocDate) {
-    // Sort by cron chronological order: prefer cron 7 (final), then 23, then 18
-    // Cron 7 is the morning report that closes the previous business day
+    // Prefer cron 7 from next ISO day (final complete report)
+    // If no cron 7, fall back to cron 23, then cron 18
     const cronPriority = (cronHour: number) => {
-      if (cronHour === 7) return 3  // Latest (next morning)
+      if (cronHour === 7) return 3  // Final (next morning 07:00)
       if (cronHour === 23) return 2 // Middle
       if (cronHour === 18) return 1 // Earliest
       return 0
@@ -457,11 +468,10 @@ function pickBasisReportsPerLocation(reports: BasisReportData[]): Map<string, Ba
     const sorted = [...list].sort((a, b) => {
       const priorityDiff = cronPriority(b.cron_hour ?? -1) - cronPriority(a.cron_hour ?? -1)
       if (priorityDiff !== 0) return priorityDiff
-      // Tiebreaker: higher cron_hour (shouldn't happen)
-      return (b.cron_hour ?? -1) - (a.cron_hour ?? -1)
+      // Tiebreaker: by date descending (prefer next day for cron 7)
+      return (b.date > a.date ? 1 : -1)
     })
     
-    // Pick the first (highest priority = most recent)
     result.set(key, sorted[0])
   }
   

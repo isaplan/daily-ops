@@ -4930,16 +4930,16 @@ _bZ9Ni6V2HtIpJeulfSLzyAQaoMJdeQllxN50TS5qNvY
 const assets = {
   "/index.mjs": {
     "type": "text/javascript; charset=utf-8",
-    "etag": "\"16ff99-fL2a73px11PiQOuALbYi5R/R9Vc\"",
-    "mtime": "2026-05-08T17:39:37.590Z",
-    "size": 1507225,
+    "etag": "\"170015-Qcd8rsM0Ye1Dg1vglnlc1FAY4dA\"",
+    "mtime": "2026-05-08T17:53:01.157Z",
+    "size": 1507349,
     "path": "index.mjs"
   },
   "/index.mjs.map": {
     "type": "application/json",
-    "etag": "\"5c1790-mFgGurgcagm2gBsMBGhU/gXbq/U\"",
-    "mtime": "2026-05-08T17:39:37.663Z",
-    "size": 6035344,
+    "etag": "\"5c1990-ryL1Kf2Q6tEjS90QZZ6ct6x0lC0\"",
+    "mtime": "2026-05-08T17:53:01.424Z",
+    "size": 6035856,
     "path": "index.mjs.map"
   }
 };
@@ -5821,10 +5821,10 @@ function pickBasisReportsPerLocation$1(reports) {
       return 0;
     };
     const sorted = [...list].sort((a, b) => {
-      var _a, _b, _c, _d;
+      var _a, _b;
       const priorityDiff = cronPriority((_a = b.cron_hour) != null ? _a : -1) - cronPriority((_b = a.cron_hour) != null ? _b : -1);
       if (priorityDiff !== 0) return priorityDiff;
-      return ((_c = b.cron_hour) != null ? _c : -1) - ((_d = a.cron_hour) != null ? _d : -1);
+      return b.date > a.date ? 1 : -1;
     });
     result.set(key, sorted[0]);
   }
