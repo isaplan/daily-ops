@@ -139,7 +139,7 @@
             </thead>
             <tbody>
               <tr v-for="(row, i) in salesData" :key="i" class="border-b transition-colors hover:bg-gray-50">
-                <td v-if="filters.groupBy === 'date'" class="py-2 pr-4">{{ formatDate(row.date) }}</td>
+                <td v-if="filters.groupBy === 'date'" class="py-2 pr-4">{{ formatDate(row.date as unknown) }}</td>
                 <td v-if="filters.groupBy === 'date'" class="py-2 pr-4">€{{ row.total_revenue != null ? Number(row.total_revenue).toFixed(2) : '0.00' }}</td>
                 <td v-if="filters.groupBy === 'date'" class="py-2 pr-4">{{ row.total_quantity != null ? Number(row.total_quantity).toFixed(2) : '0.00' }}</td>
                 <td v-if="filters.groupBy === 'date'" class="py-2 pr-4">{{ row.record_count ?? 0 }}</td>
@@ -157,27 +157,27 @@
                 <td v-if="filters.groupBy === 'product'" class="py-2 pr-4">{{ row.record_count ?? 0 }}</td>
                 <td v-if="filters.groupBy === 'product'" class="py-2 pr-4">{{ row.location_count ?? 0 }}</td>
 
-                <td v-if="filters.groupBy === 'date_location'" class="py-2 pr-4">{{ formatDate(row.date) }}</td>
+                <td v-if="filters.groupBy === 'date_location'" class="py-2 pr-4">{{ formatDate(row.date as unknown) }}</td>
                 <td v-if="filters.groupBy === 'date_location'" class="py-2 pr-4">{{ row.location_name || 'Unknown' }}</td>
                 <td v-if="filters.groupBy === 'date_location'" class="py-2 pr-4">€{{ row.total_revenue != null ? Number(row.total_revenue).toFixed(2) : '0.00' }}</td>
                 <td v-if="filters.groupBy === 'date_location'" class="py-2 pr-4">{{ row.total_quantity != null ? Number(row.total_quantity).toFixed(2) : '0.00' }}</td>
                 <td v-if="filters.groupBy === 'date_location'" class="py-2 pr-4">{{ row.record_count ?? 0 }}</td>
 
-                <td v-if="filters.groupBy === 'hour'" class="py-2 pr-4">{{ formatDate(row.date) }}</td>
+                <td v-if="filters.groupBy === 'hour'" class="py-2 pr-4">{{ formatDate(row.date as unknown) }}</td>
                 <td v-if="filters.groupBy === 'hour'" class="py-2 pr-4">{{ row.hour ?? 0 }}:00</td>
                 <td v-if="filters.groupBy === 'hour'" class="py-2 pr-4">{{ row.locationName || 'Unknown' }}</td>
                 <td v-if="filters.groupBy === 'hour'" class="py-2 pr-4">€{{ row.total_revenue != null ? Number(row.total_revenue).toFixed(2) : '0.00' }}</td>
                 <td v-if="filters.groupBy === 'hour'" class="py-2 pr-4">{{ row.total_quantity != null ? Number(row.total_quantity).toFixed(2) : '0.00' }}</td>
                 <td v-if="filters.groupBy === 'hour'" class="py-2 pr-4">{{ row.record_count ?? 0 }}</td>
 
-                <td v-if="filters.groupBy === 'table'" class="py-2 pr-4">{{ formatDate(row.date) }}</td>
+                <td v-if="filters.groupBy === 'table'" class="py-2 pr-4">{{ formatDate(row.date as unknown) }}</td>
                 <td v-if="filters.groupBy === 'table'" class="py-2 pr-4">{{ row.hour ?? 0 }}:00</td>
                 <td v-if="filters.groupBy === 'table'" class="py-2 pr-4">{{ row.tableNumber || 'Unknown' }}</td>
                 <td v-if="filters.groupBy === 'table'" class="py-2 pr-4">{{ row.locationName || 'Unknown' }}</td>
                 <td v-if="filters.groupBy === 'table'" class="py-2 pr-4">€{{ row.total_revenue != null ? Number(row.total_revenue).toFixed(2) : '0.00' }}</td>
                 <td v-if="filters.groupBy === 'table'" class="py-2 pr-4">{{ row.total_quantity != null ? Number(row.total_quantity).toFixed(2) : '0.00' }}</td>
 
-                <td v-if="filters.groupBy === 'worker'" class="py-2 pr-4">{{ formatDate(row.date) }}</td>
+                <td v-if="filters.groupBy === 'worker'" class="py-2 pr-4">{{ formatDate(row.date as unknown) }}</td>
                 <td v-if="filters.groupBy === 'worker'" class="py-2 pr-4">{{ row.hour ?? 0 }}:00</td>
                 <td v-if="filters.groupBy === 'worker'" class="py-2 pr-4">{{ row.workerId || 'Unknown' }}</td>
                 <td v-if="filters.groupBy === 'worker'" class="py-2 pr-4">{{ row.locationName || 'Unknown' }}</td>

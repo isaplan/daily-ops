@@ -63,6 +63,8 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
+
 interface FilterValue {
   locationId: string
   startDate: string
@@ -88,7 +90,7 @@ const emit = defineEmits<{
 
 const locationOptions = computed(() => [
   { label: 'All Locations', value: 'all' },
-  ...props.locations.map(l => ({ label: l.name, value: l._id })),
+  ...props.locations.map((l: { _id: string; name: string }) => ({ label: l.name, value: l._id })),
 ])
 
 const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
