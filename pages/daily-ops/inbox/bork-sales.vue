@@ -102,19 +102,33 @@
                     </span>
                   </h3>
                   <p class="text-sm text-gray-500">
+                    ISO Day
                     <span
                       v-if="typeof report.cron_hour === 'number'"
                       class="ml-2 text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded"
-                      title="ISO date and time when the email was received"
                     >
-                      ISO Date / Time Day {{ formatDate(report.date) }} hour: {{ report.cron_hour }}:00 Amsterdam
+                      Day: {{ formatDate(report.date) }}
                     </span>
                     <span
-                      v-if="typeof report.business_date === 'string' && typeof report.business_hour === 'number'"
-                      class="ml-2 text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded"
-                      title="Business day (register day 08:00-07:59) and hour index"
+                      v-if="typeof report.cron_hour === 'number'"
+                      class="ml-2 text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded"
                     >
-                      Business Day/Time Day {{ formatDate(report.business_date) }} hour: {{ report.business_hour }}:00
+                      Time: {{ report.cron_hour }}:00 Amsterdam
+                    </span>
+                  </p>
+                  <p class="text-sm text-gray-500">
+                    Business Day Date/Time
+                    <span
+                      v-if="typeof report.business_date === 'string'"
+                      class="ml-2 text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded"
+                    >
+                      Day: {{ formatDate(report.business_date) }}
+                    </span>
+                    <span
+                      v-if="typeof report.business_hour === 'number'"
+                      class="ml-2 text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded"
+                    >
+                      Time: {{ report.business_hour }}:00
                     </span>
                   </p>
                 </div>
