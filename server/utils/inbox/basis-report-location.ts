@@ -1,7 +1,62 @@
 /**
  * Basis Rapport venue resolution — same rules for email subject + XLSX preamble rows.
  * Filenames are often generic (`Basis Rapport-1--1.xlsx`); location usually appears in subject or early sheet rows.
+ *
+ * **Trivec Basis Rapport XLSX layout (physical rows, 1-based):**
+ *   1 = title ("Basis Rapport")
+ *   2 = reporting date (often `dd/mm/yyyy - dd/mm/yyyy`)
+ *   3 = empty
+ *   4 = **venue name** (primary source of truth)
+ *   5 = venue address
+ *
+ * The Excel parser uses `skipRows: 9` for the netto table, so row 4 is **not** in `parseResult.rows`;
+ * it is supplied via `metadata.trivecBasisPreamble` from `excel-parser.ts`.
  */
+
+/** First non-empty cell in a preamble row (handles merged / shifted columns). */
+function firstNonEmptyCell(row: string[] | undefined): string {
+  if (!row || row.length === 0) return ''
+  for (const c of row) {
+    const t = String(c ?? '').trim()
+    if (t) return t
+  }
+  return ''
+}
+
+/**
+ * Venue from Trivec Basis Rapport **sheet row 4** (0-based preamble index `3`).
+ */
+export function extractLocationFromTrivecBasisPreamble(preamble: string[][] | undefined | null): string {
+  if (!preamble || preamble.length < 4) return ''
+  const raw = firstNonEmptyCell(preamble[3])
+  if (!raw) return ''
+  const low = raw.toLowerCase()
+  if (low.includes('basis rapport')) return ''
+  if (/^\d{1,2}\/\d{1,2}\/\d{4}/.test(raw)) return ''
+  /** Row 5 address often has postcode + NL */
+  if (/\b\d{4}\s*[A-Z]{2}\b/i.test(raw) && /nederland|netherlands/i.test(raw)) return ''
+  return raw
+}
+
+/**
+ * Reporting date from **sheet row 2** (0-based preamble index `1`). Returns `YYYY-MM-DD` or `''`.
+ */
+export function extractDateFromTrivecBasisPreamble(preamble: string[][] | undefined | null): string {
+  if (!preamble || preamble.length < 2) return ''
+  const raw = firstNonEmptyCell(preamble[1])
+  if (!raw) return ''
+  const range = raw.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})\s*-\s*(\d{1,2})\/(\d{1,2})\/(\d{4})/)
+  if (range) {
+    const [, d, m, y] = range
+    return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+  }
+  const single = raw.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/)
+  if (single) {
+    const [, d, m, y] = single
+    return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+  }
+  return ''
+}
 
 /** Lowercase, spaces collapsed — internal helper */
 function normalizeLooseLabel(s: string): string {

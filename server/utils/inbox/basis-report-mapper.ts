@@ -6,7 +6,9 @@
 
 import type { ParseResult } from '~/types/inbox'
 import {
+  extractDateFromTrivecBasisPreamble,
   extractLocationFromBasisSpreadsheet,
+  extractLocationFromTrivecBasisPreamble,
   matchVenueLocationFromText,
 } from './basis-report-location'
 
@@ -86,6 +88,10 @@ export type BasisReportData = {
     attachment_filename?: string
     parsed_at?: Date
     errors?: string[]
+    /** Trivec sheet row 4 (venue), when `trivecBasisPreamble` was present */
+    trivec_sheet_location_raw?: string
+    /** Normalized end date from sheet row 2, when parsed */
+    trivec_sheet_date_iso?: string
     /** Stable upsert key — one inbox attachment maps to one basis report row */
     source_attachment_id?: string
     source_email_id?: string
@@ -118,13 +124,25 @@ export async function mapBasisReportXLSX(
     } catch {}
   }
 
+  const meta = (parseResult.metadata as Record<string, unknown>) ?? {}
+  const preamble = meta.trivecBasisPreamble as string[][] | undefined
+
+  const locationFromSheet = extractLocationFromTrivecBasisPreamble(preamble)
+  const dateFromSheet = extractDateFromTrivecBasisPreamble(preamble)
+
   const dateFromSubject = extractDateFromSubject(subject) || ''
   const locationFromSubject = matchVenueLocationFromText(subject ?? '') || ''
-  const dateFromMetadata = String((parseResult.metadata as Record<string, unknown>)?.extracted_date || '')
-  const locationFromMetadata = String((parseResult.metadata as Record<string, unknown>)?.extracted_location || '')
+  const dateFromMetadata = String(meta.extracted_date || '')
+  const locationFromMetadata = String(meta.extracted_location || '')
 
-  const dateStr = dateFromSubject || dateFromMetadata || extractDateFromFile(rows) || ''
+  const dateStr =
+    dateFromSubject ||
+    (dateFromMetadata && dateFromMetadata !== 'undefined' ? dateFromMetadata : '') ||
+    dateFromSheet ||
+    extractDateFromFile(rows) ||
+    ''
   const locationRaw =
+    locationFromSheet ||
     locationFromSubject ||
     (locationFromMetadata && locationFromMetadata !== 'undefined' ? locationFromMetadata : '') ||
     extractLocationFromBasisSpreadsheet(rows, fileName) ||
@@ -156,6 +174,20 @@ export async function mapBasisReportXLSX(
             { abbreviation: ci },
             { aliases: ci },
             { 'borkMapping.borkLocationName': ci },
+          ],
+        })
+      }
+
+      /** Sheet row 4 can spell venues slightly differently (e.g. "Gastropub van Kinsbergen") */
+      if (!locDoc && locationRaw.trim().length >= 6) {
+        const sub = { $regex: escapeRegExp(locationRaw.trim()), $options: 'i' }
+        locDoc = await db.collection('unified_location').findOne({
+          $or: [
+            { name: sub },
+            { primaryName: sub },
+            { canonicalName: sub },
+            { 'borkMapping.borkLocationName': sub },
+            { aliases: sub },
           ],
         })
       }
@@ -304,6 +336,8 @@ export async function mapBasisReportXLSX(
       email_subject: subject,
       attachment_filename: fileName,
       parsed_at: new Date(),
+      ...(locationFromSheet ? { trivec_sheet_location_raw: locationFromSheet } : {}),
+      ...(dateFromSheet ? { trivec_sheet_date_iso: dateFromSheet } : {}),
       ...(emailData?.attachmentId ? { source_attachment_id: emailData.attachmentId } : {}),
       ...(emailData?.emailId ? { source_email_id: emailData.emailId } : {}),
     }

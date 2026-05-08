@@ -3,29 +3,59 @@ const disableInboxSchedule = process.env.DISABLE_INBOX_SCHEDULED === '1'
 /** Set `DISABLE_INTEGRATIONS_SCHEDULED=1` locally to skip Bork/Eitje Nitro cron (same as DISABLE_INBOX pattern). */
 const disableIntegrationsSchedule = process.env.DISABLE_INTEGRATIONS_SCHEDULED === '1'
 
+/**
+ * CANONICAL TIMEZONE: Europe/Amsterdam (CEST/CET)
+ * 
+ * This app is built around Amsterdam business hours and reporting.
+ * ALL scheduled tasks run in Amsterdam time, regardless of server location.
+ * 
+ * **DEPLOYMENT REQUIREMENT:** Set `TZ=Europe/Amsterdam` in your server environment!
+ * - Docker: `ENV TZ=Europe/Amsterdam`
+ * - DigitalOcean App Platform: Set in app spec
+ * - Vercel: `TZ=Europe/Amsterdam` in env vars
+ * - AWS: Set in task definition or Lambda layer
+ * 
+ * This ensures cron expressions are interpreted consistently across all deployments.
+ */
+const APP_TIMEZONE = 'Europe/Amsterdam'
+const CURRENT_TZ = process.env.TZ || 'local'
+
+if (CURRENT_TZ !== APP_TIMEZONE && CURRENT_TZ !== 'local') {
+  console.warn(
+    `[NUXT CONFIG] WARNING: TZ="${CURRENT_TZ}" but app expects TZ="${APP_TIMEZONE}"`
+  )
+  console.warn(
+    `[NUXT CONFIG] Cron times may be incorrect! Set TZ=Europe/Amsterdam in your deployment.`
+  )
+}
+
 const scheduledTasks: Record<string, string[]> = {}
 if (!disableInboxSchedule) {
   /**
-   * Gmail inbox poll 3×/day **in Amsterdam CEST timezone** (local server clock).
+   * Gmail inbox poll 3×/day in Amsterdam time:
+   * - 08:05 (morning: fetch overnight Bork reports)
+   * - 18:05 (evening: fetch day-end reports)
+   * - 23:05 (late night: catch stragglers)
    * 
-   * **CRITICAL:** Cron expressions use the **server's local system timezone**, NOT UTC!
-   * On this system (CEST/Amsterdam): these times run at exactly 08:05, 18:05, 23:05 Amsterdam.
-   * 
-   * DO NOT convert to UTC unless the server TZ env var changes!
-   * If deploying to DigitalOcean with TZ=UTC, change these to: '5 6', '5 16', '5 21' instead.
+   * These times are ALWAYS 08:05, 18:05, 23:05 Amsterdam REGARDLESS of server location.
+   * Croner uses TZ env var to interpret the expression.
    */
-  scheduledTasks['5 8 * * *'] = ['inbox:gmail-sync'] // 08:05 Amsterdam CEST
-  scheduledTasks['5 18 * * *'] = ['inbox:gmail-sync'] // 18:05 Amsterdam CEST
-  scheduledTasks['5 23 * * *'] = ['inbox:gmail-sync'] // 23:05 Amsterdam CEST
+  scheduledTasks['5 8 * * *'] = ['inbox:gmail-sync']
+  scheduledTasks['5 18 * * *'] = ['inbox:gmail-sync']
+  scheduledTasks['5 23 * * *'] = ['inbox:gmail-sync']
 }
 if (!disableIntegrationsSchedule) {
   /**
-   * Bork + Eitje: Nitro `6,13,16,18,20,22 * * *` **in Amsterdam CEST timezone** (local server clock).
+   * Bork + Eitje aggregation runs 6× daily in Amsterdam time:
+   * - 06:00 (early morning, before first inbox poll)
+   * - 13:00 (midday, after first reports)
+   * - 16:00 (afternoon)
+   * - 18:00 (evening, before inbox poll)
+   * - 20:00 (night)
+   * - 22:00 (late night)
    * 
-   * **CRITICAL:** Cron expressions use the **server's local system timezone**, NOT UTC!
-   * On this system (CEST/Amsterdam): these times run at exactly 06:00, 13:00, 16:00, 18:00, 20:00, 22:00 Amsterdam.
-   * 
-   * If deploying to DigitalOcean with TZ=UTC, change to: '0 6,13,16,18,20,22' instead.
+   * These times are ALWAYS in Amsterdam REGARDLESS of server location.
+   * Croner uses TZ env var to interpret the expression.
    */
   scheduledTasks['0 6,13,16,18,20,22 * * *'] = ['integrations:bork-eitje-daily']
 }
@@ -65,14 +95,10 @@ export default defineNuxtConfig({
     },
   },
   /**
-   * Inbox Gmail poll: 3× daily (`5 8`, `5 18`, `5 23` CEST = 08:05 / 18:05 / 23:05 Amsterdam on a CEST host).
-   * GitHub inbox-daily-sync.yml is manual-only to avoid duplicate fetches + Actions minutes.
-   *
-   * Bork + Eitje: Nitro `0 6,13,16,18,20,22 * * *` CEST (06:00 / 13:00 / 16:00 / 18:00 / 20:00 / 22:00 Amsterdam).
-   * Startup catch-up: `INTEGRATION_SYNC_CATCHUP_ON_START` (production default on unless set to 0) + `INTEGRATION_SYNC_STALE_MS`.
+   * Scheduled tasks run in Amsterdam time (TZ=Europe/Amsterdam).
+   * See comments above for times.
    * 
-   * **CRITICAL:** Cron expressions use the server's LOCAL system timezone (CEST on this machine).
-   * On DigitalOcean (TZ=UTC), change cron times to UTC: inbox `5 6,16,21`, bork `0 6,13,16,18,20,22` UTC.
+   * Startup catch-up: `INTEGRATION_SYNC_CATCHUP_ON_START` (production default on unless set to 0) + `INTEGRATION_SYNC_STALE_MS`.
    */
   nitro: {
     experimental: {

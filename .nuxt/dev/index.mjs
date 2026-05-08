@@ -4927,7 +4927,22 @@ _nddW4OgTKHcMIQ8mQhekYcJvlrNi40TbQzTLx2yq5MQ,
 _bZ9Ni6V2HtIpJeulfSLzyAQaoMJdeQllxN50TS5qNvY
 ];
 
-const assets = {};
+const assets = {
+  "/index.mjs": {
+    "type": "text/javascript; charset=utf-8",
+    "etag": "\"16f314-VRbz8KuFdt3MCbdsjGHMppEtYN0\"",
+    "mtime": "2026-05-08T09:57:35.077Z",
+    "size": 1504020,
+    "path": "index.mjs"
+  },
+  "/index.mjs.map": {
+    "type": "application/json",
+    "etag": "\"5be07e-/S27U3hQyC5V5ewA46CpZ/toqrE\"",
+    "mtime": "2026-05-08T09:57:35.139Z",
+    "size": 6021246,
+    "path": "index.mjs.map"
+  }
+};
 
 function readAsset (id) {
   const serverDir = dirname$1(fileURLToPath(globalThis._importMeta_.url));
@@ -31583,7 +31598,11 @@ async function parseExcel(excelBuffer, options = {}) {
         error: "Excel file contains no sheets"
       };
     }
-    const sheetOptions = { skipRows: options.skipRows, emptyHeadersAsColumnN: options.emptyHeadersAsColumnN };
+    const sheetOptions = {
+      skipRows: options.skipRows,
+      emptyHeadersAsColumnN: options.emptyHeadersAsColumnN,
+      capturePreambleRowCount: options.capturePreambleRowCount
+    };
     if (options.sheetName) {
       const sheet = workbook.Sheets[options.sheetName];
       if (!sheet) {
@@ -31678,6 +31697,9 @@ function parseSheet(sheet, format, sheetNames, opts = {}) {
         metadata: { sheets: sheetNames }
       };
     }
+    const preamble = opts.capturePreambleRowCount != null && opts.capturePreambleRowCount > 0 ? jsonData.slice(0, opts.capturePreambleRowCount).map(
+      (row) => row.map((c) => String(c != null ? c : "").trim())
+    ) : void 0;
     const skipRows = (_a = opts.skipRows) != null ? _a : 0;
     const afterSkip = jsonData.slice(skipRows);
     if (afterSkip.length === 0) {
@@ -31717,7 +31739,8 @@ function parseSheet(sheet, format, sheetNames, opts = {}) {
       rows,
       rowCount: rows.length,
       metadata: {
-        sheets: sheetNames
+        sheets: sheetNames,
+        ...preamble ? { trivecBasisPreamble: preamble } : {}
       }
     };
   } catch (error) {

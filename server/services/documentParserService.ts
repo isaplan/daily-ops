@@ -1,9 +1,9 @@
 /**
  * @registry-id: documentParserService
  * @created: 2026-01-26T00:00:00.000Z
- * @last-modified: 2026-04-24T00:00:00.000Z
+ * @last-modified: 2026-05-08T12:00:00.000Z
  * @description: Document parser — routes CSV/XLSX/PDF and classifies document type (Nuxt port)
- * @last-fix: [2026-04-24] Extract location + emit location_name field
+ * @last-fix: [2026-05-08] Basis report: capture trivecBasisPreamble before skipRows (sheet row 4 = venue)
  *
  * @exports-to:
  * ✓ server/services/inboxProcessService.ts
@@ -108,7 +108,13 @@ class DocumentParserService {
           const filenameHint = classifyByFilename(options.fileName)
           const basisReportOptions =
             filenameHint.type === 'basis_report'
-              ? { parseAllSheets: false, skipRows: 9, emptyHeadersAsColumnN: true }
+              ? {
+                  parseAllSheets: false,
+                  skipRows: 9,
+                  emptyHeadersAsColumnN: true,
+                  /** Rows 1–5: title, date, blank, venue, address — preserved before skipRows strips them from `rows`. */
+                  capturePreambleRowCount: 12,
+                }
               : { parseAllSheets: true }
           parseResult = await parseExcel(options.data, basisReportOptions)
           break
