@@ -65,9 +65,11 @@ declare global {
   const ensureInboxIndexes: typeof import('../../server/utils/inbox/collections').ensureInboxIndexes
   const enumerateUtcDatesInclusive: typeof import('../../server/utils/dailyOpsDashboardMetrics').enumerateUtcDatesInclusive
   const eventHandler: typeof import('../../node_modules/h3').eventHandler
+  const extractDateFromTrivecBasisPreamble: typeof import('../../server/utils/inbox/basis-report-location').extractDateFromTrivecBasisPreamble
   const extractDumpRows: typeof import('../../server/utils/parseMenuDump').extractDumpRows
   const extractLocationFromBasisFileName: typeof import('../../server/utils/inbox/basis-report-location').extractLocationFromBasisFileName
   const extractLocationFromBasisSpreadsheet: typeof import('../../server/utils/inbox/basis-report-location').extractLocationFromBasisSpreadsheet
+  const extractLocationFromTrivecBasisPreamble: typeof import('../../server/utils/inbox/basis-report-location').extractLocationFromTrivecBasisPreamble
   const extractLocationFromTrivecCsv: typeof import('../../server/utils/inbox/trivec-sales-csv').extractLocationFromTrivecCsv
   const extractMentionSlug: typeof import('../../server/utils/noteMentions').extractMentionSlug
   const extractWijnkaartItems: typeof import('../../server/utils/parseMenuFile').extractWijnkaartItems
@@ -304,7 +306,7 @@ export { findEitjeCredentialDocument, documentToEitjeStoredCredentials, document
 export { EITJE_HOURS_ADD_FIELDS, getUtcDayRange } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/eitjeHours';
 export { getGmailOAuthErrorMessage, isInvalidGrantError, getGmailInvalidGrantHint } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/gmailOAuthError';
 export { getGmailRedirectUri } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/gmailRedirectUri';
-export { canonicalVenueKeyForBorkMatching, matchVenueLocationFromText, extractLocationFromBasisSpreadsheet, extractLocationFromBasisFileName } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/inbox/basis-report-location';
+export { extractLocationFromTrivecBasisPreamble, extractDateFromTrivecBasisPreamble, canonicalVenueKeyForBorkMatching, matchVenueLocationFromText, extractLocationFromBasisSpreadsheet, extractLocationFromBasisFileName } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/inbox/basis-report-location';
 export { mapBasisReportXLSX } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/inbox/basis-report-mapper';
 export { ensureInboxCollections, ensureInboxIndexes } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/inbox/collections';
 export { INBOX_COLLECTIONS, INBOX_TARGET_COLLECTIONS } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/inbox/constants';

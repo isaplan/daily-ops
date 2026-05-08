@@ -4930,16 +4930,16 @@ _bZ9Ni6V2HtIpJeulfSLzyAQaoMJdeQllxN50TS5qNvY
 const assets = {
   "/index.mjs": {
     "type": "text/javascript; charset=utf-8",
-    "etag": "\"16f314-VRbz8KuFdt3MCbdsjGHMppEtYN0\"",
-    "mtime": "2026-05-08T09:57:35.077Z",
-    "size": 1504020,
+    "etag": "\"16fb4b-lvlAgT7dL9HzdZPVwOLNMlEryR8\"",
+    "mtime": "2026-05-08T10:44:03.326Z",
+    "size": 1506123,
     "path": "index.mjs"
   },
   "/index.mjs.map": {
     "type": "application/json",
-    "etag": "\"5be07e-/S27U3hQyC5V5ewA46CpZ/toqrE\"",
-    "mtime": "2026-05-08T09:57:35.139Z",
-    "size": 6021246,
+    "etag": "\"5c0484-OhxSQVeIKfLEALlBdVdfwVQoqz0\"",
+    "mtime": "2026-05-08T10:44:03.349Z",
+    "size": 6030468,
     "path": "index.mjs.map"
   }
 };
@@ -5801,29 +5801,39 @@ function normalizeBasisLocationLabel(s) {
   return s.trim().toLowerCase().replace(/\s+/g, " ");
 }
 function pickBasisReportsPerLocation$1(reports) {
-  const sorted = [...reports].sort((a, b) => {
-    var _a, _b, _c, _d;
-    const bh = ((_a = b.business_hour) != null ? _a : -1) - ((_b = a.business_hour) != null ? _b : -1);
-    if (bh !== 0) return bh;
-    const ch = ((_c = b.cron_hour) != null ? _c : -1) - ((_d = a.cron_hour) != null ? _d : -1);
-    if (ch !== 0) return ch;
-    const ra = a.received_at ? new Date(a.received_at).getTime() : 0;
-    const rb = b.received_at ? new Date(b.received_at).getTime() : 0;
-    return rb - ra;
-  });
+  var _a;
   const byNorm = /* @__PURE__ */ new Map();
-  for (const r of sorted) {
+  for (const r of reports) {
     const key = normalizeBasisLocationLabel(r.location);
     if (!key || key === "unspecified") continue;
-    if (!byNorm.has(key)) byNorm.set(key, r);
+    if (!byNorm.has(key)) {
+      byNorm.set(key, {
+        revenues: [],
+        example: r
+      });
+    }
+    const entry = byNorm.get(key);
+    entry.revenues.push(Number((_a = r.final_revenue_ex_vat) != null ? _a : 0));
   }
-  return byNorm;
+  const result = /* @__PURE__ */ new Map();
+  for (const [key, entry] of byNorm) {
+    const totalRevenue = entry.revenues.reduce((a, b) => a + b, 0);
+    result.set(key, {
+      ...entry.example,
+      final_revenue_ex_vat: totalRevenue
+    });
+  }
+  return result;
 }
 async function fetchInboxBasisRevenueTotalExVat(db, ctx) {
   var _a;
-  const rows = await db.collection("inbox-bork-basis-report").find({
+  const query = {
     date: { $gte: ctx.startDate, $lte: ctx.endDate }
-  }).toArray();
+  };
+  if (ctx.locationId !== void 0) {
+    query.location_id = String(ctx.locationId);
+  }
+  const rows = await db.collection("inbox-bork-basis-report").find(query).toArray();
   if (rows.length === 0) return null;
   const byDate = /* @__PURE__ */ new Map();
   for (const r of rows) {
@@ -6553,6 +6563,40 @@ function getGmailRedirectUri() {
   return `${baseUrl}/api/auth/gmail/callback`;
 }
 
+function firstNonEmptyCell(row) {
+  if (!row || row.length === 0) return "";
+  for (const c of row) {
+    const t = String(c != null ? c : "").trim();
+    if (t) return t;
+  }
+  return "";
+}
+function extractLocationFromTrivecBasisPreamble(preamble) {
+  if (!preamble || preamble.length < 4) return "";
+  const raw = firstNonEmptyCell(preamble[3]);
+  if (!raw) return "";
+  const low = raw.toLowerCase();
+  if (low.includes("basis rapport")) return "";
+  if (/^\d{1,2}\/\d{1,2}\/\d{4}/.test(raw)) return "";
+  if (/\b\d{4}\s*[A-Z]{2}\b/i.test(raw) && /nederland|netherlands/i.test(raw)) return "";
+  return raw;
+}
+function extractDateFromTrivecBasisPreamble(preamble) {
+  if (!preamble || preamble.length < 2) return "";
+  const raw = firstNonEmptyCell(preamble[1]);
+  if (!raw) return "";
+  const range = raw.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})\s*-\s*(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (range) {
+    const [, d, m, y] = range;
+    return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+  }
+  const single = raw.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (single) {
+    const [, d, m, y] = single;
+    return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+  }
+  return "";
+}
 function normalizeLooseLabel(s) {
   return s.trim().toLowerCase().replace(/\s+/g, " ");
 }
@@ -6607,7 +6651,7 @@ function escapeRegExp(s) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 async function mapBasisReportXLSX(parseResult, fileName, emailData, db) {
-  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n;
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m;
   if (!parseResult.success || parseResult.rows.length === 0) {
     return null;
   }
@@ -6621,12 +6665,16 @@ async function mapBasisReportXLSX(parseResult, fileName, emailData, db) {
     } catch {
     }
   }
+  const meta = (_a = parseResult.metadata) != null ? _a : {};
+  const preamble = meta.trivecBasisPreamble;
+  const locationFromSheet = extractLocationFromTrivecBasisPreamble(preamble);
+  const dateFromSheet = extractDateFromTrivecBasisPreamble(preamble);
   const dateFromSubject = extractDateFromSubject(subject) || "";
   const locationFromSubject = matchVenueLocationFromText(subject != null ? subject : "") || "";
-  const dateFromMetadata = String(((_a = parseResult.metadata) == null ? void 0 : _a.extracted_date) || "");
-  const locationFromMetadata = String(((_b = parseResult.metadata) == null ? void 0 : _b.extracted_location) || "");
-  const dateStr = dateFromSubject || dateFromMetadata || extractDateFromFile(rows) || "";
-  const locationRaw = locationFromSubject || (locationFromMetadata && locationFromMetadata !== "undefined" ? locationFromMetadata : "") || extractLocationFromBasisSpreadsheet(rows, fileName) || "";
+  const dateFromMetadata = String(meta.extracted_date || "");
+  const locationFromMetadata = String(meta.extracted_location || "");
+  const dateStr = dateFromSubject || (dateFromMetadata && dateFromMetadata !== "undefined" ? dateFromMetadata : "") || dateFromSheet || extractDateFromFile(rows) || "";
+  const locationRaw = locationFromSheet || locationFromSubject || (locationFromMetadata && locationFromMetadata !== "undefined" ? locationFromMetadata : "") || extractLocationFromBasisSpreadsheet(rows, fileName) || "";
   let locationId;
   let locationCanonical;
   if (db && locationRaw && locationRaw !== "Unknown" && locationRaw !== "Unspecified") {
@@ -6655,9 +6703,21 @@ async function mapBasisReportXLSX(parseResult, fileName, emailData, db) {
           ]
         });
       }
+      if (!locDoc && locationRaw.trim().length >= 6) {
+        const sub = { $regex: escapeRegExp(locationRaw.trim()), $options: "i" };
+        locDoc = await db.collection("unified_location").findOne({
+          $or: [
+            { name: sub },
+            { primaryName: sub },
+            { canonicalName: sub },
+            { "borkMapping.borkLocationName": sub },
+            { aliases: sub }
+          ]
+        });
+      }
       if (locDoc) {
         locationId = String(locDoc._id);
-        locationCanonical = (_d = (_c = locDoc.primaryName) != null ? _c : locDoc.canonicalName) != null ? _d : locDoc.name;
+        locationCanonical = (_c = (_b = locDoc.primaryName) != null ? _b : locDoc.canonicalName) != null ? _c : locDoc.name;
       }
     } catch (err) {
     }
@@ -6703,7 +6763,7 @@ async function mapBasisReportXLSX(parseResult, fileName, emailData, db) {
   }
   const paymentMarker = sectionMarkers.find((m) => m.sectionType === "payments");
   if (paymentMarker) {
-    const paymentEndIdx = (_f = (_e = sectionMarkers.find((m) => m.rowIdx > paymentMarker.rowIdx)) == null ? void 0 : _e.rowIdx) != null ? _f : rows.length;
+    const paymentEndIdx = (_e = (_d = sectionMarkers.find((m) => m.rowIdx > paymentMarker.rowIdx)) == null ? void 0 : _d.rowIdx) != null ? _e : rows.length;
     const paymentData = getRowsForSection(paymentMarker.rowIdx + 1, paymentEndIdx);
     if (paymentData.length > 0) {
       sections.payments = mapPayments(paymentData);
@@ -6711,7 +6771,7 @@ async function mapBasisReportXLSX(parseResult, fileName, emailData, db) {
   }
   const correctionMarker = sectionMarkers.find((m) => m.sectionType === "corrections");
   if (correctionMarker) {
-    const correctionEndIdx = (_h = (_g = sectionMarkers.find((m) => m.rowIdx > correctionMarker.rowIdx)) == null ? void 0 : _g.rowIdx) != null ? _h : rows.length;
+    const correctionEndIdx = (_g = (_f = sectionMarkers.find((m) => m.rowIdx > correctionMarker.rowIdx)) == null ? void 0 : _f.rowIdx) != null ? _g : rows.length;
     const correctionData = getRowsForSection(correctionMarker.rowIdx + 1, correctionEndIdx);
     if (correctionData.length > 0) {
       sections.corrections = mapCorrections(correctionData, parseResult.headers);
@@ -6725,15 +6785,15 @@ async function mapBasisReportXLSX(parseResult, fileName, emailData, db) {
     }
   }
   if (db) {
-    if ((_i = sections.corrections) == null ? void 0 : _i.adjustments) {
+    if ((_h = sections.corrections) == null ? void 0 : _h.adjustments) {
       await normalizeUserNames(sections.corrections.adjustments, db);
     }
-    if ((_j = sections.internal_sales) == null ? void 0 : _j.staff) {
+    if ((_i = sections.internal_sales) == null ? void 0 : _i.staff) {
       await normalizeUserNames(sections.internal_sales.staff, db);
     }
   }
-  const finalRevenueIncl = ((_l = (_k = sections.netto_sales) == null ? void 0 : _k.grand_total) == null ? void 0 : _l.price_incl_vat) || 0;
-  const finalRevenueEx = ((_n = (_m = sections.netto_sales) == null ? void 0 : _m.grand_total) == null ? void 0 : _n.price_ex_vat) || 0;
+  const finalRevenueIncl = ((_k = (_j = sections.netto_sales) == null ? void 0 : _j.grand_total) == null ? void 0 : _k.price_incl_vat) || 0;
+  const finalRevenueEx = ((_m = (_l = sections.netto_sales) == null ? void 0 : _l.grand_total) == null ? void 0 : _m.price_ex_vat) || 0;
   if (db && locationRaw && !locationId) {
     try {
       console.warn(
@@ -6757,6 +6817,8 @@ async function mapBasisReportXLSX(parseResult, fileName, emailData, db) {
       email_subject: subject,
       attachment_filename: fileName,
       parsed_at: /* @__PURE__ */ new Date(),
+      ...locationFromSheet ? { trivec_sheet_location_raw: locationFromSheet } : {},
+      ...dateFromSheet ? { trivec_sheet_date_iso: dateFromSheet } : {},
       ...(emailData == null ? void 0 : emailData.attachmentId) ? { source_attachment_id: emailData.attachmentId } : {},
       ...(emailData == null ? void 0 : emailData.emailId) ? { source_email_id: emailData.emailId } : {}
     }
@@ -33998,7 +34060,13 @@ class DocumentParserService {
             };
           }
           const filenameHint = classifyByFilename(options.fileName);
-          const basisReportOptions = filenameHint.type === "basis_report" ? { parseAllSheets: false, skipRows: 9, emptyHeadersAsColumnN: true } : { parseAllSheets: true };
+          const basisReportOptions = filenameHint.type === "basis_report" ? {
+            parseAllSheets: false,
+            skipRows: 9,
+            emptyHeadersAsColumnN: true,
+            /** Rows 1–5: title, date, blank, venue, address — preserved before skipRows strips them from `rows`. */
+            capturePreambleRowCount: 12
+          } : { parseAllSheets: true };
           parseResult = await parseExcel(options.data, basisReportOptions);
           break;
         }
@@ -36672,7 +36740,7 @@ const locations_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.definePro
 
 const bundle_get = defineEventHandler(async (event) => {
   var _a;
-  setResponseHeader(event, "Cache-Control", "private, max-age=30, stale-while-revalidate=120");
+  setResponseHeader(event, "Cache-Control", "no-store");
   let ctx = parseDailyOpsMetricsQuery(getQuery$1(event));
   const db = await getDb();
   if (ctx.locationId && typeof ctx.locationId !== "string") {
@@ -36707,7 +36775,7 @@ const bundle_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProper
 }, Symbol.toStringTag, { value: 'Module' }));
 
 const labor_get = defineEventHandler(async (event) => {
-  setResponseHeader(event, "Cache-Control", "private, max-age=30, stale-while-revalidate=120");
+  setResponseHeader(event, "Cache-Control", "no-store");
   const ctx = parseDailyOpsMetricsQuery(getQuery$1(event));
   const db = await getDb();
   const input = await fetchLaborMetricsPipelineInput(db, ctx);
@@ -36720,7 +36788,7 @@ const labor_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.definePropert
 }, Symbol.toStringTag, { value: 'Module' }));
 
 const revenueBreakdown_get = defineEventHandler(async (event) => {
-  setResponseHeader(event, "Cache-Control", "private, max-age=30, stale-while-revalidate=120");
+  setResponseHeader(event, "Cache-Control", "no-store");
   const ctx = parseDailyOpsMetricsQuery(getQuery$1(event));
   const db = await getDb();
   const [cat, hourBundle, revenueByDate, laborByDate] = await Promise.all([
@@ -36738,7 +36806,7 @@ const revenueBreakdown_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.de
 }, Symbol.toStringTag, { value: 'Module' }));
 
 const summary_get = defineEventHandler(async (event) => {
-  setResponseHeader(event, "Cache-Control", "private, max-age=30, stale-while-revalidate=120");
+  setResponseHeader(event, "Cache-Control", "no-store");
   const ctx = parseDailyOpsMetricsQuery(getQuery$1(event));
   const db = await getDb();
   const [revMap, labMap] = await Promise.all([fetchRevenueByDate(db, ctx), fetchLaborByDate(db, ctx)]);
@@ -36751,7 +36819,7 @@ const summary_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.definePrope
 }, Symbol.toStringTag, { value: 'Module' }));
 
 const overview_get = defineEventHandler(async (event) => {
-  setResponseHeader(event, "Cache-Control", "private, max-age=30, stale-while-revalidate=120");
+  setResponseHeader(event, "Cache-Control", "no-store");
   const ctx = parseDailyOpsMetricsQuery(getQuery$1(event));
   const db = await getDb();
   const [cat, hourBundle, revenueByDate, laborByDate] = await Promise.all([

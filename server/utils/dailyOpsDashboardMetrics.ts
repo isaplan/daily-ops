@@ -397,24 +397,40 @@ function normalizeBasisLocationLabel(s: string): string {
   return s.trim().toLowerCase().replace(/\s+/g, ' ')
 }
 
-/** Same pick logic as day-breakdown (latest business_hour / cron batch per venue label). */
+/**
+ * Aggregate all basis reports per location.
+ * Multiple reports per location per date (from different cron runs) should be SUMMED, not picked.
+ * Creates synthetic merged report with aggregated final_revenue_ex_vat.
+ */
 function pickBasisReportsPerLocation(reports: BasisReportData[]): Map<string, BasisReportData> {
-  const sorted = [...reports].sort((a, b) => {
-    const bh = (b.business_hour ?? -1) - (a.business_hour ?? -1)
-    if (bh !== 0) return bh
-    const ch = (b.cron_hour ?? -1) - (a.cron_hour ?? -1)
-    if (ch !== 0) return ch
-    const ra = a.received_at ? new Date(a.received_at).getTime() : 0
-    const rb = b.received_at ? new Date(b.received_at).getTime() : 0
-    return rb - ra
-  })
-  const byNorm = new Map<string, BasisReportData>()
-  for (const r of sorted) {
+  const byNorm = new Map<string, { revenues: number[]; example: BasisReportData }>()
+  
+  for (const r of reports) {
     const key = normalizeBasisLocationLabel(r.location)
     if (!key || key === 'unspecified') continue
-    if (!byNorm.has(key)) byNorm.set(key, r)
+    
+    if (!byNorm.has(key)) {
+      byNorm.set(key, {
+        revenues: [],
+        example: r,
+      })
+    }
+    
+    const entry = byNorm.get(key)!
+    entry.revenues.push(Number(r.final_revenue_ex_vat ?? 0))
   }
-  return byNorm
+  
+  const result = new Map<string, BasisReportData>()
+  for (const [key, entry] of byNorm) {
+    const totalRevenue = entry.revenues.reduce((a, b) => a + b, 0)
+    // Create merged report with aggregated revenue
+    result.set(key, {
+      ...entry.example,
+      final_revenue_ex_vat: totalRevenue,
+    })
+  }
+  
+  return result
 }
 
 /**
@@ -422,11 +438,18 @@ function pickBasisReportsPerLocation(reports: BasisReportData[]): Map<string, Ba
  * Ignores dashboard location filter when venue labels cannot be mapped (use “all locations” for full cross-check).
  */
 export async function fetchInboxBasisRevenueTotalExVat(db: Db, ctx: DailyOpsMetricsContext): Promise<number | null> {
+  const query: Record<string, unknown> = {
+    date: { $gte: ctx.startDate, $lte: ctx.endDate },
+  }
+  
+  // If filtering by location, only fetch reports for that location
+  if (ctx.locationId !== undefined) {
+    query.location_id = String(ctx.locationId)
+  }
+  
   const rows = (await db
     .collection('inbox-bork-basis-report')
-    .find({
-      date: { $gte: ctx.startDate, $lte: ctx.endDate },
-    })
+    .find(query)
     .toArray()) as unknown as BasisReportData[]
 
   if (rows.length === 0) return null
