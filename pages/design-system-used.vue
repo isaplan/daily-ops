@@ -108,17 +108,26 @@
         </div>
       </section>
 
-      <!-- Settings Tabs -->
+      <!-- TabRail (shared pattern: settings, todos, note aside) -->
       <section class="mb-16">
-        <div class="bg-white rounded-lg p-6 border border-gray-200">
-          <p class="text-xs uppercase font-semibold text-gray-500 mb-4">Settings Pages: Tab Group (border-black, width-auto)</p>
-          <div class="inline-flex shrink-0 rounded-md border border-black bg-white p-0.5">
-            <button type="button" class="rounded px-3 py-1.5 text-sm font-medium transition-colors bg-gray-900 text-white">
-              Credentials
-            </button>
-            <button type="button" class="rounded px-3 py-1.5 text-sm font-medium transition-colors text-gray-600 hover:bg-gray-100">
-              Cron Jobs
-            </button>
+        <div class="bg-white rounded-lg p-6 border border-gray-200 space-y-8">
+          <div>
+            <p class="text-xs uppercase font-semibold text-gray-500 mb-2">TabRail</p>
+            <p class="text-sm text-gray-600">
+              Same UI component (<code class="rounded bg-gray-100 px-1 py-0.5 text-xs">components/ui/TabRail.vue</code>) — examples below match Eitje/Bork settings, Todo's List filter, and note editor aside tabs.
+            </p>
+          </div>
+          <div>
+            <p class="text-xs font-semibold text-gray-500 mb-3">API settings</p>
+            <TabRail v-model="dsRailSettings" :options="dsRailSettingsOptions" />
+          </div>
+          <div>
+            <p class="text-xs font-semibold text-gray-500 mb-3">Todo's List</p>
+            <TabRail v-model="dsRailTodos" :options="dsRailTodosOptions" />
+          </div>
+          <div>
+            <p class="text-xs font-semibold text-gray-500 mb-3">Note editor aside</p>
+            <TabRail v-model="dsRailNote" :options="dsRailNoteOptions" />
           </div>
         </div>
       </section>
@@ -166,39 +175,6 @@
             </button>
             <button type="button" class="p-1.5 rounded hover:bg-gray-100 hover:text-gray-900 transition-colors">
               <UIcon name="i-lucide-download" class="size-4 text-gray-400" />
-            </button>
-          </div>
-        </div>
-      </section>
-
-      <!-- Todos filter (same rail as note editor tabs) -->
-      <section class="mb-16">
-        <div class="bg-white rounded-lg p-6 border border-gray-200">
-          <p class="text-xs uppercase font-semibold text-gray-500 mb-4">Todos Page: Filter (same as Note Editor tab rail)</p>
-          <div class="inline-flex shrink-0 rounded-md border border-black bg-white p-0.5">
-            <button type="button" class="rounded px-3 py-1.5 text-sm font-medium transition-colors bg-gray-900 text-white">
-              All
-            </button>
-            <button type="button" class="rounded px-3 py-1.5 text-sm font-medium transition-colors text-gray-600 hover:bg-gray-100">
-              My todo's
-            </button>
-          </div>
-        </div>
-      </section>
-
-      <!-- Note Editor Tabs -->
-      <section class="mb-16">
-        <div class="bg-white rounded-lg p-6 border border-gray-200">
-          <p class="text-xs uppercase font-semibold text-gray-500 mb-4">Note Editor: Tab Group (border-black)</p>
-          <div class="inline-flex shrink-0 rounded-md border border-black bg-white p-0.5">
-            <button type="button" class="rounded px-3 py-1.5 text-sm font-medium transition-colors bg-gray-900 text-white">
-              Details
-            </button>
-            <button type="button" class="rounded px-3 py-1.5 text-sm font-medium transition-colors text-gray-600 hover:bg-gray-100">
-              Todo
-            </button>
-            <button type="button" class="rounded px-3 py-1.5 text-sm font-medium transition-colors text-gray-600 hover:bg-gray-100">
-              Agreed
             </button>
           </div>
         </div>
@@ -307,5 +283,22 @@
 </template>
 
 <script setup lang="ts">
-// No reactive state needed - all examples are static
+const dsRailSettings = ref<'credentials' | 'cron-jobs'>('credentials')
+const dsRailSettingsOptions: { value: 'credentials' | 'cron-jobs'; label: string }[] = [
+  { value: 'credentials', label: 'Credentials' },
+  { value: 'cron-jobs', label: 'Cron Jobs' },
+]
+
+const dsRailTodos = ref<'all' | 'mine'>('all')
+const dsRailTodosOptions: { value: 'all' | 'mine'; label: string }[] = [
+  { value: 'all', label: 'All' },
+  { value: 'mine', label: "My todo's" },
+]
+
+const dsRailNote = ref<'details' | 'todos' | 'agreed'>('details')
+const dsRailNoteOptions: { value: 'details' | 'todos' | 'agreed'; label: string }[] = [
+  { value: 'details', label: 'Details' },
+  { value: 'todos', label: 'Todo' },
+  { value: 'agreed', label: 'Agreed' },
+]
 </script>

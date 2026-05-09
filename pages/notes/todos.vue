@@ -6,22 +6,7 @@
     <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
       <div class="flex items-center gap-3">
         <span class="text-sm font-medium text-gray-600">Show:</span>
-        <div class="inline-flex shrink-0 rounded-md border border-black bg-white p-0.5">
-          <button
-            type="button"
-            :class="['rounded px-3 py-1.5 text-sm font-medium transition-colors', filterMode === 'all' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-100']"
-            @click="filterMode = 'all'"
-          >
-            All
-          </button>
-          <button
-            type="button"
-            :class="['rounded px-3 py-1.5 text-sm font-medium transition-colors', filterMode === 'mine' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-100']"
-            @click="filterMode = 'mine'"
-          >
-            My todo's
-          </button>
-        </div>
+        <TabRail v-model="filterMode" :options="todoFilterTabOptions" />
       </div>
       <div class="flex items-center gap-1">
         <div class="relative w-48">
@@ -175,6 +160,11 @@ const items = computed<TodoItem[]>(() => {
 })
 
 const filterMode = ref<'all' | 'mine'>('all')
+
+const todoFilterTabOptions: { value: 'all' | 'mine'; label: string }[] = [
+  { value: 'all', label: 'All' },
+  { value: 'mine', label: "My todo's" },
+]
 
 type UnifiedUser = { _id: string; canonicalName: string; primaryName: string; slackUsername: string | null }
 const { data: unifiedUsersData } = await useFetch<{ success: boolean; data: UnifiedUser[] }>('/api/unified-users', { server: false })

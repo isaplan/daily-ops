@@ -296,18 +296,6 @@
             </div>
           </div>
 
-          <!-- Todos filter (same rail as note editor) -->
-          <div>
-            <h3 class="text-lg font-medium text-gray-900 mb-4">Todos Page: Filter</h3>
-            <p class="text-sm text-gray-600 mb-3">Same <code class="text-xs">border-black</code> tab rail as note editor (All / My todo's)</p>
-            <div class="bg-white rounded-lg p-6 border border-gray-200">
-              <div class="inline-flex shrink-0 rounded-md border border-black bg-white p-0.5">
-                <button type="button" class="rounded px-3 py-1.5 text-sm font-medium transition-colors bg-gray-900 text-white">All</button>
-                <button type="button" class="rounded px-3 py-1.5 text-sm font-medium transition-colors text-gray-600 hover:bg-gray-100">My todo's</button>
-              </div>
-            </div>
-          </div>
-
           <!-- Sidebar Navigation -->
           <div>
             <h3 class="text-lg font-medium text-gray-900 mb-4">Navigation Links (Sidebar Pattern)</h3>
@@ -328,15 +316,24 @@
             </div>
           </div>
 
-          <!-- Settings Tabs -->
+          <!-- TabRail (settings, todos, note aside — same component) -->
           <div>
-            <h3 class="text-lg font-medium text-gray-900 mb-4">Settings Tabs (Underline Pattern)</h3>
-            <p class="text-sm text-gray-600 mb-3">Bottom-border tabs used in settings pages</p>
-            <div class="bg-white rounded-lg p-6 border border-gray-200">
-              <div class="flex gap-6 border-b border-gray-200">
-                <button type="button" class="pb-2 text-sm font-medium text-gray-900 border-b-2 border-gray-900 transition-colors">Eitje API</button>
-                <button type="button" class="pb-2 text-sm font-medium text-gray-600 border-b-2 border-transparent hover:text-gray-900 transition-colors">Bork API</button>
-                <button type="button" class="pb-2 text-sm font-medium text-gray-600 border-b-2 border-transparent hover:text-gray-900 transition-colors">Webhooks</button>
+            <h3 class="text-lg font-medium text-gray-900 mb-4">TabRail</h3>
+            <p class="text-sm text-gray-600 mb-3">
+              Shared component <code class="text-xs">components/ui/TabRail.vue</code> — API settings (Credentials / Cron Jobs), Todo's List (All / My todo's), note editor aside (Details / Todo / Agreed).
+            </p>
+            <div class="bg-white rounded-lg p-6 border border-gray-200 space-y-6">
+              <div>
+                <p class="text-xs font-semibold text-gray-500 mb-2">API settings</p>
+                <TabRail v-model="dsTabRailSettings" :options="dsTabRailSettingsOpts" />
+              </div>
+              <div>
+                <p class="text-xs font-semibold text-gray-500 mb-2">Todo's List</p>
+                <TabRail v-model="dsTabRailTodos" :options="dsTabRailTodosOpts" />
+              </div>
+              <div>
+                <p class="text-xs font-semibold text-gray-500 mb-2">Note aside</p>
+                <TabRail v-model="dsTabRailNote" :options="dsTabRailNoteOpts" />
               </div>
             </div>
           </div>
@@ -355,19 +352,6 @@
                   <div class="text-3xl mb-2">🎯</div>
                   <p class="text-xs font-medium">Specials</p>
                 </a>
-              </div>
-            </div>
-          </div>
-
-          <!-- Note Editor Tab Pattern -->
-          <div>
-            <h3 class="text-lg font-medium text-gray-900 mb-4">Note Editor Tabs</h3>
-            <p class="text-sm text-gray-600 mb-3">border-black (vs standard border-gray-900) microinteraction</p>
-            <div class="bg-white rounded-lg p-6 border border-gray-200">
-              <div class="border border-black rounded-md p-0.5 inline-flex gap-0">
-                <button type="button" class="bg-gray-900 text-white px-4 py-2 rounded text-sm font-medium transition-colors">Details</button>
-                <button type="button" class="text-gray-700 hover:bg-gray-100 px-4 py-2 rounded text-sm font-medium transition-colors">Todo</button>
-                <button type="button" class="text-gray-700 hover:bg-gray-100 px-4 py-2 rounded text-sm font-medium transition-colors">Agreed</button>
               </div>
             </div>
           </div>
@@ -594,6 +578,25 @@
 </template>
 
 <script setup lang="ts">
+const dsTabRailSettings = ref<'credentials' | 'cron-jobs'>('credentials')
+const dsTabRailSettingsOpts: { value: 'credentials' | 'cron-jobs'; label: string }[] = [
+  { value: 'credentials', label: 'Credentials' },
+  { value: 'cron-jobs', label: 'Cron Jobs' },
+]
+
+const dsTabRailTodos = ref<'all' | 'mine'>('all')
+const dsTabRailTodosOpts: { value: 'all' | 'mine'; label: string }[] = [
+  { value: 'all', label: 'All' },
+  { value: 'mine', label: "My todo's" },
+]
+
+const dsTabRailNote = ref<'details' | 'todos' | 'agreed'>('details')
+const dsTabRailNoteOpts: { value: 'details' | 'todos' | 'agreed'; label: string }[] = [
+  { value: 'details', label: 'Details' },
+  { value: 'todos', label: 'Todo' },
+  { value: 'agreed', label: 'Agreed' },
+]
+
 const primaryShades = [
   { name: 'primary-50', bg: 'bg-primary-50', value: 'bg-primary-50' },
   { name: 'primary-100', bg: 'bg-primary-100', value: 'bg-primary-100' },

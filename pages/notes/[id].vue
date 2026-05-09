@@ -19,46 +19,12 @@
         :readonly="!!note && isTrashed"
         class="min-w-0 flex-1 text-5xl font-bold rounded-none px-0"
       />
-          <div
-            v-if="showDetailsButton || hasTodos || hasAgrees"
-            class="inline-flex shrink-0 rounded-md border border-black bg-white p-0.5"
-          >
-            <button
-              v-if="showDetailsButton"
-              type="button"
-              :class="[
-                'rounded px-3 py-1.5 text-sm font-medium transition-colors',
-                asideTab === 'details'
-                  ? 'bg-gray-900 text-white'
-                  : 'text-gray-600 hover:bg-gray-100',
-              ]"
-              @click="asideTab === 'details' ? closeAside() : setAsideTab('details')"
-            >
-              Details
-            </button>
-            <button
-              v-if="hasTodos"
-              type="button"
-              :class="[
-                'rounded px-3 py-1.5 text-sm font-medium transition-colors',
-                asideTab === 'todos' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-100',
-              ]"
-              @click="asideTab === 'todos' ? closeAside() : setAsideTab('todos')"
-            >
-              Todo
-            </button>
-            <button
-              v-if="hasAgrees"
-              type="button"
-              :class="[
-                'rounded px-3 py-1.5 text-sm font-medium transition-colors',
-                asideTab === 'agreed' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-100',
-              ]"
-              @click="asideTab === 'agreed' ? closeAside() : setAsideTab('agreed')"
-            >
-              Agreed
-            </button>
-          </div>
+          <TabRail
+            v-if="asideRailOptions.length"
+            :model-value="asideTab"
+            :options="asideRailOptions"
+            @update:model-value="onAsideRailSelect"
+          />
         </div>
 
     <div v-if="!isNew && note && isPublished && !isTrashed" class="flex min-h-0 flex-1 flex-col gap-6 overflow-hidden md:flex-row">
@@ -356,6 +322,21 @@ function closeAside() {
 function setAsideTab(tab: 'details' | 'todos' | 'agreed') {
   asideTab.value = tab
   detailsOpen.value = tab === 'details'
+}
+
+type AsideRailTab = 'details' | 'todos' | 'agreed'
+
+const asideRailOptions = computed(() => {
+  const o: { value: AsideRailTab; label: string }[] = []
+  if (showDetailsButton.value) o.push({ value: 'details', label: 'Details' })
+  if (hasTodos.value) o.push({ value: 'todos', label: 'Todo' })
+  if (hasAgrees.value) o.push({ value: 'agreed', label: 'Agreed' })
+  return o
+})
+
+function onAsideRailSelect(tab: AsideRailTab) {
+  if (asideTab.value === tab) closeAside()
+  else setAsideTab(tab)
 }
 
 const editableTitle = ref('')
