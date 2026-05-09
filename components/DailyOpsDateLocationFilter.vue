@@ -7,8 +7,8 @@
         <UButton
           v-for="loc in locationOptions"
           :key="loc.value"
-          :color="modelValue.locationId === loc.value ? 'primary' : 'gray'"
           :variant="modelValue.locationId === loc.value ? 'solid' : 'outline'"
+          :class="modelValue.locationId === loc.value ? '!bg-gray-900 !text-white' : ''"
           @click="updateFilter({ locationId: loc.value })"
         >
           {{ loc.label }}
@@ -23,8 +23,8 @@
         <UButton
           v-for="preset in datePresets"
           :key="preset.value"
-          :color="isDatePresetSelected(preset) ? 'primary' : 'gray'"
           :variant="isDatePresetSelected(preset) ? 'solid' : 'outline'"
+          :class="isDatePresetSelected(preset) ? '!bg-gray-900 !text-white' : ''"
           size="sm"
           @click="applyDatePreset(preset)"
         >
