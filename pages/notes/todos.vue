@@ -6,7 +6,7 @@
     <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
       <div class="flex items-center gap-3">
         <span class="text-sm font-medium text-gray-600">Show:</span>
-        <div class="flex rounded-md border border-gray-200 bg-white p-0.5">
+        <div class="inline-flex shrink-0 rounded-md border border-black bg-white p-0.5">
           <button
             type="button"
             :class="['rounded px-3 py-1.5 text-sm font-medium transition-colors', filterMode === 'all' ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-100']"

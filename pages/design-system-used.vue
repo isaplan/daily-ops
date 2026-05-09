@@ -171,14 +171,17 @@
         </div>
       </section>
 
-      <!-- Soft Segmented (Todos) -->
+      <!-- Todos filter (same rail as note editor tabs) -->
       <section class="mb-16">
         <div class="bg-white rounded-lg p-6 border border-gray-200">
-          <p class="text-xs uppercase font-semibold text-gray-500 mb-4">Todos Page: Soft Segmented Control</p>
-          <div class="inline-flex max-w-max flex-wrap items-center gap-1 rounded-md border border-gray-200 bg-white p-1">
-            <button type="button" class="bg-gray-900 text-white px-3 py-1.5 rounded text-sm font-medium">All</button>
-            <button type="button" class="text-gray-700 hover:bg-gray-100 px-3 py-1.5 rounded text-sm font-medium focus:ring-1 focus:ring-blue-500 focus:border-blue-500">Active</button>
-            <button type="button" class="text-gray-700 hover:bg-gray-100 px-3 py-1.5 rounded text-sm font-medium">Completed</button>
+          <p class="text-xs uppercase font-semibold text-gray-500 mb-4">Todos Page: Filter (same as Note Editor tab rail)</p>
+          <div class="inline-flex shrink-0 rounded-md border border-black bg-white p-0.5">
+            <button type="button" class="rounded px-3 py-1.5 text-sm font-medium transition-colors bg-gray-900 text-white">
+              All
+            </button>
+            <button type="button" class="rounded px-3 py-1.5 text-sm font-medium transition-colors text-gray-600 hover:bg-gray-100">
+              My todo's
+            </button>
           </div>
         </div>
       </section>
