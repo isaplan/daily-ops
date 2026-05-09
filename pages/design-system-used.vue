@@ -112,7 +112,7 @@
       <section class="mb-16">
         <div class="bg-white rounded-lg p-6 border border-gray-200">
           <p class="text-xs uppercase font-semibold text-gray-500 mb-4">Settings Pages: Tab Group (border-black, width-auto)</p>
-          <div class="shrink-0 flex rounded-md border border-black bg-white p-0.5">
+          <div class="inline-flex shrink-0 rounded-md border border-black bg-white p-0.5">
             <button type="button" class="rounded px-3 py-1.5 text-sm font-medium transition-colors bg-gray-900 text-white">
               Credentials
             </button>
@@ -187,7 +187,7 @@
       <section class="mb-16">
         <div class="bg-white rounded-lg p-6 border border-gray-200">
           <p class="text-xs uppercase font-semibold text-gray-500 mb-4">Note Editor: Tab Group (border-black)</p>
-          <div class="shrink-0 flex rounded-md border border-black bg-white p-0.5">
+          <div class="inline-flex shrink-0 rounded-md border border-black bg-white p-0.5">
             <button type="button" class="rounded px-3 py-1.5 text-sm font-medium transition-colors bg-gray-900 text-white">
               Details
             </button>

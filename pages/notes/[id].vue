@@ -21,7 +21,7 @@
       />
           <div
             v-if="showDetailsButton || hasTodos || hasAgrees"
-            class="shrink-0 flex rounded-md border border-black bg-white p-0.5"
+            class="inline-flex shrink-0 rounded-md border border-black bg-white p-0.5"
           >
             <button
               v-if="showDetailsButton"

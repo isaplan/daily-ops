@@ -16,7 +16,7 @@
         :description="connectionMessage"
         :icon="connectionStatus === 'success' ? 'i-lucide-check-circle' : 'i-lucide-x-circle'"
       />
-      <div class="shrink-0 flex rounded-md border border-black bg-white p-0.5">
+      <div class="inline-flex shrink-0 rounded-md border border-black bg-white p-0.5">
         <button
           :class="[
             'rounded px-3 py-1.5 text-sm font-medium transition-colors',
