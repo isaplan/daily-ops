@@ -111,16 +111,14 @@
       <!-- Settings Tabs -->
       <section class="mb-16">
         <div class="bg-white rounded-lg p-6 border border-gray-200">
-          <p class="text-xs uppercase font-semibold text-gray-500 mb-4">Settings Pages: Tab Group (border-black, in Card)</p>
-          <div class="bg-white rounded-lg p-6 border border-gray-200">
-            <div class="shrink-0 flex rounded-md border border-black bg-white p-0.5">
-              <button type="button" class="rounded px-3 py-1.5 text-sm font-medium transition-colors bg-gray-900 text-white">
-                Credentials
-              </button>
-              <button type="button" class="rounded px-3 py-1.5 text-sm font-medium transition-colors text-gray-600 hover:bg-gray-100">
-                Cron Jobs
-              </button>
-            </div>
+          <p class="text-xs uppercase font-semibold text-gray-500 mb-4">Settings Pages: Tab Group (border-black, width-auto)</p>
+          <div class="shrink-0 flex rounded-md border border-black bg-white p-0.5">
+            <button type="button" class="rounded px-3 py-1.5 text-sm font-medium transition-colors bg-gray-900 text-white">
+              Credentials
+            </button>
+            <button type="button" class="rounded px-3 py-1.5 text-sm font-medium transition-colors text-gray-600 hover:bg-gray-100">
+              Cron Jobs
+            </button>
           </div>
         </div>
       </section>

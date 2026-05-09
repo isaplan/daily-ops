@@ -16,31 +16,29 @@
         :description="connectionMessage"
         :icon="connectionStatus === 'success' ? 'i-lucide-check-circle' : 'i-lucide-x-circle'"
       />
-      <div class="bg-white rounded-lg p-6 border border-gray-200">
-        <div class="shrink-0 flex rounded-md border border-black bg-white p-0.5">
-          <button
-            :class="[
-              'rounded px-3 py-1.5 text-sm font-medium transition-colors',
-              activeTab === 'credentials'
-                ? 'bg-gray-900 text-white'
-                : 'text-gray-600 hover:bg-gray-100'
-            ]"
-            @click="activeTab = 'credentials'"
-          >
-            Credentials
-          </button>
-          <button
-            :class="[
-              'rounded px-3 py-1.5 text-sm font-medium transition-colors',
-              activeTab === 'cron-jobs'
-                ? 'bg-gray-900 text-white'
-                : 'text-gray-600 hover:bg-gray-100'
-            ]"
-            @click="activeTab = 'cron-jobs'"
-          >
-            Cron Jobs
-          </button>
-        </div>
+      <div class="shrink-0 flex rounded-md border border-black bg-white p-0.5">
+        <button
+          :class="[
+            'rounded px-3 py-1.5 text-sm font-medium transition-colors',
+            activeTab === 'credentials'
+              ? 'bg-gray-900 text-white'
+              : 'text-gray-600 hover:bg-gray-100'
+          ]"
+          @click="activeTab = 'credentials'"
+        >
+          Credentials
+        </button>
+        <button
+          :class="[
+            'rounded px-3 py-1.5 text-sm font-medium transition-colors',
+            activeTab === 'cron-jobs'
+              ? 'bg-gray-900 text-white'
+              : 'text-gray-600 hover:bg-gray-100'
+          ]"
+          @click="activeTab = 'cron-jobs'"
+        >
+          Cron Jobs
+        </button>
       </div>
 
       <div v-if="activeTab === 'credentials'" class="space-y-6">
