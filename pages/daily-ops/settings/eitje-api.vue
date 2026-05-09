@@ -16,13 +16,13 @@
         :description="connectionMessage"
         :icon="connectionStatus === 'success' ? 'i-lucide-check-circle' : 'i-lucide-x-circle'"
       />
-      <div class="flex gap-2 border-b">
+      <div class="shrink-0 flex rounded-md border border-black bg-white p-0.5">
         <button
           :class="[
-            'px-4 py-2 font-medium text-sm border-b-2 transition-colors',
+            'rounded px-3 py-1.5 text-sm font-medium transition-colors',
             activeTab === 'credentials'
-              ? 'border-gray-900 text-gray-900'
-              : 'border-transparent text-gray-600 hover:text-gray-900'
+              ? 'bg-gray-900 text-white'
+              : 'text-gray-600 hover:bg-gray-100'
           ]"
           @click="activeTab = 'credentials'"
         >
@@ -30,10 +30,10 @@
         </button>
         <button
           :class="[
-            'px-4 py-2 font-medium text-sm border-b-2 transition-colors',
+            'rounded px-3 py-1.5 text-sm font-medium transition-colors',
             activeTab === 'cron-jobs'
-              ? 'border-gray-900 text-gray-900'
-              : 'border-transparent text-gray-600 hover:text-gray-900'
+              ? 'bg-gray-900 text-white'
+              : 'text-gray-600 hover:bg-gray-100'
           ]"
           @click="activeTab = 'cron-jobs'"
         >
