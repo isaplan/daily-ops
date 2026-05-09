@@ -4,7 +4,7 @@
       <!-- Header -->
       <div class="mb-12">
         <h1 class="text-4xl font-bold text-gray-900 mb-2">Design System</h1>
-        <p class="text-lg text-gray-600">Nuxt UI v4 + Tailwind CSS v4</p>
+        <p class="text-lg text-gray-600">Nuxt UI v4 + Tailwind CSS v4 • Complete Pattern Reference</p>
       </div>
 
       <!-- Colors Section -->
@@ -38,27 +38,64 @@
 
           <!-- Semantic Colors -->
           <div>
-            <h3 class="text-lg font-medium text-gray-900 mb-4">Semantic Colors (in use)</h3>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <h3 class="text-lg font-medium text-gray-900 mb-4">Semantic & Accent Colors</h3>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div class="bg-white rounded-lg p-4 border border-gray-200">
                 <div class="w-full h-20 rounded-md mb-3 bg-[hsl(45,15%,95%)]"></div>
-                <p class="font-mono text-sm font-semibold text-gray-900">Background</p>
+                <p class="font-mono text-sm font-semibold text-gray-900">Page Background</p>
                 <p class="font-mono text-xs text-gray-500">hsl(45, 15%, 95%)</p>
               </div>
               <div class="bg-white rounded-lg p-4 border border-gray-200">
-                <div class="w-full h-20 rounded-md mb-3 bg-white border border-gray-200"></div>
+                <div class="w-full h-20 rounded-md mb-3 bg-[hsl(45,12%,92%)]"></div>
+                <p class="font-mono text-sm font-semibold text-gray-900">Note Aside</p>
+                <p class="font-mono text-xs text-gray-500">hsl(45, 12%, 92%)</p>
+              </div>
+              <div class="bg-white rounded-lg p-4 border border-gray-200">
+                <div class="w-full h-20 rounded-md mb-3 bg-white border-2 border-gray-200"></div>
                 <p class="font-mono text-sm font-semibold text-gray-900">Surface</p>
                 <p class="font-mono text-xs text-gray-500">white</p>
               </div>
               <div class="bg-white rounded-lg p-4 border border-gray-200">
                 <div class="w-full h-20 rounded-md mb-3 bg-gray-900"></div>
-                <p class="font-mono text-sm font-semibold text-gray-900">Accent</p>
+                <p class="font-mono text-sm font-semibold text-gray-900">Accent/Primary</p>
                 <p class="font-mono text-xs text-gray-500">gray-900</p>
               </div>
               <div class="bg-white rounded-lg p-4 border border-gray-200">
                 <div class="w-full h-20 rounded-md mb-3 bg-blue-600"></div>
                 <p class="font-mono text-sm font-semibold text-gray-900">Link Color</p>
                 <p class="font-mono text-xs text-gray-500">blue-600</p>
+              </div>
+              <div class="bg-white rounded-lg p-4 border border-gray-200">
+                <div class="w-full h-20 rounded-md mb-3 bg-red-600"></div>
+                <p class="font-mono text-sm font-semibold text-gray-900">Destructive</p>
+                <p class="font-mono text-xs text-gray-500">red-600</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Feature Colors (Marketing) -->
+          <div>
+            <h3 class="text-lg font-medium text-gray-900 mb-4">Feature Colors (Menu/Marketing)</h3>
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div class="bg-white rounded-lg p-4 border border-gray-200">
+                <div class="w-full h-20 rounded-md mb-3 bg-blue-100"></div>
+                <p class="font-mono text-sm font-semibold text-gray-900">Blue Tiles</p>
+                <p class="font-mono text-xs text-gray-500">bg-blue-100 / text-blue-600</p>
+              </div>
+              <div class="bg-white rounded-lg p-4 border border-gray-200">
+                <div class="w-full h-20 rounded-md mb-3 bg-green-100"></div>
+                <p class="font-mono text-sm font-semibold text-gray-900">Green Tiles</p>
+                <p class="font-mono text-xs text-gray-500">bg-green-100 / text-green-600</p>
+              </div>
+              <div class="bg-white rounded-lg p-4 border border-gray-200">
+                <div class="w-full h-20 rounded-md mb-3 bg-emerald-50"></div>
+                <p class="font-mono text-sm font-semibold text-gray-900">Team Chip (Emerald)</p>
+                <p class="font-mono text-xs text-gray-500">bg-emerald-50</p>
+              </div>
+              <div class="bg-white rounded-lg p-4 border border-gray-200">
+                <div class="w-full h-20 rounded-md mb-3 bg-sky-50"></div>
+                <p class="font-mono text-sm font-semibold text-gray-900">Team Chip (Sky)</p>
+                <p class="font-mono text-xs text-gray-500">bg-sky-50</p>
               </div>
             </div>
           </div>
@@ -71,9 +108,21 @@
         
         <div class="space-y-6">
           <div class="bg-white rounded-lg p-6 border border-gray-200">
-            <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Display</p>
-            <h1 class="text-4xl font-bold text-gray-900">The quick brown fox jumps over the lazy dog</h1>
-            <p class="text-sm text-gray-600 mt-2 font-mono">text-4xl · font-bold</p>
+            <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Dashboard Hero (text-[38px])</p>
+            <h1 style="font-size: 38px" class="font-extrabold tracking-[-0.02em] text-gray-900">Quarterly Revenue</h1>
+            <p class="text-sm text-gray-600 mt-2 font-mono">text-[38px] · font-extrabold · tracking-[-0.02em]</p>
+          </div>
+
+          <div class="bg-white rounded-lg p-6 border border-gray-200">
+            <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Section Title (text-[34px])</p>
+            <h2 style="font-size: 34px" class="font-extrabold tracking-[-0.02em] text-gray-900">Insights</h2>
+            <p class="text-sm text-gray-600 mt-2 font-mono">text-[34px] · font-extrabold · tracking-[-0.02em]</p>
+          </div>
+
+          <div class="bg-white rounded-lg p-6 border border-gray-200">
+            <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Note Title (text-5xl)</p>
+            <h1 class="text-5xl font-bold text-gray-900">Meeting Notes</h1>
+            <p class="text-sm text-gray-600 mt-2 font-mono">text-5xl · font-bold</p>
           </div>
 
           <div class="bg-white rounded-lg p-6 border border-gray-200">
@@ -83,52 +132,33 @@
           </div>
 
           <div class="bg-white rounded-lg p-6 border border-gray-200">
-            <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Heading 2</p>
-            <h3 class="text-2xl font-semibold text-gray-900">The quick brown fox jumps over the lazy dog</h3>
-            <p class="text-sm text-gray-600 mt-2 font-mono">text-2xl · font-semibold</p>
-          </div>
-
-          <div class="bg-white rounded-lg p-6 border border-gray-200">
-            <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Body Large</p>
-            <p class="text-lg text-gray-900">The quick brown fox jumps over the lazy dog</p>
-            <p class="text-sm text-gray-600 mt-2 font-mono">text-lg</p>
-          </div>
-
-          <div class="bg-white rounded-lg p-6 border border-gray-200">
             <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Body</p>
             <p class="text-base text-gray-900">The quick brown fox jumps over the lazy dog</p>
             <p class="text-sm text-gray-600 mt-2 font-mono">text-base</p>
           </div>
 
           <div class="bg-white rounded-lg p-6 border border-gray-200">
-            <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Body Small</p>
-            <p class="text-sm text-gray-900">The quick brown fox jumps over the lazy dog</p>
-            <p class="text-sm text-gray-600 mt-2 font-mono">text-sm</p>
+            <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Micro Badge / Chip (text-[11px])</p>
+            <p style="font-size: 11px" class="text-gray-600 uppercase tracking-wide">Team member badge</p>
+            <p class="text-sm text-gray-600 mt-2 font-mono">text-[11px] · uppercase · tracking-wide</p>
           </div>
 
           <div class="bg-white rounded-lg p-6 border border-gray-200">
-            <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Caption</p>
-            <p class="text-xs text-gray-600">The quick brown fox jumps over the lazy dog</p>
-            <p class="text-sm text-gray-600 mt-2 font-mono">text-xs</p>
+            <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Mini Badge (text-[10px])</p>
+            <p style="font-size: 10px" class="text-gray-600 uppercase font-semibold">Inactive</p>
+            <p class="text-sm text-gray-600 mt-2 font-mono">text-[10px] · uppercase · font-semibold</p>
           </div>
-        </div>
-
-        <div class="mt-8 bg-white rounded-lg p-6 border border-gray-200">
-          <h3 class="text-lg font-semibold text-gray-900 mb-4">Font Stack</h3>
-          <p class="text-base text-gray-900 mb-2"><span class="font-semibold">Default:</span> Tailwind system fonts</p>
-          <p class="font-mono text-sm text-gray-600">ui-sans-serif, system-ui, sans-serif</p>
-          <p class="text-base text-gray-900 mt-4 mb-2"><span class="font-semibold">Used in:</span> Exports, PDF documents</p>
         </div>
       </section>
 
       <!-- Buttons Section -->
       <section class="mb-16">
-        <h2 class="text-2xl font-semibold text-gray-900 mb-6">Buttons</h2>
+        <h2 class="text-2xl font-semibold text-gray-900 mb-6">Buttons & Controls</h2>
         
         <div class="space-y-8">
           <!-- Button Variants -->
           <div>
-            <h3 class="text-lg font-medium text-gray-900 mb-4">Variants</h3>
+            <h3 class="text-lg font-medium text-gray-900 mb-4">UButton Variants</h3>
             <div class="bg-white rounded-lg p-6 border border-gray-200 space-y-4">
               <div>
                 <p class="text-sm text-gray-600 mb-3 font-semibold">Solid</p>
@@ -186,72 +216,61 @@
                   <p class="text-sm text-gray-600 font-semibold">LG</p>
                   <UButton size="lg">Large</UButton>
                 </div>
-                <div class="flex flex-col gap-2">
-                  <p class="text-sm text-gray-600 font-semibold">XL</p>
-                  <UButton size="xl">Extra Large</UButton>
-                </div>
               </div>
             </div>
           </div>
 
-          <!-- Button with Icons -->
-          <div>
-            <h3 class="text-lg font-medium text-gray-900 mb-4">With Icons</h3>
-            <div class="bg-white rounded-lg p-6 border border-gray-200 flex flex-wrap gap-3">
-              <UButton leading-icon="i-lucide-arrow-left">Back</UButton>
-              <UButton trailing-icon="i-lucide-arrow-right">Next</UButton>
-              <UButton icon="i-lucide-plus">Add Item</UButton>
-              <UButton icon="i-lucide-trash-2" variant="ghost" size="sm" />
-            </div>
-          </div>
-
-          <!-- Button as Link -->
-          <div>
-            <h3 class="text-lg font-medium text-gray-900 mb-4">As Link</h3>
-            <div class="bg-white rounded-lg p-6 border border-gray-200 flex flex-wrap gap-3">
-              <UButton to="/">Navigate Home</UButton>
-              <UButton to="/organisation" variant="soft">Go to Organisation</UButton>
-            </div>
-          </div>
-
-          <!-- Segmented Control / Pill Group (Primary Pattern in App) -->
+          <!-- Segmented Controls (Primary Pattern) -->
           <div>
             <h3 class="text-lg font-medium text-gray-900 mb-4">Segmented Controls (Primary Pattern)</h3>
             <p class="text-sm text-gray-600 mb-3">Black-bordered pill groups used throughout Daily Ops dashboard</p>
             <div class="bg-white rounded-lg p-6 border border-gray-200 space-y-4">
               <!-- Time period selector -->
               <div>
-                <p class="text-sm text-gray-500 mb-2">Period Toggle</p>
+                <p class="text-sm text-gray-500 mb-2">Period Toggle (font-semibold)</p>
                 <div class="inline-flex max-w-max flex-wrap items-center gap-1 rounded-md border-2 border-gray-900 bg-white p-1">
-                  <NuxtLink to="#" class="bg-gray-900 text-white px-3 py-1.5 rounded text-sm font-medium transition-colors">Today</NuxtLink>
-                  <button type="button" class="text-gray-700 hover:bg-gray-100 px-3 py-1.5 rounded text-sm font-medium transition-colors">This Week</button>
-                  <button type="button" class="text-gray-700 hover:bg-gray-100 px-3 py-1.5 rounded text-sm font-medium transition-colors">This Month</button>
+                  <NuxtLink to="#" class="bg-gray-900 text-white px-3 py-1.5 rounded text-sm font-semibold transition-colors">Today</NuxtLink>
+                  <button type="button" class="text-gray-700 hover:bg-gray-100 px-3 py-1.5 rounded text-sm font-semibold transition-colors">This Week</button>
+                  <button type="button" class="text-gray-700 hover:bg-gray-100 px-3 py-1.5 rounded text-sm font-semibold transition-colors">This Month</button>
                 </div>
               </div>
 
               <!-- Dashboard sections -->
               <div>
-                <p class="text-sm text-gray-500 mb-2">Dashboard Section Nav</p>
+                <p class="text-sm text-gray-500 mb-2">Dashboard Section Nav (font-semibold)</p>
                 <div class="inline-flex max-w-max flex-wrap gap-1 rounded-md border-2 border-gray-900 bg-white p-1">
-                  <button type="button" class="bg-gray-900 text-white px-4 py-1.5 rounded text-sm font-medium transition-colors">Daily Ops</button>
-                  <button type="button" class="text-gray-700 hover:bg-gray-100 px-4 py-1.5 rounded text-sm font-medium transition-colors">Revenue</button>
-                  <button type="button" class="text-gray-700 hover:bg-gray-100 px-4 py-1.5 rounded text-sm font-medium transition-colors">Productivity</button>
+                  <button type="button" class="bg-gray-900 text-white px-4 py-1.5 rounded text-sm font-semibold transition-colors">Daily Ops</button>
+                  <button type="button" class="text-gray-700 hover:bg-gray-100 px-4 py-1.5 rounded text-sm font-semibold transition-colors">Revenue</button>
+                  <button type="button" class="text-gray-700 hover:bg-gray-100 px-4 py-1.5 rounded text-sm font-semibold transition-colors">Productivity</button>
                 </div>
               </div>
 
-              <!-- Location shortcuts -->
+              <!-- Inbox with shadow -->
               <div>
-                <p class="text-sm text-gray-500 mb-2">Location Shortcuts</p>
-                <div class="inline-flex max-w-max flex-wrap gap-1 rounded-md border-2 border-gray-900 bg-white p-1">
-                  <button type="button" class="bg-gray-900 text-white px-3 py-1.5 rounded text-sm font-medium transition-colors">All</button>
-                  <button type="button" class="text-gray-700 hover:bg-gray-100 px-3 py-1.5 rounded text-sm font-medium transition-colors">Amsterdam</button>
-                  <button type="button" class="text-gray-700 hover:bg-gray-100 px-3 py-1.5 rounded text-sm font-medium transition-colors">Rotterdam</button>
+                <p class="text-sm text-gray-500 mb-2">Inbox Toolbar (with shadow)</p>
+                <div class="inline-flex max-w-max flex-wrap gap-1 rounded-md border-2 border-gray-900 bg-white p-1" style="box-shadow: 2px 2px 0 0 rgba(0,0,0,0.08)">
+                  <button type="button" class="text-gray-700 hover:bg-gray-100 px-3 py-1.5 rounded text-sm font-semibold transition-colors">Gmail</button>
+                  <button type="button" class="text-gray-700 hover:bg-gray-100 px-3 py-1.5 rounded text-sm font-semibold transition-colors">Sync</button>
+                  <button type="button" class="text-gray-700 hover:bg-gray-100 px-3 py-1.5 rounded text-sm font-semibold transition-colors">Process</button>
                 </div>
               </div>
             </div>
           </div>
 
-          <!-- Sidebar Navigation (Secondary Pattern) -->
+          <!-- Soft Segmented (Todos) -->
+          <div>
+            <h3 class="text-lg font-medium text-gray-900 mb-4">Soft Segmented Controls (Todos)</h3>
+            <p class="text-sm text-gray-600 mb-3">Lighter gray-200 border variant with blue focus rings</p>
+            <div class="bg-white rounded-lg p-6 border border-gray-200">
+              <div class="inline-flex max-w-max flex-wrap items-center gap-1 rounded-md border border-gray-200 bg-white p-1">
+                <button type="button" class="bg-gray-900 text-white px-3 py-1.5 rounded text-sm font-medium transition-colors">All</button>
+                <button type="button" class="text-gray-700 hover:bg-gray-100 px-3 py-1.5 rounded text-sm font-medium transition-colors focus:ring-1 focus:ring-blue-500 focus:border-blue-500">Active</button>
+                <button type="button" class="text-gray-700 hover:bg-gray-100 px-3 py-1.5 rounded text-sm font-medium transition-colors">Completed</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Sidebar Navigation -->
           <div>
             <h3 class="text-lg font-medium text-gray-900 mb-4">Navigation Links (Sidebar Pattern)</h3>
             <p class="text-sm text-gray-600 mb-3">Soft gray pills used in sidebar and page nav</p>
@@ -271,7 +290,7 @@
             </div>
           </div>
 
-          <!-- Settings Tabs (Tertiary Pattern) -->
+          <!-- Settings Tabs -->
           <div>
             <h3 class="text-lg font-medium text-gray-900 mb-4">Settings Tabs (Underline Pattern)</h3>
             <p class="text-sm text-gray-600 mb-3">Bottom-border tabs used in settings pages</p>
@@ -284,79 +303,181 @@
             </div>
           </div>
 
-          <!-- Custom Button Wrapper -->
+          <!-- Menu / Marketing Tiles -->
           <div>
-            <h3 class="text-lg font-medium text-gray-900 mb-4">Test Connection Button</h3>
-            <p class="text-sm text-gray-600 mb-3">Custom wrapper component used in settings (outlined UButton with loading state and icon)</p>
-            <div class="bg-white rounded-lg p-6 border border-gray-200 flex flex-wrap gap-3">
-              <UButton variant="outline" loading>Testing...</UButton>
-              <UButton variant="outline">Test Connection</UButton>
+            <h3 class="text-lg font-medium text-gray-900 mb-4">Marketing Tiles (Menu)</h3>
+            <p class="text-sm text-gray-600 mb-3">Colored icon wells with hover states</p>
+            <div class="bg-white rounded-lg p-6 border border-gray-200">
+              <div class="flex flex-wrap gap-4">
+                <a href="#" class="w-32 p-4 rounded-lg bg-blue-100 text-blue-600 border border-blue-100 hover:border-primary-300 transition-colors text-center">
+                  <div class="text-3xl mb-2">📋</div>
+                  <p class="text-xs font-medium">Menu List</p>
+                </a>
+                <a href="#" class="w-32 p-4 rounded-lg bg-green-100 text-green-600 border border-green-100 hover:border-primary-300 transition-colors text-center">
+                  <div class="text-3xl mb-2">🎯</div>
+                  <p class="text-xs font-medium">Specials</p>
+                </a>
+              </div>
+            </div>
+          </div>
+
+          <!-- Note Editor Tab Pattern -->
+          <div>
+            <h3 class="text-lg font-medium text-gray-900 mb-4">Note Editor Tabs</h3>
+            <p class="text-sm text-gray-600 mb-3">border-black (vs standard border-gray-900) microinteraction</p>
+            <div class="bg-white rounded-lg p-6 border border-gray-200">
+              <div class="border border-black rounded-md p-0.5 inline-flex gap-0">
+                <button type="button" class="bg-gray-900 text-white px-4 py-2 rounded text-sm font-medium transition-colors">Details</button>
+                <button type="button" class="text-gray-700 hover:bg-gray-100 px-4 py-2 rounded text-sm font-medium transition-colors">Todo</button>
+                <button type="button" class="text-gray-700 hover:bg-gray-100 px-4 py-2 rounded text-sm font-medium transition-colors">Agreed</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Icon Buttons with Hover -->
+          <div>
+            <h3 class="text-lg font-medium text-gray-900 mb-4">Icon Buttons (Menu Builder)</h3>
+            <p class="text-sm text-gray-600 mb-3">Micro pills and destructive red-hover patterns</p>
+            <div class="bg-white rounded-lg p-6 border border-gray-200 space-y-4">
+              <div>
+                <p class="text-sm text-gray-500 mb-2">Gray Pill Buttons (text-xs)</p>
+                <div class="flex flex-wrap gap-2">
+                  <span class="text-xs font-medium text-gray-700 bg-gray-200 px-2 py-1 rounded hover:bg-gray-300 cursor-default">Filter 1</span>
+                  <span class="text-xs font-medium text-gray-700 bg-gray-200 px-2 py-1 rounded hover:bg-gray-300 cursor-default">Filter 2</span>
+                </div>
+              </div>
+              <div class="border-t border-gray-200 pt-4">
+                <p class="text-sm text-gray-500 mb-2">Red-Hover Icon Buttons</p>
+                <div class="flex flex-wrap gap-2">
+                  <button type="button" class="p-1 rounded hover:bg-red-50 hover:text-red-600 transition-colors">
+                    <UIcon name="i-lucide-trash-2" class="size-4 text-gray-400" />
+                  </button>
+                  <button type="button" class="p-1 rounded hover:bg-red-50 hover:text-red-600 transition-colors">
+                    <UIcon name="i-lucide-x" class="size-4 text-gray-400" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Upload Drag State -->
+          <div>
+            <h3 class="text-lg font-medium text-gray-900 mb-4">Upload Drop Zone (Menu Products)</h3>
+            <p class="text-sm text-gray-600 mb-3">Primary dashed border on drag, blue selection panel</p>
+            <div class="bg-white rounded-lg p-6 border border-gray-200 space-y-4">
+              <div class="border-2 border-dashed border-primary-500 bg-primary-50 rounded-lg p-8 text-center">
+                <p class="text-sm text-gray-600 mb-2">Drag files here or click to upload</p>
+                <p class="text-xs text-gray-500">Dashed primary border (border-primary-500) + bg-primary-50</p>
+              </div>
+              <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <p class="text-xs text-blue-600 font-medium mb-2">Selection Queue</p>
+                <p class="text-xs text-gray-600">File list panel with blue background</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Member Profile Card -->
+          <div>
+            <h3 class="text-lg font-medium text-gray-900 mb-4">Member Profile Card</h3>
+            <p class="text-sm text-gray-600 mb-3">Gradient header with emerald/sky team chips</p>
+            <div class="bg-white rounded-lg p-6 border border-gray-200">
+              <div class="rounded-lg overflow-hidden bg-linear-to-br from-[hsl(45,20%,99%)] to-[hsl(45,25%,82%)] border-2 border-[hsl(45,25%,82%)] p-6 mb-4">
+                <p class="text-lg font-bold text-gray-900 mb-2">Team Member</p>
+                <p class="text-sm text-gray-600">Active since 2024</p>
+              </div>
+              <div class="flex flex-wrap gap-2">
+                <span class="text-[11px] uppercase tracking-wide font-medium bg-emerald-50 text-emerald-700 px-2 py-1 rounded">Team A</span>
+                <span class="text-[11px] uppercase tracking-wide font-medium bg-sky-50 text-sky-700 px-2 py-1 rounded">Team B</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- CTA Patterns -->
+          <div>
+            <h3 class="text-lg font-medium text-gray-900 mb-4">CTA Patterns</h3>
+            <p class="text-sm text-gray-600 mb-3">Primary-filled vs black-filled actions</p>
+            <div class="bg-white rounded-lg p-6 border border-gray-200 flex flex-wrap gap-4">
+              <a href="#" class="bg-primary text-white px-4 py-2 rounded-md text-sm font-medium hover:opacity-90 transition-opacity">
+                <UIcon name="i-lucide-plus" class="inline mr-2 size-4" />
+                Create (Primary)
+              </a>
+              <UButton class="bg-gray-900!">
+                <UIcon name="i-lucide-save" class="inline mr-2 size-4" />
+                Save (Gray-900)
+              </UButton>
             </div>
           </div>
         </div>
       </section>
 
-      <!-- Component Usage Section -->
+      <!-- Summary Section -->
       <section>
-        <h2 class="text-2xl font-semibold text-gray-900 mb-6">Component Usage</h2>
+        <h2 class="text-2xl font-semibold text-gray-900 mb-6">Design System Summary</h2>
         
         <div class="bg-white rounded-lg p-6 border border-gray-200">
-          <h3 class="text-lg font-semibold text-gray-900 mb-4">Primary Button Patterns</h3>
-          <ul class="space-y-3 text-gray-900">
-            <li class="flex items-start gap-3">
-              <span class="font-semibold min-w-fit">Segmented Controls</span>
-              <span class="text-gray-600">Black-bordered pill groups (border-2 border-gray-900) used in Daily Ops dashboard for period selection, section navigation, and location shortcuts. Active item: bg-gray-900 text-white</span>
-            </li>
-            <li class="flex items-start gap-3">
-              <span class="font-semibold min-w-fit">Sidebar Navigation</span>
-              <span class="text-gray-600">Soft gray pills (rounded-md) used in sidebar and page navigation. Active: bg-gray-200 text-gray-900. Inactive: text-gray-600 hover:bg-gray-100</span>
-            </li>
-            <li class="flex items-start gap-3">
-              <span class="font-semibold min-w-fit">Settings Tabs</span>
-              <span class="text-gray-600">Bottom-border underline tabs (border-b-2) used in settings pages. Active: border-gray-900. Inactive: border-transparent</span>
-            </li>
-            <li class="flex items-start gap-3">
-              <span class="font-semibold min-w-fit">UButton</span>
-              <span class="text-gray-600">Nuxt UI button with variants (solid, soft, outline, ghost), sizes (xs-xl). Often forced to !bg-gray-900 for consistency with segmented controls</span>
-            </li>
-            <li class="flex items-start gap-3">
-              <span class="font-semibold min-w-fit">TestConnectionButton</span>
-              <span class="text-gray-600">Custom wrapper around UButton used in API settings with outline variant, leading icon, and loading state</span>
-            </li>
-          </ul>
+          <h3 class="text-lg font-semibold text-gray-900 mb-4">Button Patterns by Area</h3>
+          <div class="space-y-4">
+            <div class="border-l-4 border-gray-900 pl-4">
+              <p class="font-semibold text-gray-900">Daily Ops Dashboard</p>
+              <p class="text-sm text-gray-600">Segmented controls (border-2 border-gray-900, font-semibold), hard cards (border-2 border-gray-900), large hero text (text-[38px], text-[34px])</p>
+            </div>
+            <div class="border-l-4 border-blue-600 pl-4">
+              <p class="font-semibold text-gray-900">Notes / Projects</p>
+              <p class="text-sm text-gray-600">Warm backgrounds (hsl(45,...)), border-black tabs, text-5xl titles, soft gray navigation</p>
+            </div>
+            <div class="border-l-4 border-green-600 pl-4">
+              <p class="font-semibold text-gray-900">Menu / Products</p>
+              <p class="text-sm text-gray-600">Marketing tiles (blue-100, green-100), upload drag states (primary-500 dashed), micro badges</p>
+            </div>
+            <div class="border-l-4 border-amber-600 pl-4">
+              <p class="font-semibold text-gray-900">Menu Builder V2</p>
+              <p class="text-sm text-gray-600">Micro gray pills (text-xs), red-hover icon buttons, neutral ghost controls</p>
+            </div>
+            <div class="border-l-4 border-purple-600 pl-4">
+              <p class="font-semibold text-gray-900">Member Pages</p>
+              <p class="text-sm text-gray-600">Gradient profile cards, emerald/sky team chips (text-[11px]), blue links</p>
+            </div>
+          </div>
 
-          <h3 class="text-lg font-semibold text-gray-900 mb-4 mt-8">Color Scheme (Actual Usage)</h3>
+          <h3 class="text-lg font-semibold text-gray-900 mb-4 mt-8">Key Design Tokens</h3>
           <ul class="space-y-3 text-gray-900">
             <li class="flex items-start gap-3">
               <span class="font-semibold min-w-fit">Primary Action</span>
-              <span class="text-gray-600">gray-900 (black) for selected/active states, buttons with strong emphasis</span>
+              <span class="text-gray-600">gray-900 (black) with font-semibold, border-2 border-gray-900 for segmented controls</span>
             </li>
             <li class="flex items-start gap-3">
               <span class="font-semibold min-w-fit">Secondary Action</span>
-              <span class="text-gray-600">Soft gray backgrounds (gray-100, gray-200) for hover/inactive states</span>
+              <span class="text-gray-600">Soft gray (bg-gray-100, bg-gray-200) with font-medium for nav/sidebar</span>
             </li>
             <li class="flex items-start gap-3">
-              <span class="font-semibold min-w-fit">Navigation Text</span>
-              <span class="text-gray-600">text-gray-600 for inactive, text-gray-900 for active</span>
+              <span class="font-semibold min-w-fit">Focus States</span>
+              <span class="text-gray-600">Blue-500 focus rings (focus:ring-blue-500 focus:border-blue-500) on forms and inputs</span>
             </li>
             <li class="flex items-start gap-3">
-              <span class="font-semibold min-w-fit">Borders</span>
-              <span class="text-gray-600">gray-900 for strong dividers (segmented controls), gray-200 for subtle borders</span>
+              <span class="font-semibold min-w-fit">Destructive</span>
+              <span class="text-gray-600">Red-600 for delete buttons, red-50 hover backgrounds for icon buttons</span>
             </li>
             <li class="flex items-start gap-3">
-              <span class="font-semibold min-w-fit">Semantic</span>
-              <span class="text-gray-600">blue-600 for links, red for destructive actions, success green for connected states</span>
+              <span class="font-semibold min-w-fit">Links</span>
+              <span class="text-gray-600">blue-600 for standard links, text-primary-600 for primary CTAs</span>
+            </li>
+            <li class="flex items-start gap-3">
+              <span class="font-semibold min-w-fit">Typography</span>
+              <span class="text-gray-600">Overline 10px, micro 11px, regular sizes (sm/base/lg), display sizes (34px/38px)</span>
+            </li>
+            <li class="flex items-start gap-3">
+              <span class="font-semibold min-w-fit">Backgrounds</span>
+              <span class="text-gray-600">Page: hsl(45,15%,95%), Note aside: hsl(45,12%,92%), feature marketing: blue-100/green-100</span>
             </li>
           </ul>
 
-          <h3 class="text-lg font-semibold text-gray-900 mb-4 mt-8">Design System Foundation</h3>
+          <h3 class="text-lg font-semibold text-gray-900 mb-4 mt-8">Foundation</h3>
           <div class="space-y-2 text-gray-900">
             <p><span class="font-semibold">Framework:</span> Nuxt 4 with Vue 3</p>
             <p><span class="font-semibold">UI Library:</span> Nuxt UI v4</p>
             <p><span class="font-semibold">Styling:</span> Tailwind CSS v4</p>
-            <p><span class="font-semibold">Button Strategy:</span> Context-specific patterns (segmented for dashboard, soft for nav, underline for settings)</p>
-            <p><span class="font-semibold">Theme Color Primary:</span> Semantic 'primary' from Nuxt UI, often overridden to gray-900</p>
-            <p><span class="font-semibold">Icon Library:</span> Lucide icons (via i-lucide-* classes)</p>
+            <p><span class="font-semibold">Strategy:</span> Context-specific patterns (segmented for dashboard, soft for nav, gradient for profiles)</p>
+            <p><span class="font-semibold">Icons:</span> Lucide icons (i-lucide-* classes)</p>
           </div>
         </div>
       </section>
