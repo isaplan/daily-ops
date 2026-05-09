@@ -439,37 +439,107 @@
             </div>
           </div>
 
-          <h3 class="text-lg font-semibold text-gray-900 mb-4 mt-8">Key Design Tokens</h3>
-          <ul class="space-y-3 text-gray-900">
-            <li class="flex items-start gap-3">
-              <span class="font-semibold min-w-fit">Primary Action</span>
-              <span class="text-gray-600">gray-900 (black) with font-semibold, border-2 border-gray-900 for segmented controls</span>
-            </li>
-            <li class="flex items-start gap-3">
-              <span class="font-semibold min-w-fit">Secondary Action</span>
-              <span class="text-gray-600">Soft gray (bg-gray-100, bg-gray-200) with font-medium for nav/sidebar</span>
-            </li>
-            <li class="flex items-start gap-3">
-              <span class="font-semibold min-w-fit">Focus States</span>
-              <span class="text-gray-600">Blue-500 focus rings (focus:ring-blue-500 focus:border-blue-500) on forms and inputs</span>
-            </li>
-            <li class="flex items-start gap-3">
-              <span class="font-semibold min-w-fit">Destructive</span>
-              <span class="text-gray-600">Red-600 for delete buttons, red-50 hover backgrounds for icon buttons</span>
-            </li>
-            <li class="flex items-start gap-3">
-              <span class="font-semibold min-w-fit">Links</span>
-              <span class="text-gray-600">blue-600 for standard links, text-primary-600 for primary CTAs</span>
-            </li>
-            <li class="flex items-start gap-3">
-              <span class="font-semibold min-w-fit">Typography</span>
-              <span class="text-gray-600">Overline 10px, micro 11px, regular sizes (sm/base/lg), display sizes (34px/38px)</span>
-            </li>
-            <li class="flex items-start gap-3">
-              <span class="font-semibold min-w-fit">Backgrounds</span>
-              <span class="text-gray-600">Page: hsl(45,15%,95%), Note aside: hsl(45,12%,92%), feature marketing: blue-100/green-100</span>
-            </li>
-          </ul>
+          <h3 class="text-lg font-semibold text-gray-900 mb-4 mt-8">Key Design Tokens (with Examples)</h3>
+          <div class="space-y-6">
+            <!-- Primary Action -->
+            <div class="border-l-4 border-gray-900 pl-4 py-4">
+              <p class="font-semibold text-gray-900 mb-3">Primary Action</p>
+              <p class="text-sm text-gray-600 mb-3">gray-900 (black) with font-semibold, border-2 border-gray-900 for segmented controls</p>
+              <div class="bg-gray-50 rounded-md p-4 space-y-2">
+                <div class="inline-flex gap-1 rounded-md border-2 border-gray-900 bg-white p-1">
+                  <button type="button" class="bg-gray-900 text-white px-3 py-1.5 rounded text-sm font-semibold">Primary</button>
+                  <button type="button" class="text-gray-700 hover:bg-gray-100 px-3 py-1.5 rounded text-sm font-semibold">Secondary</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Secondary Action -->
+            <div class="border-l-4 border-gray-200 pl-4 py-4">
+              <p class="font-semibold text-gray-900 mb-3">Secondary Action</p>
+              <p class="text-sm text-gray-600 mb-3">Soft gray (bg-gray-100, bg-gray-200) with font-medium for nav/sidebar</p>
+              <div class="bg-gray-50 rounded-md p-4 space-y-2">
+                <NuxtLink to="#" class="inline-flex items-center rounded-md text-sm font-medium px-3 py-2 gap-2 bg-gray-200 text-gray-900">
+                  <UIcon name="i-lucide-home" class="size-4" />
+                  Active
+                </NuxtLink>
+                <NuxtLink to="#" class="inline-flex items-center rounded-md text-sm font-medium px-3 py-2 gap-2 text-gray-600 hover:bg-gray-100">
+                  <UIcon name="i-lucide-file" class="size-4" />
+                  Inactive
+                </NuxtLink>
+              </div>
+            </div>
+
+            <!-- Focus States -->
+            <div class="border-l-4 border-blue-500 pl-4 py-4">
+              <p class="font-semibold text-gray-900 mb-3">Focus States</p>
+              <p class="text-sm text-gray-600 mb-3">Blue-500 focus rings (focus:ring-blue-500 focus:border-blue-500) on forms and inputs</p>
+              <div class="bg-gray-50 rounded-md p-4">
+                <input type="text" placeholder="Focus on me..." class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors" />
+              </div>
+            </div>
+
+            <!-- Destructive -->
+            <div class="border-l-4 border-red-600 pl-4 py-4">
+              <p class="font-semibold text-gray-900 mb-3">Destructive</p>
+              <p class="text-sm text-gray-600 mb-3">Red-600 for delete buttons, red-50 hover backgrounds for icon buttons</p>
+              <div class="bg-gray-50 rounded-md p-4 space-y-2">
+                <UButton color="red" variant="soft" size="sm">Delete Item</UButton>
+                <div class="flex gap-2">
+                  <button type="button" class="p-1.5 rounded hover:bg-red-50 hover:text-red-600 transition-colors">
+                    <UIcon name="i-lucide-trash-2" class="size-4 text-gray-400" />
+                  </button>
+                  <button type="button" class="p-1.5 rounded hover:bg-red-50 hover:text-red-600 transition-colors">
+                    <UIcon name="i-lucide-x" class="size-4 text-gray-400" />
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Links -->
+            <div class="border-l-4 border-blue-600 pl-4 py-4">
+              <p class="font-semibold text-gray-900 mb-3">Links</p>
+              <p class="text-sm text-gray-600 mb-3">blue-600 for standard links, text-primary-600 for primary CTAs</p>
+              <div class="bg-gray-50 rounded-md p-4 space-y-2">
+                <a href="#" class="text-blue-600 hover:text-blue-800 text-sm block">← Back to list (blue-600)</a>
+                <a href="#" class="text-primary-600 hover:text-primary-700 text-sm font-medium block">Create new item (text-primary-600)</a>
+              </div>
+            </div>
+
+            <!-- Typography -->
+            <div class="border-l-4 border-purple-600 pl-4 py-4">
+              <p class="font-semibold text-gray-900 mb-3">Typography</p>
+              <p class="text-sm text-gray-600 mb-3">Overline 10px, micro 11px, regular sizes (sm/base/lg), display sizes (34px/38px)</p>
+              <div class="bg-gray-50 rounded-md p-4 space-y-2">
+                <p style="font-size: 10px" class="text-gray-600 uppercase font-semibold">Overline (10px)</p>
+                <p style="font-size: 11px" class="text-gray-600 uppercase tracking-wide">Micro Badge (11px)</p>
+                <p class="text-sm text-gray-600">Small (text-sm)</p>
+                <p class="text-base text-gray-600">Regular (text-base)</p>
+                <p style="font-size: 34px" class="font-extrabold tracking-[-0.02em] text-gray-900">Section Title (34px)</p>
+              </div>
+            </div>
+
+            <!-- Backgrounds -->
+            <div class="border-l-4 border-amber-600 pl-4 py-4">
+              <p class="font-semibold text-gray-900 mb-3">Backgrounds</p>
+              <p class="text-sm text-gray-600 mb-3">Page: hsl(45,15%,95%), Note aside: hsl(45,12%,92%), feature marketing: blue-100/green-100</p>
+              <div class="space-y-2">
+                <div class="bg-[hsl(45,15%,95%)] border border-gray-200 rounded-md p-4 h-16 flex items-center justify-center">
+                  <p class="text-sm text-gray-600">Page bg: hsl(45,15%,95%)</p>
+                </div>
+                <div class="bg-[hsl(45,12%,92%)] border border-gray-200 rounded-md p-4 h-16 flex items-center justify-center">
+                  <p class="text-sm text-gray-600">Note aside: hsl(45,12%,92%)</p>
+                </div>
+                <div class="flex gap-2">
+                  <div class="bg-blue-100 border border-blue-200 rounded-md p-4 h-16 flex items-center justify-center flex-1">
+                    <p class="text-xs text-blue-600 font-medium">Feature: blue-100</p>
+                  </div>
+                  <div class="bg-green-100 border border-green-200 rounded-md p-4 h-16 flex items-center justify-center flex-1">
+                    <p class="text-xs text-green-600 font-medium">Feature: green-100</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
 
           <h3 class="text-lg font-semibold text-gray-900 mb-4 mt-8">Foundation</h3>
           <div class="space-y-2 text-gray-900">
