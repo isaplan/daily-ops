@@ -10,10 +10,10 @@
       >
         <UButton
           variant="solid"
-          size="md"
+          size="sm"
           :color="gmailConnected ? 'success' : 'neutral'"
           :icon="gmailConnected ? 'i-lucide-check' : 'i-lucide-lock-open'"
-          class="gap-2.5 px-5 py-2.5 font-semibold"
+          class="gap-1.5 px-3 py-1.5 font-semibold"
           @click="onConnectGmail"
         >
           {{ gmailConnected ? 'Connected Gmail' : 'Connect Gmail' }}
@@ -21,10 +21,10 @@
         <UButton
           variant="solid"
           color="neutral"
-          size="md"
+          size="sm"
           :loading="syncing"
           icon="i-lucide-refresh-cw"
-          class="gap-2.5 px-5 py-2.5 font-semibold"
+          class="gap-1.5 px-3 py-1.5 font-semibold"
           @click="onSync"
         >
           Sync Gmail
@@ -32,10 +32,10 @@
         <UButton
           variant="solid"
           color="neutral"
-          size="md"
+          size="sm"
           :loading="processingAll"
           icon="i-lucide-sparkles"
-          class="gap-2.5 px-5 py-2.5 font-semibold"
+          class="gap-1.5 px-3 py-1.5 font-semibold"
           @click="onProcessAll"
         >
           Process all
