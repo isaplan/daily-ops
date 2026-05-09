@@ -34,14 +34,14 @@
           </div>
 
           <div class="bg-white rounded-lg p-6 border border-gray-200">
-            <p class="text-xs uppercase font-semibold text-gray-500 mb-4">Inbox: Action Buttons (Smaller, Function Triggers)</p>
-            <div class="inline-flex flex-wrap items-center gap-2 rounded-md border-2 border-gray-900 bg-white p-1.5" style="box-shadow: 2px 2px 0 0 rgba(0,0,0,0.08)">
+            <p class="text-xs uppercase font-semibold text-gray-500 mb-4">Inbox: Action Buttons (Standalone, Not Grouped)</p>
+            <div class="flex flex-wrap items-center gap-2">
               <UButton
                 variant="solid"
                 size="sm"
                 color="success"
                 icon="i-lucide-check"
-                class="gap-1.5 px-3 py-1.5 font-semibold"
+                class="gap-1.5 font-semibold"
               >
                 Connected Gmail
               </UButton>
@@ -50,7 +50,7 @@
                 color="neutral"
                 size="sm"
                 icon="i-lucide-refresh-cw"
-                class="gap-1.5 px-3 py-1.5 font-semibold"
+                class="gap-1.5 font-semibold"
               >
                 Sync Gmail
               </UButton>
@@ -59,7 +59,7 @@
                 color="neutral"
                 size="sm"
                 icon="i-lucide-sparkles"
-                class="gap-1.5 px-3 py-1.5 font-semibold"
+                class="gap-1.5 font-semibold"
               >
                 Process all
               </UButton>

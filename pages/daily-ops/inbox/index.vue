@@ -5,15 +5,13 @@
   >
     <div class="space-y-8">
     <div class="flex w-full flex-wrap items-center justify-between gap-4">
-      <div
-        class="inline-flex flex-wrap items-center gap-2 rounded-md border-2 border-gray-900 bg-white p-1.5 shadow-[2px_2px_0_0_rgba(0,0,0,0.08)]"
-      >
+      <div class="flex flex-wrap items-center gap-2">
         <UButton
           variant="solid"
           size="sm"
           :color="gmailConnected ? 'success' : 'neutral'"
           :icon="gmailConnected ? 'i-lucide-check' : 'i-lucide-lock-open'"
-          class="gap-1.5 px-3 py-1.5 font-semibold"
+          class="gap-1.5 font-semibold"
           @click="onConnectGmail"
         >
           {{ gmailConnected ? 'Connected Gmail' : 'Connect Gmail' }}
@@ -24,7 +22,7 @@
           size="sm"
           :loading="syncing"
           icon="i-lucide-refresh-cw"
-          class="gap-1.5 px-3 py-1.5 font-semibold"
+          class="gap-1.5 font-semibold"
           @click="onSync"
         >
           Sync Gmail
@@ -35,7 +33,7 @@
           size="sm"
           :loading="processingAll"
           icon="i-lucide-sparkles"
-          class="gap-1.5 px-3 py-1.5 font-semibold"
+          class="gap-1.5 font-semibold"
           @click="onProcessAll"
         >
           Process all
