@@ -111,11 +111,17 @@
       <!-- Settings Tabs -->
       <section class="mb-16">
         <div class="bg-white rounded-lg p-6 border border-gray-200">
-          <p class="text-xs uppercase font-semibold text-gray-500 mb-4">Settings Pages: Underline Tabs</p>
-          <div class="flex gap-6 border-b border-gray-200 mb-4">
-            <button type="button" class="pb-2 text-sm font-medium text-gray-900 border-b-2 border-gray-900 transition-colors">Eitje API</button>
-            <button type="button" class="pb-2 text-sm font-medium text-gray-600 border-b-2 border-transparent hover:text-gray-900 transition-colors">Bork API</button>
-            <button type="button" class="pb-2 text-sm font-medium text-gray-600 border-b-2 border-transparent hover:text-gray-900 transition-colors">Webhooks</button>
+          <p class="text-xs uppercase font-semibold text-gray-500 mb-4">Settings Pages: Underline Tabs (border-b-2)</p>
+          <div class="flex gap-2 border-b mb-4">
+            <button type="button" class="px-4 py-2 font-medium text-sm border-b-2 border-gray-900 text-gray-900 transition-colors">
+              Credentials
+            </button>
+            <button type="button" class="px-4 py-2 font-medium text-sm border-b-2 border-transparent text-gray-600 hover:text-gray-900 transition-colors">
+              Cron Jobs
+            </button>
+            <button type="button" class="px-4 py-2 font-medium text-sm border-b-2 border-transparent text-gray-600 hover:text-gray-900 transition-colors">
+              Webhooks
+            </button>
           </div>
           <div class="p-4 bg-gray-50 rounded-lg text-sm text-gray-600">
             Tab content area
@@ -187,10 +193,16 @@
       <section class="mb-16">
         <div class="bg-white rounded-lg p-6 border border-gray-200">
           <p class="text-xs uppercase font-semibold text-gray-500 mb-4">Note Editor: Tab Group (border-black)</p>
-          <div class="border border-black rounded-md p-0.5 inline-flex gap-0">
-            <button type="button" class="bg-gray-900 text-white px-4 py-2 rounded text-sm font-medium">Details</button>
-            <button type="button" class="text-gray-700 hover:bg-gray-100 px-4 py-2 rounded text-sm font-medium">Todo</button>
-            <button type="button" class="text-gray-700 hover:bg-gray-100 px-4 py-2 rounded text-sm font-medium">Agreed</button>
+          <div class="shrink-0 flex rounded-md border border-black bg-white p-0.5">
+            <button type="button" class="rounded px-3 py-1.5 text-sm font-medium transition-colors bg-gray-900 text-white">
+              Details
+            </button>
+            <button type="button" class="rounded px-3 py-1.5 text-sm font-medium transition-colors text-gray-600 hover:bg-gray-100">
+              Todo
+            </button>
+            <button type="button" class="rounded px-3 py-1.5 text-sm font-medium transition-colors text-gray-600 hover:bg-gray-100">
+              Agreed
+            </button>
           </div>
         </div>
       </section>
