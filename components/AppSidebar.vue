@@ -247,6 +247,16 @@
         <span>Design System</span>
       </NuxtLink>
 
+      <UTooltip v-if="collapsed" text="Design System Used" :popper="{ placement: 'right' }">
+        <NuxtLink to="/design-system-used" :class="navLinkClass(isDesignSystemUsed)" class="flex items-center">
+          <UIcon name="i-lucide-blocks" class="size-5 shrink-0" />
+        </NuxtLink>
+      </UTooltip>
+      <NuxtLink v-else to="/design-system-used" :class="navLinkClass(isDesignSystemUsed)" class="flex items-center gap-3">
+        <UIcon name="i-lucide-blocks" class="size-4 shrink-0" />
+        <span>System Used</span>
+      </NuxtLink>
+
       <UTooltip v-if="collapsed" text="Organisation" :popper="{ placement: 'right' }">
         <NuxtLink to="/organisation" :class="navLinkClass(isOrganisation)" class="flex items-center">
           <UIcon name="i-lucide-building-2" class="size-5 shrink-0" />
@@ -326,6 +336,7 @@ const isAgreed = computed(() => route.path === '/notes/agreed')
 const isProjects = computed(() => route.path === '/notes/projects')
 const isOrganisation = computed(() => route.path === '/organisation')
 const isDesignSystem = computed(() => route.path === '/design-system')
+const isDesignSystemUsed = computed(() => route.path === '/design-system-used')
 
 // Daily Ops nav state
 const isHoursOpen = ref(false)
