@@ -155,41 +155,80 @@
       <section class="mb-16">
         <h2 class="text-2xl font-semibold text-gray-900 mb-6">Buttons & Controls</h2>
         
+        <!-- Color Reference for Buttons -->
+        <div class="bg-white rounded-lg p-6 border border-gray-200 mb-8">
+          <h3 class="text-lg font-medium text-gray-900 mb-4">App Color Palette (in Buttons)</h3>
+          <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+            <div class="text-center">
+              <div class="w-full h-16 rounded-lg bg-gray-900 mb-2"></div>
+              <p class="font-mono text-xs font-semibold text-gray-900">Primary</p>
+              <p class="font-mono text-xs text-gray-600">gray-900</p>
+            </div>
+            <div class="text-center">
+              <div class="w-full h-16 rounded-lg bg-gray-100 border border-gray-200 mb-2"></div>
+              <p class="font-mono text-xs font-semibold text-gray-900">Secondary</p>
+              <p class="font-mono text-xs text-gray-600">gray-100</p>
+            </div>
+            <div class="text-center">
+              <div class="w-full h-16 rounded-lg bg-gray-200 mb-2"></div>
+              <p class="font-mono text-xs font-semibold text-gray-900">Active Nav</p>
+              <p class="font-mono text-xs text-gray-600">gray-200</p>
+            </div>
+            <div class="text-center">
+              <div class="w-full h-16 rounded-lg bg-blue-600 mb-2"></div>
+              <p class="font-mono text-xs font-semibold text-gray-900">Links</p>
+              <p class="font-mono text-xs text-gray-600">blue-600</p>
+            </div>
+            <div class="text-center">
+              <div class="w-full h-16 rounded-lg bg-red-600 mb-2"></div>
+              <p class="font-mono text-xs font-semibold text-gray-900">Destructive</p>
+              <p class="font-mono text-xs text-gray-600">red-600</p>
+            </div>
+          </div>
+        </div>
+        
         <div class="space-y-8">
           <!-- Button Variants -->
           <div>
-            <h3 class="text-lg font-medium text-gray-900 mb-4">UButton Variants</h3>
+            <h3 class="text-lg font-medium text-gray-900 mb-4">UButton Variants (with App Colors)</h3>
             <div class="bg-white rounded-lg p-6 border border-gray-200 space-y-4">
               <div>
-                <p class="text-sm text-gray-600 mb-3 font-semibold">Solid</p>
+                <p class="text-sm text-gray-600 mb-3 font-semibold">Solid (Primary: gray-900)</p>
                 <div class="flex flex-wrap gap-3">
-                  <UButton variant="solid">Solid Button</UButton>
-                  <UButton variant="solid" :disabled="true">Disabled</UButton>
-                  <UButton variant="solid" loading>Loading</UButton>
+                  <UButton variant="solid" class="bg-gray-900! text-white!">Solid Button</UButton>
+                  <UButton variant="solid" class="bg-gray-900! text-white!" :disabled="true">Disabled</UButton>
+                  <UButton variant="solid" class="bg-gray-900! text-white!" loading>Loading</UButton>
                 </div>
               </div>
               <div class="border-t border-gray-200 pt-4">
-                <p class="text-sm text-gray-600 mb-3 font-semibold">Soft</p>
+                <p class="text-sm text-gray-600 mb-3 font-semibold">Soft (Secondary: gray-100)</p>
                 <div class="flex flex-wrap gap-3">
-                  <UButton variant="soft">Soft Button</UButton>
-                  <UButton variant="soft" :disabled="true">Disabled</UButton>
-                  <UButton variant="soft" loading>Loading</UButton>
+                  <UButton variant="soft" class="bg-gray-100! text-gray-900!">Soft Button</UButton>
+                  <UButton variant="soft" class="bg-gray-100! text-gray-900!" :disabled="true">Disabled</UButton>
+                  <UButton variant="soft" class="bg-gray-100! text-gray-900!" loading>Loading</UButton>
                 </div>
               </div>
               <div class="border-t border-gray-200 pt-4">
-                <p class="text-sm text-gray-600 mb-3 font-semibold">Outline</p>
+                <p class="text-sm text-gray-600 mb-3 font-semibold">Outline (border-gray-900)</p>
                 <div class="flex flex-wrap gap-3">
-                  <UButton variant="outline">Outline Button</UButton>
-                  <UButton variant="outline" :disabled="true">Disabled</UButton>
-                  <UButton variant="outline" loading>Loading</UButton>
+                  <UButton variant="outline" class="border-2! border-gray-900!">Outline Button</UButton>
+                  <UButton variant="outline" class="border-2! border-gray-900!" :disabled="true">Disabled</UButton>
+                  <UButton variant="outline" class="border-2! border-gray-900!" loading>Loading</UButton>
                 </div>
               </div>
               <div class="border-t border-gray-200 pt-4">
-                <p class="text-sm text-gray-600 mb-3 font-semibold">Ghost</p>
+                <p class="text-sm text-gray-600 mb-3 font-semibold">Ghost (text-gray-900)</p>
                 <div class="flex flex-wrap gap-3">
                   <UButton variant="ghost">Ghost Button</UButton>
                   <UButton variant="ghost" :disabled="true">Disabled</UButton>
                   <UButton variant="ghost" loading>Loading</UButton>
+                </div>
+              </div>
+              <div class="border-t border-gray-200 pt-4">
+                <p class="text-sm text-gray-600 mb-3 font-semibold">Destructive (red-600)</p>
+                <div class="flex flex-wrap gap-3">
+                  <UButton color="red" variant="soft">Delete</UButton>
+                  <UButton color="red" variant="outline">Remove</UButton>
                 </div>
               </div>
             </div>
