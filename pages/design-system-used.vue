@@ -34,11 +34,35 @@
           </div>
 
           <div class="bg-white rounded-lg p-6 border border-gray-200">
-            <p class="text-xs uppercase font-semibold text-gray-500 mb-4">Inbox: Toolbar with Shadow</p>
-            <div class="inline-flex max-w-max flex-wrap items-center gap-1 rounded-md border-2 border-gray-900 bg-white p-1" style="box-shadow: 2px 2px 0 0 rgba(0,0,0,0.08)">
-              <button type="button" class="text-gray-700 hover:bg-gray-100 px-3 py-1.5 rounded text-sm font-semibold">Gmail</button>
-              <button type="button" class="text-gray-700 hover:bg-gray-100 px-3 py-1.5 rounded text-sm font-semibold">Sync</button>
-              <button type="button" class="text-gray-700 hover:bg-gray-100 px-3 py-1.5 rounded text-sm font-semibold">Process</button>
+            <p class="text-xs uppercase font-semibold text-gray-500 mb-4">Inbox: Action Buttons (Smaller, Function Triggers)</p>
+            <div class="inline-flex flex-wrap items-center gap-2 rounded-md border-2 border-gray-900 bg-white p-1.5" style="box-shadow: 2px 2px 0 0 rgba(0,0,0,0.08)">
+              <UButton
+                variant="solid"
+                size="sm"
+                color="success"
+                icon="i-lucide-check"
+                class="gap-1.5 px-3 py-1.5 font-semibold"
+              >
+                Connected Gmail
+              </UButton>
+              <UButton
+                variant="solid"
+                color="neutral"
+                size="sm"
+                icon="i-lucide-refresh-cw"
+                class="gap-1.5 px-3 py-1.5 font-semibold"
+              >
+                Sync Gmail
+              </UButton>
+              <UButton
+                variant="solid"
+                color="neutral"
+                size="sm"
+                icon="i-lucide-sparkles"
+                class="gap-1.5 px-3 py-1.5 font-semibold"
+              >
+                Process all
+              </UButton>
             </div>
           </div>
         </div>
