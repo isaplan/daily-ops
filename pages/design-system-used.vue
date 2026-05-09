@@ -7,44 +7,39 @@
       <section class="mb-16">
         <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
           <div class="bg-white rounded-lg p-6 border border-gray-200">
-            <SegmentedControl 
-              v-model="period" 
-              :options="[
-                { id: 'today', label: 'Today' },
-                { id: 'week', label: 'This Week' },
-                { id: 'month', label: 'This Month' }
-              ]"
-            />
+            <p class="text-xs uppercase font-semibold text-gray-500 mb-4">Daily Ops: Period Toggle</p>
+            <div class="inline-flex max-w-max flex-wrap items-center gap-1 rounded-md border-2 border-gray-900 bg-white p-1">
+              <button type="button" class="bg-gray-900 text-white px-3 py-1.5 rounded text-sm font-semibold">Today</button>
+              <button type="button" class="text-gray-700 hover:bg-gray-100 px-3 py-1.5 rounded text-sm font-semibold">This Week</button>
+              <button type="button" class="text-gray-700 hover:bg-gray-100 px-3 py-1.5 rounded text-sm font-semibold">This Month</button>
+            </div>
           </div>
 
           <div class="bg-white rounded-lg p-6 border border-gray-200">
-            <SegmentedControl 
-              v-model="section" 
-              :options="[
-                { id: 'daily-ops', label: 'Daily Ops' },
-                { id: 'revenue', label: 'Revenue' },
-                { id: 'productivity', label: 'Productivity' }
-              ]"
-            />
+            <p class="text-xs uppercase font-semibold text-gray-500 mb-4">Daily Ops: Section Navigation</p>
+            <div class="inline-flex max-w-max flex-wrap items-center gap-1 rounded-md border-2 border-gray-900 bg-white p-1">
+              <button type="button" class="bg-gray-900 text-white px-4 py-1.5 rounded text-sm font-semibold">Daily Ops</button>
+              <button type="button" class="text-gray-700 hover:bg-gray-100 px-4 py-1.5 rounded text-sm font-semibold">Revenue</button>
+              <button type="button" class="text-gray-700 hover:bg-gray-100 px-4 py-1.5 rounded text-sm font-semibold">Productivity</button>
+            </div>
           </div>
 
           <div class="bg-white rounded-lg p-6 border border-gray-200">
-            <SegmentedControl 
-              v-model="location" 
-              :options="[
-                { id: 'all', label: 'All Locations' },
-                { id: 'ams', label: 'Amsterdam' },
-                { id: 'rdam', label: 'Rotterdam' }
-              ]"
-            />
+            <p class="text-xs uppercase font-semibold text-gray-500 mb-4">Daily Ops: Location Shortcuts</p>
+            <div class="inline-flex max-w-max flex-wrap items-center gap-1 rounded-md border-2 border-gray-900 bg-white p-1">
+              <button type="button" class="bg-gray-900 text-white px-3 py-1.5 rounded text-sm font-semibold">All</button>
+              <button type="button" class="text-gray-700 hover:bg-gray-100 px-3 py-1.5 rounded text-sm font-semibold">Amsterdam</button>
+              <button type="button" class="text-gray-700 hover:bg-gray-100 px-3 py-1.5 rounded text-sm font-semibold">Rotterdam</button>
+            </div>
           </div>
 
           <div class="bg-white rounded-lg p-6 border border-gray-200">
-            <ButtonGroup shadow>
-              <button type="button" class="bg-gray-900 text-white px-3 py-1.5 rounded text-sm font-semibold">Gmail</button>
+            <p class="text-xs uppercase font-semibold text-gray-500 mb-4">Inbox: Toolbar with Shadow</p>
+            <div class="inline-flex max-w-max flex-wrap items-center gap-1 rounded-md border-2 border-gray-900 bg-white p-1" style="box-shadow: 2px 2px 0 0 rgba(0,0,0,0.08)">
+              <button type="button" class="text-gray-700 hover:bg-gray-100 px-3 py-1.5 rounded text-sm font-semibold">Gmail</button>
               <button type="button" class="text-gray-700 hover:bg-gray-100 px-3 py-1.5 rounded text-sm font-semibold">Sync</button>
               <button type="button" class="text-gray-700 hover:bg-gray-100 px-3 py-1.5 rounded text-sm font-semibold">Process</button>
-            </ButtonGroup>
+            </div>
           </div>
         </div>
       </section>
@@ -52,16 +47,39 @@
       <!-- Navigation Links -->
       <section class="mb-16">
         <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-          <div class="bg-white rounded-lg p-6 border border-gray-200 space-y-2">
-            <NavLink to="/daily-ops" active icon="i-lucide-layout-dashboard">Dashboard</NavLink>
-            <NavLink to="/notes" icon="i-lucide-file-text">All Notes</NavLink>
-            <NavLink to="/todos" icon="i-lucide-list-checks">Todo's List</NavLink>
+          <div class="bg-white rounded-lg p-6 border border-gray-200">
+            <p class="text-xs uppercase font-semibold text-gray-500 mb-4">Sidebar: Expanded Navigation</p>
+            <div class="space-y-2">
+              <NuxtLink to="/daily-ops" class="flex items-center rounded-md text-sm font-medium gap-3 px-3 py-2 bg-gray-200 text-gray-900 transition-colors">
+                <UIcon name="i-lucide-layout-dashboard" class="size-4" />
+                <span>Dashboard</span>
+              </NuxtLink>
+              <NuxtLink to="/notes" class="flex items-center rounded-md text-sm font-medium gap-3 px-3 py-2 text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors">
+                <UIcon name="i-lucide-file-text" class="size-4" />
+                <span>All Notes</span>
+              </NuxtLink>
+              <NuxtLink to="/todos" class="flex items-center rounded-md text-sm font-medium gap-3 px-3 py-2 text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors">
+                <UIcon name="i-lucide-list-checks" class="size-4" />
+                <span>Todo's List</span>
+              </NuxtLink>
+            </div>
           </div>
 
-          <div class="bg-white rounded-lg p-6 border border-gray-200 space-y-2">
-            <NavLink to="/daily-ops" active icon="i-lucide-layout-dashboard" collapsed />
-            <NavLink to="/notes" icon="i-lucide-file-text" collapsed />
-            <NavLink to="/todos" icon="i-lucide-list-checks" collapsed />
+          <div class="bg-white rounded-lg p-6 border border-gray-200">
+            <p class="text-xs uppercase font-semibold text-gray-500 mb-4">Sidebar: Collapsed Navigation</p>
+            <div class="space-y-2 flex justify-center">
+              <div class="space-y-2">
+                <NuxtLink to="/daily-ops" class="flex items-center rounded-md text-sm font-medium justify-center p-2 bg-gray-200 text-gray-900 transition-colors">
+                  <UIcon name="i-lucide-layout-dashboard" class="size-4" />
+                </NuxtLink>
+                <NuxtLink to="/notes" class="flex items-center rounded-md text-sm font-medium justify-center p-2 text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors">
+                  <UIcon name="i-lucide-file-text" class="size-4" />
+                </NuxtLink>
+                <NuxtLink to="/todos" class="flex items-center rounded-md text-sm font-medium justify-center p-2 text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors">
+                  <UIcon name="i-lucide-list-checks" class="size-4" />
+                </NuxtLink>
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -69,36 +87,38 @@
       <!-- Settings Tabs -->
       <section class="mb-16">
         <div class="bg-white rounded-lg p-6 border border-gray-200">
-          <SettingsTabs 
-            v-model="apiTab" 
-            :tabs="[
-              { id: 'eitje', label: 'Eitje API' },
-              { id: 'bork', label: 'Bork API' },
-              { id: 'webhooks', label: 'Webhooks' }
-            ]"
-          />
-          <div class="mt-6 p-4 bg-gray-50 rounded-lg text-sm text-gray-600">
-            Content for {{ apiTab }} tab
+          <p class="text-xs uppercase font-semibold text-gray-500 mb-4">Settings Pages: Underline Tabs</p>
+          <div class="flex gap-6 border-b border-gray-200 mb-4">
+            <button type="button" class="pb-2 text-sm font-medium text-gray-900 border-b-2 border-gray-900 transition-colors">Eitje API</button>
+            <button type="button" class="pb-2 text-sm font-medium text-gray-600 border-b-2 border-transparent hover:text-gray-900 transition-colors">Bork API</button>
+            <button type="button" class="pb-2 text-sm font-medium text-gray-600 border-b-2 border-transparent hover:text-gray-900 transition-colors">Webhooks</button>
+          </div>
+          <div class="p-4 bg-gray-50 rounded-lg text-sm text-gray-600">
+            Tab content area
           </div>
         </div>
       </section>
 
       <!-- UButton Styles -->
       <section class="mb-16">
+        <p class="text-xs uppercase font-semibold text-gray-500 mb-4">All Pages: UButton Component (All Variants)</p>
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           <div class="bg-white rounded-lg p-6 border border-gray-200 space-y-3">
-            <UButton class="bg-gray-900! text-white! w-full">Solid Primary</UButton>
-            <UButton variant="soft" class="bg-gray-100! text-gray-900! w-full">Soft Secondary</UButton>
+            <p class="text-xs text-gray-600 font-semibold">Primary (gray-900)</p>
+            <UButton class="bg-gray-900! text-white! w-full">Solid</UButton>
+            <UButton variant="soft" class="bg-gray-100! text-gray-900! w-full">Soft</UButton>
             <UButton variant="outline" class="border-2! border-gray-900! w-full">Outline</UButton>
           </div>
 
           <div class="bg-white rounded-lg p-6 border border-gray-200 space-y-3">
+            <p class="text-xs text-gray-600 font-semibold">Other States</p>
             <UButton variant="ghost" class="w-full">Ghost</UButton>
             <UButton color="red" variant="soft" class="w-full">Destructive</UButton>
-            <UButton color="red" variant="outline" class="w-full">Delete</UButton>
+            <UButton :disabled="true" class="bg-gray-900! text-white! w-full">Disabled</UButton>
           </div>
 
           <div class="bg-white rounded-lg p-6 border border-gray-200 space-y-3">
+            <p class="text-xs text-gray-600 font-semibold">Sizes</p>
             <UButton size="sm" class="bg-gray-900! text-white! w-full">Small</UButton>
             <UButton size="md" class="bg-gray-900! text-white! w-full">Medium</UButton>
             <UButton size="lg" class="bg-gray-900! text-white! w-full">Large</UButton>
@@ -108,12 +128,21 @@
 
       <!-- Icon Buttons -->
       <section class="mb-16">
-        <div class="bg-white rounded-lg p-6 border border-gray-200 space-y-4">
+        <div class="bg-white rounded-lg p-6 border border-gray-200">
+          <p class="text-xs uppercase font-semibold text-gray-500 mb-4">Menu Builder: Icon Buttons</p>
           <div class="flex gap-2">
-            <IconButton icon="i-lucide-trash-2" label="Delete" variant="destructive" />
-            <IconButton icon="i-lucide-x" label="Close" variant="destructive" />
-            <IconButton icon="i-lucide-copy" label="Copy" />
-            <IconButton icon="i-lucide-download" label="Download" />
+            <button type="button" class="p-1.5 rounded hover:bg-red-50 hover:text-red-600 transition-colors">
+              <UIcon name="i-lucide-trash-2" class="size-4 text-gray-400" />
+            </button>
+            <button type="button" class="p-1.5 rounded hover:bg-red-50 hover:text-red-600 transition-colors">
+              <UIcon name="i-lucide-x" class="size-4 text-gray-400" />
+            </button>
+            <button type="button" class="p-1.5 rounded hover:bg-gray-100 hover:text-gray-900 transition-colors">
+              <UIcon name="i-lucide-copy" class="size-4 text-gray-400" />
+            </button>
+            <button type="button" class="p-1.5 rounded hover:bg-gray-100 hover:text-gray-900 transition-colors">
+              <UIcon name="i-lucide-download" class="size-4 text-gray-400" />
+            </button>
           </div>
         </div>
       </section>
@@ -121,6 +150,7 @@
       <!-- Soft Segmented (Todos) -->
       <section class="mb-16">
         <div class="bg-white rounded-lg p-6 border border-gray-200">
+          <p class="text-xs uppercase font-semibold text-gray-500 mb-4">Todos Page: Soft Segmented Control</p>
           <div class="inline-flex max-w-max flex-wrap items-center gap-1 rounded-md border border-gray-200 bg-white p-1">
             <button type="button" class="bg-gray-900 text-white px-3 py-1.5 rounded text-sm font-medium">All</button>
             <button type="button" class="text-gray-700 hover:bg-gray-100 px-3 py-1.5 rounded text-sm font-medium focus:ring-1 focus:ring-blue-500 focus:border-blue-500">Active</button>
@@ -132,6 +162,7 @@
       <!-- Note Editor Tabs -->
       <section class="mb-16">
         <div class="bg-white rounded-lg p-6 border border-gray-200">
+          <p class="text-xs uppercase font-semibold text-gray-500 mb-4">Note Editor: Tab Group (border-black)</p>
           <div class="border border-black rounded-md p-0.5 inline-flex gap-0">
             <button type="button" class="bg-gray-900 text-white px-4 py-2 rounded text-sm font-medium">Details</button>
             <button type="button" class="text-gray-700 hover:bg-gray-100 px-4 py-2 rounded text-sm font-medium">Todo</button>
@@ -143,6 +174,7 @@
       <!-- Marketing Tiles -->
       <section class="mb-16">
         <div class="bg-white rounded-lg p-6 border border-gray-200">
+          <p class="text-xs uppercase font-semibold text-gray-500 mb-4">Menu Products: Marketing Tiles</p>
           <div class="flex flex-wrap gap-4">
             <a href="#" class="w-32 p-4 rounded-lg bg-blue-100 text-blue-600 border border-blue-100 hover:border-primary-300 transition-colors text-center">
               <div class="text-3xl mb-2">📋</div>
@@ -167,6 +199,7 @@
       <!-- Member Chips -->
       <section class="mb-16">
         <div class="bg-white rounded-lg p-6 border border-gray-200">
+          <p class="text-xs uppercase font-semibold text-gray-500 mb-4">Member Pages: Team Chips (11px)</p>
           <div class="flex flex-wrap gap-2">
             <span style="font-size: 11px" class="uppercase tracking-wide font-medium bg-emerald-50 text-emerald-700 px-2 py-1 rounded">Team A</span>
             <span style="font-size: 11px" class="uppercase tracking-wide font-medium bg-sky-50 text-sky-700 px-2 py-1 rounded">Team B</span>
@@ -178,7 +211,8 @@
 
       <!-- Mini Badges -->
       <section class="mb-16">
-        <div class="bg-white rounded-lg p-6 border border-gray-200 space-y-3">
+        <div class="bg-white rounded-lg p-6 border border-gray-200">
+          <p class="text-xs uppercase font-semibold text-gray-500 mb-4">Organisation: Status Badges (10px)</p>
           <div class="flex gap-2">
             <span style="font-size: 10px" class="uppercase font-semibold text-gray-600 bg-gray-100 px-2 py-1 rounded">Inactive</span>
             <span style="font-size: 10px" class="uppercase font-semibold text-green-700 bg-green-50 px-2 py-1 rounded">Active</span>
@@ -190,8 +224,9 @@
       <!-- Upload Drag State -->
       <section class="mb-16">
         <div class="bg-white rounded-lg p-6 border border-gray-200">
+          <p class="text-xs uppercase font-semibold text-gray-500 mb-4">Menu Products Upload: Drag Zone</p>
           <div class="border-2 border-dashed border-primary-500 bg-primary-50 rounded-lg p-8 text-center">
-            <p class="text-sm text-gray-600">Drag zone</p>
+            <p class="text-sm text-gray-600">Drag files here</p>
           </div>
         </div>
       </section>
@@ -199,21 +234,23 @@
       <!-- Form Focus State -->
       <section class="mb-16">
         <div class="bg-white rounded-lg p-6 border border-gray-200">
-          <input type="text" placeholder="Focus on me..." class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors" />
+          <p class="text-xs uppercase font-semibold text-gray-500 mb-4">All Forms: Focus State (blue-500)</p>
+          <input type="text" placeholder="Focus me..." class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors" />
         </div>
       </section>
 
       <!-- Typography Examples -->
       <section class="mb-16">
+        <p class="text-xs uppercase font-semibold text-gray-500 mb-4">Typography Sizes</p>
         <div class="space-y-4">
           <div class="bg-white rounded-lg p-6 border border-gray-200">
-            <p style="font-size: 38px" class="font-extrabold tracking-[-0.02em] text-gray-900">Dashboard Hero (38px)</p>
+            <p style="font-size: 38px" class="font-extrabold tracking-[-0.02em] text-gray-900">Hero 38px</p>
           </div>
           <div class="bg-white rounded-lg p-6 border border-gray-200">
-            <p style="font-size: 34px" class="font-extrabold tracking-[-0.02em] text-gray-900">Section Title (34px)</p>
+            <p style="font-size: 34px" class="font-extrabold tracking-[-0.02em] text-gray-900">Section 34px</p>
           </div>
           <div class="bg-white rounded-lg p-6 border border-gray-200">
-            <p class="text-5xl font-bold text-gray-900">Note Title (text-5xl)</p>
+            <p class="text-5xl font-bold text-gray-900">Note Title text-5xl</p>
           </div>
         </div>
       </section>
@@ -221,13 +258,14 @@
       <!-- Member Profile Card -->
       <section>
         <div class="bg-white rounded-lg p-6 border border-gray-200">
+          <p class="text-xs uppercase font-semibold text-gray-500 mb-4">Member Pages: Profile Card (with Gradient)</p>
           <div class="rounded-lg overflow-hidden bg-linear-to-br from-[hsl(45,20%,99%)] to-[hsl(45,25%,82%)] border-2 border-[hsl(45,25%,82%)] p-6 mb-4">
-            <p class="text-lg font-bold text-gray-900 mb-2">Profile Card</p>
-            <p class="text-sm text-gray-600">With gradient background</p>
+            <p class="text-lg font-bold text-gray-900 mb-2">Member Name</p>
+            <p class="text-sm text-gray-600">Active since 2024</p>
           </div>
           <div class="flex flex-wrap gap-2">
-            <span style="font-size: 11px" class="uppercase tracking-wide font-medium bg-emerald-50 text-emerald-700 px-2 py-1 rounded">Emerald chip</span>
-            <span style="font-size: 11px" class="uppercase tracking-wide font-medium bg-sky-50 text-sky-700 px-2 py-1 rounded">Sky chip</span>
+            <span style="font-size: 11px" class="uppercase tracking-wide font-medium bg-emerald-50 text-emerald-700 px-2 py-1 rounded">Team</span>
+            <span style="font-size: 11px" class="uppercase tracking-wide font-medium bg-sky-50 text-sky-700 px-2 py-1 rounded">Role</span>
           </div>
         </div>
       </section>
@@ -236,8 +274,5 @@
 </template>
 
 <script setup lang="ts">
-const period = ref<'today' | 'week' | 'month'>('today')
-const section = ref<'daily-ops' | 'revenue' | 'productivity'>('daily-ops')
-const location = ref<'all' | 'ams' | 'rdam'>('all')
-const apiTab = ref<'eitje' | 'bork' | 'webhooks'>('eitje')
+// No reactive state needed - all examples are static
 </script>
