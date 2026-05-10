@@ -7,12 +7,13 @@
  * 
  * Example: Business Day May 6 = 06:00 May 6 to 05:59 May 7
  * 
- * Emails arrive via 3 daily crons (Amsterdam time):
- *   1. Cron 18:05 (ISO May 6) → Business Day 6 report (partial, ~12 hours in)
- *   2. Cron 23:05 (ISO May 6) → Business Day 6 report (partial, ~17 hours in)
- *   3. Cron 07:00 (ISO May 7) → **FINAL COMPLETE** Business Day 6 report (closes at 05:59)
- * 
- * Each morning at 08:00 Amsterdam time, final revenue for "yesterday" (previous business day) is available.
+ * Emails arrive via 3 daily inbox crons (Amsterdam time) — see nuxt.config `inbox:gmail-sync`:
+ *   1. Cron 18:05 (ISO day N) → Business Day N Bork report (partial, ~12h in)
+ *   2. Cron 23:05 (ISO day N) → Business Day N Bork report (partial, ~17h in)
+ *   3. Cron 08:05 (ISO day N+1) → **FINAL** Business Day N Bork report (closes 05:59)
+ *
+ * Eitje dagelijkse uren: full previous calendar day is expected on the **morning (~08:05)** poll; 18/23
+ * polls rarely add meaningful labor rows (operational note, not a separate cron).
  * 
  * pickBasisReportsPerLocation: Picks the report with **cron_hour = 7** per location per business_date.
  * This is the final complete report that arrives on the NEXT ISO calendar day morning.
@@ -431,24 +432,10 @@ function normalizeBasisLocationLabel(s: string): string {
 }
 
 /**
- * Per-location deduplication: pick FINAL report (latest in chronological order) per business_date per location.
- * 
- * For business day N, crons arrive in this order:
- *   1. Cron 18 (18:00, same ISO day)
- *   2. Cron 23 (23:00, same ISO day)
- *   3. Cron 7 (07:00 NEXT ISO day) ← FINAL/LATEST (closes business day at 05:59)
- * 
- * Pick the report from cron 7 if it exists (final), otherwise cron 23, otherwise cron 18.
- */
-/**
- * Per-location deduplication: pick ONLY the FINAL report.
- * 
- * For business day N:
- *   - Cron 18:05 (ISO day N): PARTIAL ❌
- *   - Cron 23:05 (ISO day N): PARTIAL ❌  
- *   - Cron 07:00 (ISO day N+1): COMPLETE ✅ USE THIS (stored as cron_hour: 7, closes business day at 05:59)
- * 
- * The final report arrives next morning ISO date with cron_hour = 7 (from 08:05 cron).
+ * Per-location deduplication: pick FINAL Bork basis report per business_date per location.
+ *
+ * For business day N, batches typically arrive: cron 18 → cron 23 → cron 7–8 next ISO morning (08:05 poll).
+ * Implementation: sort by cron_priority DESC, then received_at DESC (see basis-report-mapper).
  */
 function pickBasisReportsPerLocation(reports: BasisReportData[]): Map<string, BasisReportData> {
   const byLocDate = new Map<string, BasisReportData[]>()
@@ -479,7 +466,8 @@ function pickBasisReportsPerLocation(reports: BasisReportData[]): Map<string, Ba
       return bTime - aTime
     })
     
-    result.set(key, sorted[0])
+    const best = sorted[0]
+    if (best) result.set(key, best)
   }
   
   return result

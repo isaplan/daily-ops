@@ -1,5 +1,5 @@
 import { getDb } from '../utils/db'
-import { EITJE_HOURS_ADD_FIELDS } from '../utils/eitjeHours'
+import { EITJE_AGG_ADD_VENUE_KEY, EITJE_HOURS_ADD_FIELDS } from '../utils/eitjeHours'
 import { amsterdamTodayYmd, amsterdamYmdForOffset } from '../../utils/inbox/importTableQuickDates'
 import { ObjectId, type Db } from 'mongodb'
 
@@ -278,14 +278,15 @@ export default defineEventHandler(async (event) => {
         },
       })
     } else if (groupBy === 'location') {
+      aggregation.push(EITJE_AGG_ADD_VENUE_KEY)
       aggregation.push({
         $group: {
-          _id: { $ifNull: ['$locationId', '$environmentId'] },
+          _id: '$venueKey',
           total_hours: { $sum: '$total_hours' },
           total_cost: { $sum: '$total_cost' },
           record_count: { $sum: '$record_count' },
           worker_count: { $addToSet: '$userId' },
-          location_name: { $first: '$location_name' },
+          location_name: { $max: '$location_name' },
         },
       })
       aggregation.push({
@@ -366,10 +367,11 @@ export default defineEventHandler(async (event) => {
         { $sort: { location_name: 1, team_name: 1 } },
       ]
     } else {
+      aggregation.push(EITJE_AGG_ADD_VENUE_KEY)
       aggregation.push({
         $group: {
-          _id: { period: '$period', locationId: '$locationId' },
-          location_name: { $first: '$location_name' },
+          _id: { period: '$period', venueKey: '$venueKey' },
+          location_name: { $max: '$location_name' },
           total_hours: { $sum: '$total_hours' },
           total_cost: { $sum: '$total_cost' },
           record_count: { $sum: '$record_count' },
@@ -379,7 +381,7 @@ export default defineEventHandler(async (event) => {
         $project: {
           _id: 0,
           date: '$_id.period',
-          location_id: '$_id.locationId',
+          location_id: { $toString: '$_id.venueKey' },
           location_name: { $ifNull: ['$location_name', 'Unknown'] },
           total_hours: 1,
           total_cost: 1,
@@ -549,11 +551,48 @@ export default defineEventHandler(async (event) => {
                     ],
                   },
                 },
+                venueKey: {
+                  $cond: [
+                    {
+                      $gt: [
+                        {
+                          $strLenCP: {
+                            $trim: {
+                              input: {
+                                $replaceAll: {
+                                  input: { $ifNull: ['$locName', ''] },
+                                  find: '\u00a0',
+                                  replacement: ' ',
+                                },
+                              },
+                            },
+                          },
+                        },
+                        0,
+                      ],
+                    },
+                    {
+                      $toLower: {
+                        $trim: {
+                          input: {
+                            $replaceAll: {
+                              input: { $ifNull: ['$locName', ''] },
+                              find: '\u00a0',
+                              replacement: ' ',
+                            },
+                          },
+                        },
+                      },
+                    },
+                    { $concat: ['id:', { $toString: { $ifNull: ['$locationId', 'unknown'] } }] },
+                  ],
+                },
               },
             },
             {
               $group: {
-                _id: { period: '$period', locationId: '$locationId', location_name: '$locName' },
+                _id: { period: '$period', venueKey: '$venueKey' },
+                location_name: { $max: '$locName' },
                 total_hours: { $sum: '$hours' },
                 total_cost: { $sum: '$cost' },
                 record_count: { $sum: 1 },
@@ -563,8 +602,8 @@ export default defineEventHandler(async (event) => {
               $project: {
                 _id: 0,
                 date: '$_id.period',
-                location_id: { $ifNull: [{ $toString: '$_id.locationId' }, ''] },
-                location_name: '$_id.location_name',
+                location_id: { $toString: '$_id.venueKey' },
+                location_name: { $ifNull: ['$location_name', 'Unknown'] },
                 total_hours: 1,
                 total_cost: 1,
                 record_count: 1,

@@ -4,7 +4,7 @@
  * Uses shared EITJE_HOURS_ADD_FIELDS so formula matches row-records and hours-aggregated raw fallback.
  */
 import { getDb } from '../utils/db'
-import { EITJE_HOURS_ADD_FIELDS, getUtcDayRange } from '../utils/eitjeHours'
+import { EITJE_AGG_ADD_VENUE_KEY, EITJE_HOURS_ADD_FIELDS, getUtcDayRange } from '../utils/eitjeHours'
 import { ObjectId } from 'mongodb'
 
 export default defineEventHandler(async (event) => {
@@ -22,10 +22,11 @@ export default defineEventHandler(async (event) => {
     }
     const aggPipeline: unknown[] = [
       { $match: aggQuery },
+      EITJE_AGG_ADD_VENUE_KEY,
       {
         $group: {
-          _id: { period: '$period', locationId: '$locationId' },
-          location_name: { $first: '$location_name' },
+          _id: { period: '$period', venueKey: '$venueKey' },
+          location_name: { $max: '$location_name' },
           total_hours: { $sum: '$total_hours' },
           record_count: { $sum: '$record_count' },
         },
@@ -34,7 +35,7 @@ export default defineEventHandler(async (event) => {
         $project: {
           _id: 0,
           date: '$_id.period',
-          location_id: '$_id.locationId',
+          location_id: { $toString: '$_id.venueKey' },
           location_name: { $ifNull: ['$location_name', 'Unknown'] },
           total_hours: 1,
           record_count: 1,
@@ -47,12 +48,20 @@ export default defineEventHandler(async (event) => {
     const mismatches: { date: string; location_name: string; location_id: string; row_total: number; raw_sum: number; raw_count: number; row_record_count: number; diff: number }[] = []
     const ok: { date: string; location_name: string }[] = []
 
+    const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const endpointName = endpoint === 'planning_shifts' ? 'planning_shifts' : 'time_registration_shifts'
+
     for (const row of rows) {
       const dateStr = typeof row.date === 'string' ? row.date.slice(0, 10) : new Date(row.date).toISOString().slice(0, 10)
       const locationIdParam = row.location_id != null ? String(row.location_id) : undefined
+      const isHexObjectId = Boolean(locationIdParam && /^[a-f0-9]{24}$/i.test(locationIdParam))
+      const venueLabel = row.location_name ?? 'Unknown'
 
       let match: Record<string, unknown>
-      if (locationIdParam) {
+      const { dayStart, dayEnd } = getUtcDayRange(dateStr)
+      const dateCondition = { $or: [{ date: { $gte: dayStart, $lte: dayEnd } }, { date: dateStr }] }
+
+      if (isHexObjectId && locationIdParam) {
         let locationIdObj: ObjectId | null = null
         try {
           locationIdObj = new ObjectId(locationIdParam)
@@ -69,20 +78,33 @@ export default defineEventHandler(async (event) => {
           ].filter(Boolean),
         }) as { eitjeIds?: number[] } | null
         const eitjeIds = locationDoc?.eitjeIds ?? []
-        const { dayStart, dayEnd } = getUtcDayRange(dateStr)
-        const dateCondition = { $or: [{ date: { $gte: dayStart, $lte: dayEnd } }, { date: dateStr }] }
         const locationClauses: Record<string, unknown>[] = []
         if (locationIdObj) locationClauses.push({ locationId: locationIdObj })
         locationClauses.push({ locationId: locIdStr })
         if (eitjeIds.length) locationClauses.push({ environmentId: { $in: eitjeIds } })
         match = {
-          endpoint: endpoint === 'planning_shifts' ? 'planning_shifts' : 'time_registration_shifts',
+          endpoint: endpointName,
           $and: [dateCondition, { $or: locationClauses }],
         }
-      } else {
-        const { dayStart, dayEnd } = getUtcDayRange(dateStr)
+      } else if (venueLabel && venueLabel !== 'Unknown') {
+        const esc = escapeRegex(venueLabel.trim())
         match = {
-          endpoint: endpoint === 'planning_shifts' ? 'planning_shifts' : 'time_registration_shifts',
+          endpoint: endpointName,
+          $and: [
+            dateCondition,
+            {
+              $or: [
+                { 'extracted.locationName': { $regex: `^${esc}$`, $options: 'i' } },
+                { 'rawApiResponse.location_name': { $regex: `^${esc}$`, $options: 'i' } },
+                { 'rawApiResponse.environment_name': { $regex: `^${esc}$`, $options: 'i' } },
+                { 'rawApiResponse.environment.name': { $regex: `^${esc}$`, $options: 'i' } },
+              ],
+            },
+          ],
+        }
+      } else {
+        match = {
+          endpoint: endpointName,
           $and: [{ $or: [{ date: { $gte: dayStart, $lte: dayEnd } }, { date: dateStr }] }],
         }
       }

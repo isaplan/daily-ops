@@ -1,9 +1,9 @@
 /**
  * @registry-id: borkSyncService
  * @created: 2026-04-06T12:00:00.000Z
- * @last-modified: 2026-05-08T00:46:00.000Z
+ * @last-modified: 2026-05-11T12:00:00.000Z
  * @description: Bork/Trivec gateway fetch + bork_raw_data upserts; drives Bork cron/sync; calls V2 aggregation after sync
- * @last-fix: [2026-05-08] Remove V3 aggregation; post-sync uses rebuildBorkSalesAggregationV2 only
+ * @last-fix: [2026-05-11] Master/historical exclude today (ticket dates); V2 rebuild after master + historical jobs
  *
  * @exports-to:
  * ✓ server/api/bork/v2/cron.post.ts
@@ -30,9 +30,11 @@ export type BorkSyncJobResult = {
   locations?: BorkLocationSyncResult[]
 }
 
+const BORK_HISTORICAL_TICKET_DAYS = 30
+
 function getDateRangeForJobType (jobType: string): { days: number } {
-  if (jobType === 'historical-data') return { days: 30 }
-  return { days: 1 } // daily-data and master-data just get today
+  if (jobType === 'historical-data') return { days: BORK_HISTORICAL_TICKET_DAYS }
+  return { days: 1 } // daily-data: today; master-data: yesterday only (see startDayOffset below)
 }
 
 async function tryFetchBorkTicketData (
@@ -84,8 +86,10 @@ async function syncLocationDates (
   const config = getDateRangeForJobType(jobType)
   const now = new Date()
   const dates: string[] = []
+  /** Historical + master never include “today”; daily-data starts at today (i=0). */
+  const startDayOffset = jobType === 'historical-data' || jobType === 'master-data' ? 1 : 0
 
-  for (let i = 0; i < config.days; i++) {
+  for (let i = startDayOffset; i < startDayOffset + config.days; i++) {
     const d = new Date(now)
     d.setDate(d.getDate() - i)
     const year = d.getFullYear()
@@ -204,6 +208,33 @@ export async function executeBorkJob (db: Db, jobType: string): Promise<BorkSync
     } catch (e) {
       console.error('[borkSyncService] Aggregation error:', e)
       // Don't fail the sync if aggregation fails
+    }
+  }
+
+  if (syncOk && jobType === 'master-data') {
+    try {
+      const yesterday = new Date()
+      yesterday.setUTCDate(yesterday.getUTCDate() - 1)
+      const yesterdayStr = yesterday.toISOString().slice(0, 10)
+      v2RebuildSuffix = resolveBorkAggRebuildSuffix() ?? '_v2'
+      v2AggregationResult = await rebuildBorkSalesAggregationV2(db, yesterdayStr, yesterdayStr, v2RebuildSuffix)
+    } catch (e) {
+      console.error('[borkSyncService] Master V2 aggregation error:', e)
+    }
+  }
+
+  if (syncOk && jobType === 'historical-data') {
+    try {
+      const end = new Date()
+      end.setUTCDate(end.getUTCDate() - 1)
+      const start = new Date(end)
+      start.setUTCDate(start.getUTCDate() - (BORK_HISTORICAL_TICKET_DAYS - 1))
+      const startStr = start.toISOString().slice(0, 10)
+      const endStr = end.toISOString().slice(0, 10)
+      v2RebuildSuffix = resolveBorkAggRebuildSuffix() ?? '_v2'
+      v2AggregationResult = await rebuildBorkSalesAggregationV2(db, startStr, endStr, v2RebuildSuffix)
+    } catch (e) {
+      console.error('[borkSyncService] Historical V2 aggregation error:', e)
     }
   }
 
