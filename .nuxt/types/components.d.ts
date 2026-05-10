@@ -45,6 +45,12 @@ interface _GlobalComponents {
   SettingsEndpointCheckList: typeof import("../../components/settings/EndpointCheckList.vue")['default']
   SettingsCard: typeof import("../../components/settings/SettingsCard.vue")['default']
   SettingsTestConnectionButton: typeof import("../../components/settings/TestConnectionButton.vue")['default']
+  UiButtonGroup: typeof import("../../components/ui/ButtonGroup.vue")['default']
+  UiIconButton: typeof import("../../components/ui/IconButton.vue")['default']
+  UiNavLink: typeof import("../../components/ui/NavLink.vue")['default']
+  UiSegmentedControl: typeof import("../../components/ui/SegmentedControl.vue")['default']
+  UiSettingsTabs: typeof import("../../components/ui/SettingsTabs.vue")['default']
+  UiTabRail: typeof import("../../components/ui/TabRail.vue")['default']
   UAccordion: typeof import("../../node_modules/.pnpm/@nuxt+ui@4.6.0_@tiptap+extensions@3.21.0_@tiptap+core@3.21.0_@tiptap+pm@3.21.0__@tiptap_0031915eeee23c7bd8bdaceb369561a1/node_modules/@nuxt/ui/dist/runtime/components/Accordion.vue")['default']
   UAlert: typeof import("../../node_modules/.pnpm/@nuxt+ui@4.6.0_@tiptap+extensions@3.21.0_@tiptap+core@3.21.0_@tiptap+pm@3.21.0__@tiptap_0031915eeee23c7bd8bdaceb369561a1/node_modules/@nuxt/ui/dist/runtime/components/Alert.vue")['default']
   UApp: typeof import("../../node_modules/.pnpm/@nuxt+ui@4.6.0_@tiptap+extensions@3.21.0_@tiptap+core@3.21.0_@tiptap+pm@3.21.0__@tiptap_0031915eeee23c7bd8bdaceb369561a1/node_modules/@nuxt/ui/dist/runtime/components/App.vue")['default']
@@ -222,6 +228,12 @@ interface _GlobalComponents {
   LazySettingsEndpointCheckList: LazyComponent<typeof import("../../components/settings/EndpointCheckList.vue")['default']>
   LazySettingsCard: LazyComponent<typeof import("../../components/settings/SettingsCard.vue")['default']>
   LazySettingsTestConnectionButton: LazyComponent<typeof import("../../components/settings/TestConnectionButton.vue")['default']>
+  LazyUiButtonGroup: LazyComponent<typeof import("../../components/ui/ButtonGroup.vue")['default']>
+  LazyUiIconButton: LazyComponent<typeof import("../../components/ui/IconButton.vue")['default']>
+  LazyUiNavLink: LazyComponent<typeof import("../../components/ui/NavLink.vue")['default']>
+  LazyUiSegmentedControl: LazyComponent<typeof import("../../components/ui/SegmentedControl.vue")['default']>
+  LazyUiSettingsTabs: LazyComponent<typeof import("../../components/ui/SettingsTabs.vue")['default']>
+  LazyUiTabRail: LazyComponent<typeof import("../../components/ui/TabRail.vue")['default']>
   LazyUAccordion: LazyComponent<typeof import("../../node_modules/.pnpm/@nuxt+ui@4.6.0_@tiptap+extensions@3.21.0_@tiptap+core@3.21.0_@tiptap+pm@3.21.0__@tiptap_0031915eeee23c7bd8bdaceb369561a1/node_modules/@nuxt/ui/dist/runtime/components/Accordion.vue")['default']>
   LazyUAlert: LazyComponent<typeof import("../../node_modules/.pnpm/@nuxt+ui@4.6.0_@tiptap+extensions@3.21.0_@tiptap+core@3.21.0_@tiptap+pm@3.21.0__@tiptap_0031915eeee23c7bd8bdaceb369561a1/node_modules/@nuxt/ui/dist/runtime/components/Alert.vue")['default']>
   LazyUApp: LazyComponent<typeof import("../../node_modules/.pnpm/@nuxt+ui@4.6.0_@tiptap+extensions@3.21.0_@tiptap+core@3.21.0_@tiptap+pm@3.21.0__@tiptap_0031915eeee23c7bd8bdaceb369561a1/node_modules/@nuxt/ui/dist/runtime/components/App.vue")['default']>

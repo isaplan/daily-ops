@@ -4927,7 +4927,22 @@ _nddW4OgTKHcMIQ8mQhekYcJvlrNi40TbQzTLx2yq5MQ,
 _bZ9Ni6V2HtIpJeulfSLzyAQaoMJdeQllxN50TS5qNvY
 ];
 
-const assets = {};
+const assets = {
+  "/index.mjs": {
+    "type": "text/javascript; charset=utf-8",
+    "etag": "\"17003e-dgW91Cx8WcIn9YPihBq/yXVGMzI\"",
+    "mtime": "2026-05-10T11:06:00.962Z",
+    "size": 1507390,
+    "path": "index.mjs"
+  },
+  "/index.mjs.map": {
+    "type": "application/json",
+    "etag": "\"5c1a2b-Fc/xnaj8Ihq6u+KvHTVH/iTzIxw\"",
+    "mtime": "2026-05-10T11:06:01.024Z",
+    "size": 6036011,
+    "path": "index.mjs.map"
+  }
+};
 
 function readAsset (id) {
   const serverDir = dirname$1(fileURLToPath(globalThis._importMeta_.url));
@@ -5808,17 +5823,13 @@ function pickBasisReportsPerLocation$1(reports) {
   }
   const result = /* @__PURE__ */ new Map();
   for (const [key, list] of byLocDate) {
-    const cronPriority = (cronHour) => {
-      if (cronHour === 7) return 3;
-      if (cronHour === 23) return 2;
-      if (cronHour === 18) return 1;
-      return 0;
-    };
     const sorted = [...list].sort((a, b) => {
       var _a, _b;
-      const priorityDiff = cronPriority((_a = b.cron_hour) != null ? _a : -1) - cronPriority((_b = a.cron_hour) != null ? _b : -1);
+      const priorityDiff = ((_a = b.cron_priority) != null ? _a : 0) - ((_b = a.cron_priority) != null ? _b : 0);
       if (priorityDiff !== 0) return priorityDiff;
-      return b.date > a.date ? 1 : -1;
+      const aTime = a.received_at ? new Date(a.received_at).getTime() : 0;
+      const bTime = b.received_at ? new Date(b.received_at).getTime() : 0;
+      return bTime - aTime;
     });
     result.set(key, sorted[0]);
   }
@@ -6810,6 +6821,7 @@ async function mapBasisReportXLSX(parseResult, fileName, emailData, db) {
   }
   const finalRevenueIncl = ((_k = (_j = sections.netto_sales) == null ? void 0 : _j.grand_total) == null ? void 0 : _k.price_incl_vat) || 0;
   const finalRevenueEx = ((_m = (_l = sections.netto_sales) == null ? void 0 : _l.grand_total) == null ? void 0 : _m.price_ex_vat) || 0;
+  const cronPriority = cronHour === 7 ? 3 : cronHour === 23 ? 2 : cronHour === 18 ? 1 : 0;
   if (db && locationRaw && !locationId) {
     try {
       console.warn(
@@ -6824,6 +6836,7 @@ async function mapBasisReportXLSX(parseResult, fileName, emailData, db) {
     location_id: locationId,
     location_raw: locationRaw,
     cron_hour: cronHour,
+    cron_priority: cronPriority,
     business_hour: businessHour,
     business_date: businessDate,
     received_at: emailData == null ? void 0 : emailData.receivedAt,
@@ -35481,6 +35494,7 @@ const SALES_LIST_SORT = {
 };
 const sales_get$4 = defineEventHandler(async (event) => {
   var _a, _b, _c;
+  setResponseHeader(event, "Cache-Control", "no-store");
   try {
     const query = getQuery$1(event);
     const date = query.date;

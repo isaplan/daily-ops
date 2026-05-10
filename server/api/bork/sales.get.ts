@@ -28,6 +28,7 @@ type EnrichedBasisReport = BasisReportData & {
 }
 
 export default defineEventHandler(async (event) => {
+  setResponseHeader(event, 'Cache-Control', 'no-store')
   try {
     const query = getQuery(event)
     const date = query.date as string | undefined

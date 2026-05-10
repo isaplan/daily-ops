@@ -469,20 +469,14 @@ function pickBasisReportsPerLocation(reports: BasisReportData[]): Map<string, Ba
   const result = new Map<string, BasisReportData>()
   
   for (const [key, list] of byLocDate) {
-    // Prefer cron 7 from next ISO day (final complete report)
-    // If no cron 7, fall back to cron 23, then cron 18
-    const cronPriority = (cronHour: number) => {
-      if (cronHour === 7) return 3  // Final (next morning 07:00)
-      if (cronHour === 23) return 2 // Middle
-      if (cronHour === 18) return 1 // Earliest
-      return 0
-    }
-    
+    // Sort by cron_priority DESC (3 = final, 2 = night, 1 = evening)
+    // Then by received_at DESC (latest first) as tiebreaker
     const sorted = [...list].sort((a, b) => {
-      const priorityDiff = cronPriority(b.cron_hour ?? -1) - cronPriority(a.cron_hour ?? -1)
+      const priorityDiff = (b.cron_priority ?? 0) - (a.cron_priority ?? 0)
       if (priorityDiff !== 0) return priorityDiff
-      // Tiebreaker: by date descending (prefer next day for cron 7)
-      return (b.date > a.date ? 1 : -1)
+      const aTime = a.received_at ? new Date(a.received_at).getTime() : 0
+      const bTime = b.received_at ? new Date(b.received_at).getTime() : 0
+      return bTime - aTime
     })
     
     result.set(key, sorted[0])

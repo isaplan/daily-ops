@@ -48,6 +48,7 @@ export type BasisReportData = {
   location_raw?: string
   
   cron_hour?: number
+  cron_priority?: number // 3 = cron 7 (final), 2 = cron 23, 1 = cron 18
   business_hour?: number
   business_date?: string
   received_at?: Date
@@ -339,6 +340,9 @@ export async function mapBasisReportXLSX(
   const finalRevenueIncl = sections.netto_sales?.grand_total?.price_incl_vat || 0
   const finalRevenueEx = sections.netto_sales?.grand_total?.price_ex_vat || 0
 
+  // Calculate cron priority: 3 = cron 7 (final), 2 = cron 23, 1 = cron 18, 0 = other
+  const cronPriority = cronHour === 7 ? 3 : cronHour === 23 ? 2 : cronHour === 18 ? 1 : 0
+
   if (db && locationRaw && !locationId) {
     try {
       console.warn(
@@ -355,6 +359,7 @@ export async function mapBasisReportXLSX(
     location_id: locationId,
     location_raw: locationRaw,
     cron_hour: cronHour,
+    cron_priority: cronPriority,
     business_hour: businessHour,
     business_date: businessDate,
     received_at: emailData?.receivedAt,
