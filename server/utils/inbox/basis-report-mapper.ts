@@ -2,13 +2,44 @@
  * Basis Report Mapper — Transform parsed XLSX data into structured sales format
  * Handles: Netto Sales, Betalingen, Correcties, Interne Verkoop
  * Preserves: Inc VAT, Ex VAT prices
+ * 
+ * @last-modified: 2026-05-08T16:50:00.000Z
+ * @last-fix: [2026-05-08] Added business_date field for proper business day context and filtering
  */
 
 import type { ParseResult } from '~/types/inbox'
 import {
+  extractDateFromTrivecBasisPreamble,
   extractLocationFromBasisSpreadsheet,
+  extractLocationFromTrivecBasisPreamble,
   matchVenueLocationFromText,
 } from './basis-report-location'
+
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function addCalendarDaysISO(dateStr: string, deltaDays: number): string {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  const dt = new Date(Date.UTC(y, m - 1, d + deltaDays))
+  const yy = dt.getUTCFullYear()
+  const mm = String(dt.getUTCMonth() + 1).padStart(2, '0')
+  const dd = String(dt.getUTCDate()).padStart(2, '0')
+  return `${yy}-${mm}-${dd}`
+}
+
+function calendarToBusinessDay(
+  calendarDateStr: string,
+  calendarHour: number,
+): { businessDate: string; businessHour: number } {
+  if (calendarHour >= 8 && calendarHour <= 23) {
+    return { businessDate: calendarDateStr, businessHour: calendarHour - 8 }
+  }
+  return {
+    businessDate: addCalendarDaysISO(calendarDateStr, -1),
+    businessHour: calendarHour + 16,
+  }
+}
 
 export type BasisReportData = {
   date: string
@@ -17,7 +48,9 @@ export type BasisReportData = {
   location_raw?: string
   
   cron_hour?: number
+  cron_priority?: number // 3 = cron 7 (final), 2 = cron 23, 1 = cron 18
   business_hour?: number
+  business_date?: string
   received_at?: Date
   
   sections: {
@@ -82,6 +115,10 @@ export type BasisReportData = {
     attachment_filename?: string
     parsed_at?: Date
     errors?: string[]
+    /** Trivec sheet row 4 (venue), when `trivecBasisPreamble` was present */
+    trivec_sheet_location_raw?: string
+    /** Normalized end date from sheet row 2, when parsed */
+    trivec_sheet_date_iso?: string
     /** Stable upsert key — one inbox attachment maps to one basis report row */
     source_attachment_id?: string
     source_email_id?: string
@@ -114,35 +151,83 @@ export async function mapBasisReportXLSX(
     } catch {}
   }
 
+  const meta = (parseResult.metadata as Record<string, unknown>) ?? {}
+  const preamble = meta.trivecBasisPreamble as string[][] | undefined
+
+  const locationFromSheet = extractLocationFromTrivecBasisPreamble(preamble)
+  const dateFromSheet = extractDateFromTrivecBasisPreamble(preamble)
+
   const dateFromSubject = extractDateFromSubject(subject) || ''
   const locationFromSubject = matchVenueLocationFromText(subject ?? '') || ''
-  const dateFromMetadata = String((parseResult.metadata as Record<string, unknown>)?.extracted_date || '')
-  const locationFromMetadata = String((parseResult.metadata as Record<string, unknown>)?.extracted_location || '')
+  const dateFromMetadata = String(meta.extracted_date || '')
+  const locationFromMetadata = String(meta.extracted_location || '')
 
-  const dateStr = dateFromSubject || dateFromMetadata || extractDateFromFile(rows) || ''
+  const dateStr =
+    dateFromSubject ||
+    (dateFromMetadata && dateFromMetadata !== 'undefined' ? dateFromMetadata : '') ||
+    dateFromSheet ||
+    extractDateFromFile(rows) ||
+    ''
   const locationRaw =
+    locationFromSheet ||
     locationFromSubject ||
     (locationFromMetadata && locationFromMetadata !== 'undefined' ? locationFromMetadata : '') ||
     extractLocationFromBasisSpreadsheet(rows, fileName) ||
     ''
 
   let locationId: string | undefined
+  let locationCanonical: string | undefined
   if (db && locationRaw && locationRaw !== 'Unknown' && locationRaw !== 'Unspecified') {
     try {
-      const locDoc = await db.collection('unified_location').findOne({
+      const exact = await db.collection('unified_location').findOne({
         $or: [
           { name: locationRaw },
           { primaryName: locationRaw },
           { canonicalName: locationRaw },
           { abbreviation: locationRaw },
+          { aliases: locationRaw },
           { 'borkMapping.borkLocationName': locationRaw },
         ],
       })
+
+      let locDoc = exact
+      if (!locDoc) {
+        const ci = { $regex: `^${escapeRegExp(locationRaw)}$`, $options: 'i' }
+        locDoc = await db.collection('unified_location').findOne({
+          $or: [
+            { name: ci },
+            { primaryName: ci },
+            { canonicalName: ci },
+            { abbreviation: ci },
+            { aliases: ci },
+            { 'borkMapping.borkLocationName': ci },
+          ],
+        })
+      }
+
+      /** Sheet row 4 can spell venues slightly differently (e.g. "Gastropub van Kinsbergen") */
+      if (!locDoc && locationRaw.trim().length >= 6) {
+        const sub = { $regex: escapeRegExp(locationRaw.trim()), $options: 'i' }
+        locDoc = await db.collection('unified_location').findOne({
+          $or: [
+            { name: sub },
+            { primaryName: sub },
+            { canonicalName: sub },
+            { 'borkMapping.borkLocationName': sub },
+            { aliases: sub },
+          ],
+        })
+      }
+
       if (locDoc) {
         locationId = String(locDoc._id)
+        locationCanonical =
+          (locDoc.primaryName as string | undefined) ??
+          (locDoc.canonicalName as string | undefined) ??
+          (locDoc.name as string | undefined)
       }
     } catch (err) {
-      // Fail silently
+      // Fail silently — caller will see locationId === undefined
     }
   }
   
@@ -158,8 +243,10 @@ export async function mapBasisReportXLSX(
   const amsterdamWallHour =
     receivedDate && !Number.isNaN(receivedDate.getTime()) ? getAmsterdamWallHour(receivedDate) : undefined
   const cronHour = batchHourFromSubject ?? amsterdamWallHour
-  const businessHour =
-    cronHour !== undefined ? (cronHour - 8 + 24) % 24 : undefined
+  const { businessDate, businessHour } =
+    cronHour !== undefined && dateStr
+      ? calendarToBusinessDay(dateStr, cronHour)
+      : { businessDate: undefined, businessHour: undefined }
 
   // Parse sections from rows
   const sections: BasisReportData['sections'] = {}
@@ -253,13 +340,28 @@ export async function mapBasisReportXLSX(
   const finalRevenueIncl = sections.netto_sales?.grand_total?.price_incl_vat || 0
   const finalRevenueEx = sections.netto_sales?.grand_total?.price_ex_vat || 0
 
+  // Calculate cron priority: 3 = cron 7 (final), 2 = cron 23, 1 = cron 18, 0 = other
+  const cronPriority = cronHour === 7 ? 3 : cronHour === 23 ? 2 : cronHour === 18 ? 1 : 0
+
+  if (db && locationRaw && !locationId) {
+    try {
+      console.warn(
+        `[basis-report-mapper] Unmapped location label "${locationRaw}" — add it to unified_location.aliases (subject="${subject ?? ''}", file="${fileName}")`,
+      )
+    } catch {
+      // ignore
+    }
+  }
+
   return {
     date: dateStr || 'UNKNOWN',
-    location: locationRaw || 'Unspecified',
+    location: locationCanonical || locationRaw || 'Unspecified',
     location_id: locationId,
     location_raw: locationRaw,
     cron_hour: cronHour,
+    cron_priority: cronPriority,
     business_hour: businessHour,
+    business_date: businessDate,
     received_at: emailData?.receivedAt,
     sections,
     final_revenue_incl_vat: finalRevenueIncl,
@@ -268,6 +370,8 @@ export async function mapBasisReportXLSX(
       email_subject: subject,
       attachment_filename: fileName,
       parsed_at: new Date(),
+      ...(locationFromSheet ? { trivec_sheet_location_raw: locationFromSheet } : {}),
+      ...(dateFromSheet ? { trivec_sheet_date_iso: dateFromSheet } : {}),
       ...(emailData?.attachmentId ? { source_attachment_id: emailData.attachmentId } : {}),
       ...(emailData?.emailId ? { source_email_id: emailData.emailId } : {}),
     }

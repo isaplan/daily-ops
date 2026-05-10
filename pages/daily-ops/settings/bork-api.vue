@@ -16,30 +16,7 @@
         :description="connectionMessage"
         :icon="connectionStatus === 'success' ? 'i-lucide-check-circle' : 'i-lucide-x-circle'"
       />
-      <div class="flex gap-2 border-b">
-        <button
-          :class="[
-            'px-4 py-2 font-medium text-sm border-b-2 transition-colors',
-            activeTab === 'credentials'
-              ? 'border-gray-900 text-gray-900'
-              : 'border-transparent text-gray-600 hover:text-gray-900'
-          ]"
-          @click="activeTab = 'credentials'"
-        >
-          Credentials
-        </button>
-        <button
-          :class="[
-            'px-4 py-2 font-medium text-sm border-b-2 transition-colors',
-            activeTab === 'cron-jobs'
-              ? 'border-gray-900 text-gray-900'
-              : 'border-transparent text-gray-600 hover:text-gray-900'
-          ]"
-          @click="activeTab = 'cron-jobs'"
-        >
-          Cron Jobs
-        </button>
-      </div>
+      <TabRail v-model="activeTab" :options="apiSettingsTabOptions" />
 
       <div v-if="activeTab === 'credentials'" class="space-y-6">
         <UCard>
@@ -380,6 +357,11 @@ type CronConfig = {
 }
 
 const activeTab = ref<string>('credentials')
+
+const apiSettingsTabOptions: { value: string; label: string }[] = [
+  { value: 'credentials', label: 'Credentials' },
+  { value: 'cron-jobs', label: 'Cron Jobs' },
+]
 
 const credentials = ref<CredentialItem[]>([])
 const locations = ref<LocationItem[]>([])

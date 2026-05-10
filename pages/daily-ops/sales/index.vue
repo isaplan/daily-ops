@@ -14,25 +14,12 @@
         <h2 class="font-semibold">Filters</h2>
         <p class="text-sm text-gray-500">Filter and sort sales data</p>
       </template>
-      <div class="grid gap-4 md:grid-cols-4">
-        <div class="space-y-2">
-          <label class="text-sm font-medium">Start Date</label>
-          <UInput v-model="filters.startDate" type="date" @update:model-value="() => fetchSales(true)" />
-        </div>
-        <div class="space-y-2">
-          <label class="text-sm font-medium">End Date</label>
-          <UInput v-model="filters.endDate" type="date" @update:model-value="() => fetchSales(true)" />
-        </div>
-        <div class="space-y-2">
-          <label class="text-sm font-medium">Location</label>
-          <USelectMenu
-            v-model="filters.locationId"
-            :items="locationOptions"
-            value-attribute="value"
-            class="w-full"
-            @update:model-value="() => fetchSales(true)"
-          />
-        </div>
+      <DailyOpsDateLocationFilter
+        :model-value="{ locationId: filters.locationId, startDate: filters.startDate, endDate: filters.endDate }"
+        :locations="locations"
+        @update:model-value="(updates) => { Object.assign(filters, updates); fetchSales(true) }"
+      />
+      <div class="mt-6 grid gap-4 md:grid-cols-3">
         <div class="space-y-2">
           <label class="text-sm font-medium">Group By</label>
           <USelectMenu
@@ -43,15 +30,13 @@
             @update:model-value="() => fetchSales(true)"
           />
         </div>
-      </div>
-      <div class="mt-4 flex items-center gap-4">
         <div class="space-y-2">
           <label class="text-sm font-medium">Sort By</label>
           <USelectMenu
             v-model="filters.sortBy"
             :items="sortByOptions"
             value-attribute="value"
-            class="w-36"
+            class="w-full"
             @update:model-value="() => fetchSales(true)"
           />
         </div>
@@ -61,11 +46,14 @@
             v-model="filters.sortOrder"
             :items="[{ label: 'Descending', value: 'desc' }, { label: 'Ascending', value: 'asc' }]"
             value-attribute="value"
-            class="w-36"
+            class="w-full"
             @update:model-value="() => fetchSales(true)"
           />
         </div>
-        <UButton variant="outline" class="mt-6" @click="resetFilters">Reset Filters</UButton>
+      </div>
+      <div class="mt-6 flex flex-wrap gap-2">
+        <UButton variant="outline" @click="resetFilters">Reset Filters</UButton>
+        <UButton :loading="loading" @click="() => fetchSales(true)">Refresh data</UButton>
       </div>
     </UCard>
 
@@ -151,7 +139,7 @@
             </thead>
             <tbody>
               <tr v-for="(row, i) in salesData" :key="i" class="border-b transition-colors hover:bg-gray-50">
-                <td v-if="filters.groupBy === 'date'" class="py-2 pr-4">{{ formatDate(row.date) }}</td>
+                <td v-if="filters.groupBy === 'date'" class="py-2 pr-4">{{ formatDate(row.date as unknown) }}</td>
                 <td v-if="filters.groupBy === 'date'" class="py-2 pr-4">€{{ row.total_revenue != null ? Number(row.total_revenue).toFixed(2) : '0.00' }}</td>
                 <td v-if="filters.groupBy === 'date'" class="py-2 pr-4">{{ row.total_quantity != null ? Number(row.total_quantity).toFixed(2) : '0.00' }}</td>
                 <td v-if="filters.groupBy === 'date'" class="py-2 pr-4">{{ row.record_count ?? 0 }}</td>
@@ -169,27 +157,27 @@
                 <td v-if="filters.groupBy === 'product'" class="py-2 pr-4">{{ row.record_count ?? 0 }}</td>
                 <td v-if="filters.groupBy === 'product'" class="py-2 pr-4">{{ row.location_count ?? 0 }}</td>
 
-                <td v-if="filters.groupBy === 'date_location'" class="py-2 pr-4">{{ formatDate(row.date) }}</td>
+                <td v-if="filters.groupBy === 'date_location'" class="py-2 pr-4">{{ formatDate(row.date as unknown) }}</td>
                 <td v-if="filters.groupBy === 'date_location'" class="py-2 pr-4">{{ row.location_name || 'Unknown' }}</td>
                 <td v-if="filters.groupBy === 'date_location'" class="py-2 pr-4">€{{ row.total_revenue != null ? Number(row.total_revenue).toFixed(2) : '0.00' }}</td>
                 <td v-if="filters.groupBy === 'date_location'" class="py-2 pr-4">{{ row.total_quantity != null ? Number(row.total_quantity).toFixed(2) : '0.00' }}</td>
                 <td v-if="filters.groupBy === 'date_location'" class="py-2 pr-4">{{ row.record_count ?? 0 }}</td>
 
-                <td v-if="filters.groupBy === 'hour'" class="py-2 pr-4">{{ formatDate(row.date) }}</td>
+                <td v-if="filters.groupBy === 'hour'" class="py-2 pr-4">{{ formatDate(row.date as unknown) }}</td>
                 <td v-if="filters.groupBy === 'hour'" class="py-2 pr-4">{{ row.hour ?? 0 }}:00</td>
                 <td v-if="filters.groupBy === 'hour'" class="py-2 pr-4">{{ row.locationName || 'Unknown' }}</td>
                 <td v-if="filters.groupBy === 'hour'" class="py-2 pr-4">€{{ row.total_revenue != null ? Number(row.total_revenue).toFixed(2) : '0.00' }}</td>
                 <td v-if="filters.groupBy === 'hour'" class="py-2 pr-4">{{ row.total_quantity != null ? Number(row.total_quantity).toFixed(2) : '0.00' }}</td>
                 <td v-if="filters.groupBy === 'hour'" class="py-2 pr-4">{{ row.record_count ?? 0 }}</td>
 
-                <td v-if="filters.groupBy === 'table'" class="py-2 pr-4">{{ formatDate(row.date) }}</td>
+                <td v-if="filters.groupBy === 'table'" class="py-2 pr-4">{{ formatDate(row.date as unknown) }}</td>
                 <td v-if="filters.groupBy === 'table'" class="py-2 pr-4">{{ row.hour ?? 0 }}:00</td>
                 <td v-if="filters.groupBy === 'table'" class="py-2 pr-4">{{ row.tableNumber || 'Unknown' }}</td>
                 <td v-if="filters.groupBy === 'table'" class="py-2 pr-4">{{ row.locationName || 'Unknown' }}</td>
                 <td v-if="filters.groupBy === 'table'" class="py-2 pr-4">€{{ row.total_revenue != null ? Number(row.total_revenue).toFixed(2) : '0.00' }}</td>
                 <td v-if="filters.groupBy === 'table'" class="py-2 pr-4">{{ row.total_quantity != null ? Number(row.total_quantity).toFixed(2) : '0.00' }}</td>
 
-                <td v-if="filters.groupBy === 'worker'" class="py-2 pr-4">{{ formatDate(row.date) }}</td>
+                <td v-if="filters.groupBy === 'worker'" class="py-2 pr-4">{{ formatDate(row.date as unknown) }}</td>
                 <td v-if="filters.groupBy === 'worker'" class="py-2 pr-4">{{ row.hour ?? 0 }}:00</td>
                 <td v-if="filters.groupBy === 'worker'" class="py-2 pr-4">{{ row.workerId || 'Unknown' }}</td>
                 <td v-if="filters.groupBy === 'worker'" class="py-2 pr-4">{{ row.locationName || 'Unknown' }}</td>
@@ -250,11 +238,6 @@ const page = ref(1)
 const pageSize = 50
 const paginationTotal = ref(0)
 const rangeTotals = ref({ total_revenue: 0, total_quantity: 0, record_count: 0 })
-
-const locationOptions = computed(() => [
-  { label: 'All Locations', value: 'all' },
-  ...locations.value.map((l) => ({ label: l.name, value: l._id })),
-])
 
 const totalRevenue = computed(() => rangeTotals.value.total_revenue)
 

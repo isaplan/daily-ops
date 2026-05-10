@@ -247,5 +247,7 @@ export interface ParseResult {
     userInfo?: Record<string, unknown>
     pageCount?: number
     extractedText?: string
+    /** Trivec Basis Rapport: first N raw sheet rows (A1…), incl. row 4 venue — see `extractLocationFromTrivecBasisPreamble` */
+    trivecBasisPreamble?: string[][]
   }
 }

@@ -18,6 +18,12 @@ export type ExcelParseOptions = {
   parseAllSheets?: boolean
   skipRows?: number
   emptyHeadersAsColumnN?: boolean
+  /**
+   * First N physical sheet rows (header:1), before `skipRows`, stored in `metadata.trivecBasisPreamble`.
+   * Trivec Basis Rapport: row 1 title, 2 date, 3 blank, 4 venue name, 5 address — needed because `skipRows`
+   * discards the preamble from `rows`.
+   */
+  capturePreambleRowCount?: number
 }
 
 export async function parseExcel(
@@ -39,7 +45,11 @@ export async function parseExcel(
       }
     }
 
-    const sheetOptions = { skipRows: options.skipRows, emptyHeadersAsColumnN: options.emptyHeadersAsColumnN }
+    const sheetOptions = {
+      skipRows: options.skipRows,
+      emptyHeadersAsColumnN: options.emptyHeadersAsColumnN,
+      capturePreambleRowCount: options.capturePreambleRowCount,
+    }
 
     if (options.sheetName) {
       const sheet = workbook.Sheets[options.sheetName]
@@ -123,6 +133,7 @@ export async function parseExcel(
 type ParseSheetOptions = {
   skipRows?: number
   emptyHeadersAsColumnN?: boolean
+  capturePreambleRowCount?: number
 }
 
 function parseSheet(
@@ -149,6 +160,13 @@ function parseSheet(
         metadata: { sheets: sheetNames },
       }
     }
+
+    const preamble =
+      opts.capturePreambleRowCount != null && opts.capturePreambleRowCount > 0
+        ? jsonData.slice(0, opts.capturePreambleRowCount).map((row) =>
+            (row as unknown[]).map((c) => String(c ?? '').trim()),
+          )
+        : undefined
 
     const skipRows = opts.skipRows ?? 0
     const afterSkip = jsonData.slice(skipRows)
@@ -195,6 +213,7 @@ function parseSheet(
       rowCount: rows.length,
       metadata: {
         sheets: sheetNames,
+        ...(preamble ? { trivecBasisPreamble: preamble } : {}),
       },
     }
   } catch (error) {

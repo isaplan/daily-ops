@@ -2905,7 +2905,7 @@ function extractHour(timeStr) {
   const match = timeStr.match(/^(\d{1,2}):/);
   return match ? parseInt(match[1], 10) : 0;
 }
-function addCalendarDaysISO$1(dateStr, deltaDays) {
+function addCalendarDaysISO$2(dateStr, deltaDays) {
   const [y, m, d] = dateStr.split("-").map(Number);
   const dt = new Date(Date.UTC(y, m - 1, d + deltaDays));
   const yy = dt.getUTCFullYear();
@@ -2913,12 +2913,12 @@ function addCalendarDaysISO$1(dateStr, deltaDays) {
   const dd = String(dt.getUTCDate()).padStart(2, "0");
   return `${yy}-${mm}-${dd}`;
 }
-function calendarToBusinessDay(calendarDateStr, calendarHour) {
+function calendarToBusinessDay$1(calendarDateStr, calendarHour) {
   if (calendarHour >= 8 && calendarHour <= 23) {
     return { businessDate: calendarDateStr, businessHour: calendarHour - 8 };
   }
   return {
-    businessDate: addCalendarDaysISO$1(calendarDateStr, -1),
+    businessDate: addCalendarDaysISO$2(calendarDateStr, -1),
     businessHour: calendarHour + 16
   };
 }
@@ -3014,7 +3014,7 @@ async function rebuildBorkSalesAggregationV2(db, startDate, endDate, collectionS
           const orderBorkDate = parseInt(orderDate, 10);
           if (orderBorkDate < startBorkDate || orderBorkDate > endBorkDate) continue;
           const isoDate = borkDateToISO(orderBorkDate);
-          const { businessDate, businessHour } = calendarToBusinessDay(isoDate, calendarHour);
+          const { businessDate, businessHour } = calendarToBusinessDay$1(isoDate, calendarHour);
           const dayKey = `${unifiedLocationId}:${businessDate}`;
           const tableNumber = String(order.TableNr || "").trim();
           const hasTable = tableNumber.length > 0;
@@ -3221,7 +3221,7 @@ async function rebuildBorkSalesAggregationV2(db, startDate, endDate, collectionS
   } finally {
     await cursor.close();
   }
-  const clearStartBusiness = addCalendarDaysISO$1(startDate, -1);
+  const clearStartBusiness = addCalendarDaysISO$2(startDate, -1);
   const clearEndBusiness = endDate;
   const hourDocs = Array.from(byHourMap.values()).map((doc) => ({
     ...doc,
@@ -3347,977 +3347,6 @@ function resolveBorkAggRebuildSuffix() {
   return (_c = (_b = (_a = process.env.BORK_AGG_REBUILD_SUFFIX) != null ? _a : process.env.BORK_AGG_V2_REBUILD_SUFFIX) != null ? _b : process.env.BORK_AGG_VERSION_SUFFIX) != null ? _c : "_v2";
 }
 
-function getBusinessDate(date = /* @__PURE__ */ new Date()) {
-  var _a;
-  const utcDate = new Date(date);
-  const hour = utcDate.getUTCHours();
-  if (hour < 6) {
-    utcDate.setUTCDate(utcDate.getUTCDate() - 1);
-  }
-  return (_a = utcDate.toISOString().split("T")[0]) != null ? _a : "";
-}
-function getBusinessDayStart(businessDate) {
-  const [year, month, day] = businessDate.split("-").map(Number);
-  return new Date(Date.UTC(year, (month != null ? month : 1) - 1, day != null ? day : 1, 6, 0, 0, 0));
-}
-function getBusinessDayEnd(businessDate) {
-  const [year, month, day] = businessDate.split("-").map(Number);
-  const endDate = new Date(Date.UTC(year, (month != null ? month : 1) - 1, (day != null ? day : 1) + 1, 5, 59, 59, 999));
-  return endDate;
-}
-function getBusinessDayPart1Date(businessDate) {
-  const [year, month, day] = businessDate.split("-").map(Number);
-  return new Date(Date.UTC(year, (month != null ? month : 1) - 1, day != null ? day : 1, 0, 0, 0, 0));
-}
-function getBusinessDayPart2Date(businessDate) {
-  const [year, month, day] = businessDate.split("-").map(Number);
-  const part2Date = new Date(Date.UTC(year, (month != null ? month : 1) - 1, (day != null ? day : 1) + 1, 0, 0, 0, 0));
-  return part2Date;
-}
-function getCurrentBusinessDate() {
-  return getBusinessDate(/* @__PURE__ */ new Date());
-}
-
-const V3_COLLECTIONS = {
-  // V3 Working Day Snapshots (updated 6x daily)
-  SALES_WORKING_DAY_SNAPSHOT: "v3_sales_working_day_snapshots",
-  LABOR_WORKING_DAY_SNAPSHOT: "v3_labor_working_day_snapshots",
-  DASHBOARD_SNAPSHOT: "v3_daily_ops_dashboard_snapshots",
-  // V3 Aggregation metadata (for tracking sync runs)
-  AGGREGATION_METADATA: "v3_aggregation_metadata"
-};
-
-async function getSalesSnapshot(db, locationId, businessDate) {
-  return db.collection(V3_COLLECTIONS.SALES_WORKING_DAY_SNAPSHOT).findOne({ locationId, businessDate });
-}
-async function getLaborSnapshot(db, locationId, businessDate) {
-  return db.collection(V3_COLLECTIONS.LABOR_WORKING_DAY_SNAPSHOT).findOne({ locationId, businessDate });
-}
-async function getDashboardSnapshot(db, locationId, businessDate) {
-  return db.collection(V3_COLLECTIONS.DASHBOARD_SNAPSHOT).findOne({ locationId, businessDate });
-}
-async function upsertSalesSnapshot(db, snapshot) {
-  const result = await db.collection(V3_COLLECTIONS.SALES_WORKING_DAY_SNAPSHOT).updateOne(
-    { locationId: snapshot.locationId, businessDate: snapshot.businessDate },
-    { $set: snapshot },
-    { upsert: true }
-  );
-  return snapshot._id || result.upsertedId || new ObjectId();
-}
-async function upsertLaborSnapshot(db, snapshot) {
-  const result = await db.collection(V3_COLLECTIONS.LABOR_WORKING_DAY_SNAPSHOT).updateOne(
-    { locationId: snapshot.locationId, businessDate: snapshot.businessDate },
-    { $set: snapshot },
-    { upsert: true }
-  );
-  return snapshot._id || result.upsertedId || new ObjectId();
-}
-async function upsertDashboardSnapshot(db, snapshot) {
-  const result = await db.collection(V3_COLLECTIONS.DASHBOARD_SNAPSHOT).updateOne(
-    { locationId: snapshot.locationId, businessDate: snapshot.businessDate },
-    { $set: snapshot },
-    { upsert: true }
-  );
-  return snapshot._id || result.upsertedId || new ObjectId();
-}
-async function getSalesSnapshotsByLocationRange(db, locationId, startDate, endDate) {
-  return db.collection(V3_COLLECTIONS.SALES_WORKING_DAY_SNAPSHOT).find({
-    locationId,
-    businessDate: { $gte: startDate, $lte: endDate }
-  }).sort({ businessDate: -1 }).toArray();
-}
-async function getLatestSalesSnapshotsAllLocations(db, businessDate) {
-  return db.collection(V3_COLLECTIONS.SALES_WORKING_DAY_SNAPSHOT).find({ businessDate }).toArray();
-}
-async function recordAggregationMetadata(db, result) {
-  await db.collection(V3_COLLECTIONS.AGGREGATION_METADATA).insertOne({
-    ...result,
-    recordedAt: /* @__PURE__ */ new Date()
-  });
-}
-function shouldUpdateSnapshot(snapshot, maxAgeMins = 15) {
-  if (!snapshot) return true;
-  const now = /* @__PURE__ */ new Date();
-  const lastUpdate = new Date(snapshot.lastUpdatedAt);
-  const ageMs = now.getTime() - lastUpdate.getTime();
-  const ageMins = ageMs / (1e3 * 60);
-  return ageMins > maxAgeMins;
-}
-
-async function rebuildV3SaleSnapshot(db, locationId, locationName, businessDate) {
-  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m, _n, _o, _p;
-  const startTime = Date.now();
-  const stepsExecuted = [];
-  try {
-    stepsExecuted.push("starting_aggregation");
-    const workingDayStart = getBusinessDayStart(businessDate);
-    const workingDayEnd = getBusinessDayEnd(businessDate);
-    const part1Date = getBusinessDayPart1Date(businessDate);
-    const part2Date = getBusinessDayPart2Date(businessDate);
-    stepsExecuted.push("fetched_business_day_boundaries");
-    const existingSnapshot = await getSalesSnapshot(db, locationId, businessDate);
-    const shouldUpdate = shouldUpdateSnapshot(existingSnapshot, 15);
-    if (!shouldUpdate && existingSnapshot) {
-      stepsExecuted.push("snapshot_recent_skipped_update");
-      return {
-        success: true,
-        message: "Snapshot already up-to-date",
-        locationId,
-        locationName,
-        businessDate,
-        timestamp: /* @__PURE__ */ new Date(),
-        syncCount: existingSnapshot.syncCount + 1,
-        durationMs: Date.now() - startTime,
-        stepsExecuted,
-        salesSnapshot: existingSnapshot
-      };
-    }
-    stepsExecuted.push("querying_raw_sales_data");
-    const part1Pipeline = [
-      {
-        $match: {
-          locationId,
-          date: {
-            $gte: workingDayStart,
-            $lt: new Date(part1Date.getTime() + 24 * 60 * 60 * 1e3)
-            // End of part1Date
-          }
-        }
-      },
-      {
-        $addFields: {
-          isoDate: {
-            $dateToString: { format: "%Y-%m-%d", date: "$date", timezone: "UTC" }
-          },
-          hour: { $hour: { date: "$date", timezone: "UTC" } }
-        }
-      },
-      {
-        $group: {
-          _id: {
-            isoDate: "$isoDate",
-            hour: "$hour"
-          },
-          totalRevenue: { $sum: "$lineTotal" },
-          totalRevenueExVat: { $sum: { $ifNull: ["$lineTotalExVat", "$lineTotal"] } },
-          totalRevenueIncVat: { $sum: { $ifNull: ["$lineTotalIncVat", "$lineTotal"] } },
-          totalVat: { $sum: { $subtract: [{ $ifNull: ["$lineTotalIncVat", "$lineTotal"] }, "$lineTotal"] } },
-          totalQuantity: { $sum: "$quantity" },
-          drinksRevenue: {
-            $sum: {
-              $cond: [
-                { $regexMatch: { input: "$productName", regex: /drink|beverage|coffee|tea|juice|water/i } },
-                "$lineTotal",
-                0
-              ]
-            }
-          },
-          transactions: { $addToSet: "$transactionId" },
-          waiters: { $addToSet: "$waiterName" },
-          tables: { $addToSet: "$tableNumber" },
-          categories: { $push: { category: "$productCategory", revenue: "$lineTotal" } }
-        }
-      }
-    ];
-    const part1Data = await db.collection("bork_raw_sales").aggregate(part1Pipeline).toArray();
-    stepsExecuted.push("aggregated_part1_data");
-    const part2Pipeline = [
-      {
-        $match: {
-          locationId,
-          date: {
-            $gte: part2Date,
-            $lt: workingDayEnd
-          }
-        }
-      },
-      {
-        $addFields: {
-          isoDate: {
-            $dateToString: { format: "%Y-%m-%d", date: "$date", timezone: "UTC" }
-          },
-          hour: { $hour: { date: "$date", timezone: "UTC" } }
-        }
-      },
-      {
-        $group: {
-          _id: {
-            isoDate: "$isoDate",
-            hour: "$hour"
-          },
-          totalRevenue: { $sum: "$lineTotal" },
-          totalRevenueExVat: { $sum: { $ifNull: ["$lineTotalExVat", "$lineTotal"] } },
-          totalRevenueIncVat: { $sum: { $ifNull: ["$lineTotalIncVat", "$lineTotal"] } },
-          totalVat: { $sum: { $subtract: [{ $ifNull: ["$lineTotalIncVat", "$lineTotal"] }, "$lineTotal"] } },
-          totalQuantity: { $sum: "$quantity" },
-          drinksRevenue: {
-            $sum: {
-              $cond: [
-                { $regexMatch: { input: "$productName", regex: /drink|beverage|coffee|tea|juice|water/i } },
-                "$lineTotal",
-                0
-              ]
-            }
-          },
-          transactions: { $addToSet: "$transactionId" },
-          waiters: { $addToSet: "$waiterName" },
-          tables: { $addToSet: "$tableNumber" },
-          categories: { $push: { category: "$productCategory", revenue: "$lineTotal" } }
-        }
-      }
-    ];
-    const part2Data = await db.collection("bork_raw_sales").aggregate(part2Pipeline).toArray();
-    stepsExecuted.push("aggregated_part2_data");
-    const part1 = buildDayPartSummary(part1Data, part1Date);
-    stepsExecuted.push("built_part1_summary");
-    const part2 = buildDayPartSummary(part2Data, part2Date);
-    stepsExecuted.push("built_part2_summary");
-    const allData = [...part1Data, ...part2Data];
-    const hourlyBreakdown = buildHourlyBreakdown(allData);
-    stepsExecuted.push("built_hourly_breakdown");
-    const totalRevenue = ((_a = part1 == null ? void 0 : part1.totalRevenue) != null ? _a : 0) + ((_b = part2 == null ? void 0 : part2.totalRevenue) != null ? _b : 0);
-    const totalRevenueExVat = ((_c = part1 == null ? void 0 : part1.totalRevenueExVat) != null ? _c : 0) + ((_d = part2 == null ? void 0 : part2.totalRevenueExVat) != null ? _d : 0);
-    const totalRevenueIncVat = ((_e = part1 == null ? void 0 : part1.totalRevenueIncVat) != null ? _e : 0) + ((_f = part2 == null ? void 0 : part2.totalRevenueIncVat) != null ? _f : 0);
-    const totalVat = ((_g = part1 == null ? void 0 : part1.totalVat) != null ? _g : 0) + ((_h = part2 == null ? void 0 : part2.totalVat) != null ? _h : 0);
-    const totalQuantity = ((_i = part1 == null ? void 0 : part1.totalQuantity) != null ? _i : 0) + ((_j = part2 == null ? void 0 : part2.totalQuantity) != null ? _j : 0);
-    const totalTransactions = ((_k = part1 == null ? void 0 : part1.totalTransactions) != null ? _k : 0) + ((_l = part2 == null ? void 0 : part2.totalTransactions) != null ? _l : 0);
-    const drinksRevenue = ((_m = part1 == null ? void 0 : part1.drinksRevenue) != null ? _m : 0) + ((_n = part2 == null ? void 0 : part2.drinksRevenue) != null ? _n : 0);
-    const foodRevenue = totalRevenue - drinksRevenue;
-    stepsExecuted.push("calculated_combined_totals");
-    const revenueByCategory = {};
-    for (const entry of allData) {
-      if (entry.categories) {
-        for (const cat of entry.categories) {
-          revenueByCategory[cat.category] = ((_o = revenueByCategory[cat.category]) != null ? _o : 0) + cat.revenue;
-        }
-      }
-    }
-    const byWaiter = await buildWaiterBreakdown(db, locationId, businessDate);
-    stepsExecuted.push("built_waiter_breakdown");
-    const byTable = await buildTableBreakdown(db, locationId, businessDate);
-    stepsExecuted.push("built_table_breakdown");
-    const byPaymentMethod = await buildPaymentMethodBreakdown(db, locationId, businessDate);
-    stepsExecuted.push("built_payment_method_breakdown");
-    const snapshot = {
-      locationId,
-      locationName,
-      businessDate,
-      workingDayStart,
-      workingDayEnd,
-      workingDayStarted: true,
-      workingDayFinished: getBusinessDate(/* @__PURE__ */ new Date()) !== businessDate,
-      // True if past this business day
-      part1: (part1 == null ? void 0 : part1.totalRevenue) > 0 ? part1 : void 0,
-      part2: (part2 == null ? void 0 : part2.totalRevenue) > 0 ? part2 : void 0,
-      totalRevenue,
-      totalRevenueExVat,
-      totalRevenueIncVat,
-      totalVat,
-      totalQuantity,
-      totalTransactions,
-      avgRevenuePerTransaction: totalTransactions > 0 ? totalRevenue / totalTransactions : 0,
-      revenueByCategory,
-      drinksRevenue,
-      foodRevenue,
-      drinksRevenuePercent: totalRevenue > 0 ? drinksRevenue / totalRevenue * 100 : 0,
-      hourlyBreakdown,
-      byWaiter,
-      byTable,
-      byPaymentMethod,
-      lastUpdatedAt: /* @__PURE__ */ new Date(),
-      syncCount: ((_p = existingSnapshot == null ? void 0 : existingSnapshot.syncCount) != null ? _p : 0) + 1,
-      version: 3
-    };
-    stepsExecuted.push("created_snapshot_object");
-    await upsertSalesSnapshot(db, snapshot);
-    stepsExecuted.push("upserted_snapshot");
-    return {
-      success: true,
-      message: "Sales snapshot updated successfully",
-      locationId,
-      locationName,
-      businessDate,
-      timestamp: /* @__PURE__ */ new Date(),
-      syncCount: snapshot.syncCount,
-      durationMs: Date.now() - startTime,
-      stepsExecuted,
-      salesSnapshot: snapshot
-    };
-  } catch (error) {
-    const errorMsg = error instanceof Error ? error.message : String(error);
-    return {
-      success: false,
-      message: "Sales snapshot aggregation failed",
-      locationId,
-      locationName,
-      businessDate,
-      timestamp: /* @__PURE__ */ new Date(),
-      syncCount: 0,
-      durationMs: Date.now() - startTime,
-      stepsExecuted,
-      error: errorMsg
-    };
-  }
-}
-function buildDayPartSummary(data, date) {
-  var _a, _b, _c, _d, _e, _f;
-  let totalRevenue = 0;
-  let totalRevenueExVat = 0;
-  let totalRevenueIncVat = 0;
-  let totalVat = 0;
-  let totalQuantity = 0;
-  let transactions = /* @__PURE__ */ new Set();
-  let drinksRevenue = 0;
-  for (const entry of data) {
-    totalRevenue += (_a = entry.totalRevenue) != null ? _a : 0;
-    totalRevenueExVat += (_b = entry.totalRevenueExVat) != null ? _b : 0;
-    totalRevenueIncVat += (_c = entry.totalRevenueIncVat) != null ? _c : 0;
-    totalVat += (_d = entry.totalVat) != null ? _d : 0;
-    totalQuantity += (_e = entry.totalQuantity) != null ? _e : 0;
-    drinksRevenue += (_f = entry.drinksRevenue) != null ? _f : 0;
-    if (entry.transactions) {
-      for (const txn of entry.transactions) {
-        transactions.add(txn);
-      }
-    }
-  }
-  return {
-    date,
-    totalRevenue,
-    totalRevenueExVat,
-    totalRevenueIncVat,
-    totalVat,
-    totalQuantity,
-    totalTransactions: transactions.size,
-    revenueByCategory: {},
-    drinksRevenue,
-    foodRevenue: totalRevenue - drinksRevenue
-  };
-}
-function buildHourlyBreakdown(data) {
-  var _a, _b, _c, _d;
-  const hourMap = /* @__PURE__ */ new Map();
-  for (const entry of data) {
-    const hour = entry._id.hour;
-    if (!hourMap.has(hour)) {
-      hourMap.set(hour, {
-        hour,
-        totalRevenue: 0,
-        totalQuantity: 0,
-        totalTransactions: 0
-      });
-    }
-    const hourEntry = hourMap.get(hour);
-    hourEntry.totalRevenue += (_a = entry.totalRevenue) != null ? _a : 0;
-    hourEntry.totalQuantity += (_b = entry.totalQuantity) != null ? _b : 0;
-    hourEntry.totalTransactions += (_d = (_c = entry.transactions) == null ? void 0 : _c.length) != null ? _d : 0;
-  }
-  const sortedHours = Array.from(hourMap.entries()).sort(([a], [b]) => a - b).map(([, data2]) => data2);
-  let cumulativeRevenue = 0;
-  const breakdown = [];
-  for (const hourEntry of sortedHours) {
-    cumulativeRevenue += hourEntry.totalRevenue;
-    breakdown.push({
-      hour: hourEntry.hour,
-      isoDate: /* @__PURE__ */ new Date(),
-      totalRevenue: cumulativeRevenue,
-      totalQuantity: hourEntry.totalQuantity,
-      totalTransactions: hourEntry.totalTransactions
-    });
-  }
-  return breakdown;
-}
-async function buildWaiterBreakdown(db, locationId, businessDate) {
-  const workingDayStart = getBusinessDayStart(businessDate);
-  const workingDayEnd = getBusinessDayEnd(businessDate);
-  const pipeline = [
-    {
-      $match: {
-        locationId,
-        date: { $gte: workingDayStart, $lt: workingDayEnd }
-      }
-    },
-    {
-      $group: {
-        _id: "$waiterName",
-        revenue: { $sum: "$lineTotal" },
-        transactions: { $addToSet: "$transactionId" },
-        itemsSold: { $sum: "$quantity" }
-      }
-    },
-    { $sort: { revenue: -1 } },
-    { $limit: 20 }
-  ];
-  const results = await db.collection("bork_raw_sales").aggregate(pipeline).toArray();
-  return results.map((r) => {
-    var _a, _b, _c, _d, _e;
-    return {
-      name: (_a = r._id) != null ? _a : "Unknown",
-      revenue: (_b = r.revenue) != null ? _b : 0,
-      transactions: (_d = (_c = r.transactions) == null ? void 0 : _c.length) != null ? _d : 0,
-      itemsSold: (_e = r.itemsSold) != null ? _e : 0
-    };
-  });
-}
-async function buildTableBreakdown(db, locationId, businessDate) {
-  const workingDayStart = getBusinessDayStart(businessDate);
-  const workingDayEnd = getBusinessDayEnd(businessDate);
-  const pipeline = [
-    {
-      $match: {
-        locationId,
-        date: { $gte: workingDayStart, $lt: workingDayEnd }
-      }
-    },
-    {
-      $group: {
-        _id: "$tableNumber",
-        revenue: { $sum: "$lineTotal" },
-        transactions: { $addToSet: "$transactionId" }
-      }
-    },
-    { $sort: { revenue: -1 } },
-    { $limit: 50 }
-  ];
-  const results = await db.collection("bork_raw_sales").aggregate(pipeline).toArray();
-  return results.map((r) => {
-    var _a, _b, _c, _d;
-    return {
-      tableNumber: (_a = r._id) != null ? _a : "Unknown",
-      revenue: (_b = r.revenue) != null ? _b : 0,
-      transactions: (_d = (_c = r.transactions) == null ? void 0 : _c.length) != null ? _d : 0
-    };
-  });
-}
-async function buildPaymentMethodBreakdown(db, locationId, businessDate) {
-  const workingDayStart = getBusinessDayStart(businessDate);
-  const workingDayEnd = getBusinessDayEnd(businessDate);
-  const pipeline = [
-    {
-      $match: {
-        locationId,
-        date: { $gte: workingDayStart, $lt: workingDayEnd }
-      }
-    },
-    {
-      $group: {
-        _id: "$paymentMethod",
-        revenue: { $sum: "$lineTotal" },
-        transactions: { $addToSet: "$transactionId" }
-      }
-    },
-    { $sort: { revenue: -1 } }
-  ];
-  const results = await db.collection("bork_raw_sales").aggregate(pipeline).toArray();
-  return results.map((r) => {
-    var _a, _b, _c, _d;
-    return {
-      method: (_a = r._id) != null ? _a : "Unknown",
-      revenue: (_b = r.revenue) != null ? _b : 0,
-      transactions: (_d = (_c = r.transactions) == null ? void 0 : _c.length) != null ? _d : 0
-    };
-  });
-}
-
-async function rebuildV3LaborSnapshot(db, locationId, locationName, businessDate) {
-  var _a, _b, _c, _d, _e, _f, _g;
-  const startTime = Date.now();
-  const stepsExecuted = [];
-  try {
-    stepsExecuted.push("starting_aggregation");
-    const workingDayStart = getBusinessDayStart(businessDate);
-    const workingDayEnd = getBusinessDayEnd(businessDate);
-    stepsExecuted.push("fetched_business_day_boundaries");
-    const existingSnapshot = await getLaborSnapshot(db, locationId, businessDate);
-    const shouldUpdate = shouldUpdateSnapshot(existingSnapshot, 15);
-    if (!shouldUpdate && existingSnapshot) {
-      stepsExecuted.push("snapshot_recent_skipped_update");
-      return {
-        success: true,
-        message: "Snapshot already up-to-date",
-        locationId,
-        locationName,
-        businessDate,
-        timestamp: /* @__PURE__ */ new Date(),
-        syncCount: existingSnapshot.syncCount + 1,
-        durationMs: Date.now() - startTime,
-        stepsExecuted,
-        laborSnapshot: existingSnapshot
-      };
-    }
-    stepsExecuted.push("querying_raw_labor_data");
-    const laborPipeline = [
-      {
-        $match: {
-          locationId,
-          date: { $gte: workingDayStart, $lt: workingDayEnd }
-        }
-      },
-      {
-        $addFields: {
-          hour: { $hour: { date: "$date", timezone: "UTC" } }
-        }
-      },
-      {
-        $group: {
-          _id: {
-            workerId: "$workerId",
-            team: "$team",
-            contract: "$contractType"
-          },
-          totalHours: { $sum: "$hours" },
-          totalCost: { $sum: "$cost" },
-          hourlyBreakdown: {
-            $push: {
-              hour: "$hour",
-              hours: "$hours",
-              cost: "$cost"
-            }
-          }
-        }
-      }
-    ];
-    const laborData = await db.collection("eitje_raw_time_registrations").aggregate(laborPipeline).toArray();
-    stepsExecuted.push("aggregated_labor_data");
-    let totalHours = 0;
-    let totalCost = 0;
-    const workersSet = /* @__PURE__ */ new Set();
-    const teamsMap = /* @__PURE__ */ new Map();
-    const contractsMap = /* @__PURE__ */ new Map();
-    const hourlyMap = /* @__PURE__ */ new Map();
-    for (const entry of laborData) {
-      const hours = (_a = entry.totalHours) != null ? _a : 0;
-      const cost = (_b = entry.totalCost) != null ? _b : 0;
-      const team = (_c = entry._id.team) != null ? _c : "Unassigned";
-      const contract = (_d = entry._id.contract) != null ? _d : "Unknown";
-      totalHours += hours;
-      totalCost += cost;
-      workersSet.add(entry._id.workerId);
-      if (!teamsMap.has(team)) {
-        teamsMap.set(team, {
-          teamId: entry._id.workerId,
-          teamName: team,
-          workerCount: 0,
-          totalHours: 0,
-          totalCost: 0,
-          pctOfTotalHours: 0
-        });
-      }
-      const teamSummary = teamsMap.get(team);
-      teamSummary.workerCount += 1;
-      teamSummary.totalHours += hours;
-      teamSummary.totalCost += cost;
-      if (!contractsMap.has(contract)) {
-        contractsMap.set(contract, {
-          contractType: contract,
-          workerCount: 0,
-          totalHours: 0,
-          totalCost: 0,
-          pctOfTotalHours: 0
-        });
-      }
-      const contractSummary = contractsMap.get(contract);
-      contractSummary.workerCount += 1;
-      contractSummary.totalHours += hours;
-      contractSummary.totalCost += cost;
-      if (entry.hourlyBreakdown) {
-        for (const hourEntry of entry.hourlyBreakdown) {
-          const hour = hourEntry.hour;
-          if (!hourlyMap.has(hour)) {
-            hourlyMap.set(hour, { hours: 0, cost: 0 });
-          }
-          const hourData = hourlyMap.get(hour);
-          hourData.hours += (_e = hourEntry.hours) != null ? _e : 0;
-          hourData.cost += (_f = hourEntry.cost) != null ? _f : 0;
-        }
-      }
-    }
-    stepsExecuted.push("aggregated_by_team_contract");
-    for (const team of teamsMap.values()) {
-      team.pctOfTotalHours = totalHours > 0 ? team.totalHours / totalHours * 100 : 0;
-    }
-    for (const contract of contractsMap.values()) {
-      contract.pctOfTotalHours = totalHours > 0 ? contract.totalHours / totalHours * 100 : 0;
-    }
-    stepsExecuted.push("calculated_percentages");
-    const hourlyBreakdown = Array.from(hourlyMap.entries()).sort(([a], [b]) => a - b).map(([hour, data]) => ({
-      hour,
-      isoDate: /* @__PURE__ */ new Date(),
-      totalRevenue: 0,
-      // Will be filled in from sales snapshot
-      totalHours: data.hours,
-      totalCost: data.cost
-    }));
-    stepsExecuted.push("built_hourly_breakdown");
-    const productivity = calculateProductivityMetrics(
-      laborData,
-      totalHours,
-      totalCost,
-      hourlyBreakdown
-    );
-    stepsExecuted.push("calculated_productivity_metrics");
-    const snapshot = {
-      locationId,
-      locationName,
-      businessDate,
-      workingDayStart,
-      workingDayEnd,
-      workingDayStarted: true,
-      workingDayFinished: getBusinessDate(/* @__PURE__ */ new Date()) !== businessDate,
-      totalHours,
-      totalCost,
-      totalWorkers: workersSet.size,
-      costPerHour: totalHours > 0 ? totalCost / totalHours : 0,
-      teams: Array.from(teamsMap.values()).sort((a, b) => b.totalHours - a.totalHours),
-      contracts: Array.from(contractsMap.values()).sort((a, b) => b.totalHours - a.totalHours),
-      productivity,
-      hourlyBreakdown,
-      lastUpdatedAt: /* @__PURE__ */ new Date(),
-      syncCount: ((_g = existingSnapshot == null ? void 0 : existingSnapshot.syncCount) != null ? _g : 0) + 1,
-      version: 3
-    };
-    stepsExecuted.push("created_snapshot_object");
-    await upsertLaborSnapshot(db, snapshot);
-    stepsExecuted.push("upserted_snapshot");
-    return {
-      success: true,
-      message: "Labor snapshot updated successfully",
-      locationId,
-      locationName,
-      businessDate,
-      timestamp: /* @__PURE__ */ new Date(),
-      syncCount: snapshot.syncCount,
-      durationMs: Date.now() - startTime,
-      stepsExecuted,
-      laborSnapshot: snapshot
-    };
-  } catch (error) {
-    const errorMsg = error instanceof Error ? error.message : String(error);
-    return {
-      success: false,
-      message: "Labor snapshot aggregation failed",
-      locationId,
-      locationName,
-      businessDate,
-      timestamp: /* @__PURE__ */ new Date(),
-      syncCount: 0,
-      durationMs: Date.now() - startTime,
-      stepsExecuted,
-      error: errorMsg
-    };
-  }
-}
-function calculateProductivityMetrics(laborData, totalHours, totalCost, hourlyBreakdown) {
-  var _a;
-  const metrics = {};
-  metrics.laborCostPctOfRevenue = void 0;
-  metrics.revenuePerLaborHour = void 0;
-  let bestHour;
-  let worstHour;
-  let bestEfficiency = Infinity;
-  let worstEfficiency = 0;
-  for (const entry of hourlyBreakdown) {
-    if (entry.totalHours && entry.totalHours > 0) {
-      const costPerHour = ((_a = entry.totalCost) != null ? _a : 0) / entry.totalHours;
-      if (costPerHour < bestEfficiency) {
-        bestEfficiency = costPerHour;
-        bestHour = entry.hour;
-      }
-      if (costPerHour > worstEfficiency) {
-        worstEfficiency = costPerHour;
-        worstHour = entry.hour;
-      }
-    }
-  }
-  metrics.bestHour = bestHour;
-  metrics.bestHourEfficiency = bestEfficiency === Infinity ? void 0 : bestEfficiency;
-  metrics.worstHour = worstHour;
-  metrics.worstHourEfficiency = worstEfficiency === 0 ? void 0 : worstEfficiency;
-  return metrics;
-}
-
-async function rebuildV3DashboardSnapshot(db, locationId, locationName, businessDate) {
-  var _a, _b;
-  const startTime = Date.now();
-  const stepsExecuted = [];
-  try {
-    stepsExecuted.push("starting_aggregation");
-    const salesSnapshot = await getSalesSnapshot(db, locationId, businessDate);
-    stepsExecuted.push("fetched_sales_snapshot");
-    const laborSnapshot = await getLaborSnapshot(db, locationId, businessDate);
-    stepsExecuted.push("fetched_labor_snapshot");
-    if (!salesSnapshot || !laborSnapshot) {
-      stepsExecuted.push("missing_source_snapshots");
-      return {
-        success: false,
-        message: "Sales or labor snapshot not found - cannot build dashboard",
-        locationId,
-        locationName,
-        businessDate,
-        timestamp: /* @__PURE__ */ new Date(),
-        syncCount: 0,
-        durationMs: Date.now() - startTime,
-        stepsExecuted,
-        error: "Missing source data"
-      };
-    }
-    stepsExecuted.push("building_dashboard_snapshot");
-    const revenuePerLaborHour = laborSnapshot.totalHours > 0 ? salesSnapshot.totalRevenue / laborSnapshot.totalHours : 0;
-    const laborCostPctOfRevenue = salesSnapshot.totalRevenue > 0 ? laborSnapshot.totalCost / salesSnapshot.totalRevenue * 100 : 0;
-    stepsExecuted.push("calculated_combined_metrics");
-    const topProducts = buildTopProducts(salesSnapshot);
-    stepsExecuted.push("built_top_products");
-    const topTeams = laborSnapshot.teams.slice(0, 10).map((team) => ({
-      teamName: team.teamName,
-      workerCount: team.workerCount,
-      totalHours: team.totalHours,
-      totalCost: team.totalCost
-    }));
-    stepsExecuted.push("built_top_teams");
-    const topContracts = laborSnapshot.contracts.slice(0, 10).map((contract) => ({
-      contractType: contract.contractType,
-      workerCount: contract.workerCount,
-      totalHours: contract.totalHours
-    }));
-    stepsExecuted.push("built_top_contracts");
-    const hourlyRevenue = salesSnapshot.hourlyBreakdown || [];
-    const hourlyLabor = laborSnapshot.hourlyBreakdown || [];
-    for (const laborEntry of hourlyLabor) {
-      const revenueEntry = hourlyRevenue.find((r) => r.hour === laborEntry.hour);
-      if (revenueEntry) {
-        laborEntry.totalRevenue = revenueEntry.totalRevenue;
-      }
-    }
-    stepsExecuted.push("merged_hourly_data");
-    const snapshot = {
-      locationId,
-      locationName,
-      businessDate,
-      workingDayFinished: getBusinessDate(/* @__PURE__ */ new Date()) !== businessDate,
-      currentHour: (/* @__PURE__ */ new Date()).getUTCHours(),
-      cards: {
-        totalRevenue: salesSnapshot.totalRevenue,
-        totalLaborCost: laborSnapshot.totalCost,
-        laborCostPctOfRevenue,
-        revenuePerLaborHour
-      },
-      revenue: {
-        totalRevenue: salesSnapshot.totalRevenue,
-        totalRevenueExVat: salesSnapshot.totalRevenueExVat,
-        totalTransactions: salesSnapshot.totalTransactions,
-        avgTransactionValue: salesSnapshot.totalTransactions > 0 ? salesSnapshot.totalRevenue / salesSnapshot.totalTransactions : 0,
-        drinksRevenue: salesSnapshot.drinksRevenue,
-        foodRevenue: salesSnapshot.foodRevenue,
-        drinksRevenuePercent: salesSnapshot.drinksRevenuePercent
-      },
-      labor: {
-        totalHours: laborSnapshot.totalHours,
-        totalCost: laborSnapshot.totalCost,
-        totalWorkers: laborSnapshot.totalWorkers,
-        costPerHour: laborSnapshot.costPerHour,
-        revenuePerLaborHour,
-        laborCostPctOfRevenue
-      },
-      productivity: {
-        revenuePerLaborHour,
-        laborCostPctOfRevenue,
-        bestHour: laborSnapshot.productivity.bestHour !== void 0 ? {
-          hour: laborSnapshot.productivity.bestHour,
-          efficiency: (_a = laborSnapshot.productivity.bestHourEfficiency) != null ? _a : 0
-        } : void 0,
-        worstHour: laborSnapshot.productivity.worstHour !== void 0 ? {
-          hour: laborSnapshot.productivity.worstHour,
-          efficiency: (_b = laborSnapshot.productivity.worstHourEfficiency) != null ? _b : 0
-        } : void 0
-      },
-      topProducts,
-      topTeams,
-      topContracts,
-      hourlyRevenue,
-      hourlyLabor,
-      lastUpdatedAt: /* @__PURE__ */ new Date(),
-      syncCount: Math.max(salesSnapshot.syncCount, laborSnapshot.syncCount),
-      version: 3
-    };
-    stepsExecuted.push("created_dashboard_snapshot_object");
-    await upsertDashboardSnapshot(db, snapshot);
-    stepsExecuted.push("upserted_snapshot");
-    return {
-      success: true,
-      message: "Dashboard snapshot updated successfully",
-      locationId,
-      locationName,
-      businessDate,
-      timestamp: /* @__PURE__ */ new Date(),
-      syncCount: snapshot.syncCount,
-      durationMs: Date.now() - startTime,
-      stepsExecuted,
-      dashboardSnapshot: snapshot
-    };
-  } catch (error) {
-    const errorMsg = error instanceof Error ? error.message : String(error);
-    return {
-      success: false,
-      message: "Dashboard snapshot aggregation failed",
-      locationId,
-      locationName,
-      businessDate,
-      timestamp: /* @__PURE__ */ new Date(),
-      syncCount: 0,
-      durationMs: Date.now() - startTime,
-      stepsExecuted,
-      error: errorMsg
-    };
-  }
-}
-function buildTopProducts(salesSnapshot) {
-  const products = [];
-  for (const [category, revenue] of Object.entries(salesSnapshot.revenueByCategory)) {
-    products.push({
-      name: category,
-      quantity: 0,
-      // Would need raw data to calculate properly
-      revenue,
-      profitPercent: void 0
-    });
-  }
-  return products.sort((a, b) => b.revenue - a.revenue).slice(0, 20);
-}
-
-async function runV3AggregationPipeline(db, businessDate, logFn) {
-  const startTime = Date.now();
-  const log = logFn || console.log;
-  try {
-    const targetBusinessDate = businessDate || getCurrentBusinessDate();
-    log(`[V3 Aggregation] Starting pipeline for business date: ${targetBusinessDate}`);
-    const locations = await db.collection("locations").find({}).toArray();
-    log(`[V3 Aggregation] Found ${locations.length} locations`);
-    if (locations.length === 0) {
-      return {
-        success: false,
-        startedAt: /* @__PURE__ */ new Date(),
-        completedAt: /* @__PURE__ */ new Date(),
-        durationMs: 0,
-        locations: [],
-        totalLocations: 0,
-        successCount: 0,
-        failureCount: 0,
-        businessDate: targetBusinessDate,
-        workingDayFinished: false,
-        syncCount: 0,
-        message: "No locations found",
-        error: "No locations"
-      };
-    }
-    const results = [];
-    let successCount = 0;
-    let failureCount = 0;
-    const allSteps = [];
-    for (const location of locations) {
-      const locationId = location._id;
-      const locationName = location.name || `Location ${locationId}`;
-      try {
-        log(`[V3 Aggregation] Processing location: ${locationName}`);
-        log(`  \u2192 Building sales snapshot...`);
-        const salesResult = await rebuildV3SaleSnapshot(db, locationId, locationName, targetBusinessDate);
-        allSteps.push(...salesResult.stepsExecuted);
-        if (!salesResult.success) {
-          log(`  \u2717 Sales snapshot failed: ${salesResult.error}`);
-          results.push(salesResult);
-          failureCount += 1;
-          continue;
-        }
-        log(`  \u2713 Sales snapshot completed (${salesResult.durationMs}ms, sync #${salesResult.syncCount})`);
-        log(`  \u2192 Building labor snapshot...`);
-        const laborResult = await rebuildV3LaborSnapshot(db, locationId, locationName, targetBusinessDate);
-        allSteps.push(...laborResult.stepsExecuted);
-        if (!laborResult.success) {
-          log(`  \u2717 Labor snapshot failed: ${laborResult.error}`);
-          results.push(laborResult);
-          failureCount += 1;
-          continue;
-        }
-        log(`  \u2713 Labor snapshot completed (${laborResult.durationMs}ms, sync #${laborResult.syncCount})`);
-        log(`  \u2192 Building dashboard snapshot...`);
-        const dashboardResult = await rebuildV3DashboardSnapshot(
-          db,
-          locationId,
-          locationName,
-          targetBusinessDate
-        );
-        allSteps.push(...dashboardResult.stepsExecuted);
-        if (!dashboardResult.success) {
-          log(`  \u2717 Dashboard snapshot failed: ${dashboardResult.error}`);
-          results.push(dashboardResult);
-          failureCount += 1;
-          continue;
-        }
-        log(
-          `  \u2713 Dashboard snapshot completed (${dashboardResult.durationMs}ms, sync #${dashboardResult.syncCount})`
-        );
-        await recordAggregationMetadata(db, dashboardResult);
-        results.push(dashboardResult);
-        successCount += 1;
-        log(`  \u2705 Location complete: ${locationName}`);
-      } catch (error) {
-        const errorMsg = error instanceof Error ? error.message : String(error);
-        log(`  \u2717 Location failed: ${errorMsg}`);
-        failureCount += 1;
-        results.push({
-          success: false,
-          message: "Unexpected error in aggregation",
-          locationId,
-          locationName,
-          businessDate: targetBusinessDate,
-          timestamp: /* @__PURE__ */ new Date(),
-          syncCount: 0,
-          durationMs: Date.now() - startTime,
-          stepsExecuted: allSteps,
-          error: errorMsg
-        });
-      }
-    }
-    const completedAt = /* @__PURE__ */ new Date();
-    const totalDurationMs = completedAt.getTime() - startTime;
-    log(`[V3 Aggregation] Pipeline completed`);
-    log(`  \u2192 Success: ${successCount}/${locations.length}`);
-    log(`  \u2192 Failed: ${failureCount}/${locations.length}`);
-    log(`  \u2192 Total time: ${totalDurationMs}ms`);
-    return {
-      success: successCount === locations.length,
-      startedAt: new Date(startTime),
-      completedAt,
-      durationMs: totalDurationMs,
-      locations: results,
-      totalLocations: locations.length,
-      successCount,
-      failureCount,
-      businessDate: targetBusinessDate,
-      workingDayFinished: false,
-      syncCount: Math.max(...results.map((r) => r.syncCount), 0),
-      message: `V3 aggregation completed: ${successCount} success, ${failureCount} failed`
-    };
-  } catch (error) {
-    const errorMsg = error instanceof Error ? error.message : String(error);
-    log(`[V3 Aggregation] Pipeline failed: ${errorMsg}`);
-    return {
-      success: false,
-      startedAt: new Date(startTime),
-      completedAt: /* @__PURE__ */ new Date(),
-      durationMs: Date.now() - startTime,
-      locations: [],
-      totalLocations: 0,
-      successCount: 0,
-      failureCount: 1,
-      businessDate: businessDate || getCurrentBusinessDate(),
-      workingDayFinished: false,
-      syncCount: 0,
-      message: "V3 aggregation pipeline failed",
-      error: errorMsg
-    };
-  }
-}
-
 function getDateRangeForJobType(jobType) {
   if (jobType === "historical-data") return { days: 30 };
   return { days: 1 };
@@ -4436,7 +3465,6 @@ async function executeBorkJob(db, jobType) {
   const message = syncOk ? `Synced ${okCount}/${creds.length} location(s) into bork_raw_data` : `0/${creds.length} locations succeeded \u2014 check Bork API credentials and network access`;
   let v2AggregationResult = null;
   let v2RebuildSuffix = "";
-  let v3AggregationResult = null;
   if (syncOk && jobType === "daily-data") {
     try {
       const today = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
@@ -4445,16 +3473,13 @@ async function executeBorkJob(db, jobType) {
       const yesterdayStr = yesterday.toISOString().slice(0, 10);
       v2RebuildSuffix = (_a = resolveBorkAggRebuildSuffix()) != null ? _a : "_v2";
       v2AggregationResult = await rebuildBorkSalesAggregationV2(db, yesterdayStr, today, v2RebuildSuffix);
-      console.log("[borkSyncService] Triggering V3 aggregation pipeline...");
-      v3AggregationResult = await runV3AggregationPipeline(db, today, (msg) => console.log(`[V3] ${msg}`));
     } catch (e) {
       console.error("[borkSyncService] Aggregation error:", e);
     }
   }
-  const v3Message = v3AggregationResult ? `; V3: ${v3AggregationResult.successCount}/${v3AggregationResult.totalLocations} locations (${v3AggregationResult.durationMs}ms)` : "";
   const v2 = v2AggregationResult;
   const v2Message = v2 && (v2.businessDays > 0 || v2.salesHours > 0 || v2.tables > 0 || v2.workers > 0 || v2.productLines > 0) ? `; V2 (${v2RebuildSuffix || "none"}): ${v2.businessDays} business days, ${v2.salesHours} hour buckets, ${v2.tables} tables, ${v2.workers} workers, ${v2.guestAccounts} guest slices, ${v2.productLines} product lines` : "";
-  const finalMessage = `${message}${v2Message}${v3Message}`;
+  const finalMessage = `${message}${v2Message}`;
   return {
     ok: syncOk,
     jobType,
@@ -5564,12 +4589,9 @@ async function executeEitjeJob(db, jobType) {
     const todayUtc = (_a2 = now.toISOString().split("T")[0]) != null ? _a2 : "";
     const tr2 = await syncTimeRegistrationShifts(db, creds, todayUtc, todayUtc);
     let agg2;
-    let v3AggResult2 = null;
     try {
       agg2 = await rebuildEitjeTimeRegistrationAggregation(db, todayUtc, todayUtc);
       await syncUnifiedCollectionsFromRawData(db);
-      console.log("[eitjeSyncService] Triggering V3 aggregation pipeline for daily data...");
-      v3AggResult2 = await runV3AggregationPipeline(db, todayUtc, (msg) => console.log(`[V3] ${msg}`));
     } catch (e) {
       agg2 = {
         deletedPeriods: 0,
@@ -5578,11 +4600,10 @@ async function executeEitjeJob(db, jobType) {
       };
     }
     const ok2 = !tr2.error && (tr2.fetched > 0 || tr2.upserted > 0 || ((_b = agg2 == null ? void 0 : agg2.inserted) != null ? _b : 0) > 0);
-    const v3Message2 = v3AggResult2 ? `; V3: ${v3AggResult2.successCount}/${v3AggResult2.totalLocations} locations` : "";
     return {
       ok: ok2,
       jobType,
-      message: tr2.error ? `Time registration: ${tr2.error}` : `Synced ${tr2.fetched} shifts (${tr2.upserted} writes), aggregation +${(_c = agg2 == null ? void 0 : agg2.inserted) != null ? _c : 0} rows for today${v3Message2}`,
+      message: tr2.error ? `Time registration: ${tr2.error}` : `Synced ${tr2.fetched} shifts (${tr2.upserted} writes), aggregation +${(_c = agg2 == null ? void 0 : agg2.inserted) != null ? _c : 0} rows for today`,
       timeRegistration: tr2,
       aggregation: agg2
     };
@@ -5591,12 +4612,9 @@ async function executeEitjeJob(db, jobType) {
   const { start, end } = dateRangeDays(histDays);
   const tr = await syncTimeRegistrationShifts(db, creds, start, end);
   let agg;
-  let v3AggResult = null;
   try {
     agg = await rebuildEitjeTimeRegistrationAggregation(db, start, end);
     await syncUnifiedCollectionsFromRawData(db);
-    console.log("[eitjeSyncService] Triggering V3 aggregation pipeline for historical data...");
-    v3AggResult = await runV3AggregationPipeline(db, end, (msg) => console.log(`[V3] ${msg}`));
   } catch (e) {
     agg = {
       deletedPeriods: 0,
@@ -5605,11 +4623,10 @@ async function executeEitjeJob(db, jobType) {
     };
   }
   const ok = !tr.error && (tr.fetched > 0 || tr.upserted > 0 || ((_d = agg == null ? void 0 : agg.inserted) != null ? _d : 0) > 0);
-  const v3Message = v3AggResult ? `; V3: ${v3AggResult.successCount}/${v3AggResult.totalLocations} locations` : "";
   return {
     ok,
     jobType,
-    message: tr.error ? `Time registration: ${tr.error}` : `Synced ${tr.fetched} shifts (${tr.upserted} writes), aggregation +${(_e = agg == null ? void 0 : agg.inserted) != null ? _e : 0} rows (${jobType})${v3Message}`,
+    message: tr.error ? `Time registration: ${tr.error}` : `Synced ${tr.fetched} shifts (${tr.upserted} writes), aggregation +${(_e = agg == null ? void 0 : agg.inserted) != null ? _e : 0} rows (${jobType})`,
     timeRegistration: tr,
     aggregation: agg
   };
@@ -5913,16 +4930,16 @@ _bZ9Ni6V2HtIpJeulfSLzyAQaoMJdeQllxN50TS5qNvY
 const assets = {
   "/index.mjs": {
     "type": "text/javascript; charset=utf-8",
-    "etag": "\"179859-+AC1j/jpXNY3XqIGY/DJ7/ESj0E\"",
-    "mtime": "2026-05-07T22:02:26.665Z",
-    "size": 1546329,
+    "etag": "\"17003e-dgW91Cx8WcIn9YPihBq/yXVGMzI\"",
+    "mtime": "2026-05-10T11:06:00.962Z",
+    "size": 1507390,
     "path": "index.mjs"
   },
   "/index.mjs.map": {
     "type": "application/json",
-    "etag": "\"5e6bd2-B+jwzKx/kyLvk3UKw21uUC/o8so\"",
-    "mtime": "2026-05-07T22:02:26.800Z",
-    "size": 6187986,
+    "etag": "\"5c1a2b-Fc/xnaj8Ihq6u+KvHTVH/iTzIxw\"",
+    "mtime": "2026-05-10T11:06:01.024Z",
+    "size": 6036011,
     "path": "index.mjs.map"
   }
 };
@@ -6412,7 +5429,7 @@ function defineRenderHandler(render) {
 
 const r=Object.create(null),i=e=>globalThis.process?.env||globalThis._importMeta_.env||globalThis.Deno?.env.toObject()||globalThis.__env__||(e?r:globalThis),o=new Proxy(r,{get(e,s){return i()[s]??r[s]},has(e,s){const E=i();return s in E||s in r},set(e,s,E){const B=i(true);return B[s]=E,true},deleteProperty(e,s){if(!s)return  false;const E=i(true);return delete E[s],true},ownKeys(){const e=i(true);return Object.keys(e)}}),t=typeof process<"u"&&process.env&&"development"||"",f=[["APPVEYOR"],["AWS_AMPLIFY","AWS_APP_ID",{ci:true}],["AZURE_PIPELINES","SYSTEM_TEAMFOUNDATIONCOLLECTIONURI"],["AZURE_STATIC","INPUT_AZURE_STATIC_WEB_APPS_API_TOKEN"],["APPCIRCLE","AC_APPCIRCLE"],["BAMBOO","bamboo_planKey"],["BITBUCKET","BITBUCKET_COMMIT"],["BITRISE","BITRISE_IO"],["BUDDY","BUDDY_WORKSPACE_ID"],["BUILDKITE"],["CIRCLE","CIRCLECI"],["CIRRUS","CIRRUS_CI"],["CLOUDFLARE_PAGES","CF_PAGES",{ci:true}],["CLOUDFLARE_WORKERS","WORKERS_CI",{ci:true}],["CODEBUILD","CODEBUILD_BUILD_ARN"],["CODEFRESH","CF_BUILD_ID"],["DRONE"],["DRONE","DRONE_BUILD_EVENT"],["DSARI"],["GITHUB_ACTIONS"],["GITLAB","GITLAB_CI"],["GITLAB","CI_MERGE_REQUEST_ID"],["GOCD","GO_PIPELINE_LABEL"],["LAYERCI"],["HUDSON","HUDSON_URL"],["JENKINS","JENKINS_URL"],["MAGNUM"],["NETLIFY"],["NETLIFY","NETLIFY_LOCAL",{ci:false}],["NEVERCODE"],["RENDER"],["SAIL","SAILCI"],["SEMAPHORE"],["SCREWDRIVER"],["SHIPPABLE"],["SOLANO","TDDIUM"],["STRIDER"],["TEAMCITY","TEAMCITY_VERSION"],["TRAVIS"],["VERCEL","NOW_BUILDER"],["VERCEL","VERCEL",{ci:false}],["VERCEL","VERCEL_ENV",{ci:false}],["APPCENTER","APPCENTER_BUILD_ID"],["CODESANDBOX","CODESANDBOX_SSE",{ci:false}],["CODESANDBOX","CODESANDBOX_HOST",{ci:false}],["STACKBLITZ"],["STORMKIT"],["CLEAVR"],["ZEABUR"],["CODESPHERE","CODESPHERE_APP_ID",{ci:true}],["RAILWAY","RAILWAY_PROJECT_ID"],["RAILWAY","RAILWAY_SERVICE_ID"],["DENO-DEPLOY","DENO_DEPLOYMENT_ID"],["FIREBASE_APP_HOSTING","FIREBASE_APP_HOSTING",{ci:true}]];function b(){if(globalThis.process?.env)for(const e of f){const s=e[1]||e[0];if(globalThis.process?.env[s])return {name:e[0].toLowerCase(),...e[2]}}return globalThis.process?.env?.SHELL==="/bin/jsh"&&globalThis.process?.versions?.webcontainer?{name:"stackblitz",ci:false}:{name:"",ci:false}}const l=b();l.name;function n(e){return e?e!=="false":false}const I=globalThis.process?.platform||"",T=n(o.CI)||l.ci!==false,R=n(globalThis.process?.stdout&&globalThis.process?.stdout.isTTY);n(o.DEBUG);const a=t==="test"||n(o.TEST);n(o.MINIMAL)||T||a||!R;const A=/^win/i.test(I);!n(o.NO_COLOR)&&(n(o.FORCE_COLOR)||(R||A)&&o.TERM!=="dumb"||T);const C=(globalThis.process?.versions?.node||"").replace(/^v/,"")||null;Number(C?.split(".")[0])||null;const W=globalThis.process||Object.create(null),_={versions:{}};new Proxy(W,{get(e,s){if(s==="env")return o;if(s in e)return e[s];if(s in _)return _[s]}});const O=globalThis.process?.release?.name==="node",c=!!globalThis.Bun||!!globalThis.process?.versions?.bun,D=!!globalThis.Deno,L=!!globalThis.fastly,S=!!globalThis.Netlify,u=!!globalThis.EdgeRuntime,N=globalThis.navigator?.userAgent==="Cloudflare-Workers",F=[[S,"netlify"],[u,"edge-light"],[N,"workerd"],[L,"fastly"],[D,"deno"],[c,"bun"],[O,"node"]];function G(){const e=F.find(s=>s[0]);if(e)return {name:e[1]}}const P=G();P?.name||"";
 
-const scheduledTasks = [{"cron":"5 6 * * *","tasks":["inbox:gmail-sync"]},{"cron":"5 16 * * *","tasks":["inbox:gmail-sync"]},{"cron":"5 21 * * *","tasks":["inbox:gmail-sync"]},{"cron":"0 6,13,16,18,20,22 * * *","tasks":["integrations:bork-eitje-daily"]}];
+const scheduledTasks = [{"cron":"5 8 * * *","tasks":["inbox:gmail-sync"]},{"cron":"5 18 * * *","tasks":["inbox:gmail-sync"]},{"cron":"5 23 * * *","tasks":["inbox:gmail-sync"]},{"cron":"0 6,13,16,18,20,22 * * *","tasks":["integrations:bork-eitje-daily"]}];
 
 const tasks = {
   "inbox:gmail-sync": {
@@ -6559,11 +5576,7 @@ function parseDailyOpsMetricsQuery(q) {
   const locRaw = typeof q.location === "string" ? q.location : void 0;
   let locationId;
   if (locRaw && locRaw !== "all") {
-    try {
-      locationId = new ObjectId(locRaw);
-    } catch {
-      locationId = locRaw;
-    }
+    locationId = locRaw;
   }
   return {
     period: range.period,
@@ -6600,7 +5613,13 @@ function borkV2SalesMatch(ctx) {
   const q = {
     business_date: { $gte: ctx.startDate, $lte: ctx.endDate }
   };
-  if (ctx.locationId !== void 0) q.locationId = ctx.locationId;
+  if (ctx.locationId !== void 0) {
+    try {
+      q.locationId = new ObjectId(ctx.locationId);
+    } catch {
+      q.locationId = ctx.locationId;
+    }
+  }
   return q;
 }
 function eitjeAggMatch(ctx) {
@@ -6608,7 +5627,14 @@ function eitjeAggMatch(ctx) {
     period_type: "day",
     period: { $gte: ctx.startDate, $lte: ctx.endDate }
   };
-  if (ctx.locationId !== void 0) q.locationId = ctx.locationId;
+  if (ctx.locationId !== void 0) {
+    try {
+      const objId = new ObjectId(ctx.locationId);
+      q.locationId = { $in: [objId, ctx.locationId] };
+    } catch {
+      q.locationId = ctx.locationId;
+    }
+  }
   return q;
 }
 async function fetchRevenueByCategoryFromHourAggregates(db, ctx) {
@@ -6716,11 +5742,11 @@ async function fetchRevenueByDate(db, ctx) {
     {
       $group: {
         _id: "$business_date",
-        revenue: { $sum: { $ifNull: ["$total_revenue", 0] } }
+        revenue: { $sum: { $ifNull: ["$total_revenue_ex_vat", 0] } }
       }
     }
   ]).toArray();
-  return new Map(rows.map((r) => [r._id, r.revenue]));
+  return new Map(rows.map((r) => [r._id, Math.round(r.revenue * 100) / 100]));
 }
 async function fetchRevenueByDateFromHourly(db, ctx) {
   const sfx = resolveBorkAggReadSuffix();
@@ -6729,11 +5755,11 @@ async function fetchRevenueByDateFromHourly(db, ctx) {
     {
       $group: {
         _id: "$business_date",
-        revenue: { $sum: { $ifNull: ["$total_revenue", 0] } }
+        revenue: { $sum: { $ifNull: ["$total_revenue_ex_vat", 0] } }
       }
     }
   ]).toArray();
-  return new Map(rows.map((r) => [r._id, r.revenue]));
+  return new Map(rows.map((r) => [r._id, Math.round(r.revenue * 100) / 100]));
 }
 function sumMapValues(m) {
   let s = 0;
@@ -6769,14 +5795,14 @@ async function fetchRevenueByDateAndLocationFromHourly(db, ctx) {
     {
       $group: {
         _id: { date: "$business_date", locationId: "$locationId" },
-        revenue: { $sum: { $ifNull: ["$total_revenue", 0] } }
+        revenue: { $sum: { $ifNull: ["$total_revenue_ex_vat", 0] } }
       }
     }
   ]).toArray();
   const map = /* @__PURE__ */ new Map();
   for (const r of rows) {
     const lid = r._id.locationId != null ? String(r._id.locationId) : "unknown";
-    map.set(locationDayKey(r._id.date, lid), r.revenue);
+    map.set(locationDayKey(r._id.date, lid), Math.round(r.revenue * 100) / 100);
   }
   return map;
 }
@@ -6784,33 +5810,44 @@ function normalizeBasisLocationLabel(s) {
   return s.trim().toLowerCase().replace(/\s+/g, " ");
 }
 function pickBasisReportsPerLocation$1(reports) {
-  const sorted = [...reports].sort((a, b) => {
-    var _a, _b, _c, _d;
-    const bh = ((_a = b.business_hour) != null ? _a : -1) - ((_b = a.business_hour) != null ? _b : -1);
-    if (bh !== 0) return bh;
-    const ch = ((_c = b.cron_hour) != null ? _c : -1) - ((_d = a.cron_hour) != null ? _d : -1);
-    if (ch !== 0) return ch;
-    const ra = a.received_at ? new Date(a.received_at).getTime() : 0;
-    const rb = b.received_at ? new Date(b.received_at).getTime() : 0;
-    return rb - ra;
-  });
-  const byNorm = /* @__PURE__ */ new Map();
-  for (const r of sorted) {
-    const key = normalizeBasisLocationLabel(r.location);
-    if (!key || key === "unspecified") continue;
-    if (!byNorm.has(key)) byNorm.set(key, r);
+  const byLocDate = /* @__PURE__ */ new Map();
+  for (const r of reports) {
+    const locKey = normalizeBasisLocationLabel(r.location);
+    if (!locKey || locKey === "unspecified") continue;
+    const dateKey = r.business_date || r.date;
+    const key = `${locKey}:::${dateKey}`;
+    if (!byLocDate.has(key)) {
+      byLocDate.set(key, []);
+    }
+    byLocDate.get(key).push(r);
   }
-  return byNorm;
+  const result = /* @__PURE__ */ new Map();
+  for (const [key, list] of byLocDate) {
+    const sorted = [...list].sort((a, b) => {
+      var _a, _b;
+      const priorityDiff = ((_a = b.cron_priority) != null ? _a : 0) - ((_b = a.cron_priority) != null ? _b : 0);
+      if (priorityDiff !== 0) return priorityDiff;
+      const aTime = a.received_at ? new Date(a.received_at).getTime() : 0;
+      const bTime = b.received_at ? new Date(b.received_at).getTime() : 0;
+      return bTime - aTime;
+    });
+    result.set(key, sorted[0]);
+  }
+  return result;
 }
 async function fetchInboxBasisRevenueTotalExVat(db, ctx) {
   var _a;
-  const rows = await db.collection("inbox-bork-basis-report").find({
-    date: { $gte: ctx.startDate, $lte: ctx.endDate }
-  }).toArray();
+  const query = {
+    business_date: { $gte: ctx.startDate, $lte: ctx.endDate }
+  };
+  if (ctx.locationId !== void 0) {
+    query.location_id = String(ctx.locationId);
+  }
+  const rows = await db.collection("inbox-bork-basis-report").find(query).toArray();
   if (rows.length === 0) return null;
   const byDate = /* @__PURE__ */ new Map();
   for (const r of rows) {
-    const d = r.date;
+    const d = r.business_date || r.date;
     if (!byDate.has(d)) byDate.set(d, []);
     byDate.get(d).push(r);
   }
@@ -6868,14 +5905,14 @@ async function fetchRevenueByDateAndLocation(db, ctx) {
     {
       $group: {
         _id: { date: "$business_date", locationId: "$locationId" },
-        revenue: { $sum: { $ifNull: ["$total_revenue", 0] } }
+        revenue: { $sum: { $ifNull: ["$total_revenue_ex_vat", 0] } }
       }
     }
   ]).toArray();
   const map = /* @__PURE__ */ new Map();
   for (const r of rows) {
     const lid = r._id.locationId != null ? String(r._id.locationId) : "unknown";
-    map.set(locationDayKey(r._id.date, lid), r.revenue);
+    map.set(locationDayKey(r._id.date, lid), Math.round(r.revenue * 100) / 100);
   }
   return map;
 }
@@ -7536,6 +6573,40 @@ function getGmailRedirectUri() {
   return `${baseUrl}/api/auth/gmail/callback`;
 }
 
+function firstNonEmptyCell(row) {
+  if (!row || row.length === 0) return "";
+  for (const c of row) {
+    const t = String(c != null ? c : "").trim();
+    if (t) return t;
+  }
+  return "";
+}
+function extractLocationFromTrivecBasisPreamble(preamble) {
+  if (!preamble || preamble.length < 4) return "";
+  const raw = firstNonEmptyCell(preamble[3]);
+  if (!raw) return "";
+  const low = raw.toLowerCase();
+  if (low.includes("basis rapport")) return "";
+  if (/^\d{1,2}\/\d{1,2}\/\d{4}/.test(raw)) return "";
+  if (/\b\d{4}\s*[A-Z]{2}\b/i.test(raw) && /nederland|netherlands/i.test(raw)) return "";
+  return raw;
+}
+function extractDateFromTrivecBasisPreamble(preamble) {
+  if (!preamble || preamble.length < 2) return "";
+  const raw = firstNonEmptyCell(preamble[1]);
+  if (!raw) return "";
+  const range = raw.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})\s*-\s*(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (range) {
+    const [, d, m, y] = range;
+    return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+  }
+  const single = raw.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (single) {
+    const [, d, m, y] = single;
+    return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+  }
+  return "";
+}
 function normalizeLooseLabel(s) {
   return s.trim().toLowerCase().replace(/\s+/g, " ");
 }
@@ -7586,8 +6657,28 @@ function extractLocationFromBasisFileName(fileName) {
   return "";
 }
 
+function escapeRegExp(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+function addCalendarDaysISO$1(dateStr, deltaDays) {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d + deltaDays));
+  const yy = dt.getUTCFullYear();
+  const mm = String(dt.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(dt.getUTCDate()).padStart(2, "0");
+  return `${yy}-${mm}-${dd}`;
+}
+function calendarToBusinessDay(calendarDateStr, calendarHour) {
+  if (calendarHour >= 8 && calendarHour <= 23) {
+    return { businessDate: calendarDateStr, businessHour: calendarHour - 8 };
+  }
+  return {
+    businessDate: addCalendarDaysISO$1(calendarDateStr, -1),
+    businessHour: calendarHour + 16
+  };
+}
 async function mapBasisReportXLSX(parseResult, fileName, emailData, db) {
-  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l;
+  var _a, _b, _c, _d, _e, _f, _g, _h, _i, _j, _k, _l, _m;
   if (!parseResult.success || parseResult.rows.length === 0) {
     return null;
   }
@@ -7601,26 +6692,59 @@ async function mapBasisReportXLSX(parseResult, fileName, emailData, db) {
     } catch {
     }
   }
+  const meta = (_a = parseResult.metadata) != null ? _a : {};
+  const preamble = meta.trivecBasisPreamble;
+  const locationFromSheet = extractLocationFromTrivecBasisPreamble(preamble);
+  const dateFromSheet = extractDateFromTrivecBasisPreamble(preamble);
   const dateFromSubject = extractDateFromSubject(subject) || "";
   const locationFromSubject = matchVenueLocationFromText(subject != null ? subject : "") || "";
-  const dateFromMetadata = String(((_a = parseResult.metadata) == null ? void 0 : _a.extracted_date) || "");
-  const locationFromMetadata = String(((_b = parseResult.metadata) == null ? void 0 : _b.extracted_location) || "");
-  const dateStr = dateFromSubject || dateFromMetadata || extractDateFromFile(rows) || "";
-  const locationRaw = locationFromSubject || (locationFromMetadata && locationFromMetadata !== "undefined" ? locationFromMetadata : "") || extractLocationFromBasisSpreadsheet(rows, fileName) || "";
+  const dateFromMetadata = String(meta.extracted_date || "");
+  const locationFromMetadata = String(meta.extracted_location || "");
+  const dateStr = dateFromSubject || (dateFromMetadata && dateFromMetadata !== "undefined" ? dateFromMetadata : "") || dateFromSheet || extractDateFromFile(rows) || "";
+  const locationRaw = locationFromSheet || locationFromSubject || (locationFromMetadata && locationFromMetadata !== "undefined" ? locationFromMetadata : "") || extractLocationFromBasisSpreadsheet(rows, fileName) || "";
   let locationId;
+  let locationCanonical;
   if (db && locationRaw && locationRaw !== "Unknown" && locationRaw !== "Unspecified") {
     try {
-      const locDoc = await db.collection("unified_location").findOne({
+      const exact = await db.collection("unified_location").findOne({
         $or: [
           { name: locationRaw },
           { primaryName: locationRaw },
           { canonicalName: locationRaw },
           { abbreviation: locationRaw },
+          { aliases: locationRaw },
           { "borkMapping.borkLocationName": locationRaw }
         ]
       });
+      let locDoc = exact;
+      if (!locDoc) {
+        const ci = { $regex: `^${escapeRegExp(locationRaw)}$`, $options: "i" };
+        locDoc = await db.collection("unified_location").findOne({
+          $or: [
+            { name: ci },
+            { primaryName: ci },
+            { canonicalName: ci },
+            { abbreviation: ci },
+            { aliases: ci },
+            { "borkMapping.borkLocationName": ci }
+          ]
+        });
+      }
+      if (!locDoc && locationRaw.trim().length >= 6) {
+        const sub = { $regex: escapeRegExp(locationRaw.trim()), $options: "i" };
+        locDoc = await db.collection("unified_location").findOne({
+          $or: [
+            { name: sub },
+            { primaryName: sub },
+            { canonicalName: sub },
+            { "borkMapping.borkLocationName": sub },
+            { aliases: sub }
+          ]
+        });
+      }
       if (locDoc) {
         locationId = String(locDoc._id);
+        locationCanonical = (_c = (_b = locDoc.primaryName) != null ? _b : locDoc.canonicalName) != null ? _c : locDoc.name;
       }
     } catch (err) {
     }
@@ -7630,7 +6754,7 @@ async function mapBasisReportXLSX(parseResult, fileName, emailData, db) {
   const receivedDate = receivedRaw instanceof Date ? receivedRaw : receivedRaw != null ? new Date(String(receivedRaw)) : void 0;
   const amsterdamWallHour = receivedDate && !Number.isNaN(receivedDate.getTime()) ? getAmsterdamWallHour(receivedDate) : void 0;
   const cronHour = batchHourFromSubject != null ? batchHourFromSubject : amsterdamWallHour;
-  const businessHour = cronHour !== void 0 ? (cronHour - 8 + 24) % 24 : void 0;
+  const { businessDate, businessHour } = cronHour !== void 0 && dateStr ? calendarToBusinessDay(dateStr, cronHour) : { businessDate: void 0, businessHour: void 0 };
   const sections = {};
   const sectionMarkers = [];
   for (let i = 0; i < rows.length; i++) {
@@ -7666,7 +6790,7 @@ async function mapBasisReportXLSX(parseResult, fileName, emailData, db) {
   }
   const paymentMarker = sectionMarkers.find((m) => m.sectionType === "payments");
   if (paymentMarker) {
-    const paymentEndIdx = (_d = (_c = sectionMarkers.find((m) => m.rowIdx > paymentMarker.rowIdx)) == null ? void 0 : _c.rowIdx) != null ? _d : rows.length;
+    const paymentEndIdx = (_e = (_d = sectionMarkers.find((m) => m.rowIdx > paymentMarker.rowIdx)) == null ? void 0 : _d.rowIdx) != null ? _e : rows.length;
     const paymentData = getRowsForSection(paymentMarker.rowIdx + 1, paymentEndIdx);
     if (paymentData.length > 0) {
       sections.payments = mapPayments(paymentData);
@@ -7674,7 +6798,7 @@ async function mapBasisReportXLSX(parseResult, fileName, emailData, db) {
   }
   const correctionMarker = sectionMarkers.find((m) => m.sectionType === "corrections");
   if (correctionMarker) {
-    const correctionEndIdx = (_f = (_e = sectionMarkers.find((m) => m.rowIdx > correctionMarker.rowIdx)) == null ? void 0 : _e.rowIdx) != null ? _f : rows.length;
+    const correctionEndIdx = (_g = (_f = sectionMarkers.find((m) => m.rowIdx > correctionMarker.rowIdx)) == null ? void 0 : _f.rowIdx) != null ? _g : rows.length;
     const correctionData = getRowsForSection(correctionMarker.rowIdx + 1, correctionEndIdx);
     if (correctionData.length > 0) {
       sections.corrections = mapCorrections(correctionData, parseResult.headers);
@@ -7688,22 +6812,33 @@ async function mapBasisReportXLSX(parseResult, fileName, emailData, db) {
     }
   }
   if (db) {
-    if ((_g = sections.corrections) == null ? void 0 : _g.adjustments) {
+    if ((_h = sections.corrections) == null ? void 0 : _h.adjustments) {
       await normalizeUserNames(sections.corrections.adjustments, db);
     }
-    if ((_h = sections.internal_sales) == null ? void 0 : _h.staff) {
+    if ((_i = sections.internal_sales) == null ? void 0 : _i.staff) {
       await normalizeUserNames(sections.internal_sales.staff, db);
     }
   }
-  const finalRevenueIncl = ((_j = (_i = sections.netto_sales) == null ? void 0 : _i.grand_total) == null ? void 0 : _j.price_incl_vat) || 0;
-  const finalRevenueEx = ((_l = (_k = sections.netto_sales) == null ? void 0 : _k.grand_total) == null ? void 0 : _l.price_ex_vat) || 0;
+  const finalRevenueIncl = ((_k = (_j = sections.netto_sales) == null ? void 0 : _j.grand_total) == null ? void 0 : _k.price_incl_vat) || 0;
+  const finalRevenueEx = ((_m = (_l = sections.netto_sales) == null ? void 0 : _l.grand_total) == null ? void 0 : _m.price_ex_vat) || 0;
+  const cronPriority = cronHour === 7 ? 3 : cronHour === 23 ? 2 : cronHour === 18 ? 1 : 0;
+  if (db && locationRaw && !locationId) {
+    try {
+      console.warn(
+        `[basis-report-mapper] Unmapped location label "${locationRaw}" \u2014 add it to unified_location.aliases (subject="${subject != null ? subject : ""}", file="${fileName}")`
+      );
+    } catch {
+    }
+  }
   return {
     date: dateStr || "UNKNOWN",
-    location: locationRaw || "Unspecified",
+    location: locationCanonical || locationRaw || "Unspecified",
     location_id: locationId,
     location_raw: locationRaw,
     cron_hour: cronHour,
+    cron_priority: cronPriority,
     business_hour: businessHour,
+    business_date: businessDate,
     received_at: emailData == null ? void 0 : emailData.receivedAt,
     sections,
     final_revenue_incl_vat: finalRevenueIncl,
@@ -7712,6 +6847,8 @@ async function mapBasisReportXLSX(parseResult, fileName, emailData, db) {
       email_subject: subject,
       attachment_filename: fileName,
       parsed_at: /* @__PURE__ */ new Date(),
+      ...locationFromSheet ? { trivec_sheet_location_raw: locationFromSheet } : {},
+      ...dateFromSheet ? { trivec_sheet_date_iso: dateFromSheet } : {},
       ...(emailData == null ? void 0 : emailData.attachmentId) ? { source_attachment_id: emailData.attachmentId } : {},
       ...(emailData == null ? void 0 : emailData.emailId) ? { source_email_id: emailData.emailId } : {}
     }
@@ -32553,7 +31690,11 @@ async function parseExcel(excelBuffer, options = {}) {
         error: "Excel file contains no sheets"
       };
     }
-    const sheetOptions = { skipRows: options.skipRows, emptyHeadersAsColumnN: options.emptyHeadersAsColumnN };
+    const sheetOptions = {
+      skipRows: options.skipRows,
+      emptyHeadersAsColumnN: options.emptyHeadersAsColumnN,
+      capturePreambleRowCount: options.capturePreambleRowCount
+    };
     if (options.sheetName) {
       const sheet = workbook.Sheets[options.sheetName];
       if (!sheet) {
@@ -32648,6 +31789,9 @@ function parseSheet(sheet, format, sheetNames, opts = {}) {
         metadata: { sheets: sheetNames }
       };
     }
+    const preamble = opts.capturePreambleRowCount != null && opts.capturePreambleRowCount > 0 ? jsonData.slice(0, opts.capturePreambleRowCount).map(
+      (row) => row.map((c) => String(c != null ? c : "").trim())
+    ) : void 0;
     const skipRows = (_a = opts.skipRows) != null ? _a : 0;
     const afterSkip = jsonData.slice(skipRows);
     if (afterSkip.length === 0) {
@@ -32687,7 +31831,8 @@ function parseSheet(sheet, format, sheetNames, opts = {}) {
       rows,
       rowCount: rows.length,
       metadata: {
-        sheets: sheetNames
+        sheets: sheetNames,
+        ...preamble ? { trivecBasisPreamble: preamble } : {}
       }
     };
   } catch (error) {
@@ -34004,6 +33149,7 @@ async function loadUnifiedLocationGroupResolver(db) {
         primaryName: 1,
         canonicalName: 1,
         abbreviation: 1,
+        aliases: 1,
         borkMapping: 1
       }
     }
@@ -34015,6 +33161,10 @@ async function loadUnifiedLocationGroupResolver(db) {
     registerAlias(aliasToGroup, doc.primaryName, groupKey);
     registerAlias(aliasToGroup, doc.canonicalName, groupKey);
     registerAlias(aliasToGroup, doc.abbreviation, groupKey);
+    const aliases = Array.isArray(doc.aliases) ? doc.aliases : [];
+    for (const a of aliases) {
+      if (typeof a === "string") registerAlias(aliasToGroup, a, groupKey);
+    }
     const bm = doc.borkMapping;
     if (bm == null ? void 0 : bm.borkLocationName) registerAlias(aliasToGroup, bm.borkLocationName, groupKey);
   }
@@ -34106,7 +33256,7 @@ const _rkMhOj = defineCachedEventHandler(async (event) => {
 
 const _lazy_YeQtu5 = () => Promise.resolve().then(function () { return authorize_get$1; });
 const _lazy_mFBrTd = () => Promise.resolve().then(function () { return callback_get$1; });
-const _lazy_ld8Iwt = () => Promise.resolve().then(function () { return sales_get$7; });
+const _lazy_ld8Iwt = () => Promise.resolve().then(function () { return sales_get$5; });
 const _lazy_rpoMxL = () => Promise.resolve().then(function () { return credentials_get$3; });
 const _lazy_Fk11Zg = () => Promise.resolve().then(function () { return credentials_post$3; });
 const _lazy_0fNa4b = () => Promise.resolve().then(function () { return cron_get$3; });
@@ -34120,14 +33270,14 @@ const _lazy_ir2wis = () => Promise.resolve().then(function () { return dataInteg
 const _lazy_fiyqpy = () => Promise.resolve().then(function () { return insights_get$1; });
 const _lazy_gJJ0yZ = () => Promise.resolve().then(function () { return locations_get$1; });
 const _lazy_7ki8Q4 = () => Promise.resolve().then(function () { return bundle_get$1; });
-const _lazy_GI_DGY = () => Promise.resolve().then(function () { return labor_get$3; });
+const _lazy_GI_DGY = () => Promise.resolve().then(function () { return labor_get$1; });
 const _lazy_Bpe9Sc = () => Promise.resolve().then(function () { return revenueBreakdown_get$1; });
 const _lazy_3d9XzO = () => Promise.resolve().then(function () { return summary_get$1; });
 const _lazy_ddvbvh = () => Promise.resolve().then(function () { return overview_get$1; });
 const _lazy_b9OPGV = () => Promise.resolve().then(function () { return productivity_get$1; });
 const _lazy_PkLaTv = () => Promise.resolve().then(function () { return products_get$1; });
 const _lazy_JmL3hN = () => Promise.resolve().then(function () { return revenue_get$1; });
-const _lazy_xkC3wT = () => Promise.resolve().then(function () { return sales_get$5; });
+const _lazy_xkC3wT = () => Promise.resolve().then(function () { return sales_get$3; });
 const _lazy_6ws9ek = () => Promise.resolve().then(function () { return workload_get$1; });
 const _lazy_vALsC_ = () => Promise.resolve().then(function () { return run_get$1; });
 const _lazy_4juWGc = () => Promise.resolve().then(function () { return fieldMapping_get$1; });
@@ -34150,7 +33300,7 @@ const _lazy_t9l008 = () => Promise.resolve().then(function () { return basisRepo
 const _lazy_5uSL73 = () => Promise.resolve().then(function () { return foodBeverage_get$1; });
 const _lazy_1Py5Rg = () => Promise.resolve().then(function () { return productMix_get$1; });
 const _lazy_xKhjZi = () => Promise.resolve().then(function () { return salesPerHour_get$1; });
-const _lazy_cOPVhi = () => Promise.resolve().then(function () { return sales_get$3; });
+const _lazy_cOPVhi = () => Promise.resolve().then(function () { return sales_get$1; });
 const _lazy_03hk_w = () => Promise.resolve().then(function () { return debugBarbea_get$1; });
 const _lazy_74gf57 = () => Promise.resolve().then(function () { return contracts_get$1; });
 const _lazy_6hI7Mq = () => Promise.resolve().then(function () { return finance_get$1; });
@@ -34212,10 +33362,6 @@ const _lazy_l24SXQ = () => Promise.resolve().then(function () { return _id__dele
 const _lazy_s6toDC = () => Promise.resolve().then(function () { return index_get$5; });
 const _lazy_225H4_ = () => Promise.resolve().then(function () { return index_post$1; });
 const _lazy_jRvml4 = () => Promise.resolve().then(function () { return index_get$3; });
-const _lazy_705EJ4 = () => Promise.resolve().then(function () { return trigger_post$1; });
-const _lazy_NYaGeS = () => Promise.resolve().then(function () { return dashboard_get$1; });
-const _lazy_k5UGFT = () => Promise.resolve().then(function () { return labor_get$1; });
-const _lazy_DuZCYP = () => Promise.resolve().then(function () { return sales_get$1; });
 const _lazy_90ItQx = () => Promise.resolve().then(function () { return active_get$1; });
 const _lazy_ILK1q4 = () => Promise.resolve().then(function () { return index_get$1; });
 const _lazy_kONC8c = () => Promise.resolve().then(function () { return renderer$1; });
@@ -34330,10 +33476,6 @@ const handlers = [
   { route: '/api/teams', handler: _lazy_s6toDC, lazy: true, middleware: false, method: "get" },
   { route: '/api/teams', handler: _lazy_225H4_, lazy: true, middleware: false, method: "post" },
   { route: '/api/unified-users', handler: _lazy_jRvml4, lazy: true, middleware: false, method: "get" },
-  { route: '/api/v3/aggregation/trigger', handler: _lazy_705EJ4, lazy: true, middleware: false, method: "post" },
-  { route: '/api/v3/dashboard', handler: _lazy_NYaGeS, lazy: true, middleware: false, method: "get" },
-  { route: '/api/v3/labor', handler: _lazy_k5UGFT, lazy: true, middleware: false, method: "get" },
-  { route: '/api/v3/sales', handler: _lazy_DuZCYP, lazy: true, middleware: false, method: "get" },
   { route: '/api/workers/active', handler: _lazy_90ItQx, lazy: true, middleware: false, method: "get" },
   { route: '/api/workers', handler: _lazy_ILK1q4, lazy: true, middleware: false, method: "get" },
   { route: '/__nuxt_error', handler: _lazy_kONC8c, lazy: true, middleware: false, method: undefined },
@@ -34948,7 +34090,13 @@ class DocumentParserService {
             };
           }
           const filenameHint = classifyByFilename(options.fileName);
-          const basisReportOptions = filenameHint.type === "basis_report" ? { parseAllSheets: false, skipRows: 9, emptyHeadersAsColumnN: true } : { parseAllSheets: true };
+          const basisReportOptions = filenameHint.type === "basis_report" ? {
+            parseAllSheets: false,
+            skipRows: 9,
+            emptyHeadersAsColumnN: true,
+            /** Rows 1–5: title, date, blank, venue, address — preserved before skipRows strips them from `rows`. */
+            capturePreambleRowCount: 12
+          } : { parseAllSheets: true };
           parseResult = await parseExcel(options.data, basisReportOptions);
           break;
         }
@@ -36188,19 +35336,30 @@ async function runInboxGmailSync(options) {
   };
 }
 
+console.log("[inbox/gmail-sync.ts] Module loaded - this should print on Nitro startup");
 const gmailSync = defineTask({
   meta: {
     name: "inbox:gmail-sync",
     description: "Scheduled Gmail inbox fetch (same as POST /api/inbox/sync)"
   },
   async run() {
+    console.log(
+      "[inbox:gmail-sync] SCHEDULED TASK TRIGGERED AT",
+      (/* @__PURE__ */ new Date()).toISOString(),
+      "(local clock:",
+      (/* @__PURE__ */ new Date()).toLocaleString("en-US", { timeZone: "UTC" }),
+      "UTC)"
+    );
     const maxResults = parseInt(process.env.INBOX_SYNC_MAX_RESULTS || "100", 10);
     const capped = Number.isFinite(maxResults) ? Math.min(500, Math.max(1, maxResults)) : 100;
     try {
+      console.log("[inbox:gmail-sync] Running sync with maxResults=" + capped);
       const result = await runInboxGmailSync({ maxResults: capped });
+      console.log("[inbox:gmail-sync] SUCCESS:", result.data);
       return { result: result.data };
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
+      console.error("[inbox:gmail-sync] ERROR:", message, e);
       return { result: { ok: false, error: message } };
     }
   }
@@ -36211,6 +35370,7 @@ const gmailSync$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.definePropert
   default: gmailSync
 }, Symbol.toStringTag, { value: 'Module' }));
 
+console.log("[integrations/bork-eitje-daily.ts] Module loaded - this should print on Nitro startup");
 const JOB_TYPE = "daily-data";
 const PAUSE_MS = 3e4;
 const borkEitjeDaily = defineTask({
@@ -36219,19 +35379,28 @@ const borkEitjeDaily = defineTask({
     description: "Scheduled Bork + Eitje daily-data raw fetch (matches GitHub daily-ops-sync.yml)"
   },
   async run() {
-    const db = await getDb();
-    const bork = await runIntegrationCronJob(db, "bork", JOB_TYPE);
-    await new Promise((resolve) => {
-      setTimeout(resolve, PAUSE_MS);
-    });
-    const eitje = await runIntegrationCronJob(db, "eitje", JOB_TYPE);
-    return {
-      result: {
-        ok: bork.syncResult.ok && eitje.syncResult.ok,
-        bork: bork.syncResult,
-        eitje: eitje.syncResult
-      }
-    };
+    console.log("[integrations:bork-eitje-daily] SCHEDULED TASK TRIGGERED AT", (/* @__PURE__ */ new Date()).toISOString());
+    try {
+      const db = await getDb();
+      console.log("[integrations:bork-eitje-daily] Got database connection");
+      const bork = await runIntegrationCronJob(db, "bork", JOB_TYPE);
+      console.log("[integrations:bork-eitje-daily] Bork completed, waiting...");
+      await new Promise((resolve) => {
+        setTimeout(resolve, PAUSE_MS);
+      });
+      const eitje = await runIntegrationCronJob(db, "eitje", JOB_TYPE);
+      console.log("[integrations:bork-eitje-daily] Eitje completed");
+      return {
+        result: {
+          ok: bork.syncResult.ok && eitje.syncResult.ok,
+          bork: bork.syncResult,
+          eitje: eitje.syncResult
+        }
+      };
+    } catch (e) {
+      console.error("[integrations:bork-eitje-daily] ERROR:", e);
+      throw e;
+    }
   }
 });
 
@@ -36318,12 +35487,14 @@ const callback_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProp
 }, Symbol.toStringTag, { value: 'Module' }));
 
 const SALES_LIST_SORT = {
-  date: -1,
+  business_date: -1,
   business_hour: -1,
   cron_hour: -1,
   received_at: -1
 };
-const sales_get$6 = defineEventHandler(async (event) => {
+const sales_get$4 = defineEventHandler(async (event) => {
+  var _a, _b, _c;
+  setResponseHeader(event, "Cache-Control", "no-store");
   try {
     const query = getQuery$1(event);
     const date = query.date;
@@ -36334,11 +35505,32 @@ const sales_get$6 = defineEventHandler(async (event) => {
     const filter = {};
     if (date) filter.date = date;
     if (location) filter.location = { $regex: location, $options: "i" };
-    const reports = await collection.find(filter).sort(SALES_LIST_SORT).limit(limit).toArray();
+    const [reports, resolver, unifiedLocations] = await Promise.all([
+      collection.find(filter).sort(SALES_LIST_SORT).limit(limit).toArray(),
+      loadUnifiedLocationGroupResolver(db),
+      db.collection("unified_location").find({}, { projection: { name: 1, primaryName: 1, canonicalName: 1 } }).toArray()
+    ]);
+    const idToName = /* @__PURE__ */ new Map();
+    for (const u of unifiedLocations) {
+      const display = (_c = (_b = (_a = u.canonicalName) != null ? _a : u.primaryName) != null ? _b : u.name) != null ? _c : "";
+      if (display) idToName.set(`u:${String(u._id)}`, display);
+    }
+    const enriched = reports.map((r) => {
+      var _a2, _b2, _c2, _d, _e, _f;
+      const groupKey = (_d = (_c2 = (_a2 = resolver.groupKeyFromBasisLocationId(r.location_id)) != null ? _a2 : resolver.resolveGroupKey(r.location)) != null ? _c2 : resolver.resolveGroupKey((_b2 = r.location_raw) != null ? _b2 : "")) != null ? _d : null;
+      const isUnifiedKey = (_e = groupKey == null ? void 0 : groupKey.startsWith("u:")) != null ? _e : false;
+      const unifiedId = isUnifiedKey ? groupKey.slice(2) : null;
+      const displayName = isUnifiedKey ? (_f = idToName.get(groupKey)) != null ? _f : null : null;
+      return {
+        ...r,
+        unified_location_id: unifiedId,
+        unified_location_name: displayName
+      };
+    });
     return {
       success: true,
-      data: reports,
-      count: reports.length
+      data: enriched,
+      count: enriched.length
     };
   } catch (error) {
     throw createError({
@@ -36348,9 +35540,9 @@ const sales_get$6 = defineEventHandler(async (event) => {
   }
 });
 
-const sales_get$7 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+const sales_get$5 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
   __proto__: null,
-  default: sales_get$6
+  default: sales_get$4
 }, Symbol.toStringTag, { value: 'Module' }));
 
 const credentials_get$2 = defineEventHandler(async () => {
@@ -37578,20 +36770,9 @@ const locations_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.definePro
 }, Symbol.toStringTag, { value: 'Module' }));
 
 const bundle_get = defineEventHandler(async (event) => {
-  var _a;
-  setResponseHeader(event, "Cache-Control", "private, max-age=30, stale-while-revalidate=120");
-  let ctx = parseDailyOpsMetricsQuery(getQuery$1(event));
+  setResponseHeader(event, "Cache-Control", "no-store");
+  const ctx = parseDailyOpsMetricsQuery(getQuery$1(event));
   const db = await getDb();
-  if (ctx.locationId && typeof ctx.locationId !== "string") {
-    try {
-      const unifiedDoc = await db.collection("unified_location").findOne({ _id: ctx.locationId });
-      if ((_a = unifiedDoc == null ? void 0 : unifiedDoc.eitjeIds) == null ? void 0 : _a[0]) {
-        ctx.locationId = String(unifiedDoc.eitjeIds[0]);
-      }
-    } catch (e) {
-      console.error("[bundle] Failed to resolve location:", e);
-    }
-  }
   const [cat, hourBundle, laborInput, inboxBasisExVat] = await Promise.all([
     fetchRevenueByCategoryFromHourAggregates(db, ctx),
     fetchBorkHourAggregatesBundle(db, ctx),
@@ -37601,7 +36782,6 @@ const bundle_get = defineEventHandler(async (event) => {
   const todayExtras = await fetchTodayDashboardRevenueExtras(db, ctx, hourBundle);
   const summary = buildDailyOpsSummaryDto(ctx, laborInput.revMap, laborInput.labMap, {
     apiBusinessDaysTotal: laborInput.revenueSplit.businessDaysPeriodTotal,
-    apiHourlySumTotal: laborInput.revenueSplit.hourlyPeriodTotal,
     inboxBasisExVat
   });
   const revenue = buildDailyOpsRevenueBreakdownDto(ctx, cat, hourBundle, laborInput.revMap, laborInput.labMap, todayExtras);
@@ -37614,21 +36794,21 @@ const bundle_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProper
   default: bundle_get
 }, Symbol.toStringTag, { value: 'Module' }));
 
-const labor_get$2 = defineEventHandler(async (event) => {
-  setResponseHeader(event, "Cache-Control", "private, max-age=30, stale-while-revalidate=120");
+const labor_get = defineEventHandler(async (event) => {
+  setResponseHeader(event, "Cache-Control", "no-store");
   const ctx = parseDailyOpsMetricsQuery(getQuery$1(event));
   const db = await getDb();
   const input = await fetchLaborMetricsPipelineInput(db, ctx);
   return assembleDailyOpsLaborMetricsDto(ctx, input);
 });
 
-const labor_get$3 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+const labor_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
   __proto__: null,
-  default: labor_get$2
+  default: labor_get
 }, Symbol.toStringTag, { value: 'Module' }));
 
 const revenueBreakdown_get = defineEventHandler(async (event) => {
-  setResponseHeader(event, "Cache-Control", "private, max-age=30, stale-while-revalidate=120");
+  setResponseHeader(event, "Cache-Control", "no-store");
   const ctx = parseDailyOpsMetricsQuery(getQuery$1(event));
   const db = await getDb();
   const [cat, hourBundle, revenueByDate, laborByDate] = await Promise.all([
@@ -37646,7 +36826,7 @@ const revenueBreakdown_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.de
 }, Symbol.toStringTag, { value: 'Module' }));
 
 const summary_get = defineEventHandler(async (event) => {
-  setResponseHeader(event, "Cache-Control", "private, max-age=30, stale-while-revalidate=120");
+  setResponseHeader(event, "Cache-Control", "no-store");
   const ctx = parseDailyOpsMetricsQuery(getQuery$1(event));
   const db = await getDb();
   const [revMap, labMap] = await Promise.all([fetchRevenueByDate(db, ctx), fetchLaborByDate(db, ctx)]);
@@ -37659,7 +36839,7 @@ const summary_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.definePrope
 }, Symbol.toStringTag, { value: 'Module' }));
 
 const overview_get = defineEventHandler(async (event) => {
-  setResponseHeader(event, "Cache-Control", "private, max-age=30, stale-while-revalidate=120");
+  setResponseHeader(event, "Cache-Control", "no-store");
   const ctx = parseDailyOpsMetricsQuery(getQuery$1(event));
   const db = await getDb();
   const [cat, hourBundle, revenueByDate, laborByDate] = await Promise.all([
@@ -37788,7 +36968,7 @@ const revenue_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.definePrope
   default: revenue_get
 }, Symbol.toStringTag, { value: 'Module' }));
 
-const sales_get$4 = defineEventHandler((event) => {
+const sales_get$2 = defineEventHandler((event) => {
   const q = getQuery$1(event);
   const period = typeof q.period === "string" ? q.period : "today";
   const anchor = typeof q.anchor === "string" ? q.anchor : void 0;
@@ -37805,9 +36985,9 @@ const sales_get$4 = defineEventHandler((event) => {
   };
 });
 
-const sales_get$5 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+const sales_get$3 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
   __proto__: null,
-  default: sales_get$4
+  default: sales_get$2
 }, Symbol.toStringTag, { value: 'Module' }));
 
 const workload_get = defineEventHandler((event) => {
@@ -39392,7 +38572,7 @@ const salesPerHour_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.define
   default: salesPerHour_get
 }, Symbol.toStringTag, { value: 'Module' }));
 
-const sales_get$2 = defineEventHandler(async (event) => {
+const sales_get = defineEventHandler(async (event) => {
   try {
     const q = getQuery$1(event);
     const data = await getInboxImportTablePayload("sales", parseInboxImportTableQuery(q));
@@ -39406,9 +38586,9 @@ const sales_get$2 = defineEventHandler(async (event) => {
   }
 });
 
-const sales_get$3 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
+const sales_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
   __proto__: null,
-  default: sales_get$2
+  default: sales_get
 }, Symbol.toStringTag, { value: 'Module' }));
 
 const debugBarbea_get = defineEventHandler(async () => {
@@ -42598,257 +41778,6 @@ const index_get$2 = defineEventHandler(async () => {
 const index_get$3 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
   __proto__: null,
   default: index_get$2
-}, Symbol.toStringTag, { value: 'Module' }));
-
-const trigger_post = defineEventHandler(async (event) => {
-  const db = await getDb();
-  const body = await readBody(event);
-  try {
-    const businessDate = (body == null ? void 0 : body.businessDate) || getCurrentBusinessDate();
-    console.log(`[v3-aggregation-trigger] Manual trigger for business date: ${businessDate}`);
-    const result = await runV3AggregationPipeline(db, businessDate, (msg) => {
-      console.log(`[V3-Manual] ${msg}`);
-    });
-    return {
-      success: result.success,
-      message: result.message,
-      businessDate: result.businessDate,
-      startedAt: result.startedAt,
-      completedAt: result.completedAt,
-      durationMs: result.durationMs,
-      totalLocations: result.totalLocations,
-      successCount: result.successCount,
-      failureCount: result.failureCount,
-      locations: result.locations.map((r) => ({
-        locationId: r.locationId.toString(),
-        locationName: r.locationName,
-        success: r.success,
-        syncCount: r.syncCount,
-        durationMs: r.durationMs,
-        message: r.message,
-        error: r.error
-      }))
-    };
-  } catch (error) {
-    const errorMsg = error instanceof Error ? error.message : String(error);
-    console.error("[v3-aggregation-trigger] Error:", errorMsg);
-    return createError({
-      statusCode: 500,
-      statusMessage: `V3 aggregation trigger failed: ${errorMsg}`
-    });
-  }
-});
-
-const trigger_post$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
-  __proto__: null,
-  default: trigger_post
-}, Symbol.toStringTag, { value: 'Module' }));
-
-const dashboard_get = defineEventHandler(async (event) => {
-  const query = getQuery$1(event);
-  try {
-    const db = await getDb();
-    if (query.all === "true" || query.all === "1") {
-      const businessDate2 = query.businessDate || getCurrentBusinessDate();
-      const snapshots = await db.collection("v3_daily_ops_dashboard_snapshots").find({ businessDate: businessDate2 }).toArray();
-      return {
-        success: true,
-        data: snapshots,
-        businessDate: businessDate2,
-        count: snapshots.length
-      };
-    }
-    const locationId = query.locationId;
-    const businessDate = query.businessDate || getCurrentBusinessDate();
-    if (!locationId) {
-      return createError({
-        statusCode: 400,
-        statusMessage: "Missing parameter: locationId"
-      });
-    }
-    const snapshot = await getDashboardSnapshot(db, new ObjectId(locationId), businessDate);
-    if (!snapshot) {
-      return {
-        success: false,
-        data: null,
-        message: "Dashboard snapshot not found",
-        locationId,
-        businessDate
-      };
-    }
-    return {
-      success: true,
-      data: snapshot,
-      locationId,
-      businessDate
-    };
-  } catch (error) {
-    const errorMsg = error instanceof Error ? error.message : String(error);
-    console.error("[v3-dashboard-api]", errorMsg);
-    return createError({
-      statusCode: 500,
-      statusMessage: `Failed to fetch dashboard snapshot: ${errorMsg}`
-    });
-  }
-});
-
-const dashboard_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
-  __proto__: null,
-  default: dashboard_get
-}, Symbol.toStringTag, { value: 'Module' }));
-
-const labor_get = defineEventHandler(async (event) => {
-  const query = getQuery$1(event);
-  try {
-    const db = await getDb();
-    if (query.all === "true" || query.all === "1") {
-      const businessDate2 = query.businessDate || getCurrentBusinessDate();
-      const snapshots = await db.collection("v3_labor_working_day_snapshots").find({ businessDate: businessDate2 }).toArray();
-      return {
-        success: true,
-        data: snapshots,
-        businessDate: businessDate2,
-        count: snapshots.length
-      };
-    }
-    if (query.range === "true" || query.range === "1") {
-      const locationId2 = query.locationId;
-      const startDate = query.startDate;
-      const endDate = query.endDate;
-      if (!locationId2 || !startDate || !endDate) {
-        return createError({
-          statusCode: 400,
-          statusMessage: "Missing parameters: locationId, startDate, endDate"
-        });
-      }
-      const snapshots = await db.collection("v3_labor_working_day_snapshots").find({
-        locationId: new ObjectId(locationId2),
-        businessDate: { $gte: startDate, $lte: endDate }
-      }).sort({ businessDate: -1 }).toArray();
-      return {
-        success: true,
-        data: snapshots,
-        locationId: locationId2,
-        startDate,
-        endDate,
-        count: snapshots.length
-      };
-    }
-    const locationId = query.locationId;
-    const businessDate = query.businessDate || getCurrentBusinessDate();
-    if (!locationId) {
-      return createError({
-        statusCode: 400,
-        statusMessage: "Missing parameter: locationId"
-      });
-    }
-    const snapshot = await getLaborSnapshot(db, new ObjectId(locationId), businessDate);
-    if (!snapshot) {
-      return {
-        success: false,
-        data: null,
-        message: "Snapshot not found",
-        locationId,
-        businessDate
-      };
-    }
-    return {
-      success: true,
-      data: snapshot,
-      locationId,
-      businessDate
-    };
-  } catch (error) {
-    const errorMsg = error instanceof Error ? error.message : String(error);
-    console.error("[v3-labor-api]", errorMsg);
-    return createError({
-      statusCode: 500,
-      statusMessage: `Failed to fetch labor snapshot: ${errorMsg}`
-    });
-  }
-});
-
-const labor_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
-  __proto__: null,
-  default: labor_get
-}, Symbol.toStringTag, { value: 'Module' }));
-
-const sales_get = defineEventHandler(async (event) => {
-  const query = getQuery$1(event);
-  try {
-    const db = await getDb();
-    if (query.all === "true" || query.all === "1") {
-      const businessDate2 = query.businessDate || getCurrentBusinessDate();
-      const snapshots = await getLatestSalesSnapshotsAllLocations(db, businessDate2);
-      return {
-        success: true,
-        data: snapshots,
-        businessDate: businessDate2,
-        count: snapshots.length
-      };
-    }
-    if (query.range === "true" || query.range === "1") {
-      const locationId2 = query.locationId;
-      const startDate = query.startDate;
-      const endDate = query.endDate;
-      if (!locationId2 || !startDate || !endDate) {
-        return createError({
-          statusCode: 400,
-          statusMessage: "Missing parameters: locationId, startDate, endDate"
-        });
-      }
-      const snapshots = await getSalesSnapshotsByLocationRange(
-        db,
-        new ObjectId(locationId2),
-        startDate,
-        endDate
-      );
-      return {
-        success: true,
-        data: snapshots,
-        locationId: locationId2,
-        startDate,
-        endDate,
-        count: snapshots.length
-      };
-    }
-    const locationId = query.locationId;
-    const businessDate = query.businessDate || getCurrentBusinessDate();
-    if (!locationId) {
-      return createError({
-        statusCode: 400,
-        statusMessage: "Missing parameter: locationId"
-      });
-    }
-    const snapshot = await getSalesSnapshot(db, new ObjectId(locationId), businessDate);
-    if (!snapshot) {
-      return {
-        success: false,
-        data: null,
-        message: "Snapshot not found",
-        locationId,
-        businessDate
-      };
-    }
-    return {
-      success: true,
-      data: snapshot,
-      locationId,
-      businessDate
-    };
-  } catch (error) {
-    const errorMsg = error instanceof Error ? error.message : String(error);
-    console.error("[v3-sales-api]", errorMsg);
-    return createError({
-      statusCode: 500,
-      statusMessage: `Failed to fetch sales snapshot: ${errorMsg}`
-    });
-  }
-});
-
-const sales_get$1 = /*#__PURE__*/Object.freeze(/*#__PURE__*/Object.defineProperty({
-  __proto__: null,
-  default: sales_get
 }, Symbol.toStringTag, { value: 'Module' }));
 
 const active_get = defineEventHandler(async () => {

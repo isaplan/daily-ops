@@ -7,6 +7,8 @@
  * @exports-to: nuxt.config.ts → nitro.scheduledTasks
  */
 
+console.log('[integrations/bork-eitje-daily.ts] Module loaded - this should print on Nitro startup')
+
 import { getDb } from '../../utils/db'
 import { runIntegrationCronJob } from '../../services/integrationCronRunner'
 
@@ -19,18 +21,27 @@ export default defineTask({
     description: 'Scheduled Bork + Eitje daily-data raw fetch (matches GitHub daily-ops-sync.yml)',
   },
   async run() {
-    const db = await getDb()
-    const bork = await runIntegrationCronJob(db, 'bork', JOB_TYPE)
-    await new Promise<void>((resolve) => {
-      setTimeout(resolve, PAUSE_MS)
-    })
-    const eitje = await runIntegrationCronJob(db, 'eitje', JOB_TYPE)
-    return {
-      result: {
-        ok: bork.syncResult.ok && eitje.syncResult.ok,
-        bork: bork.syncResult,
-        eitje: eitje.syncResult,
-      },
+    console.log('[integrations:bork-eitje-daily] SCHEDULED TASK TRIGGERED AT', new Date().toISOString())
+    try {
+      const db = await getDb()
+      console.log('[integrations:bork-eitje-daily] Got database connection')
+      const bork = await runIntegrationCronJob(db, 'bork', JOB_TYPE)
+      console.log('[integrations:bork-eitje-daily] Bork completed, waiting...')
+      await new Promise<void>((resolve) => {
+        setTimeout(resolve, PAUSE_MS)
+      })
+      const eitje = await runIntegrationCronJob(db, 'eitje', JOB_TYPE)
+      console.log('[integrations:bork-eitje-daily] Eitje completed')
+      return {
+        result: {
+          ok: bork.syncResult.ok && eitje.syncResult.ok,
+          bork: bork.syncResult,
+          eitje: eitje.syncResult,
+        },
+      }
+    } catch (e) {
+      console.error('[integrations:bork-eitje-daily] ERROR:', e)
+      throw e
     }
   },
 })
