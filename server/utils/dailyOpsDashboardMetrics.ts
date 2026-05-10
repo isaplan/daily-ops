@@ -1,6 +1,26 @@
 /**
  * Daily Ops dashboard: Bork revenue + Eitje labor aggregations (fast paths on prebuilt collections).
- * @last-fix: [2026-05-07] Completed single-day headline revenue leads with inbox Basis (ex VAT) when present; API merge fallback
+ * @last-fix: [2026-05-08] Corrected pickBasisReportsPerLocation to use cron 7 (final report from next morning)
+ * 
+ * @business-day-definition:
+ * A "business day" runs 06:00 to 05:59 NEXT day (Amsterdam time).
+ * 
+ * Example: Business Day May 6 = 06:00 May 6 to 05:59 May 7
+ * 
+ * Emails arrive via 3 daily crons (Amsterdam time):
+ *   1. Cron 18:05 (ISO May 6) → Business Day 6 report (partial, ~12 hours in)
+ *   2. Cron 23:05 (ISO May 6) → Business Day 6 report (partial, ~17 hours in)
+ *   3. Cron 07:00 (ISO May 7) → **FINAL COMPLETE** Business Day 6 report (closes at 05:59)
+ * 
+ * Each morning at 08:00 Amsterdam time, final revenue for "yesterday" (previous business day) is available.
+ * 
+ * pickBasisReportsPerLocation: Picks the report with **cron_hour = 7** per location per business_date.
+ * This is the final complete report that arrives on the NEXT ISO calendar day morning.
+ * Falls back to cron 23, then cron 18 if cron 7 missing (shouldn't happen for closed days).
+ * 
+ * @related-files:
+ * ✓ server/tasks/inbox/gmail-sync.ts — runs 3×/day at 08:05, 18:05, 23:05 Amsterdam
+ * ✓ server/utils/inbox/basis-report-mapper.ts — parses emails, sets business_date + cron_hour
  */
 import type { Db } from 'mongodb'
 import { ObjectId } from 'mongodb'
@@ -24,7 +44,7 @@ export type DailyOpsMetricsContext = {
   period: DailyOpsPeriodId
   startDate: string
   endDate: string
-  locationId: ObjectId | string | undefined
+  locationId: string | undefined
   eitjeLocationId?: string | number | undefined
 }
 
@@ -33,13 +53,9 @@ export function parseDailyOpsMetricsQuery(q: Record<string, unknown>): DailyOpsM
   const anchor = typeof q.anchor === 'string' ? q.anchor : undefined
   const range = resolveDailyOpsPeriod(periodRaw, anchor)
   const locRaw = typeof q.location === 'string' ? q.location : undefined
-  let locationId: ObjectId | string | undefined
+  let locationId: string | undefined
   if (locRaw && locRaw !== 'all') {
-    try {
-      locationId = new ObjectId(locRaw)
-    } catch {
-      locationId = locRaw
-    }
+    locationId = locRaw
   }
   return {
     period: range.period,
@@ -87,7 +103,13 @@ function borkV2SalesMatch(ctx: DailyOpsMetricsContext): Record<string, unknown> 
   const q: Record<string, unknown> = {
     business_date: { $gte: ctx.startDate, $lte: ctx.endDate },
   }
-  if (ctx.locationId !== undefined) q.locationId = ctx.locationId
+  if (ctx.locationId !== undefined) {
+    try {
+      q.locationId = new ObjectId(ctx.locationId)
+    } catch {
+      q.locationId = ctx.locationId
+    }
+  }
   return q
 }
 
@@ -96,7 +118,18 @@ function eitjeAggMatch(ctx: DailyOpsMetricsContext): Record<string, unknown> {
     period_type: 'day',
     period: { $gte: ctx.startDate, $lte: ctx.endDate },
   }
-  if (ctx.locationId !== undefined) q.locationId = ctx.locationId
+  if (ctx.locationId !== undefined) {
+    // Eitje data has locationId as both strings (Eitje IDs) and ObjectIds (unified location IDs)
+    // Try to match by ObjectId first, then by string if it doesn't parse as ObjectId
+    try {
+      const objId = new ObjectId(ctx.locationId)
+      // Query both: the ObjectId value OR a string representation (some docs store as ObjectId, some as string)
+      q.locationId = { $in: [objId, ctx.locationId] }
+    } catch {
+      // If it's not a valid ObjectId, just search as string
+      q.locationId = ctx.locationId
+    }
+  }
   return q
 }
 
@@ -109,13 +142,13 @@ export async function fetchBorkRevenueTotals(db: Db, ctx: DailyOpsMetricsContext
       {
         $group: {
           _id: null,
-          total_revenue: { $sum: { $ifNull: ['$total_revenue', 0] } },
+          total_revenue_ex_vat: { $sum: { $ifNull: ['$total_revenue_ex_vat', 0] } },
         },
       },
     ])
     .toArray()
-  const r = row as { total_revenue?: number } | undefined
-  return { totalRevenue: r?.total_revenue ?? 0 }
+  const r = row as { total_revenue_ex_vat?: number } | undefined
+  return { totalRevenue: r?.total_revenue_ex_vat ?? 0 }
 }
 
 export async function fetchEitjeLaborTotals(db: Db, ctx: DailyOpsMetricsContext) {
@@ -306,16 +339,16 @@ export async function fetchRevenueByDate(db: Db, ctx: DailyOpsMetricsContext) {
       {
         $group: {
           _id: '$business_date',
-          revenue: { $sum: { $ifNull: ['$total_revenue', 0] } },
+          revenue: { $sum: { $ifNull: ['$total_revenue_ex_vat', 0] } },
         },
       },
     ])
     .toArray()) as { _id: string; revenue: number }[]
 
-  return new Map(rows.map((r) => [r._id, r.revenue]))
+  return new Map(rows.map((r) => [r._id, Math.round(r.revenue * 100) / 100]))
 }
 
-/** Sum `total_revenue` by business_date from `bork_sales_by_hour` — validates / fills gaps when `bork_business_days` is empty. */
+/** Sum `total_revenue_ex_vat` by business_date from `bork_sales_by_hour` — validates / fills gaps when `bork_business_days` is empty. */
 export async function fetchRevenueByDateFromHourly(db: Db, ctx: DailyOpsMetricsContext): Promise<Map<string, number>> {
   const sfx = resolveBorkAggReadSuffix()
   const rows = (await db
@@ -325,13 +358,13 @@ export async function fetchRevenueByDateFromHourly(db: Db, ctx: DailyOpsMetricsC
       {
         $group: {
           _id: '$business_date',
-          revenue: { $sum: { $ifNull: ['$total_revenue', 0] } },
+          revenue: { $sum: { $ifNull: ['$total_revenue_ex_vat', 0] } },
         },
       },
     ])
     .toArray()) as { _id: string; revenue: number }[]
 
-  return new Map(rows.map((r) => [r._id, r.revenue]))
+  return new Map(rows.map((r) => [r._id, Math.round(r.revenue * 100) / 100]))
 }
 
 function sumMapValues(m: Map<string, number>): number {
@@ -379,7 +412,7 @@ export async function fetchRevenueByDateAndLocationFromHourly(db: Db, ctx: Daily
       {
         $group: {
           _id: { date: '$business_date', locationId: '$locationId' },
-          revenue: { $sum: { $ifNull: ['$total_revenue', 0] } },
+          revenue: { $sum: { $ifNull: ['$total_revenue_ex_vat', 0] } },
         },
       },
     ])
@@ -388,7 +421,7 @@ export async function fetchRevenueByDateAndLocationFromHourly(db: Db, ctx: Daily
   const map = new Map<string, number>()
   for (const r of rows) {
     const lid = r._id.locationId != null ? String(r._id.locationId) : 'unknown'
-    map.set(locationDayKey(r._id.date, lid), r.revenue)
+    map.set(locationDayKey(r._id.date, lid), Math.round(r.revenue * 100) / 100)
   }
   return map
 }
@@ -397,24 +430,59 @@ function normalizeBasisLocationLabel(s: string): string {
   return s.trim().toLowerCase().replace(/\s+/g, ' ')
 }
 
-/** Same pick logic as day-breakdown (latest business_hour / cron batch per venue label). */
+/**
+ * Per-location deduplication: pick FINAL report (latest in chronological order) per business_date per location.
+ * 
+ * For business day N, crons arrive in this order:
+ *   1. Cron 18 (18:00, same ISO day)
+ *   2. Cron 23 (23:00, same ISO day)
+ *   3. Cron 7 (07:00 NEXT ISO day) ← FINAL/LATEST (closes business day at 05:59)
+ * 
+ * Pick the report from cron 7 if it exists (final), otherwise cron 23, otherwise cron 18.
+ */
+/**
+ * Per-location deduplication: pick ONLY the FINAL report.
+ * 
+ * For business day N:
+ *   - Cron 18:05 (ISO day N): PARTIAL ❌
+ *   - Cron 23:05 (ISO day N): PARTIAL ❌  
+ *   - Cron 07:00 (ISO day N+1): COMPLETE ✅ USE THIS (stored as cron_hour: 7, closes business day at 05:59)
+ * 
+ * The final report arrives next morning ISO date with cron_hour = 7 (from 08:05 cron).
+ */
 function pickBasisReportsPerLocation(reports: BasisReportData[]): Map<string, BasisReportData> {
-  const sorted = [...reports].sort((a, b) => {
-    const bh = (b.business_hour ?? -1) - (a.business_hour ?? -1)
-    if (bh !== 0) return bh
-    const ch = (b.cron_hour ?? -1) - (a.cron_hour ?? -1)
-    if (ch !== 0) return ch
-    const ra = a.received_at ? new Date(a.received_at).getTime() : 0
-    const rb = b.received_at ? new Date(b.received_at).getTime() : 0
-    return rb - ra
-  })
-  const byNorm = new Map<string, BasisReportData>()
-  for (const r of sorted) {
-    const key = normalizeBasisLocationLabel(r.location)
-    if (!key || key === 'unspecified') continue
-    if (!byNorm.has(key)) byNorm.set(key, r)
+  const byLocDate = new Map<string, BasisReportData[]>()
+  
+  for (const r of reports) {
+    const locKey = normalizeBasisLocationLabel(r.location)
+    if (!locKey || locKey === 'unspecified') continue
+    
+    const dateKey = r.business_date || r.date
+    const key = `${locKey}:::${dateKey}`
+    
+    if (!byLocDate.has(key)) {
+      byLocDate.set(key, [])
+    }
+    byLocDate.get(key)!.push(r)
   }
-  return byNorm
+  
+  const result = new Map<string, BasisReportData>()
+  
+  for (const [key, list] of byLocDate) {
+    // Sort by cron_priority DESC (3 = final, 2 = night, 1 = evening)
+    // Then by received_at DESC (latest first) as tiebreaker
+    const sorted = [...list].sort((a, b) => {
+      const priorityDiff = (b.cron_priority ?? 0) - (a.cron_priority ?? 0)
+      if (priorityDiff !== 0) return priorityDiff
+      const aTime = a.received_at ? new Date(a.received_at).getTime() : 0
+      const bTime = b.received_at ? new Date(b.received_at).getTime() : 0
+      return bTime - aTime
+    })
+    
+    result.set(key, sorted[0])
+  }
+  
+  return result
 }
 
 /**
@@ -422,18 +490,25 @@ function pickBasisReportsPerLocation(reports: BasisReportData[]): Map<string, Ba
  * Ignores dashboard location filter when venue labels cannot be mapped (use “all locations” for full cross-check).
  */
 export async function fetchInboxBasisRevenueTotalExVat(db: Db, ctx: DailyOpsMetricsContext): Promise<number | null> {
+  const query: Record<string, unknown> = {
+    business_date: { $gte: ctx.startDate, $lte: ctx.endDate },
+  }
+  
+  // If filtering by location, only fetch reports for that location
+  if (ctx.locationId !== undefined) {
+    query.location_id = String(ctx.locationId)
+  }
+  
   const rows = (await db
     .collection('inbox-bork-basis-report')
-    .find({
-      date: { $gte: ctx.startDate, $lte: ctx.endDate },
-    })
+    .find(query)
     .toArray()) as unknown as BasisReportData[]
 
   if (rows.length === 0) return null
 
   const byDate = new Map<string, BasisReportData[]>()
   for (const r of rows) {
-    const d = r.date
+    const d = r.business_date || r.date
     if (!byDate.has(d)) byDate.set(d, [])
     byDate.get(d)!.push(r)
   }
@@ -518,7 +593,7 @@ export async function fetchRevenueByDateAndLocation (db: Db, ctx: DailyOpsMetric
       {
         $group: {
           _id: { date: '$business_date', locationId: '$locationId' },
-          revenue: { $sum: { $ifNull: ['$total_revenue', 0] } },
+          revenue: { $sum: { $ifNull: ['$total_revenue_ex_vat', 0] } },
         },
       },
     ])
@@ -527,7 +602,7 @@ export async function fetchRevenueByDateAndLocation (db: Db, ctx: DailyOpsMetric
   const map = new Map<string, number>()
   for (const r of rows) {
     const lid = r._id.locationId != null ? String(r._id.locationId) : 'unknown'
-    map.set(locationDayKey(r._id.date, lid), r.revenue)
+    map.set(locationDayKey(r._id.date, lid), Math.round(r.revenue * 100) / 100)
   }
   return map
 }

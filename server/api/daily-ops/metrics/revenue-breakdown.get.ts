@@ -10,7 +10,7 @@ import {
 import type { DailyOpsRevenueBreakdownDto } from '~/types/daily-ops-dashboard'
 
 export default defineEventHandler(async (event): Promise<DailyOpsRevenueBreakdownDto> => {
-  setResponseHeader(event, 'Cache-Control', 'private, max-age=30, stale-while-revalidate=120')
+  setResponseHeader(event, 'Cache-Control', 'no-store')
   const ctx = parseDailyOpsMetricsQuery(getQuery(event) as Record<string, unknown>)
   const db = await getDb()
 

@@ -14,30 +14,17 @@
         <h2 class="font-semibold">Filters</h2>
         <p class="text-sm text-gray-500">Filter and sort hours data</p>
       </template>
-      <div class="grid gap-4 md:grid-cols-5">
+      <DailyOpsDateLocationFilter
+        :model-value="{ locationId: filters.locationId, startDate: filters.startDate, endDate: filters.endDate }"
+        :locations="locations"
+        @update:model-value="(updates) => { Object.assign(filters, updates); fetchHours(true) }"
+      />
+      <div class="mt-6 grid gap-4 md:grid-cols-3">
         <div class="space-y-2">
           <label class="text-sm font-medium">Endpoint</label>
           <USelectMenu
             v-model="filters.endpoint"
             :items="endpointOptions"
-            value-attribute="value"
-            class="w-full"
-            @update:model-value="() => fetchHours(true)"
-          />
-        </div>
-        <div class="space-y-2">
-          <label class="text-sm font-medium">Start Date</label>
-          <UInput v-model="filters.startDate" type="date" @update:model-value="() => fetchHours(true)" />
-        </div>
-        <div class="space-y-2">
-          <label class="text-sm font-medium">End Date</label>
-          <UInput v-model="filters.endDate" type="date" @update:model-value="() => fetchHours(true)" />
-        </div>
-        <div class="space-y-2">
-          <label class="text-sm font-medium">Location</label>
-          <USelectMenu
-            v-model="filters.locationId"
-            :items="locationOptions"
             value-attribute="value"
             class="w-full"
             @update:model-value="() => fetchHours(true)"
@@ -53,22 +40,20 @@
             @update:model-value="() => fetchHours(true)"
           />
         </div>
-      </div>
-      <div class="mt-4 flex items-center gap-4">
         <div class="space-y-2">
           <label class="text-sm font-medium">Order</label>
           <USelectMenu
             v-model="filters.sortOrder"
             :items="[{ label: 'Descending', value: 'desc' }, { label: 'Ascending', value: 'asc' }]"
             value-attribute="value"
-            class="w-36"
+            class="w-full"
             @update:model-value="() => fetchHours(true)"
           />
         </div>
-        <div class="mt-6 flex flex-wrap gap-2">
-          <UButton variant="outline" @click="resetFilters">Reset Filters</UButton>
-          <UButton :loading="loading" @click="() => fetchHours(true)">Refresh data</UButton>
-        </div>
+      </div>
+      <div class="mt-6 flex flex-wrap gap-2">
+        <UButton variant="outline" @click="resetFilters">Reset Filters</UButton>
+        <UButton :loading="loading" @click="() => fetchHours(true)">Refresh data</UButton>
       </div>
     </UCard>
 
@@ -140,8 +125,8 @@
                 <tr v-if="expandedRow === i" class="border-b bg-gray-50/80">
                   <td colspan="6" class="p-4">
                     <div class="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-                      <h5 class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Individual records (each shift) – verify how total is calculated</h5>
-                      <p class="mb-2 text-xs text-gray-500">Support ID = Eitje shift id. If many rows show the same worker/start/end/hours but different Support IDs, the same shift was stored multiple times in raw data (e.g. Feb 2). If same Support ID repeated, one doc was duplicated.</p>
+                      <h5 class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Breakdown by worker & team</h5>
+                      <p class="mb-2 text-xs text-gray-500">Shows aggregated hours per worker per team for this date and location.</p>
                       <div v-if="rowDetailLoading" class="py-4 text-center text-sm text-gray-500">Loading...</div>
                       <div v-else-if="rowDetailError" class="py-2 text-sm text-red-600">{{ rowDetailError }}</div>
                       <div v-else class="overflow-x-auto">
@@ -151,10 +136,9 @@
                               <th class="w-10 pb-2 pr-4 font-medium">#</th>
                               <th class="pb-2 pr-4 font-medium">Worker</th>
                               <th class="pb-2 pr-4 font-medium">Team</th>
-                              <th class="pb-2 pr-4 font-medium">Start</th>
-                              <th class="pb-2 pr-4 font-medium">End</th>
-                              <th class="pb-2 pr-4 font-medium">Support ID</th>
-                              <th class="pb-2 font-medium text-right">Hours</th>
+                              <th class="pb-2 pr-4 text-right font-medium">Hours</th>
+                              <th class="pb-2 pr-4 text-right font-medium">Cost</th>
+                              <th class="pb-2 text-right font-medium">Shifts</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -162,27 +146,32 @@
                               <td class="py-1.5 pr-4 text-gray-500">{{ j + 1 }}</td>
                               <td class="py-1.5 pr-4">{{ rec.worker_name }}</td>
                               <td class="py-1.5 pr-4">{{ rec.team_name }}</td>
-                              <td class="py-1.5 pr-4">{{ rec.start }}</td>
-                              <td class="py-1.5 pr-4">{{ rec.end }}</td>
-                              <td class="py-1.5 pr-4 font-mono text-xs">{{ rec.support_id || (rec.id ? rec.id.slice(0, 8) + '…' : '-') }}</td>
-                              <td class="py-1.5 text-right font-mono">{{ Number(rec.hours).toFixed(2) }}</td>
+                              <td class="py-1.5 pr-4 text-right font-mono">{{ Number(rec.total_hours).toFixed(2) }}</td>
+                              <td class="py-1.5 pr-4 text-right font-mono">€{{ Number(rec.total_cost).toFixed(2) }}</td>
+                              <td class="py-1.5 text-right font-mono text-xs text-gray-600">{{ rec.record_count }}</td>
                             </tr>
                           </tbody>
                           <tfoot v-if="rowDetailRecords.length > 0">
                             <tr class="border-t-2 font-medium">
-                              <td class="py-2 pr-4" colspan="6">Sum of above</td>
+                              <td class="py-2 pr-4" colspan="3">Sum of above</td>
                               <td class="py-2 text-right font-mono">{{ rowDetailSumHours.toFixed(2) }}</td>
+                              <td class="py-2 text-right font-mono">€{{ rowDetailSumCost.toFixed(2) }}</td>
+                              <td class="py-2 text-right font-mono text-xs" />
                             </tr>
                             <tr class="text-gray-600">
-                              <td class="py-1 pr-4 text-xs" colspan="6">Row total (from aggregation)</td>
+                              <td class="py-1 pr-4 text-xs" colspan="3">Row total (from aggregation)</td>
                               <td class="py-1 text-right text-xs font-mono">{{ row.total_hours != null ? Number(row.total_hours).toFixed(2) : '-' }}</td>
+                              <td class="py-1 text-right text-xs font-mono">€{{ row.total_cost != null ? Number(row.total_cost).toFixed(2) : '-' }}</td>
+                              <td class="py-1 text-right text-xs" />
                             </tr>
                           </tfoot>
                         </table>
                         <p v-if="rowDetailRecords.length > 0 && Math.abs(rowDetailSumHours - Number(row.total_hours ?? 0)) > 0.02" class="mt-2 rounded bg-amber-50 p-2 text-sm text-amber-800">
                           <strong>Mismatch:</strong> sum of raw ({{ rowDetailSumHours.toFixed(2) }}) ≠ row total ({{ row.total_hours != null ? Number(row.total_hours).toFixed(2) : '-' }}). See “Check consistency” below for causes.
                         </p>
-                        <p v-if="rowDetailRecords.length === 0 && (row.record_count ?? 0) > 0" class="py-2 text-sm text-amber-600">Could not load individual records. Row shows {{ row.record_count }} record(s) – possible data or filter mismatch.</p>
+                        <p v-if="rowDetailRecords.length > 0 && Math.abs(rowDetailSumHours - Number(row.total_hours ?? 0)) > 0.02" class="mt-2 rounded bg-amber-50 p-2 text-sm text-amber-800">
+                          <strong>Mismatch:</strong> sum of worker/team rows ({{ rowDetailSumHours.toFixed(2) }}) ≠ day total ({{ row.total_hours != null ? Number(row.total_hours).toFixed(2) : '-' }}). This should not happen—check data consistency.
+                        </p>
                       </div>
                     </div>
                   </td>
@@ -267,7 +256,7 @@ const pageSize = 50
 const paginationTotal = ref(0)
 const rangeTotals = ref({ total_hours: 0, total_cost: 0, record_count: 0 })
 const expandedRow = ref<number | null>(null)
-const rowDetailRecords = ref<{ id: string; support_id: string; worker_name: string; team_name: string; start: string; end: string; hours: number }[]>([])
+const rowDetailRecords = ref<{ worker_name: string; team_name: string; total_hours: number; total_cost: number; record_count: number }[]>([])
 const rowDetailLoading = ref(false)
 const rowDetailError = ref<string | null>(null)
 const consistencyLoading = ref(false)
@@ -277,13 +266,9 @@ const consistencyResult = ref<{
   possible_causes: string
 } | null>(null)
 
-const locationOptions = computed(() => [
-  { label: 'All locations', value: 'all' },
-  ...locations.value.map((l) => ({ label: l.name, value: l._id })),
-])
-
 const totalHours = computed(() => rangeTotals.value.total_hours)
-const rowDetailSumHours = computed(() => rowDetailRecords.value.reduce((s, r) => s + Number(r.hours ?? 0), 0))
+const rowDetailSumHours = computed(() => rowDetailRecords.value.reduce((s: number, r: { total_hours: number }) => s + Number(r.total_hours ?? 0), 0))
+const rowDetailSumCost = computed(() => rowDetailRecords.value.reduce((s: number, r: { total_cost: number }) => s + Number(r.total_cost ?? 0), 0))
 const totalCost = computed(() => rangeTotals.value.total_cost)
 const totalRecords = computed(() => Math.round(rangeTotals.value.record_count))
 
@@ -301,18 +286,13 @@ async function fetchRowDetail (row: Record<string, unknown>) {
     const dateVal = row.date
     const dateStr = dateVal instanceof Date ? dateVal.toISOString().split('T')[0] : String(dateVal ?? '').slice(0, 10)
     const locId = row.location_id != null ? String(row.location_id) : ''
-    const locName = row.location_name != null ? String(row.location_name) : ''
     const params = new URLSearchParams()
-    params.set('date', dateStr)
-    // Only pass locationId if it looks like a valid ObjectId (24 hex chars) to avoid filtering issues with raw location IDs
+    params.set('date', dateStr || '')
     if (locId && /^[a-f0-9]{24}$/.test(locId)) {
       params.set('locationId', locId)
-    } else if (locName && locName !== 'Unknown') {
-      // Fallback: pass location name as filter
-      params.set('locationName', locName)
     }
-    params.set('endpoint', filters.endpoint ?? 'time_registration_shifts')
-    const res = await $fetch<{ success: boolean; data?: { id: string; support_id: string; worker_name: string; team_name: string; start: string; end: string; hours: number }[] }>(`/api/hours-row-records?${params}`)
+    params.set('endpoint', filters.endpoint || 'time_registration_shifts')
+    const res = await $fetch<{ success: boolean; data?: { worker_name: string; team_name: string; total_hours: number; total_cost: number; record_count: number }[] }>(`/api/hours-row-detail?${params}`)
     rowDetailRecords.value = res.success ? (res.data ?? []) : []
   } catch (e: unknown) {
     rowDetailError.value = e instanceof Error ? e.message : 'Failed to load records'
@@ -321,7 +301,7 @@ async function fetchRowDetail (row: Record<string, unknown>) {
   }
 }
 
-watch(expandedRow, (idx) => {
+watch(expandedRow, (idx: number | null) => {
   if (idx === null) {
     rowDetailRecords.value = []
     rowDetailError.value = null

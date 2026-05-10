@@ -60,6 +60,7 @@ export async function loadUnifiedLocationGroupResolver(db: Db): Promise<UnifiedL
           primaryName: 1,
           canonicalName: 1,
           abbreviation: 1,
+          aliases: 1,
           borkMapping: 1,
         },
       },
@@ -73,6 +74,11 @@ export async function loadUnifiedLocationGroupResolver(db: Db): Promise<UnifiedL
     registerAlias(aliasToGroup, doc.primaryName as string | undefined, groupKey)
     registerAlias(aliasToGroup, doc.canonicalName as string | undefined, groupKey)
     registerAlias(aliasToGroup, doc.abbreviation as string | undefined, groupKey)
+
+    const aliases = Array.isArray(doc.aliases) ? (doc.aliases as unknown[]) : []
+    for (const a of aliases) {
+      if (typeof a === 'string') registerAlias(aliasToGroup, a, groupKey)
+    }
 
     const bm = doc.borkMapping as { borkLocationName?: string } | undefined
     if (bm?.borkLocationName) registerAlias(aliasToGroup, bm.borkLocationName, groupKey)

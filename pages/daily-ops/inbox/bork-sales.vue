@@ -7,6 +7,15 @@
         <p class="text-gray-600 mt-2">Revenue from Basis Report emails (ground truth)</p>
       </div>
 
+      <UAlert
+        v-if="!loading && unmappedCount > 0"
+        color="warning"
+        variant="subtle"
+        class="mb-6"
+        title="Some reports are not mapped to a unified location"
+        :description="unmappedDescription"
+      />
+
       <!-- Filters -->
       <div
         v-if="!loading && reports.length > 0"
@@ -22,6 +31,15 @@
             <USelectMenu
               v-model="filterLocation"
               :items="locationOptions"
+              value-attribute="value"
+              class="w-full"
+            />
+          </div>
+          <div class="min-w-[200px] flex-1 space-y-1">
+            <label class="text-xs font-medium text-gray-600">Business Day</label>
+            <USelectMenu
+              v-model="filterBusinessDate"
+              :items="businessDateOptions"
               value-attribute="value"
               class="w-full"
             />
@@ -66,22 +84,51 @@
             <div class="text-left flex-1">
               <div class="flex items-center gap-4">
                 <div>
-                  <h3 class="font-semibold text-gray-900">{{ report.location_raw || report.location }}</h3>
-                  <p class="text-sm text-gray-500">
-                    {{ formatDate(report.date) }}
+                  <h3 class="font-semibold text-gray-900">
+                    {{ report.unified_location_name || report.location_raw || report.location }}
                     <span
-                      v-if="typeof report.cron_hour === 'number'"
-                      class="ml-2 text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded"
-                      title="Time in Europe/Amsterdam: batch time from the email subject when present, otherwise the hour the message was received"
+                      v-if="report.unified_location_name && (report.unified_location_name !== (report.location_raw || report.location))"
+                      class="ml-2 text-xs font-normal text-gray-500"
+                      :title="`Inbox label: ${report.location_raw || report.location}`"
                     >
-                      {{ report.cron_hour }}:00 Amsterdam
+                      (raw: {{ report.location_raw || report.location }})
+                    </span>
+                    <span
+                      v-else-if="!report.unified_location_id"
+                      class="ml-2 text-xs font-normal text-amber-700 bg-amber-50 rounded px-2 py-0.5"
+                      title="Not mapped to unified_location — add an alias so this groups with the right venue"
+                    >
+                      unmapped
+                    </span>
+                  </h3>
+                  <p class="text-sm text-gray-500 space-x-2">
+                    Business Day:
+                    <span
+                      v-if="typeof report.business_date === 'string'"
+                      class="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded"
+                    >
+                      Day: {{ formatDate(report.business_date) }}
                     </span>
                     <span
                       v-if="typeof report.business_hour === 'number'"
-                      class="ml-2 text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded"
-                      title="Register-style hour index (08:00 Amsterdam open = 0), aligned with Bork aggregates"
+                      class="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded"
                     >
-                      Business hour: {{ report.business_hour }}:00
+                      Time: {{ report.business_hour }}:00
+                    </span>
+                  </p>
+                  <p class="text-sm text-gray-500 space-x-2">
+                    ISO Day:
+                    <span
+                      v-if="typeof report.cron_hour === 'number'"
+                      class="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded"
+                    >
+                      Day: {{ formatDate(report.date) }}
+                    </span>
+                    <span
+                      v-if="typeof report.cron_hour === 'number'"
+                      class="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded"
+                    >
+                      Time: {{ report.cron_hour }}:00 Amsterdam
                     </span>
                   </p>
                 </div>
@@ -89,8 +136,8 @@
             </div>
             <div class="flex items-center gap-6">
               <div class="text-right">
-                <p class="text-lg font-bold text-green-600">€{{ formatCurrency(report.final_revenue_incl_vat) }}</p>
-                <p class="text-xs text-gray-500">ex VAT: €{{ formatCurrency(report.final_revenue_ex_vat) }}</p>
+                <p class="text-lg font-bold text-green-600">€{{ formatCurrency(report.final_revenue_ex_vat) }}</p>
+                <p class="text-xs text-gray-500">inc VAT: €{{ formatCurrency(report.final_revenue_incl_vat) }}</p>
               </div>
               <svg
                 :class="[
@@ -267,22 +314,73 @@
 import type { BasisReportData } from '~/server/utils/inbox/basis-report-mapper'
 
 const FILTER_ALL = '__all__' as const
+const FILTER_UNMAPPED = '__unmapped__' as const
 
-const reports = ref<BasisReportData[]>([])
+type EnrichedBasisReport = BasisReportData & {
+  unified_location_id: string | null
+  unified_location_name: string | null
+}
+
+const reports = ref<EnrichedBasisReport[]>([])
 const loading = ref(true)
 const error = ref<string | null>(null)
 const expandedReports = ref(new Set<string>())
 const filterLocation = ref<string>(FILTER_ALL)
+const filterBusinessDate = ref<string>(FILTER_ALL)
 const filterCronHour = ref<string>(FILTER_ALL)
 
 const locationOptions = computed(() => {
-  const map = new Map<string, string>()
-  for (const r of reports.value)
-    map.set(r.location, r.location_raw || r.location)
-  const opts = [...map.entries()]
+  const byUnifiedId = new Map<string, string>()
+  let hasUnmapped = false
+
+  for (const r of reports.value) {
+    if (r.unified_location_id && r.unified_location_name) {
+      if (!byUnifiedId.has(r.unified_location_id)) {
+        byUnifiedId.set(r.unified_location_id, r.unified_location_name)
+      }
+    } else {
+      hasUnmapped = true
+    }
+  }
+
+  const opts = [...byUnifiedId.entries()]
     .sort((a, b) => a[1].localeCompare(b[1], 'nl'))
     .map(([value, label]) => ({ label, value }))
-  return [{ label: 'All locations', value: FILTER_ALL }, ...opts]
+
+  const result: { label: string; value: string }[] = [{ label: 'All locations', value: FILTER_ALL }, ...opts]
+  if (hasUnmapped) result.push({ label: 'Unmapped (review)', value: FILTER_UNMAPPED })
+  return result
+})
+
+function formatDate(dateStr: string): string {
+  try {
+    const date = new Date(dateStr)
+    return date.toLocaleDateString('nl-NL', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })
+  } catch {
+    return dateStr
+  }
+}
+
+const unmappedCount = computed(() =>
+  reports.value.filter((r: EnrichedBasisReport) => !r.unified_location_id).length,
+)
+
+const unmappedDescription = computed(
+  () =>
+    `${unmappedCount.value} report(s) use a location label that does not match any unified_location entry (parser noise like "Bar supplementen", legacy "Unspecified"). Pick "Unmapped (review)" to inspect, then add the alias to unified_location so it groups with the right venue.`,
+)
+
+const businessDateOptions = computed(() => {
+  const dates = new Set<string>()
+  for (const r of reports.value) {
+    const bd = r.business_date ?? r.date
+    if (typeof bd === 'string') dates.add(bd)
+  }
+  const opts = [...dates]
+    .sort()
+    .reverse()
+    .map((d) => ({ label: formatDate(d), value: d }))
+  return [{ label: 'All business days', value: FILTER_ALL }, ...opts]
 })
 
 const cronHourOptions = computed(() => {
@@ -296,26 +394,44 @@ const cronHourOptions = computed(() => {
   return [{ label: 'All cron times', value: FILTER_ALL }, ...opts]
 })
 
-const filteredReports = computed(() =>
-  reports.value.filter((r: BasisReportData) => {
-    if (filterLocation.value !== FILTER_ALL && r.location !== filterLocation.value) return false
+const filteredReports = computed(() => {
+  const filtered = reports.value.filter((r: EnrichedBasisReport) => {
+    if (filterLocation.value === FILTER_UNMAPPED) {
+      if (r.unified_location_id) return false
+    } else if (filterLocation.value !== FILTER_ALL) {
+      if (r.unified_location_id !== filterLocation.value) return false
+    }
+    if (filterBusinessDate.value !== FILTER_ALL) {
+      const reportBd = r.business_date ?? r.date
+      if (reportBd !== filterBusinessDate.value) return false
+    }
     if (filterCronHour.value !== FILTER_ALL) {
       const want = Number(filterCronHour.value)
       if (typeof r.cron_hour !== 'number' || r.cron_hour !== want) return false
     }
     return true
-  }),
-)
+  })
+
+  return filtered.sort((a: EnrichedBasisReport, b: EnrichedBasisReport) => {
+    const aDate = (a.business_date ?? a.date) || ''
+    const bDate = (b.business_date ?? b.date) || ''
+    if (aDate !== bDate) return bDate.localeCompare(aDate)
+    const aHour = typeof a.business_hour === 'number' ? a.business_hour : -1
+    const bHour = typeof b.business_hour === 'number' ? b.business_hour : -1
+    return bHour - aHour
+  })
+})
 
 function clearFilters() {
   filterLocation.value = FILTER_ALL
+  filterBusinessDate.value = FILTER_ALL
   filterCronHour.value = FILTER_ALL
 }
 
 onMounted(async () => {
   try {
     loading.value = true
-    const response = await $fetch<{ success: boolean; data?: BasisReportData[] }>(
+    const response = await $fetch<{ success: boolean; data?: EnrichedBasisReport[] }>(
       '/api/bork/sales?limit=300',
     )
     if (response.success) {
@@ -336,15 +452,6 @@ function toggleReport(date: string, location: string) {
     expandedReports.value.delete(key)
   } else {
     expandedReports.value.add(key)
-  }
-}
-
-function formatDate(dateStr: string): string {
-  try {
-    const date = new Date(dateStr)
-    return date.toLocaleDateString('nl-NL', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })
-  } catch {
-    return dateStr
   }
 }
 

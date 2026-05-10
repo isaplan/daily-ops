@@ -3,21 +3,60 @@ const disableInboxSchedule = process.env.DISABLE_INBOX_SCHEDULED === '1'
 /** Set `DISABLE_INTEGRATIONS_SCHEDULED=1` locally to skip Bork/Eitje Nitro cron (same as DISABLE_INBOX pattern). */
 const disableIntegrationsSchedule = process.env.DISABLE_INTEGRATIONS_SCHEDULED === '1'
 
+/**
+ * CANONICAL TIMEZONE: Europe/Amsterdam (CEST/CET)
+ * 
+ * This app is built around Amsterdam business hours and reporting.
+ * ALL scheduled tasks run in Amsterdam time, regardless of server location.
+ * 
+ * **DEPLOYMENT REQUIREMENT:** Set `TZ=Europe/Amsterdam` in your server environment!
+ * - Docker: `ENV TZ=Europe/Amsterdam`
+ * - DigitalOcean App Platform: Set in app spec
+ * - Vercel: `TZ=Europe/Amsterdam` in env vars
+ * - AWS: Set in task definition or Lambda layer
+ * 
+ * This ensures cron expressions are interpreted consistently across all deployments.
+ */
+const APP_TIMEZONE = 'Europe/Amsterdam'
+const CURRENT_TZ = process.env.TZ || 'local'
+
+if (CURRENT_TZ !== APP_TIMEZONE && CURRENT_TZ !== 'local') {
+  console.warn(
+    `[NUXT CONFIG] WARNING: TZ="${CURRENT_TZ}" but app expects TZ="${APP_TIMEZONE}"`
+  )
+  console.warn(
+    `[NUXT CONFIG] Cron times may be incorrect! Set TZ=Europe/Amsterdam in your deployment.`
+  )
+}
+
 const scheduledTasks: Record<string, string[]> = {}
 if (!disableInboxSchedule) {
   /**
-   * Gmail inbox poll 3×/day at **08:05, 18:05, 23:05 Europe/Amsterdam** (+5m slack).
-   * Nitro Croner uses the **server local clock** (DigitalOcean Node is **UTC** by default).
-   * With **UTC** as local time, use **06:05 / 16:05 / 21:05 UTC** = those Amsterdam times during **CEST**.
-   * Do **not** set `TZ=Europe/Amsterdam` unless you change these crons to `5 8`, `5 18`, `5 23`.
-   * **CET (winter):** use `5 7`, `5 17`, `5 22` UTC instead for the same wall-clock slots.
+   * Gmail inbox poll 3×/day in Amsterdam time:
+   * - 08:05 (morning: fetch overnight Bork reports)
+   * - 18:05 (evening: fetch day-end reports)
+   * - 23:05 (late night: catch stragglers)
+   * 
+   * These times are ALWAYS 08:05, 18:05, 23:05 Amsterdam REGARDLESS of server location.
+   * Croner uses TZ env var to interpret the expression.
    */
-  scheduledTasks['5 6 * * *'] = ['inbox:gmail-sync']
-  scheduledTasks['5 16 * * *'] = ['inbox:gmail-sync']
-  scheduledTasks['5 21 * * *'] = ['inbox:gmail-sync']
+  scheduledTasks['5 8 * * *'] = ['inbox:gmail-sync']
+  scheduledTasks['5 18 * * *'] = ['inbox:gmail-sync']
+  scheduledTasks['5 23 * * *'] = ['inbox:gmail-sync']
 }
 if (!disableIntegrationsSchedule) {
-  /** Same UTC slots as `.github/workflows/daily-ops-sync.yml` — disable that workflow `schedule` to avoid duplicate API load. */
+  /**
+   * Bork + Eitje aggregation runs 6× daily in Amsterdam time:
+   * - 06:00 (early morning, before first inbox poll)
+   * - 13:00 (midday, after first reports)
+   * - 16:00 (afternoon)
+   * - 18:00 (evening, before inbox poll)
+   * - 20:00 (night)
+   * - 22:00 (late night)
+   * 
+   * These times are ALWAYS in Amsterdam REGARDLESS of server location.
+   * Croner uses TZ env var to interpret the expression.
+   */
   scheduledTasks['0 6,13,16,18,20,22 * * *'] = ['integrations:bork-eitje-daily']
 }
 
@@ -56,10 +95,9 @@ export default defineNuxtConfig({
     },
   },
   /**
-   * Inbox Gmail poll: 3× daily (`5 6`, `5 16`, `5 21` UTC = 08:05 / 18:05 / 23:05 Amsterdam CEST on a UTC host).
-   * GitHub inbox-daily-sync.yml is manual-only to avoid duplicate fetches + Actions minutes.
-   *
-   * Bork + Eitje: Nitro `0 6,13,16,18,20,22 * * *` UTC matches daily-ops-sync.yml; turn off that workflow schedule when this is on.
+   * Scheduled tasks run in Amsterdam time (TZ=Europe/Amsterdam).
+   * See comments above for times.
+   * 
    * Startup catch-up: `INTEGRATION_SYNC_CATCHUP_ON_START` (production default on unless set to 0) + `INTEGRATION_SYNC_STALE_MS`.
    */
   nitro: {

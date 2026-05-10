@@ -28,16 +28,23 @@ pnpm dev:clean
 - **Notes Management** - Create, share, and organize notes
 - **Workers & Teams** - Manage team members and assignments
 
-## Important: Cron Job Scheduler
+## Important: Timezone & Cron Job Scheduler
 
-The Bork and Eitje cron jobs require an **external scheduler** to run automatically. See [CRON_SCHEDULER_SETUP.md](./dev-docs/CRON_SCHEDULER_SETUP.md) for setup instructions.
+### Timezone Configuration (CRITICAL)
 
-**TL;DR**: You must set up one of:
-- Vercel Cron (if deployed to Vercel)
-- GitHub Actions
-- External cron service (cron-job.org, EasyCron, etc.)
+**Set `TZ=Europe/Amsterdam` on ALL deployments.** The app is built around Amsterdam business hours. Scheduled tasks ALWAYS run in Amsterdam time, regardless of server location.
 
-Without a scheduler, cron jobs don't run automatically. You can still trigger them manually via the UI "Run Now" button.
+See [TIMEZONE_AND_DEPLOYMENT.md](./dev-docs/TIMEZONE_AND_DEPLOYMENT.md) for detailed setup by platform (Docker, DigitalOcean, Vercel, AWS, etc.).
+
+### Cron Job Scheduler
+
+Scheduled tasks run automatically via Nitro's built-in scheduler (if `TZ=Europe/Amsterdam` is set):
+- **Gmail Sync:** 3× daily (08:05, 18:05, 23:05 Amsterdam)
+- **Bork/Eitje Aggregation:** 6× daily (06:00, 13:00, 16:00, 18:00, 20:00, 22:00 Amsterdam)
+
+For local development without setting TZ, you can manually trigger via UI "Sync Gmail" / "Run Now" buttons.
+
+**Legacy external schedulers (GitHub Actions, Vercel Cron, cron-job.org) are NOT required** if `TZ=Europe/Amsterdam` is set.
 
 ## Environment Variables
 

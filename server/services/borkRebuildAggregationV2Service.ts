@@ -1,11 +1,12 @@
 /**
  * @registry-id: borkRebuildAggregationV2Service
  * @created: 2026-04-14T18:00:00.000Z
- * @last-modified: 2026-05-07T12:00:00.000Z
+ * @last-modified: 2026-05-08T20:14:00.000Z
  * @description: V2 Bork aggregates — writes bork_business_days, bork_sales_by_day, bork_sales_by_hour, bork_sales_by_table, bork_sales_by_worker, bork_sales_by_guest_account, bork_sales_by_product (+ version suffix)
- * @last-fix: [2026-05-07] Sync/backfill now depend on V2 only (legacy V1 rebuild removed)
+ * @last-fix: [2026-05-08] TODO: Add total_revenue_ex_vat AND total_revenue_incl_vat fields (currently only has total_revenue which is incl VAT; raw line data has VAT breakdown)
  *
  * @CRITICAL: Line revenue uses Lines (Price×Qty); paymode totals use Order.Paymodes (may differ from line totals).
+ * @TODO: Extract VAT breakdown from raw.Lines[].Price fields and calculate BOTH ex VAT and incl VAT totals.
  *
  * @exports-to:
  * ✓ scripts/bork-backfill-weekly-backward.ts
