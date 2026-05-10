@@ -18,6 +18,7 @@
     "bork:rebuild:v2": "node --experimental-strip-types scripts/rebuild-bork-v2-date-range.ts",
     "eitje:backfill": "npx --yes tsx scripts/eitje-full-raw-backfill.ts",
     "eitje:rebuild:labor": "npx --yes tsx scripts/rebuild-eitje-labor-aggregation.ts",
+    "eitje:rebuild:labor:all": "npx --yes tsx scripts/rebuild-eitje-labor-aggregation.ts all",
     "start": "node .output/server/index.mjs"
   },
   "dependencies": {
