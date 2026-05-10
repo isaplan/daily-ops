@@ -28,6 +28,16 @@ function normalizeHoursDateRange(startDate: string | undefined, endDate: string 
   return { start: startDate!, end: endDate! }
 }
 
+/** Aggregation rows may store `locationId` as ObjectId or string — match both. */
+function locationIdMatch (locationId: string): Record<string, unknown> {
+  try {
+    const oid = new ObjectId(locationId)
+    return { $in: [oid, locationId] }
+  } catch {
+    return locationId
+  }
+}
+
 async function sumHoursBaseMatch(db: Db, collectionName: string, q: Record<string, unknown>) {
   const [row] = await db
     .collection(collectionName)
@@ -147,11 +157,7 @@ export default defineEventHandler(async (event) => {
       period: { $gte: rangeStart, $lte: rangeEnd },
     }
     if (locationId && locationId !== 'all') {
-      try {
-        q.locationId = new ObjectId(locationId)
-      } catch {
-        q.locationId = locationId
-      }
+      q.locationId = locationIdMatch(locationId)
     }
 
     let aggregation: unknown[] = [{ $match: q }]
@@ -433,11 +439,7 @@ export default defineEventHandler(async (event) => {
         endD.setHours(23, 59, 59, 999)
         rawMatch.date = { $gte: new Date(rangeStart), $lte: endD, $exists: true, $ne: null }
         if (locationId && locationId !== 'all') {
-          try {
-            rawMatch.locationId = new ObjectId(locationId)
-          } catch {
-            rawMatch.locationId = locationId
-          }
+          rawMatch.locationId = locationIdMatch(locationId)
         }
 
         if (groupBy === 'day') {

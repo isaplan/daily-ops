@@ -1,9 +1,9 @@
 /**
  * @registry-id: eitjeRebuildAggregationService
  * @created: 2026-04-05T12:00:00.000Z
- * @last-modified: 2026-04-26T19:45:00.000Z
+ * @last-modified: 2026-05-10T12:00:00.000Z
  * @description: Rebuilds eitje_time_registration_aggregation day rows from eitje_raw_data for a date range
- * @last-fix: [2026-04-26] Apply business day logic (06:00-05:59:59) to aggregation period + hour fields
+ * @last-fix: [2026-05-10] Period uses Europe/Amsterdam (business day 06:00–05:59); group keys normalize userId/teamId/locationId to string to prevent duplicate buckets from mixed types
  *
  * @exports-to:
  * ✓ server/services/eitjeSyncService.ts
@@ -76,11 +76,12 @@ export async function rebuildEitjeTimeRegistrationAggregation (
     {
       $addFields: {
         ...EITJE_HOURS_ADD_FIELDS,
-        calendarDate: {
-          $dateToString: { format: '%Y-%m-%d', date: '$date', timezone: 'UTC' },
+        /** Shift anchor time in Amsterdam — matches operational business day (06:00–05:59 next calendar day). */
+        amsterdamYmd: {
+          $dateToString: { format: '%Y-%m-%d', date: '$date', timezone: 'Europe/Amsterdam' },
         },
-        calendarHour: {
-          $hour: { date: '$date', timezone: 'UTC' },
+        amsterdamHour: {
+          $hour: { date: '$date', timezone: 'Europe/Amsterdam' },
         },
         userId: { $ifNull: ['$extracted.userId', '$rawApiResponse.user_id'] },
         teamId: { $ifNull: ['$extracted.teamId', '$rawApiResponse.team_id'] },
@@ -99,24 +100,22 @@ export async function rebuildEitjeTimeRegistrationAggregation (
       $addFields: {
         period: {
           $cond: [
-            { $and: [{ $gte: ['$calendarHour', 6] }, { $lte: ['$calendarHour', 23] }] },
-            '$calendarDate',
+            { $gte: ['$amsterdamHour', 6] },
+            '$amsterdamYmd',
             {
               $dateToString: {
                 format: '%Y-%m-%d',
-                date: {
-                  $subtract: [{ $toDate: '$calendarDate' }, 86400000]
-                },
-                timezone: 'UTC',
+                date: { $dateSubtract: { startDate: '$date', unit: 'day', amount: 1 } },
+                timezone: 'Europe/Amsterdam',
               },
             },
           ],
         },
         business_hour: {
           $cond: [
-            { $and: [{ $gte: ['$calendarHour', 6] }, { $lte: ['$calendarHour', 23] }] },
-            { $subtract: ['$calendarHour', 6] },
-            { $add: ['$calendarHour', 18] },
+            { $gte: ['$amsterdamHour', 6] },
+            { $subtract: ['$amsterdamHour', 6] },
+            { $add: ['$amsterdamHour', 18] },
           ],
         },
       },
@@ -279,13 +278,21 @@ export async function rebuildEitjeTimeRegistrationAggregation (
         },
       },
     },
+    // Merge buckets when raw payloads mix number/string/ObjectId for same worker or team.
+    {
+      $addFields: {
+        locationIdNorm: { $toString: '$locationId' },
+        userIdNorm: { $toString: { $ifNull: ['$userId', ''] } },
+        teamIdNorm: { $toString: { $ifNull: ['$teamId', ''] } },
+      },
+    },
     {
       $group: {
         _id: {
           period: '$period',
-          locationId: '$locationId',
-          userId: '$userId',
-          teamId: '$teamId',
+          locationId: '$locationIdNorm',
+          userId: '$userIdNorm',
+          teamId: '$teamIdNorm',
         },
         location_name: { $first: '$location_name' },
         user_name: { $first: '$user_name' },

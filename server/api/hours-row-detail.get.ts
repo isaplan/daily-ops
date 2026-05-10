@@ -19,7 +19,8 @@ export default defineEventHandler(async (event) => {
     }
     if (locationIdParam) {
       try {
-        q.locationId = new ObjectId(locationIdParam)
+        const oid = new ObjectId(locationIdParam)
+        q.locationId = { $in: [oid, locationIdParam] }
       } catch {
         q.locationId = locationIdParam
       }
