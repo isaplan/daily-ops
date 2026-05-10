@@ -1,9 +1,9 @@
 /**
  * @registry-id: eitjeSyncService
  * @created: 2026-04-05T12:00:00.000Z
- * @last-modified: 2026-05-08T00:47:00.000Z
+ * @last-modified: 2026-05-11T14:00:00.000Z
  * @description: Fetches Eitje Open API resources and upserts eitje_raw_data; drives cron/sync handlers
- * @last-fix: [2026-05-08] Remove V3 aggregation trigger
+ * @last-fix: [2026-05-11] Historical ends yesterday / skip labor rebuild when no upserts; daily cron comment aligned with nuxt.config
  *
  * @exports-to:
  * ✓ server/api/eitje/v2/cron.post.ts
@@ -469,6 +469,16 @@ function dateRangeDays (days: number): { start: string; end: string } {
   return { start: fmt(start), end: fmt(end) }
 }
 
+/** N calendar days ending on **yesterday** (UTC date); never includes “today” (daily job owns today). */
+function dateRangeDaysEndingYesterday (totalDays: number): { start: string; end: string } {
+  const end = new Date()
+  end.setUTCDate(end.getUTCDate() - 1)
+  const start = new Date(end)
+  start.setUTCDate(start.getUTCDate() - (totalDays - 1))
+  const fmt = (d: Date) => d.toISOString().split('T')[0] ?? ''
+  return { start: fmt(start), end: fmt(end) }
+}
+
 export async function pingEitjeApi (creds: EitjeStoredCredentials): Promise<{ ok: boolean; message: string }> {
   const paths = ['environments', 'v1/environments', 'locations', 'v1/locations']
   for (const p of paths) {
@@ -530,19 +540,24 @@ export async function executeEitjeJob (db: Db, jobType: string): Promise<EitjeSy
   }
 
   if (jobType === 'daily-data') {
-    // Daily incremental sync: fetch only TODAY (service runs 10:00-05:59:59 UTC)
-    // Cron runs at: 06:00 (pre-service), 13:00, 16:00, 18:00, 20:00, 22:00 (all during service hours)
-    // Aggregate TODAY ONLY - continuous updates throughout the business day
+    // Daily incremental sync: fetch TODAY + YESTERDAY (catches missed updates from previous day)
+    // Cron: 01:00, 08:00, 15:00, 18:00–21:00, 23:00 Europe/Amsterdam (see nuxt.config)
+    // Aggregate TODAY + YESTERDAY - ensures no backfill gaps
     const now = new Date()
     const todayUtc = now.toISOString().split('T')[0] ?? ''
     
-    const tr = await syncTimeRegistrationShifts(db, creds, todayUtc, todayUtc)
+    // Calculate yesterday
+    const yesterday = new Date(now)
+    yesterday.setDate(yesterday.getDate() - 1)
+    const yesterdayUtc = yesterday.toISOString().split('T')[0] ?? ''
+    
+    // Fetch both days
+    const tr = await syncTimeRegistrationShifts(db, creds, yesterdayUtc, todayUtc)
     let agg: { deletedPeriods: number; inserted: number; error?: string } | undefined
     
     try {
-      // Rebuild aggregation for TODAY ONLY
-      // This deletes old aggregation for today and rebuilds from fresh raw data
-      agg = await rebuildEitjeTimeRegistrationAggregation(db, todayUtc, todayUtc)
+      // Rebuild aggregation for both days
+      agg = await rebuildEitjeTimeRegistrationAggregation(db, yesterdayUtc, todayUtc)
       
       // Map Eitje IDs to unified collections after aggregation
       await syncUnifiedCollectionsFromRawData(db)
@@ -561,23 +576,28 @@ export async function executeEitjeJob (db: Db, jobType: string): Promise<EitjeSy
       jobType,
       message: tr.error
         ? `Time registration: ${tr.error}`
-        : `Synced ${tr.fetched} shifts (${tr.upserted} writes), aggregation +${agg?.inserted ?? 0} rows for today`,
+        : `Synced ${tr.fetched} shifts (${tr.upserted} writes), aggregation +${agg?.inserted ?? 0} rows for ${yesterdayUtc}–${todayUtc}`,
       timeRegistration: tr,
       aggregation: agg,
     }
   }
 
-  // Historical backfill: fetch and rebuild full range
+  // Historical backfill: window ends yesterday only; today is handled by daily-data (scheduled: morning maintenance task)
   const histDays = envInt('EITJE_HISTORICAL_SYNC_DAYS', 30)
-  const { start, end } = dateRangeDays(histDays)
+  const { start, end } = dateRangeDaysEndingYesterday(histDays)
 
   const tr = await syncTimeRegistrationShifts(db, creds, start, end)
-  let agg: { deletedPeriods: number; inserted: number; error?: string } | undefined
-  
+  let agg: { deletedPeriods: number; inserted: number; error?: string; skippedRebuild?: boolean } | undefined
+
   try {
-    agg = await rebuildEitjeTimeRegistrationAggregation(db, start, end)
-    // Map Eitje IDs to unified collections after aggregation
-    await syncUnifiedCollectionsFromRawData(db)
+    const rawChanged = (tr.upserted ?? 0) > 0
+    if (!tr.error && rawChanged) {
+      agg = await rebuildEitjeTimeRegistrationAggregation(db, start, end)
+      await syncUnifiedCollectionsFromRawData(db)
+    } else if (!tr.error) {
+      agg = { deletedPeriods: 0, inserted: 0, skippedRebuild: true }
+      await syncUnifiedCollectionsFromRawData(db)
+    }
   } catch (e) {
     agg = {
       deletedPeriods: 0,
@@ -586,14 +606,16 @@ export async function executeEitjeJob (db: Db, jobType: string): Promise<EitjeSy
     }
   }
 
-  const ok = !tr.error && (tr.fetched > 0 || tr.upserted > 0 || (agg?.inserted ?? 0) > 0)
-  
+  const ok = !tr.error
+
   return {
     ok,
     jobType,
     message: tr.error
       ? `Time registration: ${tr.error}`
-      : `Synced ${tr.fetched} shifts (${tr.upserted} writes), aggregation +${agg?.inserted ?? 0} rows (${jobType})`,
+      : agg?.skippedRebuild
+        ? `Synced ${tr.fetched} shifts (${tr.upserted} writes), no raw changes — skipped labor aggregation rebuild for ${start}…${end}`
+        : `Synced ${tr.fetched} shifts (${tr.upserted} writes), aggregation +${agg?.inserted ?? 0} rows (${jobType}, ${start}…${end})`,
     timeRegistration: tr,
     aggregation: agg,
   }

@@ -32,13 +32,13 @@ if (CURRENT_TZ !== APP_TIMEZONE && CURRENT_TZ !== 'local') {
 const scheduledTasks: Record<string, string[]> = {}
 if (!disableInboxSchedule) {
   /**
-   * Gmail inbox poll 3×/day in Amsterdam time:
-   * - 08:05 (morning: fetch overnight Bork reports)
-   * - 18:05 (evening: fetch day-end reports)
-   * - 23:05 (late night: catch stragglers)
-   * 
-   * These times are ALWAYS 08:05, 18:05, 23:05 Amsterdam REGARDLESS of server location.
-   * Croner uses TZ env var to interpret the expression.
+   * Gmail inbox poll 3×/day in Amsterdam time (Bork basis + all inbox mail):
+   * - 08:05 — morning (final prior business day Bork; Eitje dagelijkse uren “yesterday” lives here)
+   * - 18:05 — evening (Bork partials / updates)
+   * - 23:05 — late night (Bork stragglers)
+   *
+   * Eitje-only: treat 08:05 as the batch with full previous-day hours; 18/23 rarely add labor rows.
+   * TZ=Europe/Amsterdam required for correct wall-clock.
    */
   scheduledTasks['5 8 * * *'] = ['inbox:gmail-sync']
   scheduledTasks['5 18 * * *'] = ['inbox:gmail-sync']
@@ -46,18 +46,18 @@ if (!disableInboxSchedule) {
 }
 if (!disableIntegrationsSchedule) {
   /**
-   * Bork + Eitje aggregation runs 6× daily in Amsterdam time:
-   * - 06:00 (early morning, before first inbox poll)
-   * - 13:00 (midday, after first reports)
-   * - 16:00 (afternoon)
-   * - 18:00 (evening, before inbox poll)
-   * - 20:00 (night)
-   * - 22:00 (late night)
-   * 
-   * These times are ALWAYS in Amsterdam REGARDLESS of server location.
-   * Croner uses TZ env var to interpret the expression.
+   * Bork + Eitje **morning maintenance** (06:00): `master-data` then `historical-data` for both integrations.
+   * Same sync pipeline as daily (`runIntegrationCronJob` → raw upsert + Bork V2 / Eitje labor rules for that job type).
+   * Bork master/historical ticket pulls exclude **today** (yesterday-only for master; window ends yesterday for historical).
+   * Eitje historical uses the same rule (`dateRangeDaysEndingYesterday`); Eitje master is list endpoints (not day-scoped).
+   *
+   * Bork + Eitje **daily** (`daily-data`): yesterday + today labor/tickets, 8× per day Amsterdam (no slot at 06:00 — independent of maintenance).
+   * - 01:00, 08:00, 15:00, 18:00, 19:00, 20:00, 21:00, 23:00
+   *
+   * Cron expressions use TZ from the server env (set TZ=Europe/Amsterdam on DO).
    */
-  scheduledTasks['0 6,13,16,18,20,22 * * *'] = ['integrations:bork-eitje-daily']
+  scheduledTasks['0 6 * * *'] = ['integrations:bork-eitje-morning-maintenance']
+  scheduledTasks['0 1,8,15,18,19,20,21,23 * * *'] = ['integrations:bork-eitje-daily']
 }
 
 export default defineNuxtConfig({

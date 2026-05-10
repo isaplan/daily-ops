@@ -186,6 +186,10 @@ export interface CreateParsedDataDto {
   rowsProcessed: number
   rowsValid: number
   rowsFailed: number
+  /** Gmail `receivedAt` — preserves real inbox batch time (not remap wall clock). */
+  sourceEmailReceivedAt?: string | Date | null
+  /** `parseddatas.created_at` fallback when email time missing. */
+  parsedDataCreatedAt?: string | Date | null
   data: {
     headers: string[]
     rows: Record<string, unknown>[]

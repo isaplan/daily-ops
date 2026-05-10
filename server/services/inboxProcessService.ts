@@ -1,9 +1,9 @@
 /**
  * @registry-id: inboxProcessService
  * @created: 2026-04-18T00:00:00.000Z
- * @last-modified: 2026-05-07T00:00:00.000Z
+ * @last-modified: 2026-05-10T00:00:00.000Z
  * @description: Parse Gmail/manual attachments, map to collections (from next-js-old process routes)
- * @last-fix: [2026-05-07] Basis report upsert by source_attachment_id; pass attachmentId into mapper
+ * @last-fix: [2026-05-10] Pass sourceEmailReceivedAt into mapToCollection for real cron batch time
  *
  * @exports-to:
  * ✓ server/api/inbox/process/[emailId].post.ts
@@ -58,6 +58,7 @@ async function handleParsedMapping(
     rowsProcessed: parseResult.rowCount,
     rowsValid: parseResult.rowCount,
     rowsFailed: 0,
+    sourceEmailReceivedAt: emailData?.receivedAt ?? null,
     data: {
       headers: parseResult.headers,
       rows: parseResult.rows,

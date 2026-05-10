@@ -1,14 +1,15 @@
 /**
  * @registry-id: integrationCronRunner
  * @created: 2026-04-24T12:00:00.000Z
- * @last-modified: 2026-04-24T12:00:00.000Z
+ * @last-modified: 2026-05-11T12:00:00.000Z
  * @description: Shared Bork/Eitje run-now sync + integration_cron_jobs persistence (HTTP, Nitro tasks, catch-up)
- * @last-fix: [2026-04-24] Extracted from v2 cron.post handlers for Nitro schedule + startup catch-up
+ * @last-fix: [2026-05-11] Morning maintenance task runs master + historical via same runner
  *
  * @exports-to:
  * ✓ server/api/bork/v2/cron.post.ts
  * ✓ server/api/eitje/v2/cron.post.ts
  * ✓ server/tasks/integrations/bork-eitje-daily.ts
+ * ✓ server/tasks/integrations/bork-eitje-morning-maintenance.ts
  * ✓ server/plugins/integration-sync-catchup.ts
  */
 

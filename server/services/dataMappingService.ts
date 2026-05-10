@@ -1,9 +1,9 @@
 /**
  * @registry-id: dataMappingService
  * @created: 2026-01-26T00:00:00.000Z
- * @last-modified: 2026-04-24T00:00:00.000Z
+ * @last-modified: 2026-05-10T17:00:00.000Z
  * @description: Data mapping service - maps parsed document data to MongoDB collections
- * @last-fix: [2026-04-24] Add location_name to sales; normalize date/location/revenue fields
+ * @last-fix: [2026-05-10] importedAt/cron_hour from email receivedAt or parsed created_at; upsert team+support_id
  *
  * @exports-to:
  * ✓ server/services/inboxProcessService.ts
@@ -13,6 +13,7 @@
 import { getDb } from '../utils/db'
 import type { DocumentType, CreateParsedDataDto } from '~/types/inbox'
 import { ObjectId, type Db } from 'mongodb'
+import { getAmsterdamWallHour, resolveInboxImportInstant } from '../utils/inbox/amsterdamWallHour'
 
 export interface MappingResult {
   success: boolean
@@ -39,12 +40,18 @@ const FIELD_MAPPINGS: Record<DocumentType, FieldMapping[]> = {
   hours: [
     // Eitje Hours CSV columns (Dutch)
     { sourceColumn: 'datum', targetField: 'date', required: true, transform: (v) => parseDate(v as string) },
-    { sourceColumn: 'naam', targetField: 'employee_name', required: true },
-    { sourceColumn: 'naam van vestiging', targetField: 'location_name', required: true },
+    // Legacy + daily-email export: some files use "naam", others only "Naam van medewerker" (later row wins)
+    { sourceColumn: 'naam', targetField: 'employee_name' },
+    { sourceColumn: 'Naam van medewerker', targetField: 'employee_name' },
+    // Vestiging optional in newer exports; team used as fallback below when missing
+    { sourceColumn: 'naam van vestiging', targetField: 'location_name' },
+    { sourceColumn: 'vestiging', targetField: 'location_name' },
     { sourceColumn: 'team naam', targetField: 'team_name' },
+    { sourceColumn: 'Team', targetField: 'team_name' },
     { sourceColumn: 'type', targetField: 'shift_type' },
-    { sourceColumn: 'uren', targetField: 'hours', transform: (v) => parseTimeToHours(v as string) },
+    { sourceColumn: 'uren', targetField: 'hours', transform: (v) => parseTimeToHours(v) },
     { sourceColumn: 'gerealizeerde loonkosten', targetField: 'realized_labor_costs', transform: (v) => parseEuro(v as string) },
+    { sourceColumn: 'Loonkosten', targetField: 'realized_labor_costs', transform: (v) => parseEuro(v as string) },
     { sourceColumn: 'Loonkosten per uur', targetField: 'cost_per_hour', transform: (v) => parseEuro(v as string) },
     { sourceColumn: 'contracttype', targetField: 'contract_type' },
     { sourceColumn: 'uurloon', targetField: 'hourly_rate', transform: (v) => parseEuro(v as string) },
@@ -175,11 +182,16 @@ function parseDate(dateStr: string): Date | null {
 }
 
 /**
- * Parse time string (H:MM or HHH:MM) to decimal hours.
+ * Parse time string (H:MM or HHH:MM) or decimal hours to a number.
+ * Eitje daily CSV uses comma decimals for `uren` (e.g. 8,0 / 6,17); JS Number("8,0") is NaN.
  * Contract CSV "* totaal gewerkte uren" uses many-hour values e.g. 2558:25, 1018:45.
  */
-function parseTimeToHours(timeStr: string): number {
-  if (!timeStr || timeStr.trim() === '') return 0
+function parseTimeToHours(value: string | number | null | undefined): number {
+  if (value == null) return 0
+  if (typeof value === 'number') return isNaN(value) ? 0 : value
+
+  const timeStr = String(value).trim()
+  if (timeStr === '') return 0
 
   // Handle "H:MM" or "HHH:MM" (any number of hour digits) — e.g. 26:25, 2558:25
   const timeMatch = timeStr.match(/^(\d+):(\d{2})$/)
@@ -188,7 +200,13 @@ function parseTimeToHours(timeStr: string): number {
     return parseInt(hours, 10) + parseInt(minutes, 10) / 60
   }
 
-  // Try to parse as number
+  // nl-NL decimals: "8,0", "6,17"; optional thousands "1.234,5" — do not strip dots when only "." is the decimal (e.g. "8.5")
+  if (/,/.test(timeStr)) {
+    const normalized = timeStr.replace(/\./g, '').replace(',', '.')
+    const num = Number(normalized)
+    return isNaN(num) ? 0 : num
+  }
+
   const num = Number(timeStr)
   return isNaN(num) ? 0 : num
 }
@@ -299,13 +317,17 @@ class DataMappingService {
       const mappedRows: Record<string, unknown>[] = []
       const errors: Array<{ row: number; error: string }> = []
 
+      const importAt = resolveInboxImportInstant(parsedData)
+      const cronHour = getAmsterdamWallHour(importAt)
+
       // Map each row
       parsedData.data.rows.forEach((row, index) => {
         try {
           const mappedRow: Record<string, unknown> = {
             _id: new ObjectId(),
             source: 'inbox',
-            importedAt: new Date(),
+            importedAt: importAt,
+            cron_hour: cronHour,
           }
 
           // Apply field mappings (case-insensitive column match for CSV headers)
@@ -331,6 +353,33 @@ class DataMappingService {
             }
           }
 
+          if (documentType === 'hours' && hasRequiredFields) {
+            const teamVal = mappedRow.team_name
+            const locVal = mappedRow.location_name
+            const hasTeam =
+              teamVal !== undefined && teamVal !== null && String(teamVal).trim() !== ''
+            const hasLoc =
+              locVal !== undefined && locVal !== null && String(locVal).trim() !== ''
+            if (!hasLoc && hasTeam) mappedRow.location_name = teamVal
+            else if (!hasLoc && !hasTeam) mappedRow.location_name = '(onbekend)'
+
+            if (!mappedRow.date) {
+              errors.push({ row: index + 1, error: 'Missing required field: date' })
+              hasRequiredFields = false
+            } else {
+              const en = mappedRow.employee_name
+              const hasEmployee =
+                en !== undefined && en !== null && String(en).trim() !== ''
+              if (!hasEmployee) {
+                errors.push({
+                  row: index + 1,
+                  error: 'Missing employee name (naam / Naam van medewerker)',
+                })
+                hasRequiredFields = false
+              }
+            }
+          }
+
           if (hasRequiredFields) {
             mappedRows.push(mappedRow)
           }
@@ -348,14 +397,18 @@ class DataMappingService {
       let matchedRecords = 0
 
       if (mappedRows.length > 0) {
-        // Use bulk insert with upsert logic
-        const operations = mappedRows.map((row) => ({
-          updateOne: {
-            filter: this.getUniqueFilter(row, documentType),
-            update: { $set: row },
-            upsert: true,
-          },
-        }))
+        // Upsert: never $set _id on existing docs (Mongo immutable field error)
+        const operations = mappedRows.map((row) => {
+          const rowId = row._id as ObjectId
+          const { _id: _omitId, ...setFields } = row as Record<string, unknown> & { _id: ObjectId }
+          return {
+            updateOne: {
+              filter: this.getUniqueFilter(row, documentType),
+              update: { $set: setFields, $setOnInsert: { _id: rowId } },
+              upsert: true,
+            },
+          }
+        })
 
         const result = await collection.bulkWrite(operations)
         createdRecords = result.upsertedCount || 0
@@ -396,12 +449,14 @@ class DataMappingService {
   private getUniqueFilter(row: Record<string, unknown>, documentType: DocumentType): Record<string, unknown> {
     switch (documentType) {
       case 'hours':
-        // Unique by date + employee_name + location_name + shift_type (Eitje format)
+        // Eitje can repeat naam+vestiging+team+type with different support ID (e.g. split registration lines)
         return {
           date: row.date,
           employee_name: row.employee_name,
           location_name: row.location_name,
           shift_type: row.shift_type || 'gewerkte uren',
+          team_name: row.team_name ?? '',
+          support_id: row.support_id != null && String(row.support_id).trim() !== '' ? String(row.support_id) : '__none__',
         }
       case 'contracts':
         // Unique by employee_name + support_id (Eitje format)

@@ -286,9 +286,11 @@ async function fetchRowDetail (row: Record<string, unknown>) {
     const dateVal = row.date
     const dateStr = dateVal instanceof Date ? dateVal.toISOString().split('T')[0] : String(dateVal ?? '').slice(0, 10)
     const locId = row.location_id != null ? String(row.location_id) : ''
+    const locName = row.location_name != null ? String(row.location_name).trim() : ''
     const params = new URLSearchParams()
     params.set('date', dateStr || '')
-    if (locId && /^[a-f0-9]{24}$/.test(locId)) {
+    if (locName) params.set('locationName', locName)
+    if (locId && /^[a-f0-9]{24}$/i.test(locId)) {
       params.set('locationId', locId)
     }
     params.set('endpoint', filters.endpoint || 'time_registration_shifts')

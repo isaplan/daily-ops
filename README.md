@@ -39,7 +39,7 @@ See [TIMEZONE_AND_DEPLOYMENT.md](./dev-docs/TIMEZONE_AND_DEPLOYMENT.md) for deta
 ### Cron Job Scheduler
 
 Scheduled tasks run automatically via Nitro's built-in scheduler (if `TZ=Europe/Amsterdam` is set):
-- **Gmail Sync:** 3× daily (08:05, 18:05, 23:05 Amsterdam)
+- **Gmail Sync:** 3× daily (**08:05**, **18:05**, **23:05** Amsterdam; Bork uses all; Eitje “yesterday” full hours typically **08:05**)
 - **Bork/Eitje Aggregation:** 6× daily (06:00, 13:00, 16:00, 18:00, 20:00, 22:00 Amsterdam)
 
 For local development without setting TZ, you can manually trigger via UI "Sync Gmail" / "Run Now" buttons.
