@@ -1,6 +1,10 @@
 <template>
-  <div class="min-h-screen bg-gray-50 p-6">
-    <div class="mx-auto max-w-6xl">
+  <div class="min-h-screen bg-gray-50 p-4 sm:p-6">
+    <div
+      class="mx-auto flex h-[min(88vh,960px)] max-h-[min(88vh,960px)] w-full max-w-[min(100%,1440px)] overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm"
+    >
+      <div class="min-h-0 min-w-0 flex-1 overflow-y-auto bg-gray-50">
+        <div class="mx-auto w-full max-w-6xl p-4 sm:p-6">
       <div class="mb-8 flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 class="text-3xl font-bold text-gray-900">Eitje — Staff</h1>
@@ -68,7 +72,7 @@
             <USelectMenu
               v-model="filterLocation"
               :items="locationOptions"
-              value-attribute="value"
+              value-key="value"
               class="w-full"
               @update:model-value="applyFilters"
             />
@@ -95,14 +99,12 @@
           <table class="w-full text-left text-sm">
             <thead>
               <tr class="border-b border-gray-200 bg-gray-50 text-gray-600">
-                <th class="px-4 py-3 font-medium">Status</th>
                 <th class="px-4 py-3 font-medium">Name</th>
                 <th class="px-4 py-3 font-medium">Contract</th>
                 <th class="px-4 py-3 font-medium">Location</th>
-                <th class="px-4 py-3 font-medium">Start → end</th>
                 <th class="px-4 py-3 text-right font-medium">€/h</th>
                 <th class="px-4 py-3 text-right font-medium">Cost/h</th>
-                <th class="px-4 py-3 font-mono text-xs font-medium text-gray-500">Support</th>
+                <th class="px-4 py-3 font-medium">Status</th>
                 <th class="px-4 py-3 text-right font-medium">Actions</th>
               </tr>
             </thead>
@@ -111,39 +113,43 @@
                 v-for="(r, i) in rows"
                 :key="`${r.support_ids.join('-')}-${i}`"
                 class="border-b border-gray-100 last:border-0"
+                :class="
+                  r.matched_member_id && r.matched_member_id === profileMemberId
+                    ? 'bg-emerald-50/80'
+                    : ''
+                "
               >
+                <td class="px-4 py-3 font-medium text-gray-900">{{ r.employee_name }}</td>
+                <td class="px-4 py-3 text-gray-700">{{ r.contract_type }}</td>
+                <td class="px-4 py-3 text-gray-700">{{ r.contract_location }}</td>
+                <td class="px-4 py-3 text-right tabular-nums">{{ money(r.hourly_rate) }}</td>
+                <td class="px-4 py-3 text-right tabular-nums">{{ money(r.cost_per_hour) }}</td>
                 <td class="px-4 py-3">
                   <UBadge
-                    :color="r.match_confidence === 'high' ? 'success' : r.match_confidence === 'medium' ? 'warning' : 'neutral'"
-                    variant="subtle"
+                    :variant="r.match_confidence === 'none' ? 'subtle' : 'solid'"
+                    :color="r.match_confidence === 'none' ? 'neutral' : 'neutral'"
+                    :class="
+                      r.match_confidence !== 'none'
+                        ? 'bg-[#228B22]! text-white! ring-0'
+                        : ''
+                    "
                   >
                     {{ statusLabel(r.match_confidence) }}
                   </UBadge>
                 </td>
-                <td class="px-4 py-3 font-medium text-gray-900">{{ r.employee_name }}</td>
-                <td class="px-4 py-3 text-gray-700">{{ r.contract_type }}</td>
-                <td class="px-4 py-3 text-gray-700">{{ r.contract_location }}</td>
-                <td class="px-4 py-3 text-gray-600">
-                  <span class="whitespace-nowrap">{{ r.startdatum ?? '—' }}</span>
-                  <span class="mx-1">→</span>
-                  <span class="whitespace-nowrap">{{ r.einddatum ?? '—' }}</span>
-                </td>
-                <td class="px-4 py-3 text-right tabular-nums">{{ money(r.hourly_rate) }}</td>
-                <td class="px-4 py-3 text-right tabular-nums">{{ money(r.cost_per_hour) }}</td>
-                <td class="px-4 py-3 font-mono text-xs text-gray-500">{{ r.support_ids.join(', ') }}</td>
                 <td class="px-4 py-3 text-right">
                   <UButton
                     v-if="r.matched_member_id"
                     size="xs"
                     variant="outline"
                     color="neutral"
-                    :to="`/members/${r.matched_member_id}`"
                     class="border-gray-900 font-semibold"
+                    @click="openProfile(r.matched_member_id)"
                   >
-                    View member
+                    View
                   </UButton>
                   <UButton v-else size="xs" variant="solid" color="neutral" class="font-semibold" @click="openCreate(r)">
-                    Create member
+                    Create
                   </UButton>
                 </td>
               </tr>
@@ -204,12 +210,113 @@
           </template>
         </UCard>
       </UModal>
+        </div>
+      </div>
+
+      <template v-if="profileMemberId">
+        <div
+          class="relative w-2 shrink-0 cursor-col-resize touch-none border-l border-gray-200 bg-gray-100 hover:bg-gray-300 active:bg-gray-400"
+          role="separator"
+          aria-orientation="vertical"
+          tabindex="0"
+          title="Drag to resize"
+          @mousedown.prevent="startResizeProfile"
+        />
+        <aside
+          class="flex min-h-0 shrink-0 flex-col overflow-hidden border-l border-gray-200 bg-white"
+          :style="{ width: `${profileAsideWidthPx}px` }"
+        >
+          <div class="flex shrink-0 items-center justify-between gap-2 border-b border-gray-100 px-3 py-2">
+            <span class="truncate text-sm font-semibold text-gray-900">Member profile</span>
+            <div class="flex shrink-0 items-center gap-1">
+              <UButton
+                size="xs"
+                variant="ghost"
+                color="neutral"
+                icon="i-lucide-external-link"
+                aria-label="Open full profile"
+                @click="openFullMemberPage(profileMemberId)"
+              />
+              <UButton
+                size="xs"
+                variant="ghost"
+                color="neutral"
+                icon="i-lucide-x"
+                aria-label="Close panel"
+                @click="closeProfile"
+              />
+            </div>
+          </div>
+          <div class="min-h-0 flex-1 overflow-y-auto px-3 py-3">
+            <EitjeStaffMemberProfilePanel :key="profileMemberId" :member-id="profileMemberId" />
+          </div>
+          <div class="shrink-0 border-t border-gray-100 p-3">
+            <UButton
+              block
+              size="sm"
+              variant="outline"
+              color="neutral"
+              class="border-gray-900 font-semibold"
+              @click="openFullMemberPage(profileMemberId)"
+            >
+              Open full page
+            </UButton>
+          </div>
+        </aside>
+      </template>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import EitjeStaffMemberProfilePanel from '~/components/daily-ops/inbox/EitjeStaffMemberProfilePanel.vue'
+
 const FILTER_ALL = '__all__'
+
+const PROFILE_ASIDE_WIDTH_LS = 'eitje-staff-profile-aside-px-v1'
+const profileAsideWidthPx = ref(384)
+let profileResizeListeners: { move: (e: MouseEvent) => void; up: () => void } | null = null
+
+onMounted(() => {
+  if (import.meta.client) {
+    const raw = localStorage.getItem(PROFILE_ASIDE_WIDTH_LS)
+    const n = raw ? Number.parseInt(raw, 10) : Number.NaN
+    if (Number.isFinite(n) && n >= 260 && n <= 720) profileAsideWidthPx.value = n
+  }
+})
+
+onBeforeUnmount(() => {
+  if (profileResizeListeners) {
+    document.removeEventListener('mousemove', profileResizeListeners.move)
+    document.removeEventListener('mouseup', profileResizeListeners.up)
+    profileResizeListeners = null
+  }
+})
+
+function startResizeProfile(e: MouseEvent) {
+  if (profileResizeListeners) {
+    document.removeEventListener('mousemove', profileResizeListeners.move)
+    document.removeEventListener('mouseup', profileResizeListeners.up)
+    profileResizeListeners = null
+  }
+  const startX = e.clientX
+  const startW = profileAsideWidthPx.value
+  const onMove = (ev: MouseEvent) => {
+    const dx = startX - ev.clientX
+    profileAsideWidthPx.value = Math.min(720, Math.max(260, startW + dx))
+  }
+  const onUp = () => {
+    if (import.meta.client) {
+      localStorage.setItem(PROFILE_ASIDE_WIDTH_LS, String(profileAsideWidthPx.value))
+    }
+    document.removeEventListener('mousemove', onMove)
+    document.removeEventListener('mouseup', onUp)
+    profileResizeListeners = null
+  }
+  profileResizeListeners = { move: onMove, up: onUp }
+  document.addEventListener('mousemove', onMove)
+  document.addEventListener('mouseup', onUp)
+}
 
 type MatchConfidence = 'high' | 'medium' | 'none'
 
@@ -230,6 +337,34 @@ type LocationItem = { _id: string; name: string }
 type TeamItem = { _id: string; name: string; location_id: string }
 
 const toast = useToast()
+
+const profileMemberId = ref<string | null>(null)
+
+function openProfile(memberId: string) {
+  const id = String(memberId ?? '').trim()
+  if (!id) return
+  profileMemberId.value = id
+}
+
+function closeProfile() {
+  profileMemberId.value = null
+}
+
+const EITJE_STAFF_PATH = '/daily-ops/inbox/eitje-staff'
+
+function memberFullPageTo(memberId: string) {
+  const id = String(memberId ?? '').trim()
+  if (!id) return '/organisation'
+  return {
+    path: `/members/${id}`,
+    query: { returnTo: EITJE_STAFF_PATH },
+  }
+}
+
+function openFullMemberPage(memberId: string) {
+  void navigateTo(memberFullPageTo(memberId))
+}
+
 const loading = ref(false)
 const loadError = ref<string | null>(null)
 const rows = ref<StaffRow[]>([])
@@ -368,6 +503,8 @@ async function submitCreate() {
       support_id: t.support_ids[0],
       contract_type: t.contract_type,
       hourly_rate: t.hourly_rate ?? undefined,
+      contract_start_date: t.startdatum ?? undefined,
+      contract_end_date: t.einddatum ?? undefined,
       email: createForm.email.trim() || undefined,
       location_id: createForm.location_id || undefined,
       team_id: createForm.team_id || undefined,
@@ -377,7 +514,11 @@ async function submitCreate() {
       headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
       body: JSON.stringify(payload),
     })
-    const json = (await res.json()) as { success?: boolean; statusMessage?: string }
+    const json = (await res.json()) as {
+      success?: boolean
+      statusMessage?: string
+      data?: { _id: string }
+    }
     if (!res.ok || !json?.success) {
       createError.value =
         typeof json.statusMessage === 'string' && json.statusMessage
@@ -385,9 +526,14 @@ async function submitCreate() {
           : `Request failed (${res.status})`
       return
     }
-    toast.add({ title: 'Member created', color: 'success' })
+    const newId = json.data?._id
+    if (!newId) {
+      createError.value = 'Created but missing member id in response'
+      return
+    }
+    toast.add({ title: 'Worker profile created', color: 'success' })
     createOpen.value = false
-    await load()
+    await navigateTo(memberFullPageTo(newId))
   } catch (e: unknown) {
     const msg =
       typeof e === 'object' && e !== null && 'data' in e

@@ -1,9 +1,9 @@
 /**
  * @registry-id: dailyOpsEitjeStaffCreateMemberPost
  * @created: 2026-05-11T17:50:00.000Z
- * @last-modified: 2026-05-11T17:58:00.000Z
+ * @last-modified: 2026-05-12T00:00:00.000Z
  * @description: Creates a member from Eitje staff row — mirrors POST /api/members insert semantics
- * @last-fix: [2026-05-11] Inline insert (avoid importing sibling route handlers)
+ * @last-fix: [2026-05-12] contract_start_date / contract_end_date for worker profile (members page)
  *
  * @exports-to:
  * ✓ pages/daily-ops/inbox/eitje-staff.vue (modal create flow)
@@ -11,6 +11,7 @@
 
 import { ObjectId } from 'mongodb'
 import { getDb } from '../../../utils/db'
+import { parseOptionalYmdToDate } from '../../../utils/parseOptionalYmdToDate'
 
 export default defineEventHandler(async (event) => {
   const body = await readBody<{
@@ -19,6 +20,8 @@ export default defineEventHandler(async (event) => {
     support_id: string
     hourly_rate?: number
     contract_type?: string
+    contract_start_date?: string
+    contract_end_date?: string
     location_id?: string
     team_id?: string
   }>(event)
@@ -63,6 +66,11 @@ export default defineEventHandler(async (event) => {
   const ct = typeof body.contract_type === 'string' ? body.contract_type.trim() : ''
   if (ct) doc.contract_type = ct
 
+  const csd = parseOptionalYmdToDate(body.contract_start_date)
+  if (csd) doc.contract_start_date = csd
+  const ced = parseOptionalYmdToDate(body.contract_end_date)
+  if (ced) doc.contract_end_date = ced
+
   if (body.location_id) {
     try {
       doc.location_id = new ObjectId(body.location_id)
@@ -96,6 +104,12 @@ export default defineEventHandler(async (event) => {
           typeof (inserted as { contract_type?: unknown }).contract_type === 'string'
             ? (inserted as { contract_type: string }).contract_type
             : undefined,
+        contract_start_date: (inserted as { contract_start_date?: Date }).contract_start_date
+          ? new Date((inserted as { contract_start_date: Date }).contract_start_date).toISOString()
+          : undefined,
+        contract_end_date: (inserted as { contract_end_date?: Date }).contract_end_date
+          ? new Date((inserted as { contract_end_date: Date }).contract_end_date).toISOString()
+          : undefined,
         is_active: inserted.is_active,
       }
     : { _id: String(result.insertedId), name: doc.name as string, email }

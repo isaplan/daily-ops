@@ -1,9 +1,9 @@
 /**
  * @registry-id: membersIndexPostApi
  * @created: 2026-04-12T00:00:00.000Z
- * @last-modified: 2026-05-11T17:58:00.000Z
+ * @last-modified: 2026-05-12T00:00:00.000Z
  * @description: POST /api/members — create member + optional worker fields / placeholder email
- * @last-fix: [2026-05-11] Optional email; support_id hourly_rate contract_type + placeholder address
+ * @last-fix: [2026-05-12] Optional contract_start_date / contract_end_date (YYYY-MM-DD)
  *
  * @exports-to:
  * ✓ pages/organisation.vue and related flows (create member)
@@ -12,6 +12,7 @@
 
 import { ObjectId } from 'mongodb'
 import { getDb } from '../../utils/db'
+import { parseOptionalYmdToDate } from '../../utils/parseOptionalYmdToDate'
 
 export default defineEventHandler(async (event) => {
   const body = await readBody<{
@@ -23,6 +24,8 @@ export default defineEventHandler(async (event) => {
     support_id?: string
     hourly_rate?: number
     contract_type?: string
+    contract_start_date?: string
+    contract_end_date?: string
   }>(event)
 
   if (!body?.name?.trim()) {
@@ -65,6 +68,11 @@ export default defineEventHandler(async (event) => {
   const ct = typeof body.contract_type === 'string' ? body.contract_type.trim() : ''
   if (ct) doc.contract_type = ct
 
+  const csd = parseOptionalYmdToDate(body.contract_start_date)
+  if (csd) doc.contract_start_date = csd
+  const ced = parseOptionalYmdToDate(body.contract_end_date)
+  if (ced) doc.contract_end_date = ced
+
   if (body.location_id) {
     try {
       doc.location_id = new ObjectId(body.location_id)
@@ -98,6 +106,12 @@ export default defineEventHandler(async (event) => {
           typeof (inserted as { contract_type?: unknown }).contract_type === 'string'
             ? (inserted as { contract_type: string }).contract_type
             : undefined,
+        contract_start_date: (inserted as { contract_start_date?: Date }).contract_start_date
+          ? new Date((inserted as { contract_start_date: Date }).contract_start_date).toISOString()
+          : undefined,
+        contract_end_date: (inserted as { contract_end_date?: Date }).contract_end_date
+          ? new Date((inserted as { contract_end_date: Date }).contract_end_date).toISOString()
+          : undefined,
         is_active: inserted.is_active,
       }
     : { _id: String(result.insertedId), name: doc.name as string, email: doc.email as string }

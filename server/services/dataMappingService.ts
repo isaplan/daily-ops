@@ -1,9 +1,9 @@
 /**
  * @registry-id: dataMappingService
  * @created: 2026-01-26T00:00:00.000Z
- * @last-modified: 2026-05-11T18:00:00.000Z
+ * @last-modified: 2026-05-12T00:00:00.000Z
  * @description: Data mapping service - maps parsed document data to MongoDB collections
- * @last-fix: [2026-05-11] Contract startdatum/einddatum + English start_date/end_date → start_date/end_date
+ * @last-fix: [2026-05-12] Hours: startdatum contract/einddatum contract → contract_start_date/end_date; contractvestiging → contract_location
  *
  * @exports-to:
  * ✓ server/services/inboxProcessService.ts
@@ -57,6 +57,18 @@ const FIELD_MAPPINGS: Record<DocumentType, FieldMapping[]> = {
     { sourceColumn: 'contracttype', targetField: 'contract_type' },
     { sourceColumn: 'uurloon', targetField: 'hourly_rate', transform: (v) => parseEuro(v as string) },
     { sourceColumn: 'support ID', targetField: 'support_id', transform: (v) => String(v) },
+    // Daily/weekly hours export: contract columns (same row as shift)
+    { sourceColumn: 'contractvestiging', targetField: 'contract_location', transform: (v) => String(v).trim() },
+    {
+      sourceColumn: 'startdatum contract',
+      targetField: 'contract_start_date',
+      transform: (v) => parseDate(v as string),
+    },
+    {
+      sourceColumn: 'einddatum contract',
+      targetField: 'contract_end_date',
+      transform: (v) => parseDate(v as string),
+    },
     // English fallbacks (only one date column required: datum or Date or Datum)
     { sourceColumn: 'Date', targetField: 'date', transform: (v) => parseDate(v as string) },
     { sourceColumn: 'Datum', targetField: 'date', transform: (v) => parseDate(v as string) },
@@ -94,6 +106,17 @@ const FIELD_MAPPINGS: Record<DocumentType, FieldMapping[]> = {
     },
     {
       sourceColumn: 'einddatum',
+      targetField: 'end_date',
+      transform: (v) => parseDate(v as string),
+    },
+    // Same labels as daily hours export (overrides plain startdatum/einddatum when both present)
+    {
+      sourceColumn: 'startdatum contract',
+      targetField: 'start_date',
+      transform: (v) => parseDate(v as string),
+    },
+    {
+      sourceColumn: 'einddatum contract',
       targetField: 'end_date',
       transform: (v) => parseDate(v as string),
     },
