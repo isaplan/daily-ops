@@ -119,6 +119,15 @@
             Eitje hours
           </UButton>
           <UButton
+            to="/daily-ops/inbox/eitje-staff"
+            variant="outline"
+            color="neutral"
+            block
+            class="justify-center border-2 border-gray-900 font-semibold"
+          >
+            Eitje staff
+          </UButton>
+          <UButton
             to="/daily-ops/inbox/bork-sales"
             variant="outline"
             color="neutral"

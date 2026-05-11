@@ -1,63 +1,61 @@
 /**
- * @registry-id: membersIndexPostApi
- * @created: 2026-04-12T00:00:00.000Z
+ * @registry-id: dailyOpsEitjeStaffCreateMemberPost
+ * @created: 2026-05-11T17:50:00.000Z
  * @last-modified: 2026-05-11T17:58:00.000Z
- * @description: POST /api/members — create member + optional worker fields / placeholder email
- * @last-fix: [2026-05-11] Optional email; support_id hourly_rate contract_type + placeholder address
+ * @description: Creates a member from Eitje staff row — mirrors POST /api/members insert semantics
+ * @last-fix: [2026-05-11] Inline insert (avoid importing sibling route handlers)
  *
  * @exports-to:
- * ✓ pages/organisation.vue and related flows (create member)
- * ✓ server/api/daily-ops/eitje-staff/create-member.post mirrors insert fields by design
+ * ✓ pages/daily-ops/inbox/eitje-staff.vue (modal create flow)
  */
 
 import { ObjectId } from 'mongodb'
-import { getDb } from '../../utils/db'
+import { getDb } from '../../../utils/db'
 
 export default defineEventHandler(async (event) => {
   const body = await readBody<{
-    name: string
+    employee_name: string
     email?: string
-    slack_username?: string
-    location_id?: string
-    team_id?: string
-    support_id?: string
+    support_id: string
     hourly_rate?: number
     contract_type?: string
+    location_id?: string
+    team_id?: string
   }>(event)
 
-  if (!body?.name?.trim()) {
-    throw createError({ statusCode: 400, statusMessage: 'name is required' })
+  if (!body?.employee_name?.trim()) {
+    throw createError({ statusCode: 400, statusMessage: 'employee_name is required' })
   }
+  if (!body?.support_id?.trim()) {
+    throw createError({ statusCode: 400, statusMessage: 'support_id is required' })
+  }
+
+  /** Same semantics as POST /api/members (server/api/members/index.post.ts) */
+  const name = body.employee_name.trim()
   const db = await getDb()
   const now = new Date()
   let email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : ''
+  const supRaw = body.support_id.trim()
   if (!email) {
-    const sid = String(body.support_id ?? '').trim()
-    email = sid
-      ? `support-${sid.replace(/[^\w.-]/g, '_')}@noreply.local`
-      : `member-${new ObjectId().toHexString()}@noreply.local`
+    email = `support-${supRaw.replace(/[^\w.-]/g, '_')}@noreply.local`
   }
   const doc: Record<string, unknown> = {
-    name: body.name.trim(),
+    name,
     email,
-    slack_username: body.slack_username?.trim() || undefined,
     roles: [{ role: 'kitchen_staff', scope: 'team', grantedAt: now }],
     is_active: true,
     created_at: now,
     updated_at: now,
   }
 
-  const sup = typeof body.support_id === 'string' ? body.support_id.trim() : ''
-  if (sup) {
-    const existing = await db.collection('members').findOne({ support_id: sup })
-    if (existing) {
-      throw createError({
-        statusCode: 409,
-        statusMessage: 'A member already exists for this support_id',
-      })
-    }
-    doc.support_id = sup
+  const existing = await db.collection('members').findOne({ support_id: supRaw })
+  if (existing) {
+    throw createError({
+      statusCode: 409,
+      statusMessage: 'A member already exists for this support_id',
+    })
   }
+  doc.support_id = supRaw
 
   const hr =
     typeof body.hourly_rate === 'number' && Number.isFinite(body.hourly_rate) ? body.hourly_rate : undefined
@@ -79,6 +77,7 @@ export default defineEventHandler(async (event) => {
       doc.team_id = undefined
     }
   }
+
   const result = await db.collection('members').insertOne(doc)
   const inserted = await db.collection('members').findOne({ _id: result.insertedId })
   const data = inserted
@@ -86,7 +85,6 @@ export default defineEventHandler(async (event) => {
         _id: String(inserted._id),
         name: inserted.name,
         email: inserted.email,
-        slack_username: inserted.slack_username,
         location_id: inserted.location_id ? String(inserted.location_id) : undefined,
         team_id: inserted.team_id ? String(inserted.team_id) : undefined,
         support_id: typeof inserted.support_id === 'string' ? inserted.support_id : undefined,
@@ -100,6 +98,6 @@ export default defineEventHandler(async (event) => {
             : undefined,
         is_active: inserted.is_active,
       }
-    : { _id: String(result.insertedId), name: doc.name as string, email: doc.email as string }
-  return { success: true, data }
+    : { _id: String(result.insertedId), name: doc.name as string, email }
+  return { success: true as const, data }
 })

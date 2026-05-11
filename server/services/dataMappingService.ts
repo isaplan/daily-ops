@@ -1,9 +1,9 @@
 /**
  * @registry-id: dataMappingService
  * @created: 2026-01-26T00:00:00.000Z
- * @last-modified: 2026-05-10T17:00:00.000Z
+ * @last-modified: 2026-05-11T18:00:00.000Z
  * @description: Data mapping service - maps parsed document data to MongoDB collections
- * @last-fix: [2026-05-10] importedAt/cron_hour from email receivedAt or parsed created_at; upsert team+support_id
+ * @last-fix: [2026-05-11] Contract startdatum/einddatum + English start_date/end_date → start_date/end_date
  *
  * @exports-to:
  * ✓ server/services/inboxProcessService.ts
@@ -14,6 +14,7 @@ import { getDb } from '../utils/db'
 import type { DocumentType, CreateParsedDataDto } from '~/types/inbox'
 import { ObjectId, type Db } from 'mongodb'
 import { getAmsterdamWallHour, resolveInboxImportInstant } from '../utils/inbox/amsterdamWallHour'
+import { inferEitjeHoursExportKindFromFileName } from '../utils/inbox/document-classifier'
 
 export interface MappingResult {
   success: boolean
@@ -86,10 +87,31 @@ const FIELD_MAPPINGS: Record<DocumentType, FieldMapping[]> = {
     { sourceColumn: 'achternaam', targetField: 'last_name' },
     { sourceColumn: 'voornaam', targetField: 'first_name' },
     { sourceColumn: 'support ID', targetField: 'support_id', transform: (v) => String(v) },
+    {
+      sourceColumn: 'startdatum',
+      targetField: 'start_date',
+      transform: (v) => parseDate(v as string),
+    },
+    {
+      sourceColumn: 'einddatum',
+      targetField: 'end_date',
+      transform: (v) => parseDate(v as string),
+    },
+    {
+      sourceColumn: 'start_date',
+      targetField: 'start_date',
+      transform: (v) => parseDate(v as string),
+    },
+    {
+      sourceColumn: 'end_date',
+      targetField: 'end_date',
+      transform: (v) => parseDate(v as string),
+    },
     // English fallbacks
     { sourceColumn: 'Name', targetField: 'employee_name' },
     { sourceColumn: 'ContractType', targetField: 'contract_type' },
     { sourceColumn: 'StartDate', targetField: 'start_date', transform: (v) => parseDate(v as string) },
+    { sourceColumn: 'EndDate', targetField: 'end_date', transform: (v) => parseDate(v as string) },
   ],
   finance: [
     { sourceColumn: 'datum', targetField: 'date', required: true, transform: (v) => parseDate(v as string) },
@@ -381,6 +403,14 @@ class DataMappingService {
           }
 
           if (hasRequiredFields) {
+            if (documentType === 'hours') {
+              const fn = parsedData.sourceAttachmentFileName
+              if (fn && String(fn).trim()) {
+                mappedRow.source_attachment_name = String(fn).trim()
+                const kind = inferEitjeHoursExportKindFromFileName(fn)
+                if (kind) mappedRow.eitje_hours_export_kind = kind
+              }
+            }
             mappedRows.push(mappedRow)
           }
         } catch (error) {
@@ -448,16 +478,30 @@ class DataMappingService {
    */
   private getUniqueFilter(row: Record<string, unknown>, documentType: DocumentType): Record<string, unknown> {
     switch (documentType) {
-      case 'hours':
-        // Eitje can repeat naam+vestiging+team+type with different support ID (e.g. split registration lines)
+      case 'hours': {
+        // Eitje shift line id is unique: same support_id + business date + venue = one row (team/name/hours update in place).
+        // Without support_id, fall back to composite key (legacy / bad exports).
+        const sidRaw = row.support_id != null ? String(row.support_id).trim() : ''
+        const sid = sidRaw !== '' ? sidRaw : null
+        const loc =
+          row.location_name != null && String(row.location_name).trim() !== ''
+            ? String(row.location_name).trim()
+            : row.location_name
+        if (sid) {
+          return {
+            date: row.date,
+            location_name: loc,
+            support_id: sid,
+          }
+        }
         return {
           date: row.date,
           employee_name: row.employee_name,
-          location_name: row.location_name,
+          location_name: loc,
           shift_type: row.shift_type || 'gewerkte uren',
           team_name: row.team_name ?? '',
-          support_id: row.support_id != null && String(row.support_id).trim() !== '' ? String(row.support_id) : '__none__',
         }
+      }
       case 'contracts':
         // Unique by employee_name + support_id (Eitje format)
         return {
