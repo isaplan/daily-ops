@@ -1,10 +1,10 @@
 /**
  * Nitro task: poll Gmail, store new emails, auto-parse.
- * Production schedule: 3×/day in nuxt.config — 08:05, 18:05, 23:05 Europe/Amsterdam (TZ env). Bork uses all three; Eitje full “yesterday” hours typically arrive on the morning poll. Local: DISABLE_INBOX_SCHEDULED=1 to skip.
+ * Production schedule: 3×/day in nuxt.config — 08:05, 18:05, 23:05 Europe/Amsterdam (TZ env). Catches Eitje ~08:00 daily uren and ~07:55 optional “current week” export in the morning slot. Local: DISABLE_INBOX_SCHEDULED=1 to skip.
  *
  * @registry-id: taskInboxGmailSync
  * @last-modified: 2026-04-21T10:00:00.000Z
- * @last-fix: [2026-05-10] Doc: 3× inbox poll restored; Eitje note = trust 08:05 for full prior-day labor
+ * @last-fix: [2026-05-11] Doc: morning poll covers Eitje weekly + daily hours mail
  * @exports-to: nuxt.config.ts → nitro.scheduledTasks
  */
 

@@ -15,7 +15,7 @@ import { ObjectId } from 'mongodb'
 type MatchConfidence = 'high' | 'medium' | 'none'
 
 export type EitjeStaffRow = {
-  support_id: string
+  support_ids: string[]
   employee_name: string
   contract_type: string
   contract_location: string
@@ -54,11 +54,9 @@ function toNum(v: unknown): number | null {
 }
 
 function dedupeKey(doc: Record<string, unknown>): string {
-  const sid = String(doc.support_id ?? '').trim()
-  if (sid) return `sid:${sid}`
   const name = normStr(doc.employee_name)
   const loc = normStr(doc.contract_location)
-  return `nl:${name}|${loc}`
+  return `${name}|${loc}`
 }
 
 export default defineEventHandler(async (event) => {
@@ -76,10 +74,11 @@ export default defineEventHandler(async (event) => {
       .sort({ _id: -1 })
       .toArray()) as Record<string, unknown>[]
 
-    const bestByKey = new Map<string, Record<string, unknown>>()
+    const bestByKey = new Map<string, Record<string, unknown>[]>()
     for (const doc of raw) {
       const k = dedupeKey(doc)
-      if (!bestByKey.has(k)) bestByKey.set(k, doc)
+      if (!bestByKey.has(k)) bestByKey.set(k, [])
+      bestByKey.get(k)!.push(doc)
     }
 
     const members = (await db
@@ -115,7 +114,7 @@ export default defineEventHandler(async (event) => {
       const startdatum = ymdFromValue(doc.start_date)
       const einddatum = ymdFromValue(doc.end_date)
       const hourly_rate = toNum(doc.hourly_rate)
-      const cost_per_hour = toNum(doc.cost_per_hour)
+      const cost_per_hour = hourly_rate !== null ? hourly_rate * 1.36 : null
 
       if (locationFilter && !normStr(contract_location).includes(locationFilter) && normStr(contract_location) !== locationFilter) {
         continue
@@ -146,7 +145,7 @@ export default defineEventHandler(async (event) => {
       }
 
       rows.push({
-        support_id: support_id || '—',
+        support_ids: support_id ? [support_id] : [],
         employee_name,
         contract_type,
         contract_location,

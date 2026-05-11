@@ -190,6 +190,8 @@ export interface CreateParsedDataDto {
   sourceEmailReceivedAt?: string | Date | null
   /** `parseddatas.created_at` fallback when email time missing. */
   parsedDataCreatedAt?: string | Date | null
+  /** Attachment filename (Gmail / manual upload) — used for Eitje daily vs weekly export tagging. */
+  sourceAttachmentFileName?: string | null
   data: {
     headers: string[]
     rows: Record<string, unknown>[]

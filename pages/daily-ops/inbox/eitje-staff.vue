@@ -109,7 +109,7 @@
             <tbody>
               <tr
                 v-for="(r, i) in rows"
-                :key="`${r.support_id}-${i}`"
+                :key="`${r.support_ids.join('-')}-${i}`"
                 class="border-b border-gray-100 last:border-0"
               >
                 <td class="px-4 py-3">
@@ -130,7 +130,7 @@
                 </td>
                 <td class="px-4 py-3 text-right tabular-nums">{{ money(r.hourly_rate) }}</td>
                 <td class="px-4 py-3 text-right tabular-nums">{{ money(r.cost_per_hour) }}</td>
-                <td class="px-4 py-3 font-mono text-xs text-gray-500">{{ r.support_id }}</td>
+                <td class="px-4 py-3 font-mono text-xs text-gray-500">{{ r.support_ids.join(', ') }}</td>
                 <td class="px-4 py-3 text-right">
                   <UButton
                     v-if="r.matched_member_id"
@@ -176,7 +176,7 @@
               <UInput :model-value="createTarget.employee_name" disabled class="w-full" />
             </UFormField>
             <UFormField label="Support ID">
-              <UInput :model-value="createTarget.support_id" disabled class="w-full font-mono text-sm" />
+              <UInput :model-value="createTarget.support_ids.join(', ')" disabled class="w-full font-mono text-sm" />
             </UFormField>
             <UFormField label="Email (optional)">
               <UInput v-model="createForm.email" type="email" class="w-full" placeholder="personal@…" />
@@ -214,7 +214,7 @@ const FILTER_ALL = '__all__'
 type MatchConfidence = 'high' | 'medium' | 'none'
 
 type StaffRow = {
-  support_id: string
+  support_ids: string[]
   employee_name: string
   contract_type: string
   contract_location: string
@@ -345,7 +345,7 @@ const createForm = reactive({
 })
 
 function openCreate(r: StaffRow) {
-  if (r.support_id === '—') {
+  if (!r.support_ids || r.support_ids.length === 0) {
     toast.add({ title: 'Missing support id', color: 'warning' })
     return
   }
@@ -359,13 +359,13 @@ function openCreate(r: StaffRow) {
 
 async function submitCreate() {
   const t = createTarget.value
-  if (!t?.support_id || t.support_id === '—') return
+  if (!t?.support_ids || t.support_ids.length === 0) return
   createSaving.value = true
   createError.value = ''
   try {
     const payload = {
       employee_name: t.employee_name,
-      support_id: t.support_id,
+      support_id: t.support_ids[0],
       contract_type: t.contract_type,
       hourly_rate: t.hourly_rate ?? undefined,
       email: createForm.email.trim() || undefined,

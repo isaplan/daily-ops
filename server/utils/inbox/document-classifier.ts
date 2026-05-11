@@ -1,9 +1,9 @@
 /**
  * @registry-id: documentClassifier
  * @created: 2026-01-26T00:00:00.000Z
- * @last-modified: 2026-04-18T00:00:00.000Z
+ * @last-modified: 2026-05-11T03:00:00.000Z
  * @description: Document type classifier (ported from next-js-old)
- * @last-fix: [2026-04-18] Nuxt path imports
+ * @last-fix: [2026-05-11] Eitje weekly hours filename hints + inferEitjeHoursExportKindFromFileName
  *
  * @exports-to:
  * ✓ server/services/documentParserService.ts
@@ -24,6 +24,19 @@ export function classifyByFilename(fileName: string): ClassificationResult {
   // Eitje daily hours export
   if (lowerName.includes('dagelijkse-uren-export')) {
     return { type: 'hours', confidence: 'high', reason: 'Eitje daily hours export' }
+  }
+  // Eitje scheduled export: current week (morning mail) — same CSV shape as daily, wider date span
+  if (
+    lowerName.includes('wekelijk') ||
+    lowerName.includes('weekly') ||
+    lowerName.includes('huidige week') ||
+    lowerName.includes('week-export') ||
+    lowerName.includes('week export') ||
+    lowerName.includes('per week') ||
+    lowerName.includes('weekuren') ||
+    lowerName.includes('week-uren')
+  ) {
+    return { type: 'hours', confidence: 'high', reason: 'Eitje weekly / current-week hours export' }
   }
   if (lowerName.includes('hours') || lowerName.includes('uren')) {
     return { type: 'hours', confidence: 'high', reason: 'Filename contains "hours" or "uren"' }
@@ -136,6 +149,28 @@ export function classifyByContent(headers: string[]): ClassificationResult {
   }
 
   return { type: 'other', confidence: 'low', reason: 'No matching pattern found in headers' }
+}
+
+/** Tag for inbox-eitje-hours provenance (second morning file = rolling week). */
+export function inferEitjeHoursExportKindFromFileName (fileName: string | null | undefined): 'daily' | 'weekly' | null {
+  if (!fileName || !String(fileName).trim()) return null
+  const lower = String(fileName).toLowerCase()
+  if (
+    lower.includes('wekelijk') ||
+    lower.includes('weekly') ||
+    lower.includes('huidige week') ||
+    lower.includes('week-export') ||
+    lower.includes('week export') ||
+    lower.includes('per week') ||
+    lower.includes('weekuren') ||
+    lower.includes('week-uren')
+  ) {
+    return 'weekly'
+  }
+  if (lower.includes('dagelijkse') || lower.includes('daily')) {
+    return 'daily'
+  }
+  return null
 }
 
 export function classifyDocument(fileName: string, headers?: string[]): ClassificationResult {

@@ -1,6 +1,6 @@
 /**
  * Re-run dataMappingService for every Eitje hours attachment already stored in `parseddatas`.
- * Use after fixing `parseTimeToHours` (comma decimals) so `inbox-eitje-hours` gets real hour values.
+ * Use after fixing `parseTimeToHours` or **hours upsert keys** so `inbox-eitje-hours` matches Eitje rows.
  *
  * Usage:
  *   npx tsx scripts/remap-inbox-eitje-hours-from-parseddatas.ts
@@ -82,6 +82,20 @@ async function main () {
     const parsedDataCreatedAt =
       pca instanceof Date ? pca : pca != null ? new Date(String(pca)) : undefined
 
+    let sourceAttachmentFileName: string | null = null
+    try {
+      const att = await db.collection('emailattachments').findOne({
+        _id:
+          parsed.attachmentId instanceof ObjectId
+            ? parsed.attachmentId
+            : new ObjectId(String(parsed.attachmentId)),
+      })
+      const fn = att?.fileName
+      if (fn != null && String(fn).trim()) sourceAttachmentFileName = String(fn).trim()
+    } catch {
+      sourceAttachmentFileName = null
+    }
+
     const dto: CreateParsedDataDto = {
       attachmentId: String(parsed.attachmentId),
       emailId: String(parsed.emailId),
@@ -92,6 +106,7 @@ async function main () {
       rowsFailed: 0,
       sourceEmailReceivedAt: sourceEmailReceivedAt ?? null,
       parsedDataCreatedAt: parsedDataCreatedAt ?? null,
+      sourceAttachmentFileName,
       data: {
         headers,
         rows,

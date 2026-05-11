@@ -137,6 +137,7 @@
           </button>
           <ul v-if="!collapsed && isInboxOpen" class="mt-1 ml-4 space-y-0.5 border-l border-gray-200 pl-3">
             <li><NuxtLink to="/daily-ops/inbox" :class="navLinkClass(route.path === '/daily-ops/inbox' || route.path === '/daily-ops/inbox/')">Inbox</NuxtLink></li>
+            <li><NuxtLink to="/daily-ops/inbox/eitje-staff" :class="navLinkClass(route.path === '/daily-ops/inbox/eitje-staff')">Eitje staff</NuxtLink></li>
             <li><NuxtLink to="/daily-ops/inbox/eitje-hours" :class="navLinkClass(route.path === '/daily-ops/inbox/eitje-hours')">Eitje hours</NuxtLink></li>
             <li><NuxtLink to="/daily-ops/inbox/bork-sales" :class="navLinkClass(route.path === '/daily-ops/inbox/bork-sales')">Bork sales</NuxtLink></li>
           </ul>

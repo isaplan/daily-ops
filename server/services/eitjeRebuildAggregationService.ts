@@ -1,9 +1,9 @@
 /**
  * @registry-id: eitjeRebuildAggregationService
  * @created: 2026-04-05T12:00:00.000Z
- * @last-modified: 2026-05-10T12:00:00.000Z
+ * @last-modified: 2026-05-11T15:00:00.000Z
  * @description: Rebuilds eitje_time_registration_aggregation day rows from eitje_raw_data for a date range
- * @last-fix: [2026-05-10] Period uses Europe/Amsterdam (business day 06:00–05:59); group keys normalize userId/teamId/locationId to string to prevent duplicate buckets from mixed types
+ * @last-fix: [2026-05-11] Labor period = Amsterdam calendar date of shift ISO start (not Bork post-midnight day)
  *
  * @exports-to:
  * ✓ server/services/eitjeSyncService.ts
@@ -11,27 +11,16 @@
  */
 
 import type { Db } from 'mongodb'
-import { EITJE_HOURS_ADD_FIELDS } from '../utils/eitjeHours'
+import {
+  EITJE_HOURS_ADD_FIELDS,
+  EITJE_LABOR_PERIOD_FROM_SHIFT_START_FIELD,
+  EITJE_LABOR_SHIFT_START_FIELD,
+} from '../utils/eitjeHours'
 
-/**
- * Convert UTC calendar date + hour to business day period.
- * Business day: 06:00-05:59:59 next morning.
- * business_hour: 0 = 06:00-06:59, 18 = 00:00-00:59 next day, 23 = 05:00-05:59 next day.
- */
-function calendarToBusinessDay(
-  calendarDateStr: string,
-  calendarHour: number
-): { businessDate: string; businessHour: number } {
-  if (calendarHour >= 6 && calendarHour <= 23) {
-    return { businessDate: calendarDateStr, businessHour: calendarHour - 6 }
-  }
-  const [y, m, d] = calendarDateStr.split('-').map(Number)
-  const prevDate = new Date(Date.UTC(y, (m ?? 1) - 1, (d ?? 1) - 1))
-  const yy = prevDate.getUTCFullYear()
-  const mm = String(prevDate.getUTCMonth() + 1).padStart(2, '0')
-  const dd = String(prevDate.getUTCDate()).padStart(2, '0')
-  const prevDateStr = `${yy}-${mm}-${dd}`
-  return { businessDate: prevDateStr, businessHour: calendarHour + 18 }
+function addUtcDays (d: Date, delta: number): Date {
+  const x = new Date(d.getTime())
+  x.setUTCDate(x.getUTCDate() + delta)
+  return x
 }
 
 export type RebuildAggResult = {
@@ -65,24 +54,21 @@ export async function rebuildEitjeTimeRegistrationAggregation (
 
   const startD = dayStartUtc(startDate)
   const endD = dayEndUtc(endDate)
+  /** Pull a padded UTC window on stored `date`, then keep rows whose labor `period` falls in [startDate,endDate]. */
+  const looseStart = addUtcDays(startD, -2)
+  const looseEnd = addUtcDays(endD, 2)
 
   const pipeline: unknown[] = [
     {
       $match: {
         endpoint: 'time_registration_shifts',
-        date: { $gte: startD, $lte: endD },
+        date: { $gte: looseStart, $lte: looseEnd },
       },
     },
     {
       $addFields: {
         ...EITJE_HOURS_ADD_FIELDS,
-        /** Shift anchor time in Amsterdam — matches operational business day (06:00–05:59 next calendar day). */
-        amsterdamYmd: {
-          $dateToString: { format: '%Y-%m-%d', date: '$date', timezone: 'Europe/Amsterdam' },
-        },
-        amsterdamHour: {
-          $hour: { date: '$date', timezone: 'Europe/Amsterdam' },
-        },
+        ...EITJE_LABOR_SHIFT_START_FIELD,
         userId: { $ifNull: ['$extracted.userId', '$rawApiResponse.user_id'] },
         teamId: { $ifNull: ['$extracted.teamId', '$rawApiResponse.team_id'] },
         environmentId: {
@@ -96,27 +82,11 @@ export async function rebuildEitjeTimeRegistrationAggregation (
         },
       },
     },
+    { $addFields: EITJE_LABOR_PERIOD_FROM_SHIFT_START_FIELD },
     {
-      $addFields: {
-        period: {
-          $cond: [
-            { $gte: ['$amsterdamHour', 6] },
-            '$amsterdamYmd',
-            {
-              $dateToString: {
-                format: '%Y-%m-%d',
-                date: { $dateSubtract: { startDate: '$date', unit: 'day', amount: 1 } },
-                timezone: 'Europe/Amsterdam',
-              },
-            },
-          ],
-        },
-        business_hour: {
-          $cond: [
-            { $gte: ['$amsterdamHour', 6] },
-            { $subtract: ['$amsterdamHour', 6] },
-            { $add: ['$amsterdamHour', 18] },
-          ],
+      $match: {
+        $expr: {
+          $and: [{ $gte: ['$period', startDate] }, { $lte: ['$period', endDate] }],
         },
       },
     },

@@ -1,0 +1,170 @@
+▲ datum,naam,naam van vestiging,team naam,type,uren,Loonkosten per uur,uurloon,gerealizeerde loonkosten,contracttype,wekelijkse contracturen,maandelijkse contracturen,startdatum contract,einddatum contract,contractvestiging,planning type,geplande uren,geplande starttijd,geplande eindttijd,support ID
+04/05/2026,Sophie Van Eijk,L'amour Toujours,Management,verlof,"8,0","€27,37","€20,05","verlof, n.v.t. (verlof shifts hebben geen loonkosten, omdat verlof wordt opgebouwd tijdens het werk en wordt meegerekend in de omrekeningsfactor van gewerkte uren)",uren contract (36.0),36:00,156:00,01/11/2025,31/10/2026,L'amour Toujours,,"0,0",,,26827455
+04/05/2026,Jordy Wubben,Van Kinsbergen,Ziek,ziek,"9,5","€30,37","€23,06","€288,52",uren contract (38.0),38:00,164:40,17/10/2024,,Van Kinsbergen,,"0,0",,,27762400
+04/05/2026,Casper Schul,Van Kinsbergen,Management,gewerkte uren,"3,0","€24,21","€18,45","€72,63",uren contract (38.0),38:00,164:40,01/03/2021,,Van Kinsbergen,standaard,"5,0",15:00,20:00,27785805
+04/05/2026,Casper Schul,Van Kinsbergen,Bediening,gewerkte uren,"2,25","€24,21","€18,45","€54,47",uren contract (38.0),38:00,164:40,01/03/2021,,Van Kinsbergen,,"0,0",,,27785812
+04/05/2026,Inna Skotnikova,Van Kinsbergen,Keuken,gewerkte uren,"10,0","€22,67","€16,66","€226,7",uren contract (38.0),38:00,164:40,01/06/2024,31/05/2026,Van Kinsbergen,standaard,"8,0",13:00,21:30,27788219
+04/05/2026,Yetkin Metin,Van Kinsbergen,Keuken,gewerkte uren,"0,0",,,,uren contract (16.0),16:00,69:20,01/01/2026,26/06/2026,Van Kinsbergen,,"0,0",,,27788257
+04/05/2026,Carmen Van Geest,Van Kinsbergen,Bediening,gewerkte uren,"7,83",,"€14,06","€173,47",nul uren (0),00:00,00:00,01/05/2026,29/04/2028,Van Kinsbergen,standaard,"7,0",17:00,00:00,27789896
+04/05/2026,Dario Zanon,Van Kinsbergen,Bediening,gewerkte uren,"11,08","€21,74","€16,6","€240,95",uren contract (38.0),38:00,164:40,01/02/2025,,Van Kinsbergen,standaard,"10,5",13:30,00:00,27789901
+04/05/2026,Afwas Van Kinsbergen,Van Kinsbergen,Afwas,gewerkte uren,"6,25",,€19,"€118,75",zzp (0),00:00,00:00,01/04/2026,,Van Kinsbergen,standaard,"6,0",16:00,22:30,27790203
+04/05/2026,Alvinio Molina,Bar Bea,Bestellen & Stock,gewerkte uren,"1,0",,€24,€24,zzp (0),00:00,00:00,01/03/2025,,Van Kinsbergen,,"0,0",,,27817795
+04/05/2026,Alvinio Molina,Van Kinsbergen,Bestelling & Stock,gewerkte uren,"1,0",,€24,€24,zzp (0),00:00,00:00,01/03/2025,,Van Kinsbergen,,"0,0",,,27817798
+04/05/2026,Alvinio Molina,L'amour Toujours,Hk & Hr Management,gewerkte uren,"1,0",,€24,€24,zzp (0),00:00,00:00,01/03/2025,,Van Kinsbergen,,"0,0",,,27817836
+04/05/2026,Alvinio Molina,Bar Bea,Hk & Hr Management,gewerkte uren,"1,5",,€24,€36,zzp (0),00:00,00:00,01/03/2025,,Van Kinsbergen,,"0,0",,,27817871
+04/05/2026,Alvinio Molina,L'amour Toujours,Hk & Hr Management,gewerkte uren,"1,5",,€24,€36,zzp (0),00:00,00:00,01/03/2025,,Van Kinsbergen,,"0,0",,,27817883
+04/05/2026,Alvinio Molina,Van Kinsbergen,Hk & Hr Management,gewerkte uren,"1,5",,€24,€36,zzp (0),00:00,00:00,01/03/2025,,Van Kinsbergen,,"0,0",,,27817892
+04/05/2026,Yetkin Metin,Van Kinsbergen,Keuken,gewerkte uren,"7,5",,,,uren contract (16.0),16:00,69:20,01/01/2026,26/06/2026,Van Kinsbergen,standaard,"7,0",14:00,21:30,27863135
+04/05/2026,Bas Butters Ruben,Van Kinsbergen,Keuken,gewerkte uren,"9,0",,€45,€405,zzp (0),00:00,00:00,15/07/2025,,L'amour Toujours,standaard,"8,0",13:00,21:30,27863144
+05/05/2026,Frederique Van Gulik,Bar Bea,Bediening,verlof,"6,4","€23,07","€16,95","verlof, n.v.t. (verlof shifts hebben geen loonkosten, omdat verlof wordt opgebouwd tijdens het werk en wordt meegerekend in de omrekeningsfactor van gewerkte uren)",uren contract (32.0),32:00,138:40,01/08/2025,31/07/2026,Bar Bea,,"0,0",,,27316873
+05/05/2026,Jordy Wubben,Van Kinsbergen,Ziek,ziek,"9,5","€30,37","€23,06","€288,52",uren contract (38.0),38:00,164:40,17/10/2024,,Van Kinsbergen,,"0,0",,,27762412
+05/05/2026,Lars Zimmermann,Bar Bea,Ziek,ziek,"8,0","€26,76","€20,35","€214,08",uren contract (38.0),38:00,164:40,01/03/2026,,Bar Bea,,"0,0",,,27762449
+05/05/2026,Alvinio Molina,Bar Bea,Hk & Hr Management,gewerkte uren,"1,0",,€24,€24,zzp (0),00:00,00:00,01/03/2025,,Van Kinsbergen,,"0,0",,,27817898
+05/05/2026,Alvinio Molina,L'amour Toujours,Hk & Hr Management,gewerkte uren,"1,0",,€24,€24,zzp (0),00:00,00:00,01/03/2025,,Van Kinsbergen,,"0,0",,,27817915
+05/05/2026,Alvinio Molina,Van Kinsbergen,Hk & Hr Management,gewerkte uren,"1,0",,€24,€24,zzp (0),00:00,00:00,01/03/2025,,Van Kinsbergen,,"0,0",,,27817932
+05/05/2026,Justin Duyvenbode,Bar Bea,Keuken,gewerkte uren,"0,0",,€35,,zzp (0),00:00,00:00,01/09/2024,,Van Kinsbergen,standaard,"4,5",17:00,21:30,27820428
+05/05/2026,Mike Van Asperen,Van Kinsbergen,Bediening,gewerkte uren,"3,0","€24,77","€18,17","€74,31",uren contract (38.0),38:00,164:40,01/11/2025,31/10/2026,Van Kinsbergen,standaard,"9,0",11:00,20:00,27820848
+05/05/2026,Mike Van Asperen,Van Kinsbergen,Bediening,gewerkte uren,"3,25","€24,77","€18,17","€80,5",uren contract (38.0),38:00,164:40,01/11/2025,31/10/2026,Van Kinsbergen,,"0,0",,,27820858
+05/05/2026,Mike Van Asperen,Van Kinsbergen,Management,gewerkte uren,"1,5","€24,77","€18,17","€37,16",uren contract (38.0),38:00,164:40,01/11/2025,31/10/2026,Van Kinsbergen,,"0,0",,,27820864
+05/05/2026,Tjalling Andringa,Bar Bea,Keuken,gewerkte uren,"3,17",,"€6,48","€32,32",nul uren (0),00:00,00:00,01/03/2026,28/02/2027,L'amour Toujours,standaard,"4,0",17:00,21:00,27821014
+05/05/2026,Casper Schul,Bar Bea,Management,gewerkte uren,"7,67","€24,21","€18,45","€185,61",uren contract (38.0),38:00,164:40,01/03/2021,,Van Kinsbergen,standaard,"8,0",12:00,20:00,27822167
+05/05/2026,Eric Falter,Van Kinsbergen,Keuken,gewerkte uren,"10,42","€22,59","€16,6","€235,31",uren contract (32.0),32:00,138:40,01/10/2025,01/10/2026,Van Kinsbergen,standaard,"10,0",11:00,21:30,27823773
+05/05/2026,Hannah Lipman,Van Kinsbergen,Keuken,gewerkte uren,"8,17","€26,7","€20,31","€218,05",uren contract (38.0),38:00,164:40,17/03/2025,,Van Kinsbergen,standaard,"8,0",13:00,21:30,27824139
+05/05/2026,Chelsea Cruz | Leerling,Van Kinsbergen,Keuken,gewerkte uren,"8,42","€22,59","€16,6","€190,13",uren contract (16.0),16:00,69:20,09/09/2025,31/07/2026,Van Kinsbergen,standaard,"8,0",13:00,21:30,27824141
+05/05/2026,Mija Glendenning,Van Kinsbergen,Bediening,gewerkte uren,"5,75",,"€14,71","€133,22",nul uren (0),00:00,00:00,05/02/2026,04/02/2027,Van Kinsbergen,standaard,"5,0",19:00,00:00,27826222
+05/05/2026,Dario Zanon,Van Kinsbergen,Bediening,gewerkte uren,"9,25","€21,74","€16,6","€201,09",uren contract (38.0),38:00,164:40,01/02/2025,,Van Kinsbergen,standaard,"10,0",14:00,00:00,27826241
+05/05/2026,Bregje Nas,Bar Bea,Bediening,gewerkte uren,"6,92",,"€14,4","€156,87",nul uren (0),00:00,00:00,01/03/2026,28/02/2027,Bar Bea,standaard,"7,0",17:00,00:00,27826325
+05/05/2026,Mara Polderman,Bar Bea,Bediening,gewerkte uren,"0,0",,€15,,nul uren (0),00:00,00:00,02/03/2026,01/03/2027,Bar Bea,stand-by,"6,0",17:00,23:00,27826703
+05/05/2026,Koen Van Den Bos,Bar Bea,Bediening,gewerkte uren,"10,5","€26,72","€20,33","€280,56",uren contract (38.0),38:00,164:40,01/02/2024,,Bar Bea,standaard,"10,0",14:00,00:00,27826704
+05/05/2026,Afwas Van Kinsbergen,Van Kinsbergen,Afwas,gewerkte uren,"6,0",,€19,€114,zzp (0),00:00,00:00,01/04/2026,,Van Kinsbergen,standaard,"6,0",16:00,22:30,27827402
+05/05/2026,Bas Butters Ruben,Van Kinsbergen,Keuken,gewerkte uren,"8,67",,€45,€390,zzp (0),00:00,00:00,15/07/2025,,L'amour Toujours,standaard,"8,0",13:00,21:30,27863155
+06/05/2026,Frederique Van Gulik,Bar Bea,Algemeen,ziek,"8,0","€23,07","€16,95","€184,56",uren contract (32.0),32:00,138:40,01/08/2025,31/07/2026,Bar Bea,,"0,0",,,27483981
+06/05/2026,Jordy Wubben,Van Kinsbergen,Ziek,ziek,"9,5","€30,37","€23,06","€288,52",uren contract (38.0),38:00,164:40,17/10/2024,,Van Kinsbergen,,"0,0",,,27762413
+06/05/2026,Lars Zimmermann,Bar Bea,Ziek,ziek,"8,0","€26,76","€20,35","€214,08",uren contract (38.0),38:00,164:40,01/03/2026,,Bar Bea,,"0,0",,,27762475
+06/05/2026,Liam Hall,L'amour Toujours,Keuken,gewerkte uren,"0,0","€27,8","€20,35",,uren contract (38.0),38:00,164:40,01/04/2026,31/03/2027,L'amour Toujours,standaard,"9,5",13:30,23:00,27840152
+06/05/2026,Koen Van Den Bos,Bar Bea,Management,gewerkte uren,"1,0","€26,72","€20,33","€26,72",uren contract (38.0),38:00,164:40,01/02/2024,,Bar Bea,,"0,0",,,27851756
+06/05/2026,Alvinio Molina,L'amour Toujours,Hk & Hr Management,gewerkte uren,"1,0",,€24,€24,zzp (0),00:00,00:00,01/03/2025,,Van Kinsbergen,,"0,0",,,27854800
+06/05/2026,Alvinio Molina,Van Kinsbergen,Hk & Hr Management,gewerkte uren,"2,0",,€24,€48,zzp (0),00:00,00:00,01/03/2025,,Van Kinsbergen,,"0,0",,,27854821
+06/05/2026,Alvinio Molina,Van Kinsbergen,Hk & Hr Management,gewerkte uren,"2,0",,€24,€48,zzp (0),00:00,00:00,01/03/2025,,Van Kinsbergen,,"0,0",,,27854835
+06/05/2026,Sanno Moningka,Van Kinsbergen,Bediening,gewerkte uren,"6,83","€22,36","€17,07","€152,79",uren contract (32.0),32:00,138:40,21/04/2025,,Van Kinsbergen,standaard,"7,0",11:00,18:00,27855861
+06/05/2026,Sophie Van Eijk,L'amour Toujours,Bediening,gewerkte uren,"4,5","€27,37","€20,05","€123,17",uren contract (36.0),36:00,156:00,01/11/2025,31/10/2026,L'amour Toujours,tot sluit,"9,25",14:30,00:00,27856874
+06/05/2026,Mija Glendenning,Van Kinsbergen,Bediening,gewerkte uren,"5,08",,"€14,71","€117,77",nul uren (0),00:00,00:00,05/02/2026,04/02/2027,Van Kinsbergen,standaard,"8,0",12:00,20:00,27860328
+06/05/2026,Justin Duyvenbode,Van Kinsbergen,Keuken,gewerkte uren,"4,33",,€35,"€151,67",zzp (0),00:00,00:00,01/09/2024,,Van Kinsbergen,standaard,"8,0",13:00,21:30,27860676
+06/05/2026,Matilde Fernandes,Bar Bea,Keuken,gewerkte uren,"7,25",,"€12,24","€139,77",nul uren (0),00:00,00:00,13/09/2025,14/09/2026,Bar Bea,standaard,"7,0",14:00,21:30,27861251
+06/05/2026,Jonas Welcker,Bar Bea,Keuken,gewerkte uren,"5,0",,€16,€126,nul uren (0),00:00,00:00,01/08/2025,31/07/2026,Bar Bea,standaard,"5,25",16:30,22:00,27861301
+06/05/2026,Hannah Lipman,Van Kinsbergen,Keuken,gewerkte uren,"9,75","€26,7","€20,31","€260,33",uren contract (38.0),38:00,164:40,17/03/2025,,Van Kinsbergen,standaard,"9,0",12:00,21:30,27861914
+06/05/2026,Inna Skotnikova,Van Kinsbergen,Keuken,gewerkte uren,"11,08","€22,67","€16,66","€251,26",uren contract (38.0),38:00,164:40,01/06/2024,31/05/2026,Van Kinsbergen,standaard,"10,0",11:00,21:30,27861916
+06/05/2026,Afwas Van Kinsbergen,Van Kinsbergen,Afwas,gewerkte uren,"6,33",,€19,"€120,33",zzp (0),00:00,00:00,01/04/2026,,Van Kinsbergen,standaard,"4,5",17:30,22:30,27862775
+06/05/2026,Annabel Muijser,L'amour Toujours,Bediening,gewerkte uren,"5,83",,"€12,24","€112,45",nul uren (0),00:00,00:00,01/04/2026,31/03/2027,L'amour Toujours,tot sluit,"6,75",17:00,00:00,27863274
+06/05/2026,Julia Rouw,L'amour Toujours,Bediening,gewerkte uren,"4,25",,"€14,4","€96,39",nul uren (0),00:00,00:00,01/03/2026,28/02/2027,L'amour Toujours,stand-by,"4,0",19:00,23:00,27863277
+06/05/2026,Sophie Van Eijk,L'amour Toujours,Management,gewerkte uren,"3,0","€27,37","€20,05","€82,11",uren contract (36.0),36:00,156:00,01/11/2025,31/10/2026,L'amour Toujours,,"0,0",,,27863286
+06/05/2026,Sophie Van Eijk,L'amour Toujours,Bediening,gewerkte uren,"1,25","€27,37","€20,05","€34,21",uren contract (36.0),36:00,156:00,01/11/2025,31/10/2026,L'amour Toujours,,"0,0",,,27863288
+06/05/2026,Sarah De Vries,Van Kinsbergen,Bediening,gewerkte uren,"5,0","€13,27","€13,27","€66,35",nul uren (0),00:00,00:00,01/04/2026,,Bar Bea,standaard,"5,0",19:00,00:00,27863977
+06/05/2026,Morena Crivelli,Bar Bea,Bediening,gewerkte uren,"8,42",,"€14,71","€195,0",nul uren (0),00:00,00:00,01/04/2026,31/03/2027,Bar Bea,standaard,"7,75",17:00,01:00,27864490
+06/05/2026,Joost Hanse,Van Kinsbergen,Bediening,gewerkte uren,"7,08","€24,93","€18,99","€176,59",uren contract (38.0),38:00,164:40,01/05/2024,,Van Kinsbergen,standaard,"7,0",17:00,00:00,27864696
+06/05/2026,Robin Wühl,Bar Bea,Bediening,gewerkte uren,"11,0","€24,01","€17,63","€264,11",uren contract (38.0),38:00,164:40,01/09/2025,31/08/2026,Bar Bea,standaard,"10,75",14:00,01:00,27864706
+06/05/2026,André Rozhok,Bar Bea,Algemeen,ziek,"8,0","€22,25","€16,36",€178,uren contract (38.0),38:00,164:40,24/05/2025,23/05/2026,Bar Bea,,"0,0",,,27866791
+06/05/2026,Mike Van Asperen,Van Kinsbergen,Management,gewerkte uren,"7,0","€24,77","€18,17","€173,39",uren contract (38.0),38:00,164:40,01/11/2025,31/10/2026,Van Kinsbergen,standaard,"8,0",12:00,20:00,27881079
+06/05/2026,Dario Zanon,Van Kinsbergen,Algemeen,verlof,"7,6","€21,74","€16,6","verlof, n.v.t. (verlof shifts hebben geen loonkosten, omdat verlof wordt opgebouwd tijdens het werk en wordt meegerekend in de omrekeningsfactor van gewerkte uren)",uren contract (38.0),38:00,164:40,01/02/2025,,Van Kinsbergen,,"0,0",,,27934993
+07/05/2026,Jordy Wubben,Van Kinsbergen,Ziek,ziek,"9,5","€30,37","€23,06","€288,52",uren contract (38.0),38:00,164:40,17/10/2024,,Van Kinsbergen,,"0,0",,,27762415
+07/05/2026,Lars Zimmermann,Bar Bea,Ziek,ziek,"8,0","€26,76","€20,35","€214,08",uren contract (38.0),38:00,164:40,01/03/2026,,Bar Bea,,"0,0",,,27762477
+07/05/2026,Alvinio Molina,Bar Bea,Bestellen & Stock,gewerkte uren,"1,0",,€24,€24,zzp (0),00:00,00:00,01/03/2025,,Van Kinsbergen,,"0,0",,,27817796
+07/05/2026,Alvinio Molina,Van Kinsbergen,Bestelling & Stock,gewerkte uren,"1,0",,€24,€24,zzp (0),00:00,00:00,01/03/2025,,Van Kinsbergen,,"0,0",,,27817799
+07/05/2026,Chaya Libbenga,Van Kinsbergen,Bediening,gewerkte uren,"2,17",,"€14,4","€49,14",nul uren (0),00:00,00:00,01/10/2025,30/09/2026,Van Kinsbergen,standaard,"2,0",11:00,13:00,27872259
+07/05/2026,Hugo Bronkhorst | Leerling,Van Kinsbergen,Keuken,gewerkte uren,"1,5",,,,uren contract (16.0),16:00,69:20,06/10/2025,10/07/2026,Van Kinsbergen,standaard,"8,0",13:00,21:30,27878309
+07/05/2026,André Rozhok,Bar Bea,Algemeen,ziek,"8,0","€22,25","€16,36",€178,uren contract (38.0),38:00,164:40,24/05/2025,23/05/2026,Bar Bea,,"0,0",,,27879466
+07/05/2026,Koen Van Den Bos,Bar Bea,Management,gewerkte uren,"3,75","€26,72","€20,33","€100,2",uren contract (38.0),38:00,164:40,01/02/2024,,Bar Bea,,"0,0",,,27885092
+07/05/2026,Justin Duyvenbode,Bar Bea,Keuken,gewerkte uren,"5,5",,€35,"€192,5",zzp (0),00:00,00:00,01/09/2024,,Van Kinsbergen,standaard,"4,5",15:00,20:00,27891582
+07/05/2026,Timothy Hamid,Van Kinsbergen,Bediening,gewerkte uren,"9,33","€24,69","€18,11","€230,44",uren contract (38.0),38:00,164:40,01/04/2026,31/03/2027,L'amour Toujours,standaard,"8,0",12:00,20:00,27891727
+07/05/2026,Cody Wijers,Bar Bea,Keuken,gewerkte uren,"6,5",,"€14,4","€147,42",nul uren (0),00:00,00:00,01/03/2026,28/02/2027,Bar Bea,standaard,"6,5",15:00,22:00,27892050
+07/05/2026,Joost Hanse,Van Kinsbergen,Management,gewerkte uren,"3,75","€24,93","€18,99","€93,49",uren contract (38.0),38:00,164:40,01/05/2024,,Van Kinsbergen,standaard,"8,0",12:00,20:00,27892277
+07/05/2026,Eric Falter,Van Kinsbergen,Keuken,gewerkte uren,"10,17","€22,59","€16,6","€229,67",uren contract (32.0),32:00,138:40,01/10/2025,01/10/2026,Van Kinsbergen,standaard,"10,0",11:00,21:30,27892407
+07/05/2026,Joost Hanse,Van Kinsbergen,Bediening,gewerkte uren,"5,25","€24,93","€18,99","€130,88",uren contract (38.0),38:00,164:40,01/05/2024,,Van Kinsbergen,,"0,0",,,27892460
+07/05/2026,Chelsea Cruz | Leerling,Van Kinsbergen,Keuken,gewerkte uren,"8,25","€22,59","€16,6","€186,37",uren contract (16.0),16:00,69:20,09/09/2025,31/07/2026,Van Kinsbergen,standaard,"8,0",13:00,21:30,27892504
+07/05/2026,Inna Skotnikova,Van Kinsbergen,Keuken,gewerkte uren,"8,0","€22,67","€16,66","€181,36",uren contract (38.0),38:00,164:40,01/06/2024,31/05/2026,Van Kinsbergen,standaard,"9,0",12:00,21:30,27892592
+07/05/2026,Jan Schavemaker,Bar Bea,Bediening,gewerkte uren,"9,17",,€15,"€216,56",nul uren (0),00:00,00:00,17/04/2026,16/04/2027,Bar Bea,standaard,"8,0",17:00,01:00,27895330
+07/05/2026,Sophia Van De Kamp,Van Kinsbergen,Bediening,gewerkte uren,"6,67",,"€14,71","€154,46",nul uren (0),00:00,00:00,19/01/2026,18/01/2027,Van Kinsbergen,standaard,"7,0",18:00,01:00,27896377
+07/05/2026,Mike Van Asperen,Van Kinsbergen,Bediening,gewerkte uren,"8,25","€24,77","€18,17","€204,35",uren contract (38.0),38:00,164:40,01/11/2025,31/10/2026,Van Kinsbergen,standaard,"8,0",17:00,01:00,27896496
+07/05/2026,Mike Van Asperen,Van Kinsbergen,Management,gewerkte uren,"1,5","€24,77","€18,17","€37,16",uren contract (38.0),38:00,164:40,01/11/2025,31/10/2026,Van Kinsbergen,,"0,0",,,27896499
+07/05/2026,Maureen Van Groningen,L'amour Toujours,Bediening,gewerkte uren,"6,75",,"€14,71","€156,39",nul uren (0),00:00,00:00,28/01/2026,27/01/2027,L'amour Toujours,standaard,"5,0",18:00,23:00,27896693
+07/05/2026,Emma Verhoeff,L'amour Toujours,Bediening,gewerkte uren,"10,25",,"€14,5","€234,08",nul uren (0),00:00,00:00,01/04/2026,,L'amour Toujours,tot sluit,"9,25",14:30,00:00,27896695
+07/05/2026,Ella Van Der Sijde,L'amour Toujours,Bediening,gewerkte uren,"7,5",,"€10,55","€124,62",nul uren (0),00:00,00:00,01/04/2026,,L'amour Toujours,tot sluit,"5,75",16:00,22:00,27896698
+07/05/2026,Annabel Muijser,L'amour Toujours,Bediening,gewerkte uren,"2,25",,"€12,24","€43,38",nul uren (0),00:00,00:00,01/04/2026,31/03/2027,L'amour Toujours,tot-nodig,"4,25",17:30,22:00,27896699
+07/05/2026,Morena Crivelli,Bar Bea,Bediening,gewerkte uren,"8,5",,"€14,71","€196,93",nul uren (0),00:00,00:00,01/04/2026,31/03/2027,Bar Bea,standaard,"4,0",19:00,23:00,27896898
+07/05/2026,Eva Hambuckers,Bar Bea,Bediening,gewerkte uren,"6,25",,"€10,55","€103,85",nul uren (0),00:00,00:00,01/02/2026,28/02/2027,Bar Bea,standaard,"6,0",19:00,01:00,27896900
+07/05/2026,Robin Wühl,Bar Bea,Bediening,gewerkte uren,"4,0","€24,01","€17,63","€96,04",uren contract (38.0),38:00,164:40,01/09/2025,31/08/2026,Bar Bea,standaard,"7,75",18:00,02:00,27897008
+07/05/2026,Koen Van Den Bos,Bar Bea,Bediening,gewerkte uren,"8,58","€26,72","€20,33","€229,35",uren contract (38.0),38:00,164:40,01/02/2024,,Bar Bea,standaard,"5,75",14:00,20:00,27897009
+07/05/2026,Bregje Nas,Bar Bea,Bediening,gewerkte uren,"6,5",,"€14,4","€147,42",nul uren (0),00:00,00:00,01/03/2026,28/02/2027,Bar Bea,standaard,"5,0",19:00,00:00,27897013
+07/05/2026,Dario Zanon,Van Kinsbergen,Algemeen,verlof,"7,6","€21,74","€16,6","verlof, n.v.t. (verlof shifts hebben geen loonkosten, omdat verlof wordt opgebouwd tijdens het werk en wordt meegerekend in de omrekeningsfactor van gewerkte uren)",uren contract (38.0),38:00,164:40,01/02/2025,,Van Kinsbergen,,"0,0",,,27934994
+08/05/2026,Frederique Van Gulik,Bar Bea,Algemeen,ziek,"8,0","€23,07","€16,95","€184,56",uren contract (32.0),32:00,138:40,01/08/2025,31/07/2026,Bar Bea,,"0,0",,,27483983
+08/05/2026,Lars Zimmermann,Bar Bea,Ziek,ziek,"8,0","€26,76","€20,35","€214,08",uren contract (38.0),38:00,164:40,01/03/2026,,Bar Bea,,"0,0",,,27762481
+08/05/2026,Macy Van Schie,Van Kinsbergen,Bediening,gewerkte uren,"5,75",,€15,"€135,84",nul uren (0),00:00,00:00,28/03/2026,,Van Kinsbergen,,"0,0",,,27915660
+08/05/2026,Macy Van Schie,Van Kinsbergen,Bediening,gewerkte uren,"0,0",,€15,,nul uren (0),00:00,00:00,28/03/2026,,Van Kinsbergen,standaard,"9,0",11:00,20:00,27915663
+08/05/2026,Timothy Hamid,Van Kinsbergen,Bediening,gewerkte uren,"8,25","€24,69","€18,11","€203,69",uren contract (38.0),38:00,164:40,01/04/2026,31/03/2027,L'amour Toujours,standaard,"11,0",11:00,22:00,27922988
+08/05/2026,Ivar Groenewegen,Van Kinsbergen,Keuken,gewerkte uren,"10,25","€24,34","€18,55","€249,49",uren contract (40.0),40:00,173:20,01/05/2025,,Van Kinsbergen,standaard,"10,0",11:00,21:30,27924658
+08/05/2026,Justin Duyvenbode,Van Kinsbergen,Keuken,gewerkte uren,"9,58",,€35,"€335,42",zzp (0),00:00,00:00,01/09/2024,,Van Kinsbergen,standaard,"10,0",12:00,22:30,27925032
+08/05/2026,Carmen Van Geest,Van Kinsbergen,Bediening,gewerkte uren,"6,17",,"€14,06","€136,56",nul uren (0),00:00,00:00,01/05/2026,29/04/2028,Van Kinsbergen,lunch bel,"9,0",15:00,00:00,27926119
+08/05/2026,Hannah Lipman,Van Kinsbergen,Keuken,gewerkte uren,"10,08","€26,7","€20,31","€269,23",uren contract (38.0),38:00,164:40,17/03/2025,,Van Kinsbergen,standaard,"10,0",12:00,22:30,27926166
+08/05/2026,Hugo Bronkhorst | Leerling,Van Kinsbergen,Keuken,gewerkte uren,"7,75",,,,uren contract (16.0),16:00,69:20,06/10/2025,10/07/2026,Van Kinsbergen,standaard,"8,0",14:00,22:30,27926172
+08/05/2026,Aimée Van Leeuwen,Van Kinsbergen,Bediening,gewerkte uren,"4,75",,"€6,62","€49,53",nul uren (0),00:00,00:00,03/01/2026,02/01/2027,Van Kinsbergen,standaard,"5,0",18:00,23:00,27926232
+08/05/2026,Matilde Fernandes,Bar Bea,Keuken,gewerkte uren,"8,42",,"€12,24","€162,26",nul uren (0),00:00,00:00,13/09/2025,14/09/2026,Bar Bea,standaard,"8,25",14:00,22:30,27927006
+08/05/2026,Julius Dressen,Bar Bea,Bediening,gewerkte uren,"0,0",,"€10,8",,nul uren (0),00:00,00:00,09/05/2025,,Bar Bea,standaard,"8,0",19:00,03:00,27927417
+08/05/2026,Koen Van Den Bos,Bar Bea,Bediening,gewerkte uren,"5,0","€26,72","€20,33","€133,6",uren contract (38.0),38:00,164:40,01/02/2024,,Bar Bea,standaard,"8,75",14:00,23:00,27927434
+08/05/2026,Koen Van Den Bos,Bar Bea,Management,gewerkte uren,"2,25","€26,72","€20,33","€60,12",uren contract (38.0),38:00,164:40,01/02/2024,,Bar Bea,,"0,0",,,27927454
+08/05/2026,Emma Verhoeff,L'amour Toujours,Bediening,gewerkte uren,"4,75",,"€14,5","€108,48",nul uren (0),00:00,00:00,01/04/2026,,L'amour Toujours,tot-nodig,"5,0",18:00,23:00,27927732
+08/05/2026,Afwas Barbea,Bar Bea,Afwas,gewerkte uren,"6,25",,€19,"€118,75",zzp (0),00:00,00:00,01/04/2025,,Bar Bea,,"0,0",,,27928210
+08/05/2026,Anna Mout,Van Kinsbergen,Bediening,gewerkte uren,"6,92",,"€11,03","€120,16",nul uren (0),00:00,00:00,01/03/2026,28/02/2027,Van Kinsbergen,standaard,"8,0",17:00,01:00,27928893
+08/05/2026,Maureen Van Groningen,L'amour Toujours,Bediening,gewerkte uren,"5,25",,"€14,71","€121,63",nul uren (0),00:00,00:00,28/01/2026,27/01/2027,L'amour Toujours,standaard,"5,75",16:00,22:00,27929004
+08/05/2026,Cody Wijers,Bar Bea,Keuken,gewerkte uren,"8,5",,"€14,4","€192,78",nul uren (0),00:00,00:00,01/03/2026,28/02/2027,Bar Bea,standaard,"8,0",14:00,22:30,27929280
+08/05/2026,Joost Hanse,Van Kinsbergen,Bediening,gewerkte uren,"8,33","€24,93","€18,99","€207,75",uren contract (38.0),38:00,164:40,01/05/2024,,Van Kinsbergen,standaard,"9,0",17:00,02:00,27929432
+08/05/2026,Alvinio Molina,Van Kinsbergen,Bediening,gewerkte uren,"0,0",,€24,,zzp (0),00:00,00:00,01/03/2025,,Van Kinsbergen,standaard,"6,0",19:00,01:00,27929433
+08/05/2026,Mike Van Asperen,Van Kinsbergen,Bediening,gewerkte uren,"8,33","€24,77","€18,17","€206,42",uren contract (38.0),38:00,164:40,01/11/2025,31/10/2026,Van Kinsbergen,standaard,"9,0",17:00,02:00,27929444
+08/05/2026,Robin Wühl,Bar Bea,Bediening,gewerkte uren,"9,58","€24,01","€17,63","€230,1",uren contract (38.0),38:00,164:40,01/09/2025,31/08/2026,Bar Bea,standaard,"8,75",16:00,01:00,27929624
+08/05/2026,Jan Schavemaker,Bar Bea,Bediening,gewerkte uren,"9,08",,€15,"€214,59",nul uren (0),00:00,00:00,17/04/2026,16/04/2027,Bar Bea,standaard,"7,75",19:00,03:00,27929726
+08/05/2026,Eva Hambuckers,Bar Bea,Bediening,gewerkte uren,"6,83",,"€10,55","€113,54",nul uren (0),00:00,00:00,01/02/2026,28/02/2027,Bar Bea,standaard,"8,0",18:00,02:00,27930003
+08/05/2026,Morena Crivelli,Bar Bea,Bediening,gewerkte uren,"10,08",,"€14,71","€233,61",nul uren (0),00:00,00:00,01/04/2026,31/03/2027,Bar Bea,standaard,"7,0",17:00,00:00,27930004
+08/05/2026,Vera Van Der Duin,Bar Bea,Bediening,gewerkte uren,"7,92",,"€14,92","€186,03",nul uren (0),00:00,00:00,01/04/2026,,Bar Bea,standaard,"7,0",19:00,02:00,27930025
+08/05/2026,André Rozhok,Bar Bea,Bediening,gewerkte uren,"9,0","€22,25","€16,36","€200,25",uren contract (38.0),38:00,164:40,24/05/2025,23/05/2026,Bar Bea,standaard,"7,75",17:00,01:00,27931897
+08/05/2026,Joost Hanse,Van Kinsbergen,Management,gewerkte uren,"1,5","€24,93","€18,99","€37,39",uren contract (38.0),38:00,164:40,01/05/2024,,Van Kinsbergen,,"0,0",,,27954099
+09/05/2026,Frederique Van Gulik,Bar Bea,Algemeen,ziek,"8,0","€23,07","€16,95","€184,56",uren contract (32.0),32:00,138:40,01/08/2025,31/07/2026,Bar Bea,,"0,0",,,27483984
+09/05/2026,Lars Zimmermann,Bar Bea,Ziek,ziek,"8,0","€26,76","€20,35","€214,08",uren contract (38.0),38:00,164:40,01/03/2026,,Bar Bea,,"0,0",,,27880353
+09/05/2026,Jordy Wubben,Van Kinsbergen,Keuken,verlof,"9,0","€30,37","€23,06","verlof, n.v.t. (verlof shifts hebben geen loonkosten, omdat verlof wordt opgebouwd tijdens het werk en wordt meegerekend in de omrekeningsfactor van gewerkte uren)",uren contract (38.0),38:00,164:40,17/10/2024,,Van Kinsbergen,,"0,0",,,27909690
+09/05/2026,Mike Van Asperen,Van Kinsbergen,Bediening,gewerkte uren,"2,5","€24,77","€18,17","€61,93",uren contract (38.0),38:00,164:40,01/11/2025,31/10/2026,Van Kinsbergen,lunch bel,"9,0",13:00,22:00,27946278
+09/05/2026,Chaya Libbenga,Van Kinsbergen,Bediening,gewerkte uren,"5,5",,"€14,4","€124,74",nul uren (0),00:00,00:00,01/10/2025,30/09/2026,Van Kinsbergen,standaard,"9,0",11:00,20:00,27947029
+09/05/2026,Casper Schul,Van Kinsbergen,Bediening,gewerkte uren,"6,17","€24,21","€18,45","€149,3",uren contract (38.0),38:00,164:40,01/03/2021,,Van Kinsbergen,standaard,"10,0",12:00,22:00,27947031
+09/05/2026,Justin Duyvenbode,Van Kinsbergen,Keuken,gewerkte uren,"2,5",,€35,"€87,5",zzp (0),00:00,00:00,01/09/2024,,Van Kinsbergen,standaard,"9,0",13:00,22:30,27947553
+09/05/2026,Jan Schavemaker,Bar Bea,Bediening,gewerkte uren,"6,0",,€15,"€141,75",nul uren (0),00:00,00:00,17/04/2026,16/04/2027,Bar Bea,standaard,"5,75",11:00,17:00,27948298
+09/05/2026,Bregje Nas,Bar Bea,Bediening,gewerkte uren,"7,33",,"€14,4","€166,32",nul uren (0),00:00,00:00,01/03/2026,28/02/2027,Bar Bea,standaard,"7,75",12:00,20:00,27948860
+09/05/2026,Eric Falter,Van Kinsbergen,Keuken,gewerkte uren,"10,17","€22,59","€16,6","€229,67",uren contract (32.0),32:00,138:40,01/10/2025,01/10/2026,Van Kinsbergen,standaard,"11,0",11:00,22:30,27949470
+09/05/2026,Casper Schul,Van Kinsbergen,Management,gewerkte uren,"2,0","€24,21","€18,45","€48,42",uren contract (38.0),38:00,164:40,01/03/2021,,Van Kinsbergen,,"0,0",,,27949898
+09/05/2026,Mike Van Asperen,Van Kinsbergen,Management,gewerkte uren,"2,0","€24,77","€18,17","€49,54",uren contract (38.0),38:00,164:40,01/11/2025,31/10/2026,Van Kinsbergen,,"0,0",,,27949962
+09/05/2026,Ivar Groenewegen,Van Kinsbergen,Keuken,gewerkte uren,"8,33","€24,34","€18,55","€202,83",uren contract (40.0),40:00,173:20,01/05/2025,,Van Kinsbergen,standaard,"9,0",13:00,22:30,27949989
+09/05/2026,Yetkin Metin,Van Kinsbergen,Keuken,gewerkte uren,"7,67",,,,uren contract (16.0),16:00,69:20,01/01/2026,26/06/2026,Van Kinsbergen,standaard,"8,0",14:00,22:30,27950060
+09/05/2026,Hannah Lipman,Van Kinsbergen,Keuken,gewerkte uren,"9,42","€26,7","€20,31","€251,43",uren contract (38.0),38:00,164:40,17/03/2025,,Van Kinsbergen,standaard,"10,0",12:00,22:30,27950065
+09/05/2026,Bram Van Den Berg,Van Kinsbergen,Bediening,gewerkte uren,"4,08",,"€9,36","€60,2",nul uren (0),00:00,00:00,04/04/2026,,Van Kinsbergen,standaard,"8,0",17:00,01:00,27950749
+09/05/2026,Afwas Van Kinsbergen,Van Kinsbergen,Afwas,gewerkte uren,"7,5",,€19,"€142,5",zzp (0),00:00,00:00,01/04/2026,,Van Kinsbergen,standaard,"7,0",15:00,22:30,27951836
+09/05/2026,Afwas Barbea,Bar Bea,Afwas,gewerkte uren,"5,83",,€19,"€110,83",zzp (0),00:00,00:00,01/04/2025,,Bar Bea,,"0,0",,,27951948
+09/05/2026,Sander Van Raamsdonk,L'amour Toujours,Bediening,gewerkte uren,"9,25","€26,47","€20,14","€244,85",uren contract (38.0),38:00,164:40,23/09/2024,,L'amour Toujours,lunch bel,"8,75",14:00,23:00,27952292
+09/05/2026,Sanno Moningka,Van Kinsbergen,Bediening,gewerkte uren,"6,5","€22,36","€17,07","€145,34",uren contract (32.0),32:00,138:40,21/04/2025,,Van Kinsbergen,standaard,"9,0",15:00,00:00,27952457
+09/05/2026,Douwe Froom,L'amour Toujours,Bediening,gewerkte uren,"7,33",,"€14,71","€169,9",nul uren (0),00:00,00:00,12/02/2026,11/02/2027,L'amour Toujours,tot sluit,"6,0",17:00,23:00,27953724
+09/05/2026,Ella Van Der Sijde,L'amour Toujours,Bediening,gewerkte uren,"7,5",,"€10,55","€124,62",nul uren (0),00:00,00:00,01/04/2026,,L'amour Toujours,tot-nodig,"4,75",18:00,23:00,27953901
+09/05/2026,Tim Zuilhof,L'amour Toujours,Keuken,gewerkte uren,"7,0","€22,36","€16,44","€156,52",uren contract (38.0),38:00,164:40,01/10/2025,30/09/2026,L'amour Toujours,standaard,"6,5",10:30,17:00,27953915
+09/05/2026,Carmen Van Geest,Van Kinsbergen,Bediening,gewerkte uren,"7,5",,"€14,06","€166,08",nul uren (0),00:00,00:00,01/05/2026,29/04/2028,Van Kinsbergen,standaard,"9,0",17:00,02:00,27954088
+09/05/2026,Joost Hanse,Van Kinsbergen,Bediening,gewerkte uren,"7,5","€24,93","€18,99","€186,98",uren contract (38.0),38:00,164:40,01/05/2024,,Van Kinsbergen,standaard,"9,0",17:00,02:00,27954090
+09/05/2026,Jonas Welcker,Bar Bea,Keuken,gewerkte uren,"0,0",,€16,,nul uren (0),00:00,00:00,01/08/2025,31/07/2026,Bar Bea,standaard,"9,5",11:00,21:00,27954134
+09/05/2026,Bertalan Ivan,Bar Bea,Keuken,gewerkte uren,"11,0",,€15,"€259,88",nul uren (0),00:00,00:00,01/03/2025,,Bar Bea,standaard,"10,0",12:00,22:30,27954135
+09/05/2026,Lukas G. Johan,Bar Bea,Keuken,gewerkte uren,"9,75","€14,06","€14,06","€137,09",nul uren (0),00:00,00:00,07/05/2025,,L'amour Toujours,standaard,"9,0",13:00,22:30,27954144
+10/05/2026,Frederique Van Gulik,Bar Bea,Algemeen,ziek,"8,0","€23,07","€16,95","€184,56",uren contract (32.0),32:00,138:40,01/08/2025,31/07/2026,Bar Bea,,"0,0",,,27483989
+10/05/2026,Joost Hanse,Van Kinsbergen,Management,verlof,"8,0","€24,93","€18,99","verlof, n.v.t. (verlof shifts hebben geen loonkosten, omdat verlof wordt opgebouwd tijdens het werk en wordt meegerekend in de omrekeningsfactor van gewerkte uren)",uren contract (38.0),38:00,164:40,01/05/2024,,Van Kinsbergen,,"0,0",,,27934934
+10/05/2026,Julius Dressen,Bar Bea,Bediening,gewerkte uren,"0,0",,"€10,8",,nul uren (0),00:00,00:00,09/05/2025,,Bar Bea,standaard,"8,0",12:00,20:00,27958540
+10/05/2026,Emma Verhoeff,L'amour Toujours,Bediening,gewerkte uren,"3,5",,"€14,5","€79,93",nul uren (0),00:00,00:00,01/04/2026,,L'amour Toujours,standaard,"5,0",12:00,17:00,27959615
+10/05/2026,Julia Rouw,L'amour Toujours,Bediening,gewerkte uren,"7,92",,"€14,4","€179,55",nul uren (0),00:00,00:00,01/03/2026,28/02/2027,L'amour Toujours,lunch bel,"8,25",12:30,21:00,27968772
+10/05/2026,Matilde Fernandes,Bar Bea,Keuken,gewerkte uren,"8,83",,"€12,24","€170,29",nul uren (0),00:00,00:00,13/09/2025,14/09/2026,Bar Bea,standaard,"8,5",12:00,21:00,27968974
+10/05/2026,Timur Waanders,Bar Bea,Keuken,gewerkte uren,"9,58","€25,36","€18,6","€243,03",nul uren (0),00:00,00:00,19/03/2026,18/03/2027,Bar Bea,standaard,"9,5",11:00,21:00,27968999
+10/05/2026,Liam Hall,L'amour Toujours,Keuken,gewerkte uren,"10,5","€27,8","€20,35","€291,9",uren contract (38.0),38:00,164:40,01/04/2026,31/03/2027,L'amour Toujours,standaard,"11,0",12:00,23:00,27971152
+10/05/2026,Maureen Van Groningen,L'amour Toujours,Bediening,gewerkte uren,"5,25",,"€14,71","€121,63",nul uren (0),00:00,00:00,28/01/2026,27/01/2027,L'amour Toujours,tot sluit,"7,0",15:00,22:00,27971157
+10/05/2026,Neha Advani,L'amour Toujours,Keuken,gewerkte uren,"9,0","€23,91","€17,55","€215,19",uren contract (38.0),38:00,164:40,01/04/2026,31/03/2027,L'amour Toujours,standaard,"9,5",13:30,23:00,27971166
+10/05/2026,Sander Van Raamsdonk,L'amour Toujours,Bediening,gewerkte uren,"6,75","€26,47","€20,14","€178,67",uren contract (38.0),38:00,164:40,23/09/2024,,L'amour Toujours,tot-nodig,"6,75",11:00,18:00,27971169
+10/05/2026,Tim Zuilhof,L'amour Toujours,Keuken,gewerkte uren,"11,75","€22,36","€16,44","€262,73",uren contract (38.0),38:00,164:40,01/10/2025,30/09/2026,L'amour Toujours,standaard,"10,0",11:00,21:00,27971173
+10/05/2026,Timothy Hamid,L'amour Toujours,Bediening,gewerkte uren,"7,67","€24,69","€18,11","€189,29",uren contract (38.0),38:00,164:40,01/04/2026,31/03/2027,L'amour Toujours,tot sluit,"9,75",13:00,23:00,27971179
+,,,,,"1025,67",,,"€22893,88",,3088:00,13381:20,,,,,"893,75",,,

@@ -1,5 +1,8 @@
 declare global {
+  const EITJE_AGG_ADD_VENUE_KEY: typeof import('../../server/utils/eitjeHours').EITJE_AGG_ADD_VENUE_KEY
   const EITJE_HOURS_ADD_FIELDS: typeof import('../../server/utils/eitjeHours').EITJE_HOURS_ADD_FIELDS
+  const EITJE_LABOR_PERIOD_FROM_SHIFT_START_FIELD: typeof import('../../server/utils/eitjeHours').EITJE_LABOR_PERIOD_FROM_SHIFT_START_FIELD
+  const EITJE_LABOR_SHIFT_START_FIELD: typeof import('../../server/utils/eitjeHours').EITJE_LABOR_SHIFT_START_FIELD
   const H3Error: typeof import('../../node_modules/h3').H3Error
   const H3Event: typeof import('../../node_modules/h3').H3Event
   const INBOX_COLLECTIONS: typeof import('../../server/utils/inbox/constants').INBOX_COLLECTIONS
@@ -100,6 +103,7 @@ declare global {
   const fromNodeMiddleware: typeof import('../../node_modules/h3').fromNodeMiddleware
   const fromPlainHandler: typeof import('../../node_modules/h3').fromPlainHandler
   const fromWebHandler: typeof import('../../node_modules/h3').fromWebHandler
+  const getAmsterdamWallHour: typeof import('../../server/utils/inbox/amsterdamWallHour').getAmsterdamWallHour
   const getCookie: typeof import('../../node_modules/h3').getCookie
   const getDb: typeof import('../../server/utils/db').getDb
   const getGmailInvalidGrantHint: typeof import('../../server/utils/gmailOAuthError').getGmailInvalidGrantHint
@@ -140,6 +144,7 @@ declare global {
   const getValidatedRouterParams: typeof import('../../node_modules/h3').getValidatedRouterParams
   const handleCacheHeaders: typeof import('../../node_modules/h3').handleCacheHeaders
   const handleCors: typeof import('../../node_modules/h3').handleCors
+  const inferEitjeHoursExportKindFromFileName: typeof import('../../server/utils/inbox/document-classifier').inferEitjeHoursExportKindFromFileName
   const inventoryCollections: typeof import('../../server/utils/dailyOpsDashboardMetrics').inventoryCollections
   const isCorsOriginAllowed: typeof import('../../node_modules/h3').isCorsOriginAllowed
   const isError: typeof import('../../node_modules/h3').isError
@@ -162,6 +167,7 @@ declare global {
   const mergeRevenueByDateMaps: typeof import('../../server/utils/dailyOpsDashboardMetrics').mergeRevenueByDateMaps
   const mergeWorkedAndPlanned: typeof import('../../server/utils/memberEitjeContext').mergeWorkedAndPlanned
   const nitroPlugin: typeof import('../../node_modules/nitropack/dist/runtime/internal/plugin').nitroPlugin
+  const normalizeEitjeHoursVenueName: typeof import('../../server/utils/eitjeHours').normalizeEitjeHoursVenueName
   const normalizeTrivecSemicolonSalesParse: typeof import('../../server/utils/inbox/trivec-sales-csv').normalizeTrivecSemicolonSalesParse
   const parseCSV: typeof import('../../server/utils/inbox/csv-parser').parseCSV
   const parseCookies: typeof import('../../node_modules/h3').parseCookies
@@ -174,6 +180,7 @@ declare global {
   const parseInboxImportTableQuery: typeof import('../../server/utils/inbox/inboxImportTableQuery').parseInboxImportTableQuery
   const parseLocationDayKey: typeof import('../../server/utils/dailyOpsDashboardMetrics').parseLocationDayKey
   const parseMenuFileToRows: typeof import('../../server/utils/parseMenuFile').parseMenuFileToRows
+  const parseOptionalDate: typeof import('../../server/utils/inbox/amsterdamWallHour').parseOptionalDate
   const parsePDF: typeof import('../../server/utils/inbox/pdf-parser').parsePDF
   const parsePdfToRows: typeof import('../../server/utils/parsePdf').parsePdfToRows
   const parseYmdToNoonUtc: typeof import('../../server/utils/inbox/inbox-sales-row-canonical').parseYmdToNoonUtc
@@ -190,6 +197,7 @@ declare global {
   const resolveBorkAggRebuildSuffix: typeof import('../../server/utils/borkAggVersionSuffix').resolveBorkAggRebuildSuffix
   const resolveDailyOpsPeriod: typeof import('../../server/utils/dailyOpsPeriod').resolveDailyOpsPeriod
   const resolveEitjeAggregationUserCandidates: typeof import('../../server/utils/memberEitjeContext').resolveEitjeAggregationUserCandidates
+  const resolveInboxImportInstant: typeof import('../../server/utils/inbox/amsterdamWallHour').resolveInboxImportInstant
   const resolveSlugsToUnifiedUserIds: typeof import('../../server/utils/noteMentions').resolveSlugsToUnifiedUserIds
   const resolveUnifiedLocationToEitjeId: typeof import('../../server/utils/dailyOpsDashboardMetrics').resolveUnifiedLocationToEitjeId
   const resolveV2RebuildCollectionSuffix: typeof import('../../server/utils/borkV2RebuildSuffix').resolveV2RebuildCollectionSuffix
@@ -303,15 +311,16 @@ export { parseDailyOpsMetricsQuery, resolveUnifiedLocationToEitjeId, enumerateUt
 export { resolveDailyOpsPeriod } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/dailyOpsPeriod';
 export { getMongoDatabaseName, getDb, getNotesCollection, getUnifiedUsersCollection, getMenuItemsCollection, getMenusCollection, getMenuVersionsCollection, connectToDatabase } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/db';
 export { findEitjeCredentialDocument, documentToEitjeStoredCredentials, documentToCredentialsApiShape } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/eitjeApiCredentials';
-export { EITJE_HOURS_ADD_FIELDS, getUtcDayRange } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/eitjeHours';
+export { EITJE_HOURS_ADD_FIELDS, EITJE_LABOR_SHIFT_START_FIELD, EITJE_LABOR_PERIOD_FROM_SHIFT_START_FIELD, getUtcDayRange, normalizeEitjeHoursVenueName, EITJE_AGG_ADD_VENUE_KEY } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/eitjeHours';
 export { getGmailOAuthErrorMessage, isInvalidGrantError, getGmailInvalidGrantHint } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/gmailOAuthError';
 export { getGmailRedirectUri } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/gmailRedirectUri';
+export { getAmsterdamWallHour, parseOptionalDate, resolveInboxImportInstant } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/inbox/amsterdamWallHour';
 export { extractLocationFromTrivecBasisPreamble, extractDateFromTrivecBasisPreamble, canonicalVenueKeyForBorkMatching, matchVenueLocationFromText, extractLocationFromBasisSpreadsheet, extractLocationFromBasisFileName } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/inbox/basis-report-location';
 export { mapBasisReportXLSX } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/inbox/basis-report-mapper';
 export { ensureInboxCollections, ensureInboxIndexes } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/inbox/collections';
 export { INBOX_COLLECTIONS, INBOX_TARGET_COLLECTIONS } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/inbox/constants';
 export { looksLikeTrivecSemicolonSales, parseCSV } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/inbox/csv-parser';
-export { classifyByFilename, classifyByContent, classifyDocument } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/inbox/document-classifier';
+export { classifyByFilename, classifyByContent, inferEitjeHoursExportKindFromFileName, classifyDocument } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/inbox/document-classifier';
 export { parseExcel, getSheetNames } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/inbox/excel-parser';
 export { ensureGmailWatchIfNeeded } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/inbox/gmailWatchAutostart';
 export { parseDdMmYyyyToNoonUtc, parseYmdToNoonUtc, parseEuroInbox, canonicalInboxSalesRow } from '/Users/alviniomolina/Documents/GitHub/daily-ops/server/utils/inbox/inbox-sales-row-canonical';
