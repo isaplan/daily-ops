@@ -1,26 +1,28 @@
 /**
  * Daily Ops dashboard: Bork revenue + Eitje labor aggregations (fast paths on prebuilt collections).
- * @last-fix: [2026-05-08] Corrected pickBasisReportsPerLocation to use cron 7 (final report from next morning)
+ * @last-modified: 2026-05-12T00:00:00.000Z
+ * @last-fix: [2026-05-12] Doc sync: inbox Gmail polls 4×/day incl. 12:05 (see task metadata); [2026-05-08] pickBasisReportsPerLocation cron 7 final
  * 
  * @business-day-definition:
  * A "business day" runs 06:00 to 05:59 NEXT day (Amsterdam time).
  * 
  * Example: Business Day May 6 = 06:00 May 6 to 05:59 May 7
  * 
- * Emails arrive via 3 daily inbox crons (Amsterdam time) — see nuxt.config `inbox:gmail-sync`:
+ * Emails arrive via **4** daily inbox polls (Amsterdam time) — see `server/tasks/inbox/gmail-sync.ts` + nuxt `inbox:gmail-sync`:
  *   1. Cron 18:05 (ISO day N) → Business Day N Bork report (partial, ~12h in)
  *   2. Cron 23:05 (ISO day N) → Business Day N Bork report (partial, ~17h in)
  *   3. Cron 08:05 (ISO day N+1) → **FINAL** Business Day N Bork report (closes 05:59)
+ *   4. Cron 12:05 → Eitje weekly / current-week hours (labor catch-up; see task metadata)
  *
- * Eitje dagelijkse uren: full previous calendar day is expected on the **morning (~08:05)** poll; 18/23
- * polls rarely add meaningful labor rows (operational note, not a separate cron).
+ * Eitje dagelijkse uren: full previous calendar day is expected on the **morning (~08:05)** poll; **12:05** weekly
+ * export refines earlier-week days; 18/23 inbox polls are Bork-intraday–centric for revenue validation.
  * 
  * pickBasisReportsPerLocation: Picks the report with **cron_hour = 7** per location per business_date.
  * This is the final complete report that arrives on the NEXT ISO calendar day morning.
  * Falls back to cron 23, then cron 18 if cron 7 missing (shouldn't happen for closed days).
  * 
  * @related-files:
- * ✓ server/tasks/inbox/gmail-sync.ts — runs 3×/day at 08:05, 18:05, 23:05 Amsterdam
+ * ✓ server/tasks/inbox/gmail-sync.ts — runs 4×/day at 08:05, 12:05, 18:05, 23:05 Amsterdam
  * ✓ server/utils/inbox/basis-report-mapper.ts — parses emails, sets business_date + cron_hour
  */
 import type { Db } from 'mongodb'

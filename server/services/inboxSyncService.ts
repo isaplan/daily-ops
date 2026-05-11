@@ -1,9 +1,9 @@
 /**
  * @registry-id: inboxSyncService
  * @created: 2026-04-20T00:00:00.000Z
- * @last-modified: 2026-04-20T00:00:00.000Z
+ * @last-modified: 2026-05-12T00:00:00.000Z
  * @description: Gmail list fetch + store + auto-parse (shared by POST /api/inbox/sync and scheduled GET)
- * @last-fix: [2026-04-20] Extracted from sync.post for cron + UI reuse
+ * @last-fix: [2026-05-12] Pointer: inbox poll schedule + purposes live in `server/tasks/inbox/gmail-sync.ts` metadata; [2026-04-20] Extracted from sync.post for cron + UI reuse
  *
  * @exports-to:
  * ✓ server/api/inbox/sync.post.ts

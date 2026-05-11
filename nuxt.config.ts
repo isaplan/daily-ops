@@ -32,13 +32,9 @@ if (CURRENT_TZ !== APP_TIMEZONE && CURRENT_TZ !== 'local') {
 const scheduledTasks: Record<string, string[]> = {}
 if (!disableInboxSchedule) {
   /**
-   * Gmail inbox poll 3×/day in Amsterdam time (Bork basis + all inbox mail):
-   * - 08:05 — morning (Eitje dagelijkse uren ~08:00; optional second mail ~07:55 “current week” hours export)
-   * - 18:05 — evening (Bork partials / updates)
-   * - 23:05 — late night (Bork stragglers)
-   *
-   * Eitje weekly hours (huidige week) uses the same `hours` pipeline; upsert merges by support_id+date+venue.
-   * TZ=Europe/Amsterdam required for correct wall-clock.
+   * Gmail inbox poll — **4×/day** Amsterdam (`inbox:gmail-sync`). Canonical spec + purposes: `server/tasks/inbox/gmail-sync.ts` metadata header.
+   * Not the Bork/Eitje API integration schedule (`integrations:bork-eitje-*`).
+   * TZ=Europe/Amsterdam required on the server for correct wall-clock.
    */
   scheduledTasks['5 8 * * *'] = ['inbox:gmail-sync']
   scheduledTasks['5 12 * * *'] = ['inbox:gmail-sync']
