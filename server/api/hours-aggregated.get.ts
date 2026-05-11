@@ -1,5 +1,11 @@
 import { getDb } from '../utils/db'
-import { EITJE_AGG_ADD_VENUE_KEY, EITJE_HOURS_ADD_FIELDS } from '../utils/eitjeHours'
+import {
+  EITJE_AGG_ADD_VENUE_KEY,
+  EITJE_HOURS_ADD_FIELDS,
+  EITJE_LABOR_PERIOD_FROM_SHIFT_START_FIELD,
+  EITJE_LABOR_SHIFT_START_FIELD,
+  getUtcDayRange,
+} from '../utils/eitjeHours'
 import { amsterdamTodayYmd, amsterdamYmdForOffset } from '../../utils/inbox/importTableQuickDates'
 import { ObjectId, type Db } from 'mongodb'
 
@@ -437,9 +443,13 @@ export default defineEventHandler(async (event) => {
     ) {
       try {
         const rawMatch: Record<string, unknown> = { endpoint: 'time_registration_shifts' }
-        const endD = new Date(rangeEnd)
-        endD.setHours(23, 59, 59, 999)
-        rawMatch.date = { $gte: new Date(rangeStart), $lte: endD, $exists: true, $ne: null }
+        const rs = getUtcDayRange(rangeStart)
+        const re = getUtcDayRange(rangeEnd)
+        const looseStart = new Date(rs.dayStart)
+        looseStart.setUTCDate(looseStart.getUTCDate() - 2)
+        const looseEnd = new Date(re.dayEnd)
+        looseEnd.setUTCDate(looseEnd.getUTCDate() + 2)
+        rawMatch.date = { $gte: looseStart, $lte: looseEnd, $exists: true, $ne: null }
         if (locationId && locationId !== 'all') {
           rawMatch.locationId = locationIdMatch(locationId)
         }
@@ -449,7 +459,7 @@ export default defineEventHandler(async (event) => {
             { $match: rawMatch },
             {
               $addFields: {
-                period: { $dateToString: { format: '%Y-%m-%d', date: { $toDate: '$date' } } },
+                ...EITJE_LABOR_SHIFT_START_FIELD,
                 ...EITJE_HOURS_ADD_FIELDS,
                 cost: {
                   $ifNull: [
@@ -469,6 +479,8 @@ export default defineEventHandler(async (event) => {
                 },
               },
             },
+            { $addFields: EITJE_LABOR_PERIOD_FROM_SHIFT_START_FIELD },
+            { $match: { period: { $gte: rangeStart, $lte: rangeEnd } } },
             {
               $group: {
                 _id: '$period',
@@ -510,7 +522,7 @@ export default defineEventHandler(async (event) => {
             { $match: rawMatch },
             {
               $addFields: {
-                period: { $dateToString: { format: '%Y-%m-%d', date: { $toDate: '$date' } } },
+                ...EITJE_LABOR_SHIFT_START_FIELD,
                 ...EITJE_HOURS_ADD_FIELDS,
                 cost: {
                   $ifNull: [
@@ -589,6 +601,8 @@ export default defineEventHandler(async (event) => {
                 },
               },
             },
+            { $addFields: EITJE_LABOR_PERIOD_FROM_SHIFT_START_FIELD },
+            { $match: { period: { $gte: rangeStart, $lte: rangeEnd } } },
             {
               $group: {
                 _id: { period: '$period', venueKey: '$venueKey' },

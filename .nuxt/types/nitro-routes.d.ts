@@ -38,6 +38,12 @@ declare module "nitropack/types" {
     '/api/cron/data-integrity': {
       'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/cron/data-integrity.get').default>>>>
     }
+    '/api/daily-ops/eitje-staff': {
+      'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/daily-ops/eitje-staff.get').default>>>>
+    }
+    '/api/daily-ops/eitje-staff/create-member': {
+      'post': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/daily-ops/eitje-staff/create-member.post').default>>>>
+    }
     '/api/daily-ops/insights': {
       'get': Simplify<Serialize<Awaited<ReturnType<typeof import('../../server/api/daily-ops/insights.get').default>>>>
     }

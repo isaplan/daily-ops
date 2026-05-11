@@ -2,6 +2,27 @@ import { ObjectId } from 'mongodb'
 import { getDb } from '../../utils/db'
 import { fetchMemberEitjePlaces } from '../../utils/memberEitjeContext'
 
+function isNulUrenContract(contractType: string): boolean {
+  return /nul\s*uren/i.test(String(contractType ?? ''))
+}
+
+function toNum(v: unknown): number | null {
+  if (v == null) return null
+  if (typeof v === 'number' && Number.isFinite(v)) return v
+  const n = Number(v)
+  return Number.isFinite(n) ? n : null
+}
+
+/** Aligns with server/api/daily-ops/eitje-staff.get.ts inbox row logic. */
+function costPerHourFromInboxDoc(doc: Record<string, unknown>): number | null {
+  const ct = String(doc.contract_type ?? '')
+  const hr = toNum(doc.hourly_rate)
+  const cph = toNum(doc.cost_per_hour)
+  if (isNulUrenContract(ct) && hr != null) return hr * 1.36
+  if (cph != null) return cph
+  return null
+}
+
 export default defineEventHandler(async (event) => {
   const id = getRouterParam(event, 'id')
   if (!id) throw createError({ statusCode: 400, statusMessage: 'Missing id' })
@@ -42,7 +63,32 @@ export default defineEventHandler(async (event) => {
     }
   }
 
-  const supportIdStr = typeof m.support_id === 'string' ? m.support_id : undefined
+  const supportIdStr = typeof m.support_id === 'string' ? m.support_id.trim() : undefined
+  const contractTypeStr = typeof m.contract_type === 'string' ? m.contract_type : ''
+  const hourlyNum = typeof m.hourly_rate === 'number' && Number.isFinite(m.hourly_rate) ? m.hourly_rate : undefined
+
+  let cost_per_hour: number | undefined
+  const storedCost = toNum(m.cost_per_hour)
+  if (storedCost != null) {
+    cost_per_hour = storedCost
+  } else if (hourlyNum != null && isNulUrenContract(contractTypeStr)) {
+    cost_per_hour = hourlyNum * 1.36
+  } else if (supportIdStr) {
+    const inboxRows = (await db
+      .collection('inbox-eitje-contracts')
+      .find({ support_id: supportIdStr })
+      .sort({ _id: -1 })
+      .limit(40)
+      .toArray()) as Record<string, unknown>[]
+    for (const doc of inboxRows) {
+      const c = costPerHourFromInboxDoc(doc)
+      if (c != null) {
+        cost_per_hour = c
+        break
+      }
+    }
+  }
+
   const eitje_places = await fetchMemberEitjePlaces(db, {
     supportId: supportIdStr,
     userName: name,
@@ -69,7 +115,8 @@ export default defineEventHandler(async (event) => {
     contract_type: typeof m.contract_type === 'string' ? m.contract_type : undefined,
     contract_start_date: m.contract_start_date ? new Date(m.contract_start_date as string).toISOString() : undefined,
     contract_end_date: m.contract_end_date ? new Date(m.contract_end_date as string).toISOString() : undefined,
-    hourly_rate: typeof m.hourly_rate === 'number' ? m.hourly_rate : undefined,
+    hourly_rate: hourlyNum,
+    cost_per_hour,
     weekly_hours: typeof m.weekly_hours === 'number' ? m.weekly_hours : undefined,
     monthly_hours: typeof m.monthly_hours === 'number' ? m.monthly_hours : undefined,
     phone: typeof m.phone === 'string' ? m.phone : undefined,

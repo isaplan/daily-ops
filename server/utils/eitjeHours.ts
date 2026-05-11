@@ -4,7 +4,9 @@
  * Changing this file updates all aggregation vs raw comparisons; run consistency check after changes.
  *
  * @registry-id: eitjeHours
- * @description: Shared hours $addFields + UTC day range for date matching
+ * @last-modified: 2026-05-11T15:00:00.000Z
+ * @description: Shared hours $addFields + labor period from shift start (Amsterdam calendar day)
+ * @last-fix: [2026-05-11] Labor period = Amsterdam date of ISO start — not Bork-style post-midnight revenue day
  */
 
 /** MongoDB $addFields expression: computes `hours` from extracted/rawApiResponse (same order everywhere). */
@@ -57,6 +59,35 @@ export const EITJE_HOURS_ADD_FIELDS = {
     ]
   }
 } as const
+
+/**
+ * Shift clock for labor bucketing: Eitje `start` (ISO). Fallbacks match `buildRawShiftDoc` in eitjeSyncService.
+ * Period = Amsterdam **calendar date** of this instant (shifts start same service day; close-after-midnight does not change start date).
+ */
+export const EITJE_LABOR_SHIFT_START_FIELD: Record<string, unknown> = {
+  shiftStart: {
+    $ifNull: [
+      { $toDate: '$rawApiResponse.start' },
+      {
+        $ifNull: [
+          { $toDate: '$rawApiResponse.start_time' },
+          {
+            $ifNull: [
+              { $toDate: '$rawApiResponse.started_at' },
+              { $ifNull: [{ $toDate: '$rawApiResponse.from' }, { $toDate: '$date' }] },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+}
+
+export const EITJE_LABOR_PERIOD_FROM_SHIFT_START_FIELD: Record<string, unknown> = {
+  period: {
+    $dateToString: { format: '%Y-%m-%d', date: '$shiftStart', timezone: 'Europe/Amsterdam' },
+  },
+}
 
 export type UtcDayRange = { dayStart: Date; dayEnd: Date }
 

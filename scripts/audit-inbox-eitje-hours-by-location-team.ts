@@ -8,7 +8,7 @@ import { readFileSync, existsSync } from 'node:fs'
 import { MongoClient } from 'mongodb'
 
 function loadDotEnv () {
-  for (const file of ['.env.local', '.env']) {
+  for (const file of ['.env.local', '.env', '.env.digitalocean.local']) {
     const p = resolve(process.cwd(), file)
     if (!existsSync(p)) continue
     for (const line of readFileSync(p, 'utf-8').split('\n')) {

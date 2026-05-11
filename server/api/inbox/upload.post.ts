@@ -188,6 +188,7 @@ export default defineEventHandler(async (event) => {
           rowsProcessed: parseResult.rowCount,
           rowsValid: parseResult.rowCount,
           rowsFailed: 0,
+          sourceAttachmentFileName: file.filename,
           data: {
             headers: parseResult.headers,
             rows: parseResult.rows,

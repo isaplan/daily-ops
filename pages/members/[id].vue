@@ -1,6 +1,12 @@
 <template>
   <div class="max-w-4xl mx-auto w-full">
-      <UButton variant="ghost" size="sm" class="mb-4 text-blue-600 hover:text-blue-800" to="/organisation">
+      <UButton
+        type="button"
+        variant="ghost"
+        size="sm"
+        class="mb-4 text-blue-600 hover:text-blue-800"
+        @click="goBack"
+      >
         ← Back
       </UButton>
 
@@ -103,9 +109,13 @@
             <div>
               <h3 class="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">Compensation</h3>
               <div class="space-y-2 text-sm">
-                <div v-if="member.hourly_rate" class="flex justify-between">
+                <div v-if="member.hourly_rate != null" class="flex justify-between">
                   <span class="text-gray-600">Hourly Rate:</span>
                   <span class="font-medium">€{{ member.hourly_rate.toFixed(2) }}</span>
+                </div>
+                <div v-if="member.cost_per_hour != null" class="flex justify-between">
+                  <span class="text-gray-600">Cost/h:</span>
+                  <span class="font-medium">€{{ member.cost_per_hour.toFixed(2) }}</span>
                 </div>
                 <div v-if="member.weekly_hours" class="flex justify-between">
                   <span class="text-gray-600">Weekly Hours:</span>
@@ -389,6 +399,7 @@ type MemberItem = {
   contract_start_date?: string | null
   contract_end_date?: string | null
   hourly_rate?: number
+  cost_per_hour?: number
   weekly_hours?: number
   monthly_hours?: number
   phone?: string
@@ -438,6 +449,28 @@ type ConnectionsData = {
 const route = useRoute()
 const router = useRouter()
 const id = computed(() => route.params.id as string)
+
+const RETURN_TO_PARAM = 'returnTo'
+
+function safeInternalPath(p: unknown): string | null {
+  if (typeof p !== 'string' || !p.startsWith('/') || p.startsWith('//')) return null
+  try {
+    if (p.includes('?')) return null
+    return p.length > 200 ? null : p
+  } catch {
+    return null
+  }
+}
+
+/** Previous in-app route when possible; optional `returnTo` query for new-tab / no history. */
+function goBack() {
+  const fallback = safeInternalPath(route.query[RETURN_TO_PARAM]) ?? '/organisation'
+  if (import.meta.client && typeof window !== 'undefined' && window.history.length > 1) {
+    router.back()
+    return
+  }
+  void router.push(fallback)
+}
 
 const { data: memberData, pending, error: memberFetchError } = await useFetch<{ success: boolean; data: MemberItem }>(
   () => (id.value ? `/api/members/${id.value}` : ''),
@@ -553,7 +586,8 @@ const hasWorkerData = computed(() => {
     member.value.contract_type ||
     member.value.contract_start_date ||
     member.value.contract_end_date ||
-    member.value.hourly_rate ||
+    member.value.hourly_rate != null ||
+    member.value.cost_per_hour != null ||
     typeof member.value.weekly_hours === 'number' ||
     typeof member.value.monthly_hours === 'number' ||
     member.value.phone ||

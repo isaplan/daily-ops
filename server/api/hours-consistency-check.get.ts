@@ -1,11 +1,25 @@
 /**
  * Compares aggregation row totals to sum of raw records per (date, location).
  * Returns which rows have mismatches and documents possible causes.
- * Uses shared EITJE_HOURS_ADD_FIELDS so formula matches row-records and hours-aggregated raw fallback.
+ * Uses shared EITJE_HOURS_ADD_FIELDS + labor period (Amsterdam date of shift start) like aggregation rebuild.
  */
 import { getDb } from '../utils/db'
-import { EITJE_AGG_ADD_VENUE_KEY, EITJE_HOURS_ADD_FIELDS, getUtcDayRange } from '../utils/eitjeHours'
+import {
+  EITJE_AGG_ADD_VENUE_KEY,
+  EITJE_HOURS_ADD_FIELDS,
+  EITJE_LABOR_PERIOD_FROM_SHIFT_START_FIELD,
+  EITJE_LABOR_SHIFT_START_FIELD,
+  getUtcDayRange,
+} from '../utils/eitjeHours'
 import { ObjectId } from 'mongodb'
+
+function padUtcRange (dayStart: Date, dayEnd: Date, padDays: number): { lo: Date; hi: Date } {
+  const lo = new Date(dayStart)
+  lo.setUTCDate(lo.getUTCDate() - padDays)
+  const hi = new Date(dayEnd)
+  hi.setUTCDate(hi.getUTCDate() + padDays)
+  return { lo, hi }
+}
 
 export default defineEventHandler(async (event) => {
   try {
@@ -59,7 +73,8 @@ export default defineEventHandler(async (event) => {
 
       let match: Record<string, unknown>
       const { dayStart, dayEnd } = getUtcDayRange(dateStr)
-      const dateCondition = { $or: [{ date: { $gte: dayStart, $lte: dayEnd } }, { date: dateStr }] }
+      const { lo, hi } = padUtcRange(dayStart, dayEnd, 2)
+      const dateCondition = { date: { $gte: lo, $lte: hi } }
 
       if (isHexObjectId && locationIdParam) {
         let locationIdObj: ObjectId | null = null
@@ -105,13 +120,15 @@ export default defineEventHandler(async (event) => {
       } else {
         match = {
           endpoint: endpointName,
-          $and: [{ $or: [{ date: { $gte: dayStart, $lte: dayEnd } }, { date: dateStr }] }],
+          $and: [dateCondition],
         }
       }
 
       const rawSumPipeline: unknown[] = [
         { $match: match },
-        { $addFields: EITJE_HOURS_ADD_FIELDS },
+        { $addFields: { ...EITJE_HOURS_ADD_FIELDS, ...EITJE_LABOR_SHIFT_START_FIELD } },
+        { $addFields: EITJE_LABOR_PERIOD_FROM_SHIFT_START_FIELD },
+        { $match: { period: dateStr } },
         { $group: { _id: null, raw_sum: { $sum: '$hours' }, raw_count: { $sum: 1 } } },
       ]
       const rawResult = await db.collection('eitje_raw_data').aggregate(rawSumPipeline).toArray() as { raw_sum: number; raw_count: number }[]
@@ -143,7 +160,7 @@ export default defineEventHandler(async (event) => {
         mismatch_count: mismatches.length,
       },
       mismatches,
-      possible_causes: `When row total ≠ sum of raw records, common causes: (1) Date/timezone: raw 'date' may be stored in local TZ so UTC day range includes different shifts. (2) Location: raw uses environmentId, aggregation uses unified locationId – mismatched eitjeIds can include/exclude different docs. (3) Duplicates: same shift stored multiple times in raw (same support_id or fallback key) so raw sum is inflated; aggregation groups by (date, location, user, team) so may count once. (4) Hours formula: break_minutes or start/end rounding differs between aggregation pipeline and raw.`,
+      possible_causes: `When row total ≠ sum of raw records, common causes: (1) Labor period is Amsterdam calendar date of shift ISO start; padded raw window must include those docs. (2) Location: raw uses environmentId, aggregation uses unified locationId – mismatched eitjeIds. (3) Duplicates in raw vs grouped aggregation buckets. (4) Hours formula: break_minutes or start/end rounding.`,
     }
   } catch (error) {
     console.error('[hours-consistency-check]', error)

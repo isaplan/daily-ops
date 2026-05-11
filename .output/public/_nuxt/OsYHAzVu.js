@@ -1,0 +1,1 @@
+import{_ as t}from"./D_iPRNuZ.js";import{f as e,o as r,i as n}from"./GJsCpteP.js";import"./DkXLwU_s.js";import"./BMbKdjPV.js";import"./CStEZ8h6.js";import"./D5jS5g-B.js";import"./BIPHD9r3.js";const d=e({__name:"workload",setup(p){return(_,a)=>{const o=t;return r(),n(o,{section:"workload"})}}});export{d as default};
