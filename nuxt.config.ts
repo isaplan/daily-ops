@@ -33,14 +33,15 @@ const scheduledTasks: Record<string, string[]> = {}
 if (!disableInboxSchedule) {
   /**
    * Gmail inbox poll 3×/day in Amsterdam time (Bork basis + all inbox mail):
-   * - 08:05 — morning (final prior business day Bork; Eitje dagelijkse uren “yesterday” lives here)
+   * - 08:05 — morning (Eitje dagelijkse uren ~08:00; optional second mail ~07:55 “current week” hours export)
    * - 18:05 — evening (Bork partials / updates)
    * - 23:05 — late night (Bork stragglers)
    *
-   * Eitje-only: treat 08:05 as the batch with full previous-day hours; 18/23 rarely add labor rows.
+   * Eitje weekly hours (huidige week) uses the same `hours` pipeline; upsert merges by support_id+date+venue.
    * TZ=Europe/Amsterdam required for correct wall-clock.
    */
   scheduledTasks['5 8 * * *'] = ['inbox:gmail-sync']
+  scheduledTasks['5 12 * * *'] = ['inbox:gmail-sync']
   scheduledTasks['5 18 * * *'] = ['inbox:gmail-sync']
   scheduledTasks['5 23 * * *'] = ['inbox:gmail-sync']
 }
