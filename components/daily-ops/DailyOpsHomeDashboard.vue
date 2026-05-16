@@ -53,10 +53,43 @@
           </UCard>
           <UCard class="border-2 border-gray-900 !bg-white ring-0 shadow-none">
             <p class="text-sm font-medium text-gray-500">Total Labor Cost</p>
-            <p class="mt-2 text-2xl font-semibold text-gray-900">{{ formatEur(summary.summary.totalLaborCost) }}</p>
+            <p class="mt-2 text-2xl font-semibold text-gray-900">{{ formatEur(headlineLaborCost) }}</p>
             <p v-if="summary.summary.laborCostPctOfRevenue != null" class="mt-1 text-xs text-gray-500">
               {{ summary.summary.laborCostPctOfRevenue.toFixed(1) }}% of revenue
             </p>
+            <dl
+              v-if="summary.summary.laborBreakdown"
+              class="mt-3 space-y-1.5 border-t border-gray-100 pt-3 text-xs text-gray-700"
+            >
+              <div class="flex justify-between gap-2">
+                <dt class="text-gray-600">
+                  Hourly wages
+                  <span class="ml-1 font-semibold text-gray-900">(leading)</span>
+                </dt>
+                <dd class="tabular-nums font-medium text-gray-900">{{ formatEur(summary.summary.laborBreakdown.wages) }}</dd>
+              </div>
+              <div class="flex justify-between gap-2">
+                <dt class="text-gray-600">Loaded cost · per hour</dt>
+                <dd class="tabular-nums font-medium text-gray-900">{{ formatEur(summary.summary.laborBreakdown.loaded) }}</dd>
+              </div>
+              <div class="mt-2 border-t border-gray-100 pt-2">
+                <p class="mb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-500">By team (wages)</p>
+                <div
+                  v-for="team in summary.summary.laborBreakdown.byTeam"
+                  :key="team.key"
+                  class="flex justify-between gap-2"
+                >
+                  <dt class="text-gray-600">{{ team.label }}</dt>
+                  <dd class="tabular-nums font-medium text-gray-900">{{ formatEur(team.wages) }}</dd>
+                </div>
+              </div>
+              <p
+                v-if="summary.summary.laborBreakdown.coverage.daysFound < summary.summary.laborBreakdown.coverage.daysExpected"
+                class="mt-2 text-[10px] italic text-amber-700"
+              >
+                Snapshot coverage {{ summary.summary.laborBreakdown.coverage.daysFound }}/{{ summary.summary.laborBreakdown.coverage.daysExpected }} day-locations
+              </p>
+            </dl>
           </UCard>
           <UCard class="border-2 border-gray-900 !bg-white ring-0 shadow-none">
             <p class="text-sm font-medium text-gray-500">Labor Percentage</p>
@@ -955,6 +988,13 @@ const {
 const summary = computed(() => metricsBundle.value?.summary ?? null)
 const revenue = computed(() => metricsBundle.value?.revenue ?? null)
 const labor = computed(() => metricsBundle.value?.labor ?? null)
+
+/** Headline labor cost: snapshot wages when available, legacy total otherwise. */
+const headlineLaborCost = computed((): number => {
+  const bd = summary.value?.summary.laborBreakdown
+  if (bd && bd.wages > 0) return bd.wages
+  return summary.value?.summary.totalLaborCost ?? 0
+})
 
 /** Bands for labor-cost % of revenue (Teams & Workers card only). */
 const laborPctThresholdLow = ref(30)

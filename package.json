@@ -19,10 +19,13 @@
     "eitje:backfill": "npx --yes tsx scripts/eitje-full-raw-backfill.ts",
     "eitje:rebuild:labor": "npx --yes tsx scripts/rebuild-eitje-labor-aggregation.ts",
     "eitje:rebuild:labor:all": "npx --yes tsx scripts/rebuild-eitje-labor-aggregation.ts all",
+    "eitje:ensure-agg-index": "npx --yes tsx scripts/ensure-eitje-agg-unique-index.ts",
+    "eitje:repair-labor-day": "npx --yes tsx scripts/repair-labor-day.ts",
     "inbox:remap-eitje-hours": "npx --yes tsx scripts/remap-inbox-eitje-hours-from-parseddatas.ts",
     "backfill:cron-priority": "npx --yes tsx scripts/backfill-cron-priority.ts",
     "backfill:cron-priority-eitje-hours": "npx --yes tsx scripts/backfill-cron-priority-eitje-hours.ts",
     "backfill:eitje-hours-from-parseddatas": "npx --yes tsx scripts/backfill-eitje-hours-from-parseddatas.ts",
+    "members:backfill-unified-user-id": "npx --yes tsx scripts/backfill-members-unified-user-id.ts",
     "start": "node .output/server/index.mjs"
   },
   "dependencies": {

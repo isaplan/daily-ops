@@ -4,7 +4,7 @@ alwaysApply: true
 
 # Agent Rules: Daily Ops (Next.js 15 + React 18 + Socket.io)
 
-**Stack:** Next.js 15 • React 18 • TypeScript • Tailwind • Shadcn UI • MongoDB • Socket.io
+**Stack:** Nuxt 3 • Vue 3 • TypeScript • Tailwind • DO (DigitalOcean) • MongoDB
 
 ---
 
@@ -112,6 +112,8 @@ alwaysApply: true
 4. **Ask permission** → If touching protected code
 5. **Get explicit approval** → "Go ahead" / "Proceed"
 6. **THEN execute** (no more discussion)
+
+**Architecture SSOT:** If a change affects business rules, collection ownership, or data flow, update [ARCHITECTURE.md](../../ARCHITECTURE.md) and add an ADR to [DECISIONS.md](../../DECISIONS.md) in the same commit. Reference ADRs from metadata headers via `@adr-ref: ADR-00X`.
 
 ---
 

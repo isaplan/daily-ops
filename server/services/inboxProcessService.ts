@@ -21,6 +21,8 @@ import { aggregateDailySalesForEmail } from './borkSalesDailyAggregation'
 import { mapBasisReportXLSX } from '../utils/inbox/basis-report-mapper'
 import { matchVenueLocationFromText } from '../utils/inbox/basis-report-location'
 import { getDb } from '../utils/db'
+import { enqueueSnapshotBuild } from '../utils/dailyOpsSnapshot/jobCoalescer'
+import { sealDailyOpsSnapshot } from './dailyOpsSnapshotService'
 import * as inboxRepo from './inboxRepository'
 import type { CreateParsedDataDto, DocumentType, EmailAttachmentDoc, FileFormat } from '~/types/inbox'
 import { Buffer } from 'node:buffer'
@@ -108,6 +110,16 @@ async function handleParsedMapping(
           { $set: { ...basisReport, updated_at: new Date() } },
           { upsert: true },
         )
+
+        // Snapshot hook: 08:05 → seal final; intraday polls → enqueue partial rebuild.
+        if (basisReport.business_date && basisReport.location_id) {
+          const key = { businessDate: basisReport.business_date, locationId: String(basisReport.location_id) }
+          if (basisReport.cron_hour === 8) {
+            void sealDailyOpsSnapshot(key)
+          } else {
+            enqueueSnapshotBuild(key)
+          }
+        }
 
         await inboxRepo.updateParsedData(String(parsedDataId), {
           mapping: {

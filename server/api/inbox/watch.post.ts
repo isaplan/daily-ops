@@ -1,8 +1,8 @@
 /**
  * @registry-id: inboxWatchPostAPI
- * @last-modified: 2026-04-20T00:00:00.000Z
+ * @last-modified: 2026-05-14T12:00:00.000Z
  * @description: POST /api/inbox/watch — start Gmail users.watch; persists state to integration_cron_jobs
- * @last-fix: [2026-04-20] invalid_grant → 401 + gmailOAuthError helper
+ * @last-fix: [2026-05-14] invalid_grant copy: NUXT_PUBLIC_SITE_URL / full callback GMAIL_REDIRECT_URI; [2026-04-20] invalid_grant → 401 + gmailOAuthError helper
  */
 import { getDb } from '../../utils/db'
 import { ensureInboxCollections } from '../../utils/inbox/collections'
@@ -69,7 +69,7 @@ export default defineEventHandler(async (event) => {
       throw createError({
         statusCode: 401,
         statusMessage:
-          'Gmail OAuth invalid_grant: refresh token rejected. Use the same GMAIL_CLIENT_ID/SECRET as when the token was created; set GMAIL_REDIRECT_URI to the exact authorized redirect URI (e.g. http://localhost:8080). Then re-run OAuth and replace GMAIL_REFRESH_TOKEN.',
+          'Gmail OAuth invalid_grant: refresh token rejected. Use the same GMAIL_CLIENT_ID/SECRET as when the token was created. Set NUXT_PUBLIC_SITE_URL to your app origin (or GMAIL_REDIRECT_URI to the full …/api/auth/gmail/callback URL) so it matches Google Cloud authorized redirect URIs, then Connect Gmail and update GMAIL_REFRESH_TOKEN.',
         data: { google: msg },
       })
     }

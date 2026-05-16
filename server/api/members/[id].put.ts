@@ -1,5 +1,20 @@
+/**
+ * @registry-id: membersIdPutApi
+ * @created: 2026-03-01T00:00:00.000Z
+ * @last-modified: 2026-05-16T12:00:00.000Z
+ * @description: PUT /api/members/[id] — profile + optional compensation revision (manual_ui)
+ * @last-fix: [2026-05-16] Compensation fields open revision via memberCompensationRevisions (ADR-001)
+ *
+ * @architecture-ref: ARCHITECTURE.md#5-business-rules
+ * @adr-ref: ADR-001, ADR-002
+ *
+ * @exports-to:
+ * ✓ pages/members/[id].vue
+ */
+
 import { ObjectId } from 'mongodb'
 import { getDb } from '../../utils/db'
+import { openNewRevision, toNum } from '../../utils/memberCompensationRevisions'
 
 export default defineEventHandler(async (event) => {
   const id = getRouterParam(event, 'id')
@@ -16,6 +31,9 @@ export default defineEventHandler(async (event) => {
     slack_username?: string
     location_id?: string
     team_id?: string
+    contract_type?: string
+    hourly_rate?: number
+    cost_per_hour?: number
   }>(event)
   const db = await getDb()
   const update: Record<string, unknown> = { updated_at: new Date() }
@@ -44,14 +62,41 @@ export default defineEventHandler(async (event) => {
       update.team_id = null
     }
   }
-  const result = await db.collection('members').findOneAndUpdate(
-    { _id: oid },
-    { $set: update },
-    { returnDocument: 'after' }
-  )
+
+  const hasCompensationEdit =
+    body?.contract_type !== undefined || body?.hourly_rate !== undefined || body?.cost_per_hour !== undefined
+
+  if (hasCompensationEdit) {
+    const existing = await db.collection('members').findOne({ _id: oid })
+    if (!existing) throw createError({ statusCode: 404, statusMessage: 'Member not found' })
+    const ex = existing as Record<string, unknown>
+    const contractType =
+      body?.contract_type !== undefined
+        ? String(body.contract_type).trim()
+        : String(ex.contract_type ?? '').trim()
+    const hourlyRate =
+      body?.hourly_rate !== undefined ? toNum(body.hourly_rate) : toNum(ex.hourly_rate)
+    const costPerHour =
+      body?.cost_per_hour !== undefined ? toNum(body.cost_per_hour) : toNum(ex.cost_per_hour)
+
+    await openNewRevision(
+      db,
+      oid,
+      { contract_type: contractType, hourly_rate: hourlyRate, cost_per_hour: costPerHour },
+      'manual_ui',
+      new Date()
+    )
+  }
+
+  if (Object.keys(update).length > 1) {
+    await db.collection('members').updateOne({ _id: oid }, { $set: update })
+  }
+
+  const result = await db.collection('members').findOne({ _id: oid })
   if (!result) {
     throw createError({ statusCode: 404, statusMessage: 'Member not found' })
   }
+
   const m = result as Record<string, unknown>
   const nameVal = m.name ?? m.Name ?? m.naam ?? m.displayName ?? m.full_name ?? m.title
   const name = typeof nameVal === 'string' ? nameVal.trim() : ''
@@ -85,6 +130,10 @@ export default defineEventHandler(async (event) => {
     location_name: locationName,
     team_name: teamName,
     is_active: m.is_active !== false && m.isActive !== false,
+    contract_type: typeof m.contract_type === 'string' ? m.contract_type : undefined,
+    hourly_rate: typeof m.hourly_rate === 'number' ? m.hourly_rate : undefined,
+    cost_per_hour: typeof m.cost_per_hour === 'number' ? m.cost_per_hour : undefined,
+    compensation_status: typeof m.compensation_status === 'string' ? m.compensation_status : undefined,
   }
   return { success: true, data }
 })

@@ -1,4 +1,19 @@
-import type { Db } from 'mongodb'
+/**
+ * @registry-id: memberEitjeContext
+ * @created: 2026-03-01T00:00:00.000Z
+ * @last-modified: 2026-05-16T12:00:00.000Z
+ * @description: Resolve Eitje user IDs for a member; link members.unified_user_id
+ * @last-fix: [2026-05-16] Prefer members.unified_user_id FK before fuzzy unified_user lookup (ADR-003)
+ *
+ * @architecture-ref: ARCHITECTURE.md#4-canonical-entities
+ * @adr-ref: ADR-003
+ *
+ * @exports-to:
+ * ✓ server/api/members/[id].get.ts
+ * ✓ server/services/eitjeSyncService.ts
+ */
+
+import { ObjectId, type Db } from 'mongodb'
 import { EITJE_HOURS_ADD_FIELDS } from './eitjeHours'
 
 /** Eitje aggregation may store userId as number or string (support ID is often different). */
@@ -38,17 +53,90 @@ function addId (out: Set<unknown>, v: unknown) {
   }
 }
 
+/** Link members.unified_user_id when resolvable (ADR-003). */
+export async function linkMemberUnifiedUserId (
+  db: Db,
+  memberId: ObjectId,
+  supportId: string | undefined,
+  userName: string
+): Promise<ObjectId | null> {
+  const existing = await db.collection('members').findOne(
+    { _id: memberId },
+    { projection: { unified_user_id: 1 } }
+  )
+  if (existing?.unified_user_id instanceof ObjectId) return existing.unified_user_id
+
+  const orClause: Record<string, unknown>[] = []
+  const sid = supportId?.trim()
+  if (sid) {
+    orClause.push({ support_id: sid })
+    const n = Number(sid)
+    if (!Number.isNaN(n)) {
+      orClause.push({ eitjeIds: n })
+      orClause.push({ allIdValues: n })
+    }
+  }
+  const name = userName.trim()
+  if (name) {
+    orClause.push({ canonicalName: name })
+    orClause.push({
+      canonicalName: { $regex: `^\\s*${escapeRegex(name)}\\s*$`, $options: 'i' },
+    })
+  }
+  if (!orClause.length) return null
+
+  const u = await db.collection('unified_user').findOne({ $or: orClause }, { projection: { _id: 1 } })
+  const uid = u?._id instanceof ObjectId ? u._id : null
+  if (uid) {
+    await db.collection('members').updateOne(
+      { _id: memberId },
+      { $set: { unified_user_id: uid, updated_at: new Date() } }
+    )
+  }
+  return uid
+}
+
+function addIdsFromUnifiedUserDoc (out: Set<unknown>, doc: Record<string, unknown>) {
+  const ej = doc.eitjeIds
+  if (Array.isArray(ej)) for (const x of ej) addId(out, x)
+  const av = doc.allIdValues
+  if (Array.isArray(av)) for (const x of av) addId(out, x)
+  addId(out, doc.primaryId)
+  addId(out, doc.support_id)
+}
+
 /**
  * Resolve every id Eitje might store as aggregation `userId` for this person.
- * Support ID from CSV is often NOT the same as Eitje internal user id — use unified_user.
+ * Prefer members.unified_user_id; fuzzy unified_user lookup is fallback only.
  */
 export async function resolveEitjeAggregationUserCandidates (
   db: Db,
   supportId: string | undefined,
-  userName: string
+  userName: string,
+  opts?: { skipMemberFk?: boolean }
 ): Promise<unknown[]> {
   const out = new Set<unknown>()
   for (const x of eitjeUserIdCandidates(supportId)) addId(out, x)
+
+  if (!opts?.skipMemberFk) {
+    const sid = supportId?.trim()
+    if (sid) {
+      const member = await db.collection('members').findOne(
+        { support_id: sid },
+        { projection: { unified_user_id: 1 } }
+      )
+      if (member?.unified_user_id instanceof ObjectId) {
+        const u = await db.collection('unified_user').findOne(
+          { _id: member.unified_user_id },
+          { projection: { eitjeIds: 1, allIdValues: 1, primaryId: 1, support_id: 1 } }
+        )
+        if (u) {
+          addIdsFromUnifiedUserDoc(out, u as Record<string, unknown>)
+          return [...out]
+        }
+      }
+    }
+  }
 
   const orClause: Record<string, unknown>[] = []
   const sid = supportId?.trim()
@@ -80,13 +168,7 @@ export async function resolveEitjeAggregationUserCandidates (
       .toArray()
 
     for (const u of users) {
-      const doc = u as Record<string, unknown>
-      const ej = doc.eitjeIds
-      if (Array.isArray(ej)) for (const x of ej) addId(out, x)
-      const av = doc.allIdValues
-      if (Array.isArray(av)) for (const x of av) addId(out, x)
-      addId(out, doc.primaryId)
-      addId(out, doc.support_id)
+      addIdsFromUnifiedUserDoc(out, u as Record<string, unknown>)
     }
   }
 

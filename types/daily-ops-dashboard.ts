@@ -8,6 +8,31 @@ export type DailyOpsRangeDto = {
   endDate: string
 }
 
+export type DailyOpsLaborBreakdownTeam = {
+  key: 'keuken' | 'bediening' | 'other'
+  label: string
+  wages: number
+  loaded: number
+  hours: number
+}
+
+/**
+ * Snapshot-sourced labor breakdown (Phase A.1 wire-in, 2026-05-13).
+ * Augments totalLaborCost with wage vs loaded cost methodologies + per-team rollup
+ * (Keuken / Bediening / Other). Read from daily_ops_snapshot_section_labor.
+ */
+export type DailyOpsLaborBreakdownDto = {
+  wages: number
+  loaded: number
+  hours: number
+  byTeam: DailyOpsLaborBreakdownTeam[]
+  coverage: {
+    daysFound: number
+    daysExpected: number
+    locationsFound: number
+  }
+}
+
 export type DailyOpsSummaryDto = {
   range: DailyOpsRangeDto
   summary: {
@@ -27,6 +52,8 @@ export type DailyOpsSummaryDto = {
       apiBusinessDaysTotal: number
       inboxBasisExVat: number | null
     }
+    /** Snapshot-sourced labor cost breakdown (wages vs loaded, per team). Optional. */
+    laborBreakdown?: DailyOpsLaborBreakdownDto
   }
   vatDisclaimer: string
 }

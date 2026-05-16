@@ -1,9 +1,9 @@
 /**
  * @registry-id: gmailWatchService
  * @created: 2026-01-27T12:00:00.000Z
- * @last-modified: 2026-04-21T22:35:00.000Z
+ * @last-modified: 2026-05-14T12:00:00.000Z
  * @description: Gmail watch + history.list (Nuxt Nitro)
- * @last-fix: [2026-04-21] Redirect via getGmailOAuthRedirectUri — no silent localhost in production
+ * @last-fix: [2026-05-14] resolveGmailOAuthRedirectUriForServer (matches DB-stored callback on DO)
  *
  * @exports-to:
  * ✓ server/api/inbox/watch.post.ts
@@ -12,6 +12,7 @@
 
 import { google } from 'googleapis'
 import type { gmail_v1 } from 'googleapis'
+import { resolveGmailOAuthRedirectUriForServer } from './gmailOAuthService'
 
 export type WatchRequest = {
   topicName: string
@@ -41,7 +42,7 @@ class GmailWatchService {
       const clientId = process.env.GMAIL_CLIENT_ID
       const clientSecret = process.env.GMAIL_CLIENT_SECRET
       const refreshToken = process.env.GMAIL_REFRESH_TOKEN
-      const redirectUri = getGmailOAuthRedirectUri()
+      const redirectUri = await resolveGmailOAuthRedirectUriForServer()
 
       if (!clientId || !clientSecret || !refreshToken) {
         throw new Error(

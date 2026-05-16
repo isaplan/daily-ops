@@ -1,17 +1,17 @@
 /**
  * Daily Ops dashboard: Bork revenue + Eitje labor aggregations (fast paths on prebuilt collections).
- * @last-modified: 2026-05-12T00:00:00.000Z
- * @last-fix: [2026-05-12] Doc sync: inbox Gmail polls 4×/day incl. 12:05 (see task metadata); [2026-05-08] pickBasisReportsPerLocation cron 7 final
+ * @last-modified: 2026-05-13T00:00:00.000Z
+ * @last-fix: [2026-05-13] Doc: correct business-day boundary 08:00 → 07:59 (was 06:00, stale); [2026-05-12] inbox 4×/day incl. 12:05; [2026-05-08] pickBasisReportsPerLocation cron 7 final
  * 
  * @business-day-definition:
- * A "business day" runs 06:00 to 05:59 NEXT day (Amsterdam time).
+ * A "business day" runs 08:00 to 07:59:59 NEXT ISO day (Amsterdam time).
  * 
- * Example: Business Day May 6 = 06:00 May 6 to 05:59 May 7
+ * Example: Business Day May 6 = 08:00 May 6 to 07:59:59 May 7
  * 
  * Emails arrive via **4** daily inbox polls (Amsterdam time) — see `server/tasks/inbox/gmail-sync.ts` + nuxt `inbox:gmail-sync`:
- *   1. Cron 18:05 (ISO day N) → Business Day N Bork report (partial, ~12h in)
- *   2. Cron 23:05 (ISO day N) → Business Day N Bork report (partial, ~17h in)
- *   3. Cron 08:05 (ISO day N+1) → **FINAL** Business Day N Bork report (closes 05:59)
+ *   1. Cron 18:05 (ISO day N) → Business Day N Bork report (partial, ~10h in)
+ *   2. Cron 23:05 (ISO day N) → Business Day N Bork report (partial, ~15h in)
+ *   3. Cron 08:05 (ISO day N+1) → **FINAL** Business Day N Bork report (closes 07:59)
  *   4. Cron 12:05 → Eitje weekly / current-week hours (labor catch-up; see task metadata)
  *
  * Eitje dagelijkse uren: full previous calendar day is expected on the **morning (~08:05)** poll; **12:05** weekly

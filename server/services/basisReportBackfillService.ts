@@ -14,6 +14,8 @@ import { getDb } from '../utils/db'
 import { INBOX_COLLECTIONS } from '../utils/inbox/constants'
 import { mapBasisReportXLSX } from '../utils/inbox/basis-report-mapper'
 import type { FileFormat } from '~/types/inbox'
+import { enqueueSnapshotBuild } from '../utils/dailyOpsSnapshot/jobCoalescer'
+import './dailyOpsSnapshotService' // side-effect: registers snapshot runner
 
 const STALE_LOCATIONS = ['Unknown', 'Unspecified', 'UNKNOWN'] as const
 
@@ -127,6 +129,10 @@ export async function backfillBasisReportsFromParsedData(
           { $set: { ...basisReport, updated_at: new Date() } },
           { upsert: true },
         )
+        // Snapshot rebuild (debounced) — backfill flagged as partial; 08:05 sealing handled by inbox process service.
+        if (basisReport.business_date && basisReport.location_id) {
+          enqueueSnapshotBuild({ businessDate: basisReport.business_date, locationId: String(basisReport.location_id) })
+        }
       }
       upserted++
     } catch (e) {

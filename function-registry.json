@@ -1,9 +1,14 @@
 {
   "metadata": {
-    "totalByType": {},
-    "totalFiles": 0,
+    "totalByType": {
+      "service": 1,
+      "helper": 7,
+      "types": 1,
+      "script": 4
+    },
+    "totalFiles": 13,
     "version": "2.0.0",
-    "generated_at": "2026-05-11T23:16:28.015Z"
+    "generated_at": "2026-05-13T00:00:00.000Z"
   },
   "index": {
     "byName": {},
@@ -11,5 +16,141 @@
     "byType": {},
     "byLastSeen": []
   },
-  "functions": []
+  "functions": [
+    {
+      "id": "dailyOpsSnapshotService",
+      "type": "service",
+      "file": "server/services/dailyOpsSnapshotService",
+      "description": "Phase A.1 — builds daily_ops_snapshot master + revenue + labor sections per (locationId, businessDate). Reads aggregated collections only, never raw data.",
+      "exports": ["buildDailyOpsSnapshot", "buildDailyOpsSnapshotRange", "sealDailyOpsSnapshot"],
+      "status": "pending",
+      "touch_again": true,
+      "last_modified": "2026-05-13T00:00:00.000Z"
+    },
+    {
+      "id": "dailyOpsSnapshotTypes",
+      "type": "types",
+      "file": "types/daily-ops-snapshot",
+      "description": "Master + Revenue + Labor section interfaces; collection name constants.",
+      "exports": [
+        "DailyOpsSnapshotMaster",
+        "DailyOpsSnapshotRevenueSection",
+        "DailyOpsSnapshotLaborSection",
+        "DAILY_OPS_SNAPSHOT_COLLECTIONS"
+      ],
+      "status": "pending",
+      "touch_again": true,
+      "last_modified": "2026-05-13T00:00:00.000Z"
+    },
+    {
+      "id": "borkVatCalculation",
+      "type": "helper",
+      "file": "server/utils/borkVatCalculation",
+      "description": "Single source of truth for line-level VAT extraction from raw Bork OrderLines (TotalEx + TotalInc).",
+      "exports": ["extractLineRevenue", "resetBorkVatDebugSampler"],
+      "status": "pending",
+      "touch_again": true,
+      "last_modified": "2026-05-13T00:00:00.000Z"
+    },
+    {
+      "id": "dailyOpsSnapshotResolveSources",
+      "type": "helper",
+      "file": "server/utils/dailyOpsSnapshot/resolveSources",
+      "description": "Counts source rows + lastSyncAt per source for snapshot provenance.",
+      "exports": ["resolveSources"],
+      "status": "pending",
+      "touch_again": true,
+      "last_modified": "2026-05-13T00:00:00.000Z"
+    },
+    {
+      "id": "dailyOpsSnapshotDenormalizeNames",
+      "type": "helper",
+      "file": "server/utils/dailyOpsSnapshot/denormalizeNames",
+      "description": "Batched location/team/user name lookups; cached per build invocation.",
+      "exports": ["buildNameLookups"],
+      "status": "pending",
+      "touch_again": true,
+      "last_modified": "2026-05-13T00:00:00.000Z"
+    },
+    {
+      "id": "dailyOpsSnapshotBuildRevenueSection",
+      "type": "helper",
+      "file": "server/utils/dailyOpsSnapshot/buildRevenueSection",
+      "description": "Reads bork_business_days + bork_sales_by_hour + inbox-bork-basis-report → revenue section.",
+      "exports": ["buildRevenueSection"],
+      "status": "pending",
+      "touch_again": true,
+      "last_modified": "2026-05-13T00:00:00.000Z"
+    },
+    {
+      "id": "dailyOpsSnapshotBuildLaborSection",
+      "type": "helper",
+      "file": "server/utils/dailyOpsSnapshot/buildLaborSection",
+      "description": "Reads eitje_time_registration_aggregation + members → labor section with wage + loaded cost methodologies.",
+      "exports": ["buildLaborSection"],
+      "status": "pending",
+      "touch_again": true,
+      "last_modified": "2026-05-13T00:00:00.000Z"
+    },
+    {
+      "id": "dailyOpsSnapshotBuildCards",
+      "type": "helper",
+      "file": "server/utils/dailyOpsSnapshot/buildCards",
+      "description": "Computes master.cards headline KPIs from revenue + labor sections.",
+      "exports": ["buildCards"],
+      "status": "pending",
+      "touch_again": true,
+      "last_modified": "2026-05-13T00:00:00.000Z"
+    },
+    {
+      "id": "dailyOpsSnapshotJobCoalescer",
+      "type": "helper",
+      "file": "server/utils/dailyOpsSnapshot/jobCoalescer",
+      "description": "In-process debounce queue for snapshot rebuilds. Deduplicates bursts of enqueue() calls per key.",
+      "exports": ["registerSnapshotRunner", "enqueueSnapshotBuild", "flushSnapshotQueue", "getPendingCount"],
+      "status": "pending",
+      "touch_again": true,
+      "last_modified": "2026-05-13T00:00:00.000Z"
+    },
+    {
+      "id": "initSnapshotCollections",
+      "type": "script",
+      "file": "scripts/init-snapshot-collections",
+      "description": "Idempotent MongoDB setup for daily_ops_snapshot collections + indexes.",
+      "exports": [],
+      "status": "pending",
+      "touch_again": true,
+      "last_modified": "2026-05-13T00:00:00.000Z"
+    },
+    {
+      "id": "validateSnapshotPhaseA1",
+      "type": "script",
+      "file": "scripts/validate-snapshot-phase-a1",
+      "description": "Phase A.1 acceptance test: build + assert collection presence, doc shape, numeric consistency, denormalization.",
+      "exports": [],
+      "status": "pending",
+      "touch_again": true,
+      "last_modified": "2026-05-13T00:00:00.000Z"
+    },
+    {
+      "id": "backfillBorkVatFields",
+      "type": "script",
+      "file": "scripts/backfill-bork-vat-fields",
+      "description": "Phase 0 backfill: rebuilds Bork V2 collections with VAT fields, then validates ex+vat≈inc per day.",
+      "exports": [],
+      "status": "pending",
+      "touch_again": true,
+      "last_modified": "2026-05-13T00:00:00.000Z"
+    },
+    {
+      "id": "borkRebuildAggregationV2Service",
+      "type": "service",
+      "file": "server/services/borkRebuildAggregationV2Service",
+      "description": "Bork V2 rollups (now VAT-aware Phase 0). Writes 7 aggregated collections in one pass.",
+      "exports": ["rebuildBorkSalesAggregationV2"],
+      "status": "active",
+      "touch_again": false,
+      "last_modified": "2026-05-13T00:00:00.000Z"
+    }
+  ]
 }

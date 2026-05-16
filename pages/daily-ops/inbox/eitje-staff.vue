@@ -21,7 +21,7 @@
         </div>
       </div>
 
-      <div class="mb-6 grid gap-4 md:grid-cols-3">
+      <div class="mb-6 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <UCard class="border-2 border-gray-900 bg-white">
           <template #header>
             <span class="text-sm font-medium text-gray-500">Total staff</span>
@@ -46,6 +46,47 @@
             {{ summary ? summary.unmatched : '—' }}
           </p>
         </UCard>
+        <UCard
+          v-if="summary && summary.missing_compensation > 0"
+          class="border-2 border-red-300 bg-red-50"
+        >
+          <template #header>
+            <span class="text-sm font-medium text-red-800">Missing compensation</span>
+          </template>
+          <p class="text-3xl font-bold tabular-nums text-red-700">
+            {{ summary.missing_compensation }}
+          </p>
+          <p class="mt-1 text-xs text-red-700">Matched members without wage/cost on profile</p>
+        </UCard>
+      </div>
+
+      <div
+        v-if="missingCompensationRows.length > 0"
+        class="mb-6 overflow-hidden rounded-lg border border-red-200 bg-red-50/80 p-4 shadow-sm"
+      >
+        <h2 class="mb-3 text-sm font-semibold text-red-900">Missing compensation data</h2>
+        <p class="mb-3 text-xs text-red-800">
+          Linked member profiles missing hourly rate or cost per hour. Re-import contracts or edit the member profile.
+        </p>
+        <ul class="space-y-2">
+          <li
+            v-for="(r, i) in missingCompensationRows"
+            :key="`missing-${r.matched_member_id}-${i}`"
+            class="flex flex-wrap items-center justify-between gap-2 rounded border border-red-200 bg-white px-3 py-2 text-sm"
+          >
+            <span class="font-medium text-gray-900">{{ r.employee_name }}</span>
+            <span class="text-xs text-gray-500">{{ r.support_ids.join(', ') }}</span>
+            <UBadge color="error" variant="subtle">Missing data</UBadge>
+            <UButton
+              v-if="r.matched_member_id"
+              size="xs"
+              variant="outline"
+              @click="openProfile(r.matched_member_id!)"
+            >
+              Open profile
+            </UButton>
+          </li>
+        </ul>
       </div>
 
       <div
@@ -126,6 +167,14 @@
                 <td class="px-4 py-3 text-right tabular-nums">{{ money(r.cost_per_hour) }}</td>
                 <td class="px-4 py-3">
                   <UBadge
+                    v-if="r.compensation_status === 'missing'"
+                    color="error"
+                    variant="subtle"
+                  >
+                    Missing data
+                  </UBadge>
+                  <UBadge
+                    v-else
                     :variant="r.match_confidence === 'none' ? 'subtle' : 'solid'"
                     :color="r.match_confidence === 'none' ? 'neutral' : 'neutral'"
                     :class="
@@ -331,6 +380,7 @@ type StaffRow = {
   cost_per_hour: number | null
   matched_member_id?: string
   match_confidence: MatchConfidence
+  compensation_status?: 'ok' | 'missing'
 }
 
 type LocationItem = { _id: string; name: string }
@@ -372,8 +422,13 @@ const summary = ref<{
   total_staff: number
   matched: number
   unmatched: number
+  missing_compensation: number
   distinct_contract_locations?: string[]
 } | null>(null)
+
+const missingCompensationRows = computed(() =>
+  rows.value.filter((r) => r.compensation_status === 'missing' && r.matched_member_id)
+)
 const pagination = ref<{ skip: number; limit: number; total: number } | null>(null)
 
 const page = ref(1)

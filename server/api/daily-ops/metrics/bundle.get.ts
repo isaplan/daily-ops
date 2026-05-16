@@ -10,6 +10,7 @@ import {
   fetchTodayDashboardRevenueExtras,
   parseDailyOpsMetricsQuery,
 } from '../../../utils/dailyOpsDashboardMetrics'
+import { aggregateLaborForRange } from '../../../utils/dailyOpsSnapshot/aggregateLaborForRange'
 import type {
   DailyOpsLaborMetricsDto,
   DailyOpsRevenueBreakdownDto,
@@ -27,11 +28,16 @@ export default defineEventHandler(async (event): Promise<DailyOpsDashboardBundle
   const ctx = parseDailyOpsMetricsQuery(getQuery(event) as Record<string, unknown>)
   const db = await getDb()
 
-  const [cat, hourBundle, laborInput, inboxBasisExVat] = await Promise.all([
+  const [cat, hourBundle, laborInput, inboxBasisExVat, laborBreakdown] = await Promise.all([
     fetchRevenueByCategoryFromHourAggregates(db, ctx),
     fetchBorkHourAggregatesBundle(db, ctx),
     fetchLaborMetricsPipelineInput(db, ctx),
     fetchInboxBasisRevenueTotalExVat(db, ctx),
+    aggregateLaborForRange(db, {
+      startDate: ctx.startDate,
+      endDate: ctx.endDate,
+      locationId: ctx.locationId,
+    }),
   ])
 
   const todayExtras = await fetchTodayDashboardRevenueExtras(db, ctx, hourBundle)
@@ -40,6 +46,9 @@ export default defineEventHandler(async (event): Promise<DailyOpsDashboardBundle
     apiBusinessDaysTotal: laborInput.revenueSplit.businessDaysPeriodTotal,
     inboxBasisExVat,
   })
+  if (laborBreakdown.coverage.daysFound > 0) {
+    summary.summary.laborBreakdown = laborBreakdown
+  }
   const revenue = buildDailyOpsRevenueBreakdownDto(ctx, cat, hourBundle, laborInput.revMap, laborInput.labMap, todayExtras)
   const labor = assembleDailyOpsLaborMetricsDto(ctx, laborInput)
 

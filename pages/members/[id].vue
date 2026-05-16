@@ -108,6 +108,12 @@
             <!-- Compensation -->
             <div>
               <h3 class="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">Compensation</h3>
+              <div
+                v-if="member.compensation_status === 'missing'"
+                class="mb-3 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900"
+              >
+                Missing compensation data on member profile. Import a contract CSV or set rates manually.
+              </div>
               <div class="space-y-2 text-sm">
                 <div v-if="member.hourly_rate != null" class="flex justify-between">
                   <span class="text-gray-600">Hourly Rate:</span>
@@ -125,6 +131,44 @@
                   <span class="text-gray-600">Monthly Hours:</span>
                   <span class="font-medium">{{ member.monthly_hours.toFixed(1) }}h</span>
                 </div>
+              </div>
+            </div>
+
+            <!-- Compensation history -->
+            <div v-if="compensationHistory.length > 0" class="md:col-span-2">
+              <h3 class="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">Compensation history</h3>
+              <div class="overflow-x-auto rounded border border-gray-200">
+                <table class="w-full text-left text-sm">
+                  <thead class="bg-gray-50 text-gray-600">
+                    <tr>
+                      <th class="px-3 py-2 font-medium">From</th>
+                      <th class="px-3 py-2 font-medium">To</th>
+                      <th class="px-3 py-2 font-medium">Contract</th>
+                      <th class="px-3 py-2 text-right font-medium">€/h</th>
+                      <th class="px-3 py-2 text-right font-medium">Cost/h</th>
+                      <th class="px-3 py-2 font-medium">Source</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr
+                      v-for="(rev, idx) in compensationHistory"
+                      :key="`${rev.effective_from}-${idx}`"
+                      class="border-t border-gray-100"
+                      :class="rev.effective_to == null ? 'bg-emerald-50/50' : ''"
+                    >
+                      <td class="px-3 py-2 tabular-nums">{{ formatDate(rev.effective_from) }}</td>
+                      <td class="px-3 py-2 tabular-nums">{{ rev.effective_to ? formatDate(rev.effective_to) : 'Current' }}</td>
+                      <td class="px-3 py-2">{{ rev.contract_type }}</td>
+                      <td class="px-3 py-2 text-right tabular-nums">
+                        {{ rev.hourly_rate != null ? `€${rev.hourly_rate.toFixed(2)}` : '—' }}
+                      </td>
+                      <td class="px-3 py-2 text-right tabular-nums">
+                        {{ rev.cost_per_hour != null ? `€${rev.cost_per_hour.toFixed(2)}` : '—' }}
+                      </td>
+                      <td class="px-3 py-2 text-xs text-gray-500">{{ rev.source }}</td>
+                    </tr>
+                  </tbody>
+                </table>
               </div>
             </div>
 
@@ -400,6 +444,18 @@ type MemberItem = {
   contract_end_date?: string | null
   hourly_rate?: number
   cost_per_hour?: number
+  compensation_status?: 'ok' | 'missing'
+  compensationHistory?: Array<{
+    effective_from: string
+    effective_to: string | null
+    contract_type: string
+    hourly_rate: number | null
+    cost_per_hour: number | null
+    cost_model?: string
+    source: string
+    source_ref?: string
+    created_at: string
+  }>
   weekly_hours?: number
   monthly_hours?: number
   phone?: string
@@ -477,6 +533,7 @@ const { data: memberData, pending, error: memberFetchError } = await useFetch<{ 
   { watch: [id] }
 )
 const member = computed(() => memberData.value?.data ?? null)
+const compensationHistory = computed(() => member.value?.compensationHistory ?? [])
 
 type EitjeTeamInLoc = {
   team_name: string

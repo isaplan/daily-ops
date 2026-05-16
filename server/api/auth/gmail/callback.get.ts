@@ -1,16 +1,16 @@
 /**
  * @registry-id: gmailAuthCallbackAPI
  * @created: 2026-05-02T15:00:00.000Z
- * @last-modified: 2026-05-03T20:12:00.000Z
+ * @last-modified: 2026-05-14T12:00:00.000Z
  * @description: GET /api/auth/gmail/callback — OAuth callback from Google, store refresh token
- * @last-fix: [2026-05-03] Use dynamic redirect_uri from env
+ * @last-fix: [2026-05-14] getGmailOAuthRedirectUri(event) + persist oauthRedirectUri for server refresh
  *
  * @exports-to:
  * ✓ server/services/gmailOAuthService.ts
  */
 
 import { google } from 'googleapis'
-import { getGmailRedirectUri } from '../../../utils/gmailRedirectUri'
+import { getGmailOAuthRedirectUri } from '../../../utils/gmailRedirectUri'
 import { saveGmailRefreshToken } from '../../../services/gmailOAuthService'
 
 export default defineEventHandler(async (event) => {
@@ -36,7 +36,7 @@ export default defineEventHandler(async (event) => {
   }
 
   try {
-    const redirectUri = getGmailRedirectUri()
+    const redirectUri = getGmailOAuthRedirectUri(event)
     const oauth2Client = new google.auth.OAuth2(clientId, clientSecret, redirectUri)
 
     console.log('[callback] Exchanging code with redirectUri:', redirectUri)
@@ -56,7 +56,7 @@ export default defineEventHandler(async (event) => {
       )
     }
 
-    await saveGmailRefreshToken(tokens.refresh_token)
+    await saveGmailRefreshToken(tokens.refresh_token, { oauthRedirectUri: redirectUri })
     console.log('[callback] Token saved to DB')
 
     return sendRedirect(event, '/daily-ops/inbox?connected=gmail')

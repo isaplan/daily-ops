@@ -15,6 +15,7 @@ import type { DocumentType, CreateParsedDataDto } from '~/types/inbox'
 import { ObjectId, type Db } from 'mongodb'
 import { getAmsterdamWallHour, resolveInboxImportInstant } from '../utils/inbox/amsterdamWallHour'
 import { inferEitjeHoursExportKindFromFileName } from '../utils/inbox/document-classifier'
+import { applyContractInboxRowToMember } from '../utils/memberCompensationRevisions'
 
 export interface MappingResult {
   success: boolean
@@ -467,6 +468,12 @@ class DataMappingService {
         createdRecords = result.upsertedCount || 0
         updatedRecords = result.modifiedCount || 0
         matchedRecords = result.matchedCount || 0
+
+        if (documentType === 'contracts') {
+          for (const row of mappedRows) {
+            await applyContractInboxRowToMember(database, row)
+          }
+        }
       }
 
       return {

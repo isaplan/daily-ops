@@ -1,9 +1,9 @@
 /**
  * @registry-id: gmailApiServiceV2
  * @created: 2026-05-02T15:00:00.000Z
- * @last-modified: 2026-05-06T16:30:00.000Z
+ * @last-modified: 2026-05-14T12:00:00.000Z
  * @description: Clean rebuild of Gmail API service — explicit token + redirect_uri handling
- * @last-fix: [2026-05-06] Default list query `in:inbox` (replacing `to:`-only) so inbox matches Gmail UI; optional GMAIL_SYNC_QUERY override
+ * @last-fix: [2026-05-14] resolveGmailOAuthRedirectUriForServer for cron/watch; [2026-05-14] OAuth redirect env + DB
  *
  * @exports-to:
  * ✓ server/services/emailProcessorService.ts
@@ -12,8 +12,7 @@
 
 import { google } from 'googleapis'
 import type { gmail_v1 } from 'googleapis'
-import { getGmailRefreshToken } from './gmailOAuthService'
-import { getGmailRedirectUri } from '../utils/gmailRedirectUri'
+import { getGmailRefreshToken, resolveGmailOAuthRedirectUriForServer } from './gmailOAuthService'
 
 export type GmailMessage = {
   id: string
@@ -70,7 +69,7 @@ class GmailApiService {
       )
     }
 
-    const redirectUri = getGmailRedirectUri()
+    const redirectUri = await resolveGmailOAuthRedirectUriForServer()
 
     console.log('[gmailApiService] Initializing with:')
     console.log('  - clientId:', clientId.slice(0, 20) + '...')

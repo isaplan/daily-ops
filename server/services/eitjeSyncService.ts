@@ -1,9 +1,10 @@
 /**
  * @registry-id: eitjeSyncService
  * @created: 2026-04-05T12:00:00.000Z
- * @last-modified: 2026-05-11T14:00:00.000Z
+ * @last-modified: 2026-05-16T16:00:00.000Z
  * @description: Fetches Eitje Open API resources and upserts eitje_raw_data; drives cron/sync handlers
- * @last-fix: [2026-05-11] Historical ends yesterday / skip labor rebuild when no upserts; daily cron comment aligned with nuxt.config
+ * @last-fix: [2026-05-16] Dedupe labor agg after every sync window (integrity pass).
+ *   Prior: [2026-05-11] Historical ends yesterday / skip labor rebuild when no upserts.
  *
  * @exports-to:
  * ✓ server/api/eitje/v2/cron.post.ts
@@ -19,6 +20,11 @@ import { getMongoDatabaseName } from '../utils/db'
 import { documentToEitjeStoredCredentials, findEitjeCredentialDocument } from '../utils/eitjeApiCredentials'
 import { eitjeFetchJson, legacyEitjeV2Headers, normalizeEitjeBaseUrl, type EitjeStoredCredentials } from './eitjeOpenApiFetch'
 import { rebuildEitjeTimeRegistrationAggregation } from './eitjeRebuildAggregationService'
+import { runEitjeLaborAggIntegrity } from '../utils/eitjeAggIntegrity'
+import { enqueueSnapshotBuild } from '../utils/dailyOpsSnapshot/jobCoalescer'
+import { linkMemberUnifiedUserId } from '../utils/memberEitjeContext'
+import { ObjectId } from 'mongodb'
+import './dailyOpsSnapshotService' // registers snapshot runner — side-effect import
 
 function envInt (name: string, fallback: number): number {
   const v = process.env[name]
@@ -553,20 +559,28 @@ export async function executeEitjeJob (db: Db, jobType: string): Promise<EitjeSy
     
     // Fetch both days
     const tr = await syncTimeRegistrationShifts(db, creds, yesterdayUtc, todayUtc)
-    let agg: { deletedPeriods: number; inserted: number; error?: string } | undefined
-    
+    let agg: { deletedPeriods: number; inserted: number; aggDeduped?: number; error?: string } | undefined
+    let integrityDeduped = 0
+
     try {
       // Rebuild aggregation for both days
       agg = await rebuildEitjeTimeRegistrationAggregation(db, yesterdayUtc, todayUtc)
-      
+
       // Map Eitje IDs to unified collections after aggregation
       await syncUnifiedCollectionsFromRawData(db)
+      // Snapshot rebuilds (debounced) — one per (period, locationId) touched.
+      for (const period of [yesterdayUtc, todayUtc]) {
+        const locs = await db.collection('eitje_time_registration_aggregation').distinct('locationId', { period })
+        for (const loc of locs) enqueueSnapshotBuild({ businessDate: period, locationId: String(loc) })
+      }
     } catch (e) {
       agg = {
         deletedPeriods: 0,
         inserted: 0,
         error: e instanceof Error ? e.message : String(e),
       }
+    } finally {
+      integrityDeduped = await runEitjeLaborAggIntegrity(db, yesterdayUtc, todayUtc)
     }
 
     const ok = !tr.error && (tr.fetched > 0 || tr.upserted > 0 || (agg?.inserted ?? 0) > 0)
@@ -578,7 +592,7 @@ export async function executeEitjeJob (db: Db, jobType: string): Promise<EitjeSy
         ? `Time registration: ${tr.error}`
         : `Synced ${tr.fetched} shifts (${tr.upserted} writes), aggregation +${agg?.inserted ?? 0} rows for ${yesterdayUtc}–${todayUtc}`,
       timeRegistration: tr,
-      aggregation: agg,
+      aggregation: agg ? { ...agg, integrityDeduped } : { integrityDeduped },
     }
   }
 
@@ -587,7 +601,8 @@ export async function executeEitjeJob (db: Db, jobType: string): Promise<EitjeSy
   const { start, end } = dateRangeDaysEndingYesterday(histDays)
 
   const tr = await syncTimeRegistrationShifts(db, creds, start, end)
-  let agg: { deletedPeriods: number; inserted: number; error?: string; skippedRebuild?: boolean } | undefined
+  let agg: { deletedPeriods: number; inserted: number; aggDeduped?: number; error?: string; skippedRebuild?: boolean; integrityDeduped?: number } | undefined
+  let integrityDeduped = 0
 
   try {
     const rawChanged = (tr.upserted ?? 0) > 0
@@ -604,6 +619,8 @@ export async function executeEitjeJob (db: Db, jobType: string): Promise<EitjeSy
       inserted: 0,
       error: e instanceof Error ? e.message : String(e),
     }
+  } finally {
+    integrityDeduped = await runEitjeLaborAggIntegrity(db, start, end)
   }
 
   const ok = !tr.error
@@ -617,7 +634,7 @@ export async function executeEitjeJob (db: Db, jobType: string): Promise<EitjeSy
         ? `Synced ${tr.fetched} shifts (${tr.upserted} writes), no raw changes — skipped labor aggregation rebuild for ${start}…${end}`
         : `Synced ${tr.fetched} shifts (${tr.upserted} writes), aggregation +${agg?.inserted ?? 0} rows (${jobType}, ${start}…${end})`,
     timeRegistration: tr,
-    aggregation: agg,
+    aggregation: agg ? { ...agg, integrityDeduped } : { integrityDeduped },
   }
 }
 
@@ -791,14 +808,35 @@ async function syncUnifiedCollectionsFromRawData (db: Db): Promise<{ usersUpdate
       teamsUpdated += result.upsertedCount + result.modifiedCount
     }
 
-    return { usersUpdated, teamsUpdated }
+    const membersLinked = await linkAllMembersUnifiedUserIds(db)
+    return { usersUpdated, teamsUpdated, membersLinked }
   } catch (e) {
     return {
       usersUpdated: 0,
       teamsUpdated: 0,
+      membersLinked: 0,
       error: e instanceof Error ? e.message : String(e),
     }
   }
+}
+
+/** Maintain members.unified_user_id after unified_user upserts (ADR-003). */
+async function linkAllMembersUnifiedUserIds (db: Db): Promise<number> {
+  const members = await db
+    .collection('members')
+    .find({
+      $or: [{ unified_user_id: { $exists: false } }, { unified_user_id: null }],
+    })
+    .toArray()
+  let linked = 0
+  for (const m of members) {
+    if (!(m._id instanceof ObjectId)) continue
+    const name = String(m.name ?? '').trim()
+    const sid = typeof m.support_id === 'string' ? m.support_id : undefined
+    const uid = await linkMemberUnifiedUserId(db, m._id, sid, name)
+    if (uid) linked++
+  }
+  return linked
 }
 
 export async function syncEitjeByRequest (db: Db, body: {
@@ -820,20 +858,22 @@ export async function syncEitjeByRequest (db: Db, body: {
     const end = body.endDate ?? dr.end
     const start = body.startDate ?? dr.start
     const tr = await syncTimeRegistrationShifts(db, creds, start, end)
-    let agg: { deletedPeriods: number; inserted: number; error?: string } | undefined
+    let agg: { deletedPeriods: number; inserted: number; aggDeduped?: number; error?: string; integrityDeduped?: number } | undefined
+    let integrityDeduped = 0
     try {
       agg = await rebuildEitjeTimeRegistrationAggregation(db, start, end)
-      // Map Eitje IDs to unified collections after aggregation
       await syncUnifiedCollectionsFromRawData(db)
     } catch (e) {
       agg = { deletedPeriods: 0, inserted: 0, error: e instanceof Error ? e.message : String(e) }
+    } finally {
+      integrityDeduped = await runEitjeLaborAggIntegrity(db, start, end)
     }
     return {
       ok: !tr.error,
       jobType: 'manual',
       message: tr.error ?? `OK: ${tr.fetched} fetched, agg +${agg?.inserted ?? 0}`,
       timeRegistration: tr,
-      aggregation: agg,
+      aggregation: agg ? { ...agg, integrityDeduped } : { integrityDeduped },
     }
   }
   const r = await syncListEndpoint(db, creds, ep, [ep, `v1/${ep}`])
