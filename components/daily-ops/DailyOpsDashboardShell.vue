@@ -1,7 +1,7 @@
 <template>
   <div class="min-w-0">
     <div
-      class="fixed right-10 top-3"
+      class="fixed right-10 top-3 z-50"
     >
       <div class="space-y-2">
         <div class="flex justify-end">
@@ -9,7 +9,7 @@
             <NuxtLink
               v-for="opt in periodOptions"
               :key="opt.id"
-              :to="{ path: route.path, query: { ...route.query, period: opt.id } }"
+              :to="{ path: route.path, query: periodLinkQuery(opt.id) }"
               replace
               prefetch
               class="rounded px-3 py-1.5 text-sm font-semibold no-underline transition-colors"
@@ -82,6 +82,7 @@
 
 <script setup lang="ts">
 import type { DailyOpsPeriodId } from '~/types/daily-ops-dashboard'
+import { amsterdamTodayYmd, amsterdamYmdForOffset, weekdayShortForYmd } from '~/utils/inbox/importTableQuickDates'
 
 type LocationRow = { _id: string; name: string; abbreviation?: string }
 
@@ -113,12 +114,27 @@ const {
   setLocation,
 } = useDailyOpsDashboardRoute()
 
-const periodOptions: { id: DailyOpsPeriodId; label: string }[] = [
-  { id: 'today', label: 'Today' },
-  { id: 'yesterday', label: 'Yesterday' },
-  { id: 'this-week', label: 'This Week' },
-  { id: 'last-week', label: 'Last Week' },
-]
+const anchorYmd = computed(() => amsterdamTodayYmd())
+
+/** Today · Yesterday · (weekday labels for anchor−2 … anchor−7). */
+const periodOptions = computed((): { id: DailyOpsPeriodId; label: string }[] => {
+  const rolling = ([2, 3, 4, 5, 6, 7] as const).map((off) => ({
+    id: `d${off}` as DailyOpsPeriodId,
+    label: weekdayShortForYmd(amsterdamYmdForOffset(-off), 'en-GB'),
+  }))
+  return [
+    { id: 'today', label: 'Today' },
+    { id: 'yesterday', label: 'Yesterday' },
+    ...rolling,
+  ]
+})
+
+function periodLinkQuery (nextPeriod: DailyOpsPeriodId): Record<string, string> {
+  const q: Record<string, string> = { period: nextPeriod, anchor: anchorYmd.value }
+  const loc = route.query.location
+  if (typeof loc === 'string' && loc.length > 0) q.location = loc
+  return q
+}
 
 const navItems = computed(() => {
   const prefix = '/daily-ops'

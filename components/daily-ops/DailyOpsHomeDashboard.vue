@@ -30,127 +30,15 @@
 
       <template v-else-if="summary && revenue && labor">
 
-        <template v-if="isProductivityView">
-        <!-- Teams Summary -->
-        <div class="min-w-0">
-          <h3 class="mb-3 text-sm font-semibold text-gray-700">Teams</h3>
-          <div class="grid min-w-0 gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <button
-              v-for="team in teamsSummary"
-              :key="team.teamName"
-              type="button"
-              class="border-2 border-gray-900 !bg-white ring-0 shadow-none rounded-lg p-4 text-left transition-all hover:bg-gray-50 hover:shadow-md active:scale-95"
-              @click="selectTeam(team.teamName)"
-            >
-              <p class="text-sm font-medium text-gray-500">{{ team.teamName }}</p>
-              <p class="mt-2 text-2xl font-semibold text-gray-900">{{ team.workerCount }}</p>
-              <div class="mt-3 space-y-1 border-t border-gray-100 pt-3">
-                <div class="flex justify-between text-xs">
-                  <span class="text-gray-600">Hours</span>
-                  <span class="font-semibold text-gray-900">{{ team.totalHours.toFixed(1) }}</span>
-                </div>
-                <div class="flex justify-between text-xs">
-                  <span class="text-gray-600">Cost</span>
-                  <span class="font-semibold text-gray-900">{{ formatEur(team.totalCost) }}</span>
-                </div>
-                <div class="flex justify-between text-xs">
-                  <span class="text-gray-600">% of Labor Hours</span>
-                  <span class="font-semibold text-gray-900">{{ team.pctOfTotalHours.toFixed(1) }}%</span>
-                </div>
-              </div>
-            </button>
-          </div>
-        </div>
-
-        <!-- Contracts Summary -->
-        <div class="min-w-0">
-          <h3 class="mb-3 text-sm font-semibold text-gray-700">Contracts</h3>
-          <div class="grid min-w-0 gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <button
-              v-for="contract in contractsSummary"
-              :key="contract.contractType"
-              type="button"
-              class="border-2 border-gray-900 !bg-white ring-0 shadow-none rounded-lg p-4 text-left transition-all hover:bg-gray-50 hover:shadow-md active:scale-95"
-              @click="selectContract(contract.contractType)"
-            >
-              <p class="text-sm font-medium text-gray-500">{{ contract.contractType || 'None' }}</p>
-              <p class="mt-2 text-2xl font-semibold text-gray-900">{{ contract.workerCount }}</p>
-              <div class="mt-3 space-y-1 border-t border-gray-100 pt-3">
-                <div class="flex justify-between text-xs">
-                  <span class="text-gray-600">Hours</span>
-                  <span class="font-semibold text-gray-900">{{ contract.totalHours.toFixed(1) }}</span>
-                </div>
-                <div class="flex justify-between text-xs">
-                  <span class="text-gray-600">Cost</span>
-                  <span class="font-semibold text-gray-900">{{ formatEur(contract.totalCost) }}</span>
-                </div>
-                <div class="flex justify-between text-xs">
-                  <span class="text-gray-600">% of Labor Hours</span>
-                  <span class="font-semibold text-gray-900">{{ contract.pctOfTotalHours.toFixed(1) }}%</span>
-                </div>
-              </div>
-            </button>
-          </div>
-        </div>
-        </template>
-
-        <UCard
-          v-if="revenue.todayRevenueDetail && (revenue.todayRevenueDetail.apiHourlyByCalendarHour.length > 0 || revenue.todayRevenueDetail.inboxBasisCronSnapshots.length > 0)"
-          class="border-2 border-gray-900 !bg-white ring-0 shadow-none"
-        >
-          <template #header>
-            <h2 class="text-lg font-semibold text-gray-900">Today — hourly API &amp; inbox checkpoints</h2>
-          </template>
-          <p class="mb-4 text-xs text-gray-500">
-            Hourly revenue from Bork aggregates for this calendar date (through latest sync). Basis Report rows at 15:00 and 23:00 (cron) are partial-day snapshots per venue — compare with API hourly rollups.
-          </p>
-          <div class="grid gap-6 lg:grid-cols-2">
-            <div v-if="revenue.todayRevenueDetail.apiHourlyByCalendarHour.length > 0">
-              <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Hourly · API (calendar hour)</p>
-              <div class="max-h-56 overflow-y-auto rounded border border-gray-200">
-                <table class="w-full text-left text-sm">
-                  <thead class="sticky top-0 bg-gray-50 text-xs text-gray-600">
-                    <tr>
-                      <th class="px-3 py-2">Hour</th>
-                      <th class="px-3 py-2 text-right">Revenue</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr
-                      v-for="row in revenue.todayRevenueDetail.apiHourlyByCalendarHour"
-                      :key="`th-${row.calendarHour}`"
-                      class="border-t border-gray-100"
-                    >
-                      <td class="px-3 py-1.5 tabular-nums">{{ String(row.calendarHour).padStart(2, '0') }}:00</td>
-                      <td class="px-3 py-1.5 text-right tabular-nums">{{ formatEur(row.revenue) }}</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
-            <div v-if="revenue.todayRevenueDetail.inboxBasisCronSnapshots.length > 0">
-              <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Inbox Basis · 15:00 / 23:00</p>
-              <ul class="space-y-2 text-sm">
-                <li
-                  v-for="(snap, idx) in revenue.todayRevenueDetail.inboxBasisCronSnapshots"
-                  :key="`cron-${idx}-${snap.locationLabel}-${snap.cronHour}`"
-                  class="flex flex-wrap items-center justify-between gap-2 rounded border border-gray-100 px-3 py-2"
-                >
-                  <span class="font-medium text-gray-800">{{ snap.locationLabel || '—' }}</span>
-                  <span class="text-xs text-gray-500">{{ snap.cronHour }}:00 batch</span>
-                  <span class="tabular-nums text-gray-900">{{ formatEur(snap.finalRevenueExVat) }} <span class="text-gray-500">ex VAT</span></span>
-                </li>
-              </ul>
-            </div>
-          </div>
-        </UCard>
-
-        <DailyOpsProfitByIntervalCard :data="revenue.profitByInterval" :period="period" />
-
-        <DailyOpsProfitHourCard
-          title="Most Profitable Hour"
-          :data="revenue.mostProfitableHour"
+        <DailyOpsProductivitySummary
+          v-if="isProductivityView"
+          @select-team="selectTeam"
+          @select-contract="selectContract"
         />
+
+
+        <DailyOpsRevenueMetricsSection :period="period" />
+
 
         <template v-if="isProductivityView">
         <div class="min-w-0 space-y-6">
@@ -634,7 +522,6 @@
               </table>
             </div>
           </UCard>
-        </div>
 
         <div class="grid min-w-0 gap-6 lg:grid-cols-2">
           <UCard class="border-2 border-gray-900 !bg-white ring-0 shadow-none lg:col-span-2">
@@ -747,23 +634,12 @@
         </div>
         </template>
 
-        <UCard v-if="(labor.inventory?.notes?.length ?? 0) > 0" class="border-2 border-amber-800 bg-amber-50/90">
-          <template #header>
-            <h2 class="text-lg font-semibold text-gray-900">Data Coverage &amp; Method Notes</h2>
-          </template>
-          <ul class="list-inside list-disc space-y-1 text-sm text-gray-700">
-            <li v-for="(note, i) in labor.inventory?.notes ?? []" :key="i">{{ note }}</li>
-          </ul>
-          <p class="mt-3 text-xs text-gray-500">
-            Flags: bork_business_days (V2) {{ labor.inventory?.hasBorkCronData ? 'yes' : 'no' }}, bork_sales_by_hour (V2)
-            {{ labor.inventory?.hasBorkHourData ? 'yes' : 'no' }}, eitje_time_registration_aggregation
-            {{ labor.inventory?.hasEitjeAggData ? 'yes' : 'no' }}.
-          </p>
-        </UCard>
+        <DailyOpsInventoryNotesCard :inventory="labor?.inventory ?? null" />
+
 
         <p class="text-xs text-gray-400">
           Range: {{ summary.range.startDate }} → {{ summary.range.endDate }} ({{ summary.range.period }}) · Dashboard metrics
-          load together for consistent charts and tables.
+          load in parallel (summary, revenue, labor).
         </p>
       </template>
 
@@ -774,7 +650,7 @@
         <p class="font-semibold text-gray-900">Metrics did not load</p>
         <p class="mt-1 text-gray-600">
           Try a hard refresh. If the problem continues, check the browser network tab for failed requests to
-          <span class="font-mono text-xs">/api/daily-ops/metrics/bundle</span>.
+          <span class="font-mono text-xs">/api/daily-ops/metrics/summary, revenue-breakdown, labor</span>.
         </p>
         <UButton type="button" class="mt-4" color="neutral" variant="outline" @click="() => void refreshMetrics()">
           Retry
@@ -796,24 +672,13 @@
 </template>
 
 <script setup lang="ts">
-import type {
-  DailyOpsLaborDayDto,
-  DailyOpsLaborMetricsDto,
-  DailyOpsRevenueBreakdownDto,
-  DailyOpsSummaryDto,
-  DailyOpsWorkerStaffDetailResponseDto,
-  DailyOpsWorkersTeamLocationDayDto,
-} from '~/types/daily-ops-dashboard'
+import type { DailyOpsWorkerStaffDetailResponseDto } from '~/types/daily-ops-dashboard'
 import { resolveDailyOpsPeriod } from '~/utils/dailyOpsPeriod'
 import { amsterdamTodayYmd } from '~/utils/inbox/importTableQuickDates'
-import { formatDayHoursSharePlain, getDayHoursShareParts } from '~/utils/dailyOpsHoursShare'
-import D3PieChart from '~/components/charts/D3PieChart.vue'
-import D3PieChartV2 from '~/components/charts/D3PieChartV2.vue'
 import DashboardDayHoursShare from '~/components/daily-ops/DashboardDayHoursShare.vue'
 import WorkerDetailsDrawer from '~/components/daily-ops/WorkerDetailsDrawer.vue'
+import { laborByDayMetricDefs } from '~/composables/useDailyOpsLaborTables'
 
-const categoryChartColors = ['#0a0a0a', '#242424', '#3d3d3d', '#575757', '#737373', '#b8b8b8']
-const timePeriodChartColors = ['#1a1a1a', '#2a2a2a', '#3a3a3a', '#4a4a4a']
 
 const props = withDefaults(
   defineProps<{
@@ -832,19 +697,6 @@ const isProductivityView = computed(() => props.variant === 'productivity')
 
 type LocationRow = { _id: string; name: string; abbreviation?: string }
 
-const TEAM_DAY_KEY_SEP = ':::'
-
-type LaborDayMetricKey = 'revenue' | 'laborCost' | 'hours' | 'laborPct' | 'eurPerH'
-type TeamDayMetricKey = 'staff' | 'hours' | 'cost'
-
-const laborByDayMetricDefs: { key: LaborDayMetricKey; label: string }[] = [
-  { key: 'revenue', label: 'Revenue' },
-  { key: 'laborCost', label: 'Labor' },
-  { key: 'hours', label: 'Hours' },
-  { key: 'laborPct', label: 'Labor % rev.' },
-  { key: 'eurPerH', label: '€ / h' },
-]
-
 const { dashboardQuery, contextHeadline, locationId, period, anchor } = useDailyOpsDashboardRoute()
 
 const isSingleDayDashboardPeriod = computed(() => {
@@ -862,641 +714,38 @@ const locationTitle = computed(() => {
   return hit?.name ?? 'Selected Location'
 })
 
-type MetricsBundle = {
-  summary: DailyOpsSummaryDto
-  revenue: DailyOpsRevenueBreakdownDto
-  labor: DailyOpsLaborMetricsDto
-}
-
-const metricsCacheKey = computed(
-  () =>
-    `daily-ops-dashboard-metrics-${dashboardQuery.value.period}-${dashboardQuery.value.location ?? 'all'}-${dashboardQuery.value.anchor ?? ''}`
-)
+const { summary, revenue, labor, pending, error, refresh: refreshMetrics } = useDailyOpsDashboardMetrics()
 
 const {
-  data: metricsBundle,
-  pending,
-  error,
-  refresh: refreshMetrics,
-} = await useAsyncData(
-  metricsCacheKey,
-  async (): Promise<MetricsBundle> => {
-    const q = { ...dashboardQuery.value }
-    return await $fetch<MetricsBundle>('/api/daily-ops/metrics/bundle', { query: q })
-  },
-  { watch: [metricsCacheKey] }
-)
-
-const summary = computed(() => metricsBundle.value?.summary ?? null)
-const revenue = computed(() => metricsBundle.value?.revenue ?? null)
-const labor = computed(() => metricsBundle.value?.labor ?? null)
-
-/** Bands for labor-cost % of revenue (Teams & Workers card only). */
-const laborPctThresholdLow = ref(30)
-const laborPctThresholdHigh = ref(35)
-
-/** Table vs stacked bar chart (Teams & Workers card). */
-const teamsWorkersViewMode = ref<'table' | 'chart'>('table')
-
-/** Which values the Teams & Workers table columns emphasize (default: labor / revenue % only). */
-type TeamsWorkersTableMetric = 'all' | 'workers' | 'hours' | 'percentage'
-
-const teamsWorkersTableMetric = ref<TeamsWorkersTableMetric>('percentage')
-
-const laborDayTotalSharePctLabel = (day: DailyOpsLaborDayDto): string => {
-  const p = getDayHoursShareParts(day.hours, day)
-  return p.pct ?? '—'
-}
-
-const laborBandBounds = computed(() => {
-  const a = Number(laborPctThresholdLow.value)
-  const b = Number(laborPctThresholdHigh.value)
-  const low = Number.isFinite(a) ? a : 30
-  const high = Number.isFinite(b) ? b : 35
-  return { lo: Math.min(low, high), hi: Math.max(low, high) }
-})
-
-const laborPctClass = (pct: number | null): string => {
-  if (pct == null || !Number.isFinite(pct)) return 'text-gray-400 font-normal'
-  const { lo, hi } = laborBandBounds.value
-  if (pct < lo) return 'text-emerald-600 font-semibold'
-  if (pct <= hi) return 'text-blue-600 font-semibold'
-  return 'text-red-600 font-semibold'
-}
-
-const formatLaborPctLabel = (pct: number | null): string => {
-  if (pct == null || !Number.isFinite(pct)) return '—'
-  return `${pct}% / rev.`
-}
-
-const teamsSummary = computed(() => {
-  // API handles filtering: locationId set = specific location, undefined = ALL aggregated
-  // Just display the combined/filtered data as single card per team
-  const teams = labor.value?.workersByTeamLocation ?? []
-  
-  // Aggregate by team name (same team across dates = one card)
-  const byTeam = new Map<string, { workerCount: number; totalCost: number; totalHours: number }>()
-  for (const team of teams) {
-    const key = team.teamName
-    if (!byTeam.has(key)) byTeam.set(key, { workerCount: 0, totalCost: 0, totalHours: 0 })
-    const agg = byTeam.get(key)!
-    agg.workerCount = Math.max(agg.workerCount, team.workerCount)
-    agg.totalCost += team.totalCost
-    agg.totalHours += team.totalHours
-  }
-  
-  const aggregated = Array.from(byTeam.entries()).map(([teamName, data]) => ({
-    teamName,
-    workerCount: data.workerCount,
-    totalCost: data.totalCost,
-    totalHours: data.totalHours,
-  }))
-  
-  const totalCost = aggregated.reduce((sum, t) => sum + t.totalCost, 0)
-  const totalHours = aggregated.reduce((sum, t) => sum + t.totalHours, 0)
-  return aggregated
-    .map((team) => ({
-      teamName: team.teamName,
-      workerCount: team.workerCount,
-      totalCost: team.totalCost,
-      totalHours: team.totalHours,
-      pctOfTotalCost: totalCost > 0 ? (team.totalCost / totalCost) * 100 : 0,
-      pctOfTotalHours: totalHours > 0 ? (team.totalHours / totalHours) * 100 : 0,
-    }))
-    .sort((a, b) => a.teamName.localeCompare(b.teamName))
-})
-
-const contractsSummary = computed(() => {
-  const contracts = labor.value?.contractTypeByDay ?? []
-  
-  // When locationId is set, API already filters. When undefined, API returns combined.
-  // Just display as-is, deduplicating by contractType for cleaner presentation
-  const byContract = new Map<string | null, { workerCount: number; totalCost: number; totalHours: number }>()
-  for (const contract of contracts) {
-    const key = contract.contractType ?? null
-    if (!byContract.has(key)) byContract.set(key, { workerCount: 0, totalCost: 0, totalHours: 0 })
-    const agg = byContract.get(key)!
-    agg.workerCount = Math.max(agg.workerCount, contract.workerCount ?? 0)
-    agg.totalCost += contract.totalCost ?? 0
-    agg.totalHours += contract.totalHours ?? 0
-  }
-  
-  const aggregated = Array.from(byContract.entries()).map(([contractType, data]) => ({
-    contractType: contractType ?? '',
-    workerCount: data.workerCount,
-    cost: data.totalCost,
-    hours: data.totalHours,
-  }))
-  
-  const totalCost = aggregated.reduce((sum, c) => sum + c.cost, 0)
-  const totalHours = aggregated.reduce((sum, c) => sum + c.hours, 0)
-  return aggregated
-    .map((contract) => ({
-      contractType: contract.contractType,
-      workerCount: contract.workerCount,
-      totalCost: contract.cost,
-      totalHours: contract.hours,
-      pctOfTotalCost: totalCost > 0 ? (contract.cost / totalCost) * 100 : 0,
-      pctOfTotalHours: totalHours > 0 ? (contract.hours / totalHours) * 100 : 0,
-    }))
-    .sort((a, b) => (a.contractType || 'ZZZ').localeCompare(b.contractType || 'ZZZ'))
-})
-
-const laborDailyColumnMeta = computed(() => {
-  const daily = labor.value?.daily ?? []
-  const weekdayFmt = new Intl.DateTimeFormat('en-GB', { weekday: 'short', timeZone: 'UTC' })
-  const dayMonthFmt = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' })
-  return daily.map((row) => {
-    const d = new Date(`${row.date}T12:00:00.000Z`)
-    return {
-      date: row.date,
-      weekday: weekdayFmt.format(d),
-      dayMonth: dayMonthFmt.format(d),
-    }
-  })
-})
-
-/** Pre-aggregated venue × day hours/workers (avoids O(n) scans per table cell). */
-const locationDayRollupMap = computed(() => {
-  const m = new Map<string, { hours: number; workers: number }>()
-  for (const r of labor.value?.workersByTeamLocationByDay ?? []) {
-    const k = `${String(r.locationId)}:::${r.date}`
-    let row = m.get(k)
-    if (!row) {
-      row = { hours: 0, workers: 0 }
-      m.set(k, row)
-    }
-    row.hours += r.totalHours
-    row.workers += r.workerCount
-  }
-  for (const row of m.values()) {
-    row.hours = Math.round(row.hours * 10) / 10
-  }
-  return m
-})
-
-const getLocationDayRollup = (locationId: string, date: string): { hours: number; workers: number } =>
-  locationDayRollupMap.value.get(`${String(locationId)}:::${date}`) ?? { hours: 0, workers: 0 }
-
-const locationRollupShareCell = (locationId: string, day: DailyOpsLaborDayDto): { amount: number; showDash: boolean } => {
-  const r = getLocationDayRollup(locationId, day.date)
-  return {
-    amount: r.hours,
-    showDash: r.hours === 0 && r.workers === 0,
-  }
-}
-
-const teamHoursShareCell = (teamKey: string, day: DailyOpsLaborDayDto): { amount: number; showDash: boolean } => {
-  const row = workersTeamDayMap.value.get(`${teamKey}${TEAM_DAY_KEY_SEP}${day.date}`)
-  if (!row) return { amount: 0, showDash: true }
-  return { amount: row.totalHours, showDash: false }
-}
-
-const contractHoursShareCell = (contractType: string, day: DailyOpsLaborDayDto): { amount: number; showDash: boolean } => {
-  const row = contractTypeDayMap.value.get(`${contractType}${TEAM_DAY_KEY_SEP}${day.date}`)
-  if (!row) return { amount: 0, showDash: true }
-  if (row.workerCount === 0 && row.totalHours === 0 && row.totalCost === 0) return { amount: 0, showDash: true }
-  return { amount: row.totalHours, showDash: false }
-}
-
-const formatLaborDayCell = (row: DailyOpsLaborDayDto, key: LaborDayMetricKey): string => {
-  switch (key) {
-    case 'revenue':
-      return formatEur(row.revenue)
-    case 'laborCost':
-      return formatEur(row.laborCost)
-    case 'hours':
-      return formatDayHoursSharePlain(row.hours, row)
-    case 'laborPct':
-      return row.laborCostPctOfRevenue != null ? `${row.laborCostPctOfRevenue.toFixed(1)}%` : '—'
-    case 'eurPerH':
-      return row.revenuePerLaborHour != null ? formatEur(row.revenuePerLaborHour) : '—'
-  }
-}
-
-const workersTeamDayMap = computed(() => {
-  const flat = labor.value?.workersByTeamLocationByDay ?? []
-  const m = new Map<string, DailyOpsWorkersTeamLocationDayDto>()
-  for (const r of flat) {
-    m.set(`${r.locationId}${TEAM_DAY_KEY_SEP}${r.teamId}${TEAM_DAY_KEY_SEP}${r.date}`, r)
-  }
-  return m
-})
-
-const locationLaborPctLookup = computed(() => {
-  const m = new Map<string, number | null>()
-  for (const r of labor.value?.locationLaborPctByDay ?? []) {
-    m.set(`${r.date}|${r.locationId}`, r.laborCostPctOfRevenue ?? null)
-  }
-  return m
-})
-
-const locationLaborPct = (locId: string, day: DailyOpsLaborDayDto): number | null =>
-  locationLaborPctLookup.value.get(`${day.date}|${String(locId)}`) ?? null
-
-const teamLaborPct = (teamKey: string, day: DailyOpsLaborDayDto): number | null => {
-  const row = workersTeamDayMap.value.get(`${teamKey}${TEAM_DAY_KEY_SEP}${day.date}`)
-  return row?.laborCostPctOfRevenue ?? null
-}
-
-const contractTypeDayMap = computed(() => {
-  const flat = labor.value?.contractTypeByDay ?? []
-  const m = new Map<string, { workerCount: number; totalHours: number; totalCost: number }>()
-  for (const r of flat) {
-    m.set(`${r.contractType}${TEAM_DAY_KEY_SEP}${r.date}`, r)
-  }
-  return m
-})
-
-/** Preferred row order in Labor — By Day (then any other types A–Z, then “none” / `-`). */
-const LABOR_CONTRACT_TYPE_ROW_ORDER = ['nul uren', 'uren contract', 'zzp'] as const
-
-const laborByDayContractTypesSorted = computed(() => {
-  const s = new Set<string>()
-  for (const r of labor.value?.contractTypeByDay ?? []) s.add(r.contractType)
-  const all = [...s]
-  const used = new Set<string>()
-  const primary: string[] = []
-  for (const want of LABOR_CONTRACT_TYPE_ROW_ORDER) {
-    const hit = all.find((t) => t.toLowerCase() === want.toLowerCase())
-    if (hit != null && !used.has(hit)) {
-      primary.push(hit)
-      used.add(hit)
-    }
-  }
-  const rest = all
-    .filter((t) => t !== '-' && !used.has(t))
-    .sort((a, b) => a.localeCompare(b))
-  const none = all.includes('-') ? (['-'] as const) : []
-  return [...primary, ...rest, ...none]
-})
-
-const workersTeamKeysSorted = computed(() => {
-  const flat = labor.value?.workersByTeamLocationByDay ?? []
-  const seen = new Map<string, { locationName: string; teamName: string }>()
-  for (const r of flat) {
-    const k = `${r.locationId}${TEAM_DAY_KEY_SEP}${r.teamId}`
-    if (!seen.has(k)) seen.set(k, { locationName: r.locationName, teamName: r.teamName })
-  }
-  return [...seen.entries()].sort((a, b) => {
-    const la = `${a[1].locationName} ${a[1].teamName}`
-    const lb = `${b[1].locationName} ${b[1].teamName}`
-    return la.localeCompare(lb)
-  })
-})
-
-type LaborTeamEntry = {
-  teamKey: string
-  meta: { locationName: string; teamName: string }
-}
-
-type LaborLocationGroup = {
-  locationId: string
-  locationName: string
-  teams: LaborTeamEntry[]
-}
-
-const laborTeamsByLocation = computed((): LaborLocationGroup[] => {
-  const byLoc = new Map<string, { locationName: string; teams: LaborTeamEntry[] }>()
-  for (const [teamKey, meta] of workersTeamKeysSorted.value) {
-    const locationId = String(teamKey.split(TEAM_DAY_KEY_SEP)[0] ?? '')
-    if (!byLoc.has(locationId)) {
-      byLoc.set(locationId, { locationName: meta.locationName, teams: [] })
-    }
-    byLoc.get(locationId)!.teams.push({ teamKey, meta })
-  }
-  return [...byLoc.entries()]
-    .map(([locationId, v]) => ({
-      locationId,
-      locationName: v.locationName,
-      teams: [...v.teams].sort((a, b) => a.meta.teamName.localeCompare(b.meta.teamName)),
-    }))
-    .sort((a, b) => a.locationName.localeCompare(b.locationName))
-})
-
-type LaborChartSegmentStyle = { bg: string; fg: string; labelShadow: boolean }
-
-/**
- * Greyscale only: bottom of stack (Afwas: near-black) to top (Ziek: light grey).
- * labelShadow = light text on dark fills for legible % labels.
- */
-const LABOR_CHART_KNOWN_SEGMENT_STYLES: Record<string, LaborChartSegmentStyle> = {
-  afwas: { bg: '#0a0a0a', fg: '#f5f5f5', labelShadow: true },
-  keuken: { bg: '#242424', fg: '#f5f5f5', labelShadow: true },
-  bediening: { bg: '#3d3d3d', fg: '#fafafa', labelShadow: true },
-  management: { bg: '#575757', fg: '#fafafa', labelShadow: true },
-  algemeen: { bg: '#737373', fg: '#ffffff', labelShadow: true },
-  ziek: { bg: '#b8b8b8', fg: '#171717', labelShadow: false },
-}
-
-/** Ad-hoc teams stack above Ziek: progressively lighter greys, dark labels. */
-const LABOR_CHART_OTHER_SEGMENT_STYLES: LaborChartSegmentStyle[] = [
-  { bg: '#c9c9c9', fg: '#171717', labelShadow: false },
-  { bg: '#d6d6d6', fg: '#171717', labelShadow: false },
-  { bg: '#e2e2e2', fg: '#1a1a1a', labelShadow: false },
-  { bg: '#ececec', fg: '#1a1a1a', labelShadow: false },
-  { bg: '#f2f2f2', fg: '#1c1c1c', labelShadow: false },
-  { bg: '#f7f7f7', fg: '#1c1c1c', labelShadow: false },
-]
-
-/** Raw name normalize (before aliases / stack mapping). */
-const normalizeLaborChartTeamName = (name: string): string => name.trim().toLowerCase().replace(/\s+/g, ' ')
-
-/** Bottom → top stack: Afwas … Ziek; then any other teams above Ziek. */
-const LABOR_CHART_STACK_DEF = [
-  { key: 'afwas', label: 'Afwas' },
-  { key: 'keuken', label: 'Keuken' },
-  { key: 'bediening', label: 'Bediening' },
-  { key: 'management', label: 'Management' },
-  { key: 'algemeen', label: 'Algemeen' },
-  { key: 'ziek', label: 'Ziek' },
-] as const
-
-const LABOR_CHART_STACK_KEY_ORDER = new Map<string, number>(
-  LABOR_CHART_STACK_DEF.map((d, i) => [d.key, i])
-)
-
-/** These names (normalized) roll up into Management in the chart. */
-const LABOR_CHART_MANAGEMENT_ALIAS_NORMS = new Set(
-  ['bestellen & stock', 'bestelling & stock', 'hk & hr management'].map((s) =>
-    normalizeLaborChartTeamName(s)
-  )
-)
-
-const laborChartCanonicalTeam = (
-  rawName: string
-): { stackKey: string; label: string } => {
-  const n = normalizeLaborChartTeamName(rawName)
-  if (!n) return { stackKey: '_empty', label: rawName.trim() || '—' }
-  if (LABOR_CHART_MANAGEMENT_ALIAS_NORMS.has(n)) {
-    return { stackKey: 'management', label: 'Management' }
-  }
-  const known = LABOR_CHART_STACK_DEF.find((d) => d.key === n)
-  if (known) return { stackKey: known.key, label: known.label }
-  return { stackKey: n, label: rawName.trim() }
-}
-
-/** Display label per stackKey (known rows + first seen spelling for ad-hoc teams). */
-const laborChartStackKeyDisplayLabel = computed(() => {
-  const m = new Map<string, string>()
-  for (const d of LABOR_CHART_STACK_DEF) m.set(d.key, d.label)
-  const flat = [...(labor.value?.workersByTeamLocationByDay ?? [])].sort((a, b) => {
-    const cmp = normalizeLaborChartTeamName(a.teamName).localeCompare(normalizeLaborChartTeamName(b.teamName))
-    if (cmp !== 0) return cmp
-    return String(a.teamId).localeCompare(String(b.teamId))
-  })
-  for (const r of flat) {
-    const { stackKey, label } = laborChartCanonicalTeam(r.teamName)
-    if (stackKey === '_empty' || m.has(stackKey)) continue
-    m.set(stackKey, label)
-  }
-  return m
-})
-
-/** Stack keys with hours in the bundle, ordered for palette + legend. */
-const laborChartActiveStackKeysOrdered = computed(() => {
-  const active = new Set<string>()
-  for (const r of labor.value?.workersByTeamLocationByDay ?? []) {
-    if (r.totalHours <= 0) continue
-    const { stackKey } = laborChartCanonicalTeam(r.teamName)
-    if (stackKey !== '_empty') active.add(stackKey)
-  }
-  const labels = laborChartStackKeyDisplayLabel.value
-  const known = LABOR_CHART_STACK_DEF.map((d) => d.key).filter((k) => active.has(k))
-  const unknown = [...active]
-    .filter((k) => !LABOR_CHART_STACK_KEY_ORDER.has(k))
-    .sort((a, b) => (labels.get(a) ?? a).localeCompare(labels.get(b) ?? b, 'nl', { sensitivity: 'base' }))
-  return [...known, ...unknown]
-})
-
-const laborChartSegmentStylesByStackKey = computed(() => {
-  const active = laborChartActiveStackKeysOrdered.value
-  const unknowns = active.filter((k) => !LABOR_CHART_KNOWN_SEGMENT_STYLES[k])
-  const unknownRank = new Map(unknowns.map((k, i) => [k, i]))
-  const m = new Map<string, LaborChartSegmentStyle>()
-  for (const k of active) {
-    const fixed = LABOR_CHART_KNOWN_SEGMENT_STYLES[k]
-    if (fixed) {
-      m.set(k, fixed)
-      continue
-    }
-    const r = unknownRank.get(k) ?? 0
-    m.set(k, LABOR_CHART_OTHER_SEGMENT_STYLES[r % LABOR_CHART_OTHER_SEGMENT_STYLES.length]!)
-  }
-  return m
-})
-
-const formatLaborChartSegPct = (pct: number): string => {
-  const p = Math.round(pct * 10) / 10
-  if (!Number.isFinite(p) || p <= 0) return '0%'
-  if (Math.abs(p - Math.round(p)) < 0.05) return `${Math.round(p)}%`
-  return `${p.toFixed(1)}%`
-}
-
-type LaborStackedChartSeg = {
-  stackKey: string
-  teamName: string
-  hours: number
-  color: string
-  labelFg: string
-  labelShadow: boolean
-  pctOfBar: number
-}
-
-type LaborStackedChartBar = {
-  locationId: string
-  locationName: string
-  totalHours: number
-  barHeightPct: number
-  segments: LaborStackedChartSeg[]
-}
-
-type LaborStackedChartCol = {
-  date: string
-  meta: { weekday: string; dayMonth: string }
-  bars: LaborStackedChartBar[]
-}
-
-const laborStackedChartColumns = computed((): LaborStackedChartCol[] => {
-  const daily = labor.value?.daily ?? []
-  const locs = laborTeamsByLocation.value
-  const stylesMap = laborChartSegmentStylesByStackKey.value
-  const tmap = workersTeamDayMap.value
-  const weekdayFmt = new Intl.DateTimeFormat('en-GB', { weekday: 'short', timeZone: 'UTC' })
-  const dayMonthFmt = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' })
-
-  return daily.map((day) => {
-    const bars: LaborStackedChartBar[] = []
-    for (const loc of locs) {
-      const segAcc = new Map<string, { hours: number; label: string }>()
-      for (const { teamKey, meta } of loc.teams) {
-        const row = tmap.get(`${teamKey}${TEAM_DAY_KEY_SEP}${day.date}`)
-        const h = row?.totalHours ?? 0
-        if (h <= 0) continue
-        const { stackKey, label } = laborChartCanonicalTeam(meta.teamName)
-        if (stackKey === '_empty') continue
-        const prev = segAcc.get(stackKey)
-        if (prev) prev.hours += h
-        else segAcc.set(stackKey, { hours: h, label })
-      }
-      const unknownKeys = [...segAcc.keys()]
-        .filter((k) => !LABOR_CHART_STACK_KEY_ORDER.has(k))
-        .sort((a, b) => a.localeCompare(b, 'nl'))
-      const unknownIdx = new Map(unknownKeys.map((k, i) => [k, i]))
-      const rawTotalH = [...segAcc.values()].reduce((s, v) => s + v.hours, 0)
-      const segments: LaborStackedChartSeg[] = [...segAcc.entries()]
-        .map(([stackKey, v]) => {
-          const st = stylesMap.get(stackKey) ?? {
-            bg: '#a3a3a3',
-            fg: '#171717',
-            labelShadow: false,
-          }
-          const pct = rawTotalH > 0 ? (v.hours / rawTotalH) * 100 : 0
-          return {
-            stackKey,
-            teamName: v.label,
-            hours: Math.round(v.hours * 10) / 10,
-            color: st.bg,
-            labelFg: st.fg,
-            labelShadow: st.labelShadow,
-            pctOfBar: Math.round(pct * 10) / 10,
-          }
-        })
-        .sort((a, b) => {
-          const ia = LABOR_CHART_STACK_KEY_ORDER.get(a.stackKey)
-          const ib = LABOR_CHART_STACK_KEY_ORDER.get(b.stackKey)
-          if (ia != null && ib != null) return ia - ib
-          if (ia != null) return -1
-          if (ib != null) return 1
-          return (unknownIdx.get(a.stackKey) ?? 0) - (unknownIdx.get(b.stackKey) ?? 0)
-        })
-        /* flex-col + justify-end: last DOM node sits on the baseline = bottom of bar → darkest (Afwas) must be last */
-        .reverse()
-      const roundedTotal = Math.round(segments.reduce((s, x) => s + x.hours, 0) * 10) / 10
-      bars.push({
-        locationId: loc.locationId,
-        locationName: loc.locationName,
-        totalHours: roundedTotal,
-        barHeightPct: 0,
-        segments,
-      })
-    }
-    const dayMax = Math.max(0, ...bars.map((b) => b.totalHours))
-    for (const b of bars) {
-      b.barHeightPct = dayMax > 0 ? (b.totalHours / dayMax) * 100 : 0
-    }
-    const d = new Date(`${day.date}T12:00:00.000Z`)
-    return {
-      date: day.date,
-      meta: { weekday: weekdayFmt.format(d), dayMonth: dayMonthFmt.format(d) },
-      bars,
-    }
-  })
-})
-
-const laborStackedChartLegend = computed(() => {
-  const styles = laborChartSegmentStylesByStackKey.value
-  const labels = laborChartStackKeyDisplayLabel.value
-  const out: { normKey: string; label: string; color: string }[] = []
-  for (const stackKey of laborChartActiveStackKeysOrdered.value) {
-    const st = styles.get(stackKey) ?? { bg: '#a3a3a3', fg: '#171717', labelShadow: false }
-    out.push({
-      normKey: stackKey,
-      label: labels.get(stackKey) ?? stackKey,
-      color: st.bg,
-    })
-  }
-  return out
-})
-
-type LaborByDayTableSegment =
-  | { kind: 'location'; loc: LaborLocationGroup }
-  | { kind: 'postKinsbergenTotalHours' }
-
-const isVanKinsbergenVenue = (loc: LaborLocationGroup): boolean =>
-  loc.locationName.toLowerCase().includes('kinsbergen')
-
-/** Location tbodys plus an extra totals row immediately after Van Kinsbergen. */
-const laborByDayLocationSegments = computed((): LaborByDayTableSegment[] => {
-  const out: LaborByDayTableSegment[] = []
-  for (const loc of laborTeamsByLocation.value) {
-    out.push({ kind: 'location', loc })
-    if (isVanKinsbergenVenue(loc)) {
-      out.push({ kind: 'postKinsbergenTotalHours' })
-    }
-  }
-  return out
-})
-
-/** Expanded/collapsed per venue (Map + shallowRef so toggles always trigger updates). */
-const laborLocationExpandedMap = shallowRef(new Map<string, boolean>())
-
-const isLaborLocationExpanded = (locationId: string): boolean => {
-  const id = String(locationId)
-  const m = laborLocationExpandedMap.value
-  if (!m.has(id)) return false
-  return m.get(id) === true
-}
-
-const toggleLaborLocationExpanded = (locationId: string): void => {
-  const id = String(locationId)
-  const prev = laborLocationExpandedMap.value
-  const nextMap = new Map(prev)
-  const expanded = isLaborLocationExpanded(id)
-  nextMap.set(id, !expanded)
-  laborLocationExpandedMap.value = nextMap
-}
-
-const laborTeamsVisibleForLocation = (loc: LaborLocationGroup): LaborTeamEntry[] =>
-  isLaborLocationExpanded(loc.locationId) ? loc.teams : []
-
-const formatLocationRollupWorkersLine = (locationId: string, date: string): string => {
-  const { hours, workers } = getLocationDayRollup(locationId, date)
-  if (hours === 0 && workers === 0) return '—'
-  return `${workers} workers`
-}
-
-const workersTeamPivotRows = computed(() => {
-  const out: { teamKey: string; label: string; metric: TeamDayMetricKey }[] = []
-  for (const [teamKey, meta] of workersTeamKeysSorted.value) {
-    const base = `${meta.locationName} · ${meta.teamName}`
-    out.push({ teamKey, label: `${base} · Staff`, metric: 'staff' })
-    out.push({ teamKey, label: `${base} · Hours`, metric: 'hours' })
-    out.push({ teamKey, label: `${base} · Cost`, metric: 'cost' })
-  }
-  return out
-})
-
-const formatTeamDayCell = (teamKey: string, date: string, metric: TeamDayMetricKey): string => {
-  const row = workersTeamDayMap.value.get(`${teamKey}${TEAM_DAY_KEY_SEP}${date}`)
-  if (!row) return '—'
-  switch (metric) {
-    case 'staff':
-      return String(row.workerCount)
-    case 'hours':
-      return row.totalHours.toFixed(1)
-    case 'cost':
-      return formatEur(row.totalCost)
-  }
-}
-
-const formatTeamNameBelowHours = (
-  teamKey: string,
-  date: string,
-  meta: { locationName: string; teamName: string }
-): string => {
-  const row = workersTeamDayMap.value.get(`${teamKey}${TEAM_DAY_KEY_SEP}${date}`)
-  if (!row) return '—'
-  if (row.workerCount === 0 && row.totalHours === 0) return '—'
-  return `${row.workerCount} · ${meta.teamName}`
-}
-
-const formatContractBelowHoursLine = (contractType: string, date: string): string => {
-  const row = contractTypeDayMap.value.get(`${contractType}${TEAM_DAY_KEY_SEP}${date}`)
-  if (!row) return '—'
-  if (row.workerCount === 0 && row.totalHours === 0 && row.totalCost === 0) return '—'
-  return `${row.workerCount} staff · ${formatEur(row.totalCost)}`
-}
+  laborPctThresholdLow,
+  laborPctThresholdHigh,
+  teamsWorkersViewMode,
+  teamsWorkersTableMetric,
+  laborDayTotalSharePctLabel,
+  laborPctClass,
+  formatLaborPctLabel,
+  laborDailyColumnMeta,
+  locationRollupShareCell,
+  teamHoursShareCell,
+  contractHoursShareCell,
+  formatLaborDayCell,
+  locationLaborPct,
+  teamLaborPct,
+  laborByDayContractTypesSorted,
+  laborTeamsByLocation,
+  formatLaborChartSegPct,
+  laborStackedChartColumns,
+  laborStackedChartLegend,
+  laborByDayLocationSegments,
+  isLaborLocationExpanded,
+  toggleLaborLocationExpanded,
+  laborTeamsVisibleForLocation,
+  formatLocationRollupWorkersLine,
+  workersTeamPivotRows,
+  formatTeamDayCell,
+  formatTeamNameBelowHours,
+  formatContractBelowHoursLine,
+} = useDailyOpsLaborTables(labor)
 
 type DrawerWorkerRow = {
   date: string

@@ -1,4 +1,18 @@
-export const DAILY_OPS_PERIOD_IDS = ['today', 'yesterday', 'this-week', 'last-week'] as const
+export const DAILY_OPS_PERIOD_IDS = [
+  'today',
+  'yesterday',
+  'd2',
+  'd3',
+  'd4',
+  'd5',
+  'd6',
+  'd7',
+  'this-week',
+  'last-week',
+] as const
+
+/** Rolling single-day periods (offsets 2–7 from anchor). */
+export const DAILY_OPS_ROLLING_DAY_PERIOD_IDS = ['d2', 'd3', 'd4', 'd5', 'd6', 'd7'] as const
 
 export type DailyOpsPeriodId = (typeof DAILY_OPS_PERIOD_IDS)[number]
 
@@ -58,17 +72,46 @@ export type DailyOpsSummaryDto = {
   vatDisclaimer: string
 }
 
+export type DailyOpsProfitHourDto = {
+  hourLabel: string
+  date: string
+  hour: number
+  revenue: number
+  laborCost: number
+  cogsCost: number
+  fixedCost: number
+  profit: number
+  estimatesNote: string
+}
+
+export type DailyOpsProfitIntervalKey = 'lunch' | 'afternoon' | 'dinner' | 'late_night'
+
+export type DailyOpsProfitIntervalCellDto = {
+  date: string
+  locationId: string | null
+  locationName: string
+  intervalKey: DailyOpsProfitIntervalKey
+  intervalLabel: string
+  revenue: number
+  laborCost: number
+  cogsCost: number
+  fixedCost: number
+  profit: number
+  chartColor: string
+}
+
+export type DailyOpsProfitByIntervalDto = {
+  estimatesNote: string
+  dates: string[]
+  cells: DailyOpsProfitIntervalCellDto[]
+}
+
 export type DailyOpsRevenueBreakdownDto = {
   range: DailyOpsRangeDto
   revenueByCategory: { key: string; label: string; amount: number }[]
   revenueByTimePeriod: { key: string; label: string; amount: number }[]
-  mostProfitableHour: {
-    hourLabel: string
-    date: string
-    revenue: number
-    laborCost: number
-    profit: number
-  }
+  mostProfitableHour: DailyOpsProfitHourDto
+  profitByInterval: DailyOpsProfitByIntervalDto
   /** When period is `today`: hourly API totals by calendar hour + inbox Basis Report rows at 15:00 / 23:00 (cron_hour) */
   todayRevenueDetail?: {
     apiHourlyByCalendarHour: { calendarHour: number; revenue: number }[]
@@ -108,6 +151,25 @@ export type DailyOpsContractTypeDayDto = {
   totalCost: number
 }
 
+/** One staff member × day × location × team (from eitje_time_registration_aggregation). */
+export type DailyOpsWorkerStaffDetailDto = {
+  date: string
+  locationId: string
+  locationName: string
+  teamId: string
+  teamName: string
+  userId: string
+  staffName: string
+  contractType: string
+  totalHours: number
+  totalCost: number
+  laborCostPctOfRevenue: number | null
+}
+
+export type DailyOpsWorkerStaffDetailResponseDto = {
+  workerStaffDetail: DailyOpsWorkerStaffDetailDto[]
+}
+
 export type DailyOpsLaborMetricsDto = {
   range: DailyOpsRangeDto
   inventory: {
@@ -132,6 +194,12 @@ export type DailyOpsLaborMetricsDto = {
     date: string
     locationId: string
     laborCostPctOfRevenue: number | null
+  }[]
+  /** Bork revenue (ex VAT) per venue per UTC day — for drawer % Rev fallbacks. */
+  revenueByLocationDay: {
+    date: string
+    locationId: string
+    revenue: number
   }[]
   hoursCostByContractType: {
     contractType: string
@@ -176,13 +244,7 @@ export type DailyOpsOverviewDto = {
   }
   revenueByCategory: { key: string; label: string; amount: number }[]
   revenueByTimePeriod: { key: string; label: string; amount: number }[]
-  mostProfitableHour: {
-    hourLabel: string
-    date?: string
-    revenue: number
-    laborCost: number
-    profit: number
-  }
+  mostProfitableHour: DailyOpsProfitHourDto
   vatDisclaimer: string
 }
 
@@ -191,4 +253,61 @@ export type DailyOpsSectionStubDto = {
   section: string
   title: string
   message: string
+}
+
+export type VenueStripTeamBucket = 'keuken' | 'bediening' | 'other'
+
+export type VenueStripLaborRowDto = {
+  workers: number
+  hours: number
+  wages: number
+  loaded: number
+  /** Wage cost as % of venue revenue (filled server-side). */
+  laborPctOfRevenue: number | null
+}
+
+export type VenueStripContractRowDto = {
+  contractType: string
+  workers: number
+  hours: number
+  wages: number
+  loaded: number
+}
+
+export type VenueStripCardDto = {
+  locationId: string
+  locationName: string
+  revenue: {
+    total: number
+    food: number
+    beverage: number
+  }
+  labor: {
+    /** All shift types and teams (Ziek, Management, Afwas, …). */
+    all: VenueStripLaborRowDto
+    /** Gewerkte uren operational total (Keuken + Bediening incl. Afwas 50/50). */
+    gewerkt: VenueStripLaborRowDto
+    keuken: VenueStripLaborRowDto
+    bediening: VenueStripLaborRowDto
+  }
+  productivity: {
+    totalPerHour: number | null
+    keukenPerHour: number | null
+    bedieningPerHour: number | null
+  }
+  contractsByTeam: {
+    keuken: VenueStripContractRowDto[]
+    bediening: VenueStripContractRowDto[]
+    other: VenueStripContractRowDto[]
+  }
+  coverage: {
+    hasRevenue: boolean
+    hasLabor: boolean
+    snapshotBuilt: boolean
+  }
+}
+
+export type VenueStripResponseDto = {
+  range: DailyOpsRangeDto
+  venues: VenueStripCardDto[]
 }

@@ -10,7 +10,9 @@ import {
   fetchTodayDashboardRevenueExtras,
   parseDailyOpsMetricsQuery,
 } from '../../../utils/dailyOpsDashboardMetrics'
+import { fetchLaborCostByBusinessDateHour } from '../../../utils/eitjeLaborByHour'
 import { aggregateLaborForRange } from '../../../utils/dailyOpsSnapshot/aggregateLaborForRange'
+import { buildDailyOpsProfitByIntervalDto } from '../../../utils/dailyOpsProfitIntervals'
 import type {
   DailyOpsLaborMetricsDto,
   DailyOpsRevenueBreakdownDto,
@@ -28,10 +30,12 @@ export default defineEventHandler(async (event): Promise<DailyOpsDashboardBundle
   const ctx = parseDailyOpsMetricsQuery(getQuery(event) as Record<string, unknown>)
   const db = await getDb()
 
-  const [cat, hourBundle, laborInput, inboxBasisExVat, laborBreakdown] = await Promise.all([
+  const [cat, hourBundle, laborInput, laborByDateHour, inboxBasisExVat, laborBreakdown] =
+    await Promise.all([
     fetchRevenueByCategoryFromHourAggregates(db, ctx),
     fetchBorkHourAggregatesBundle(db, ctx),
     fetchLaborMetricsPipelineInput(db, ctx),
+    fetchLaborCostByBusinessDateHour(db, ctx),
     fetchInboxBasisRevenueTotalExVat(db, ctx),
     aggregateLaborForRange(db, {
       startDate: ctx.startDate,
@@ -40,7 +44,10 @@ export default defineEventHandler(async (event): Promise<DailyOpsDashboardBundle
     }),
   ])
 
-  const todayExtras = await fetchTodayDashboardRevenueExtras(db, ctx, hourBundle)
+  const [todayExtras, profitByInterval] = await Promise.all([
+    fetchTodayDashboardRevenueExtras(db, ctx, hourBundle),
+    buildDailyOpsProfitByIntervalDto(db, ctx, cat),
+  ])
 
   const summary = buildDailyOpsSummaryDto(ctx, laborInput.revMap, laborInput.labMap, {
     apiBusinessDaysTotal: laborInput.revenueSplit.businessDaysPeriodTotal,
@@ -49,7 +56,16 @@ export default defineEventHandler(async (event): Promise<DailyOpsDashboardBundle
   if (laborBreakdown.coverage.daysFound > 0) {
     summary.summary.laborBreakdown = laborBreakdown
   }
-  const revenue = buildDailyOpsRevenueBreakdownDto(ctx, cat, hourBundle, laborInput.revMap, laborInput.labMap, todayExtras)
+  const revenue = buildDailyOpsRevenueBreakdownDto(
+    ctx,
+    cat,
+    hourBundle,
+    laborInput.revMap,
+    laborInput.labMap,
+    laborByDateHour,
+    profitByInterval,
+    todayExtras
+  )
   const labor = assembleDailyOpsLaborMetricsDto(ctx, laborInput)
 
   return { summary, revenue, labor }

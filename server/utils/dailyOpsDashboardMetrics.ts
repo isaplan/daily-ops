@@ -1,7 +1,7 @@
 /**
  * Daily Ops dashboard: Bork revenue + Eitje labor aggregations (fast paths on prebuilt collections).
- * @last-modified: 2026-05-13T00:00:00.000Z
- * @last-fix: [2026-05-13] Doc: correct business-day boundary 08:00 → 07:59 (was 06:00, stale); [2026-05-12] inbox 4×/day incl. 12:05; [2026-05-08] pickBasisReportsPerLocation cron 7 final
+ * @last-modified: 2026-05-17T00:00:00.000Z
+ * @last-fix: [2026-05-18] Bork revenue sum falls back to total_revenue when ex-VAT field is zero. Profit extreme hours (best + least) in one pass
  * 
  * @business-day-definition:
  * A "business day" runs 08:00 to 07:59:59 NEXT ISO day (Amsterdam time).
@@ -33,12 +33,27 @@ import { resolveDailyOpsPeriod } from '~/utils/dailyOpsPeriod'
 import type {
   DailyOpsLaborDayDto,
   DailyOpsLaborMetricsDto,
+  DailyOpsWorkerStaffDetailDto,
   DailyOpsPeriodId,
+  DailyOpsProfitByIntervalDto,
   DailyOpsRevenueBreakdownDto,
   DailyOpsSummaryDto,
 } from '~/types/daily-ops-dashboard'
 
 const VAT_DISCLAIMER = 'All revenue values shown are excluding VAT (ex VAT)'
+
+/** Prefer ex-VAT when &gt; 0; else `total_revenue` (V2 hourly rows often omit ex-VAT field). */
+export const BORK_DOC_REVENUE_EXPR = {
+  $let: {
+    vars: {
+      ex: { $ifNull: ['$total_revenue_ex_vat', 0] },
+      gross: { $ifNull: ['$total_revenue', 0] },
+    },
+    in: { $cond: [{ $gt: ['$$ex', 0] }, '$$ex', '$$gross'] },
+  },
+} as const
+
+export const BORK_REVENUE_SUM_REDUCE = { $sum: BORK_DOC_REVENUE_EXPR } as const
 
 const DRINK_NAME_PATTERN =
   /wine|wijn|beer|bier|gint|gin |vodka|whisk|whiskey|rum|cocktail|cola|sprite|fanta|coffee|koffie|thee|tea|sap|juice|fris|prosecco|champagne|cider|tonic|latte|cappuccino|espresso|pils|stelz|borrel|aperol|campari|martini|soda|limonade/i
@@ -145,7 +160,7 @@ export async function fetchBorkRevenueTotals(db: Db, ctx: DailyOpsMetricsContext
       {
         $group: {
           _id: null,
-          total_revenue_ex_vat: { $sum: { $ifNull: ['$total_revenue_ex_vat', 0] } },
+          total_revenue_ex_vat: BORK_REVENUE_SUM_REDUCE,
         },
       },
     ])
@@ -268,7 +283,7 @@ export async function fetchBorkHourAggregatesBundle(db: Db, ctx: DailyOpsMetrics
           byDayHour: [
             {
               $group: {
-                _id: { d: '$calendar_date', h: '$calendar_hour' },
+                _id: { d: '$business_date', h: '$calendar_hour' },
                 revenue: { $sum: { $ifNull: ['$total_revenue', 0] } },
               },
             },
@@ -325,12 +340,152 @@ export async function fetchHourlyRevenueForRange(db: Db, ctx: DailyOpsMetricsCon
       { $match: borkV2SalesMatch(ctx) },
       {
         $group: {
-          _id: { d: '$calendar_date', h: '$calendar_hour' },
+          _id: { d: '$business_date', h: '$calendar_hour' },
           revenue: { $sum: { $ifNull: ['$total_revenue', 0] } },
         },
       },
     ])
     .toArray()) as { _id: { d: string; h: number }; revenue: number }[]
+}
+
+/** Default cost assumptions for Most Profitable Hour (when product-level COGS is unknown). */
+export const MOST_PROFITABLE_HOUR_DEFAULTS = {
+  foodCogsPct: 0.3,
+  beverageCogsPct: 0.04,
+  fixedOverheadPct: 0.25,
+} as const
+
+export const MOST_PROFITABLE_HOUR_ESTIMATES_NOTE =
+  'Labor from Eitje shift start/end (loaded cost, Amsterdam hour). Cost of sales: food 30% / beverages 4% when product COGS is unknown (period food–drink mix). Fixed overhead 25% of hour revenue.'
+
+export type MostProfitableHourResult = {
+  hourLabel: string
+  date: string
+  hour: number
+  revenue: number
+  laborCost: number
+  cogsCost: number
+  fixedCost: number
+  profit: number
+}
+
+const EMPTY_PROFIT_HOUR: MostProfitableHourResult = {
+  hourLabel: '—',
+  date: '',
+  hour: 0,
+  revenue: 0,
+  laborCost: 0,
+  cogsCost: 0,
+  fixedCost: 0,
+  profit: 0,
+}
+
+export function computeProfitExtremeHours(
+  hourRows: { _id: { d: string; h: number }; revenue: number }[],
+  revenueByDate: Map<string, number>,
+  laborByDate: Map<string, { laborCost: number; hours?: number }>,
+  categoryTotals: { food: number; drinks: number },
+  laborByDateHour: Map<string, number>,
+  defaults: typeof MOST_PROFITABLE_HOUR_DEFAULTS = MOST_PROFITABLE_HOUR_DEFAULTS
+): { best: MostProfitableHourResult; worst: MostProfitableHourResult } {
+  const catTotal = categoryTotals.food + categoryTotals.drinks
+  const foodShare = catTotal > 0 ? categoryTotals.food / catTotal : 0.5
+
+  const dayRevFromHours = new Map<string, number>()
+  for (const row of hourRows) {
+    const d = row._id.d
+    dayRevFromHours.set(d, (dayRevFromHours.get(d) ?? 0) + row.revenue)
+  }
+
+  let periodLabor = 0
+  let periodRev = 0
+  for (const [d, rev] of revenueByDate) {
+    periodRev += rev
+    periodLabor += laborByDate.get(d)?.laborCost ?? 0
+  }
+  if (periodRev <= 0) {
+    for (const [, rev] of dayRevFromHours) periodRev += rev
+  }
+
+  let best: MostProfitableHourResult | null = null
+  let worst: MostProfitableHourResult | null = null
+
+  for (const row of hourRows) {
+    const day = row._id.d
+    const h = row._id.h
+    const rev = row.revenue
+    if (rev <= 0) continue
+
+    const dayRev = revenueByDate.get(day) ?? dayRevFromHours.get(day) ?? 0
+    const hourKey = `${day}|${h}`
+    let laborAlloc = laborByDateHour.get(hourKey) ?? 0
+    if (laborAlloc <= 0) {
+      let dayLab = laborByDate.get(day)?.laborCost ?? 0
+      if (dayLab <= 0 && dayRev > 0 && periodLabor > 0 && periodRev > 0) {
+        dayLab = periodLabor * (dayRev / periodRev)
+      }
+      const hourShare = dayRev > 0 ? rev / dayRev : 0
+      laborAlloc = dayLab * hourShare
+    }
+
+    const foodRev = rev * foodShare
+    const bevRev = rev - foodRev
+    const cogs =
+      foodRev * defaults.foodCogsPct + bevRev * defaults.beverageCogsPct
+    const fixed = rev * defaults.fixedOverheadPct
+    const profit = rev - laborAlloc - cogs - fixed
+
+    const snapshot: MostProfitableHourResult = {
+      hourLabel: `${day} ${String(h).padStart(2, '0')}:00`,
+      date: day,
+      hour: h,
+      revenue: rev,
+      laborCost: laborAlloc,
+      cogsCost: cogs,
+      fixedCost: fixed,
+      profit,
+    }
+
+    if (!best || profit > best.profit) best = snapshot
+    if (!worst || profit < worst.profit) worst = snapshot
+  }
+
+  return {
+    best: best ?? EMPTY_PROFIT_HOUR,
+    worst: worst ?? EMPTY_PROFIT_HOUR,
+  }
+}
+
+export function computeMostProfitableHour(
+  hourRows: { _id: { d: string; h: number }; revenue: number }[],
+  revenueByDate: Map<string, number>,
+  laborByDate: Map<string, { laborCost: number; hours?: number }>,
+  categoryTotals: { food: number; drinks: number },
+  laborByDateHour: Map<string, number>,
+  defaults: typeof MOST_PROFITABLE_HOUR_DEFAULTS = MOST_PROFITABLE_HOUR_DEFAULTS
+): MostProfitableHourResult {
+  return computeProfitExtremeHours(
+    hourRows,
+    revenueByDate,
+    laborByDate,
+    categoryTotals,
+    laborByDateHour,
+    defaults
+  ).best
+}
+
+export function roundProfitHourSnapshot (row: MostProfitableHourResult) {
+  return {
+    hourLabel: row.hourLabel,
+    date: row.date,
+    hour: row.hour,
+    revenue: Math.round(row.revenue * 100) / 100,
+    laborCost: Math.round(row.laborCost * 100) / 100,
+    cogsCost: Math.round(row.cogsCost * 100) / 100,
+    fixedCost: Math.round(row.fixedCost * 100) / 100,
+    profit: Math.round(row.profit * 100) / 100,
+    estimatesNote: MOST_PROFITABLE_HOUR_ESTIMATES_NOTE,
+  }
 }
 
 export async function fetchRevenueByDate(db: Db, ctx: DailyOpsMetricsContext) {
@@ -342,7 +497,7 @@ export async function fetchRevenueByDate(db: Db, ctx: DailyOpsMetricsContext) {
       {
         $group: {
           _id: '$business_date',
-          revenue: { $sum: { $ifNull: ['$total_revenue_ex_vat', 0] } },
+          revenue: BORK_REVENUE_SUM_REDUCE,
         },
       },
     ])
@@ -351,7 +506,7 @@ export async function fetchRevenueByDate(db: Db, ctx: DailyOpsMetricsContext) {
   return new Map(rows.map((r) => [r._id, Math.round(r.revenue * 100) / 100]))
 }
 
-/** Sum `total_revenue_ex_vat` by business_date from `bork_sales_by_hour` — validates / fills gaps when `bork_business_days` is empty. */
+/** Sum revenue by business_date from `bork_sales_by_hour` — validates / fills gaps when `bork_business_days` is empty. */
 export async function fetchRevenueByDateFromHourly(db: Db, ctx: DailyOpsMetricsContext): Promise<Map<string, number>> {
   const sfx = resolveBorkAggReadSuffix()
   const rows = (await db
@@ -361,7 +516,7 @@ export async function fetchRevenueByDateFromHourly(db: Db, ctx: DailyOpsMetricsC
       {
         $group: {
           _id: '$business_date',
-          revenue: { $sum: { $ifNull: ['$total_revenue_ex_vat', 0] } },
+          revenue: BORK_REVENUE_SUM_REDUCE,
         },
       },
     ])
@@ -415,7 +570,7 @@ export async function fetchRevenueByDateAndLocationFromHourly(db: Db, ctx: Daily
       {
         $group: {
           _id: { date: '$business_date', locationId: '$locationId' },
-          revenue: { $sum: { $ifNull: ['$total_revenue_ex_vat', 0] } },
+          revenue: BORK_REVENUE_SUM_REDUCE,
         },
       },
     ])
@@ -583,7 +738,7 @@ export async function fetchRevenueByDateAndLocation (db: Db, ctx: DailyOpsMetric
       {
         $group: {
           _id: { date: '$business_date', locationId: '$locationId' },
-          revenue: { $sum: { $ifNull: ['$total_revenue_ex_vat', 0] } },
+          revenue: BORK_REVENUE_SUM_REDUCE,
         },
       },
     ])
@@ -647,40 +802,7 @@ export async function fetchHoursCostByContractTypeByDay(db: Db, ctx: DailyOpsMet
     .collection('eitje_time_registration_aggregation')
     .aggregate([
       { $match: eitjeAggMatch(ctx) },
-      {
-        $lookup: {
-          from: 'members',
-          let: { uid: { $toString: '$userId' } },
-          pipeline: [
-            {
-              $match: {
-                $expr: {
-                  $or: [
-                    { $eq: [{ $toString: '$eitje_id' }, '$$uid'] },
-                    {
-                      $gt: [
-                        {
-                          $size: {
-                            $filter: {
-                              input: { $ifNull: ['$eitje_ids', []] },
-                              as: 'x',
-                              cond: { $eq: [{ $toString: '$$x' }, '$$uid'] },
-                            },
-                          },
-                        },
-                        0,
-                      ],
-                    },
-                  ],
-                },
-              },
-            },
-            { $limit: 1 },
-            { $project: { contract_type: 1 } },
-          ],
-          as: '_m',
-        },
-      },
+      EITJE_AGG_MEMBER_LOOKUP,
       {
         $addFields: {
           contractType: {
@@ -713,41 +835,6 @@ export async function fetchHoursCostByContractTypeByDay(db: Db, ctx: DailyOpsMet
       { $sort: { contractType: 1, date: 1 } },
     ])
     .toArray()) as ContractTypeDayRow[]
-}
-
-export function computeMostProfitableHour(
-  hourRows: { _id: { d: string; h: number }; revenue: number }[],
-  revenueByDate: Map<string, number>,
-  laborByDate: Map<string, { laborCost: number; hours: number }>
-) {
-  let best = {
-    hourLabel: '—',
-    date: '',
-    hour: 0,
-    revenue: 0,
-    laborCost: 0,
-    profit: 0,
-  }
-  for (const row of hourRows) {
-    const day = row._id.d
-    const h = row._id.h
-    const rev = row.revenue
-    const dayRev = revenueByDate.get(day) ?? 0
-    const dayLab = laborByDate.get(day)?.laborCost ?? 0
-    const alloc = dayRev > 0 ? dayLab * (rev / dayRev) : 0
-    const profit = rev - alloc
-    if (profit > best.profit) {
-      best = {
-        hourLabel: `${day} ${String(h).padStart(2, '0')}:00`,
-        date: day,
-        hour: h,
-        revenue: rev,
-        laborCost: alloc,
-        profit,
-      }
-    }
-  }
-  return best
 }
 
 export async function fetchWorkersByTeamLocation(db: Db, ctx: DailyOpsMetricsContext) {
@@ -848,6 +935,121 @@ export async function fetchWorkersByTeamLocationByDay(db: Db, ctx: DailyOpsMetri
       { $sort: { locationName: 1, teamName: 1, date: 1 } },
     ])
     .toArray()) as WorkersTeamLocationDayRow[]
+}
+
+const EITJE_AGG_MEMBER_LOOKUP = {
+  $lookup: {
+    from: 'members',
+    let: { uid: { $toString: '$userId' } },
+    pipeline: [
+      {
+        $match: {
+          $expr: {
+            $or: [
+              { $eq: [{ $toString: '$eitje_id' }, '$$uid'] },
+              {
+                $gt: [
+                  {
+                    $size: {
+                      $filter: {
+                        input: { $ifNull: ['$eitje_ids', []] },
+                        as: 'x',
+                        cond: { $eq: [{ $toString: '$$x' }, '$$uid'] },
+                      },
+                    },
+                  },
+                  0,
+                ],
+              },
+            ],
+          },
+        },
+      },
+      { $limit: 1 },
+      { $project: { contract_type: 1, first_name: 1, last_name: 1, name: 1 } },
+    ],
+    as: '_m',
+  },
+}
+
+export type WorkerStaffDetailRow = {
+  date: string
+  locationId: string
+  locationName: string
+  teamId: string
+  teamName: string
+  userId: string
+  staffName: string
+  contractType: string
+  totalHours: number
+  totalCost: number
+}
+
+/** Per staff × day × location × team for drawer tables. */
+export async function fetchWorkerStaffDetailRows (
+  db: Db,
+  ctx: DailyOpsMetricsContext
+): Promise<WorkerStaffDetailRow[]> {
+  return (await db
+    .collection('eitje_time_registration_aggregation')
+    .aggregate([
+      { $match: eitjeAggMatch(ctx) },
+      EITJE_AGG_MEMBER_LOOKUP,
+      {
+        $addFields: {
+          contractType: {
+            $ifNull: [{ $arrayElemAt: ['$_m.contract_type', 0] }, '-'],
+          },
+          staffName: {
+            $let: {
+              vars: {
+                memberName: {
+                  $trim: {
+                    input: {
+                      $concat: [
+                        { $ifNull: [{ $arrayElemAt: ['$_m.first_name', 0] }, ''] },
+                        ' ',
+                        { $ifNull: [{ $arrayElemAt: ['$_m.last_name', 0] }, ''] },
+                      ],
+                    },
+                  },
+                },
+              },
+              in: {
+                $cond: [
+                  { $gt: [{ $strLenCP: '$$memberName' }, 0] },
+                  '$$memberName',
+                  {
+                    $ifNull: [
+                      { $arrayElemAt: ['$_m.name', 0] },
+                      { $ifNull: ['$user_name', 'Unknown'] },
+                    ],
+                  },
+                ],
+              },
+            },
+          },
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          date: '$period',
+          locationId: { $toString: '$locationId' },
+          locationName: { $ifNull: ['$location_name', ''] },
+          teamId: { $toString: '$teamId' },
+          teamName: { $ifNull: ['$team_name', ''] },
+          userId: { $toString: { $ifNull: ['$userId', ''] } },
+          staffName: 1,
+          contractType: 1,
+          totalHours: { $round: [{ $ifNull: ['$total_hours', 0] }, 2] },
+          totalCost: { $round: [{ $ifNull: ['$total_cost', 0] }, 2] },
+        },
+      },
+      { $match: { userId: { $ne: '' } } },
+      { $sort: { date: 1, locationName: 1, teamName: 1, staffName: 1 } },
+    ])
+    .toArray()) as WorkerStaffDetailRow[]
 }
 
 export async function fetchHoursCostByContractType(db: Db, ctx: DailyOpsMetricsContext) {
@@ -1071,6 +1273,51 @@ export async function inventoryCollections(db: Db, ctx: DailyOpsMetricsContext) 
   }
 }
 
+/** Staff rows with % Rev for Teams / Contracts drawer (lazy-loaded, not on bundle). */
+export function buildWorkerStaffDetailDto (
+  workerStaffDetailRaw: WorkerStaffDetailRow[],
+  revByDateLocation: Map<string, number>
+): DailyOpsWorkerStaffDetailDto[] {
+  const teamDayHours = new Map<string, number>()
+  for (const row of workerStaffDetailRaw) {
+    const k = `${row.date}|${row.locationId}|${row.teamId}`
+    teamDayHours.set(k, (teamDayHours.get(k) ?? 0) + row.totalHours)
+  }
+
+  return workerStaffDetailRaw.map((row) => {
+    const locK = locationDayKey(row.date, row.locationId)
+    const rev = revByDateLocation.get(locK) ?? 0
+    const teamH =
+      teamDayHours.get(`${row.date}|${row.locationId}|${row.teamId}`) ?? row.totalHours
+    let laborCostPctOfRevenue: number | null = null
+    if (rev > 0 && teamH > 0) {
+      const attributedRev = rev * (row.totalHours / teamH)
+      if (attributedRev > 0) {
+        laborCostPctOfRevenue =
+          Math.round((row.totalCost / attributedRev) * 100 * 10) / 10
+      }
+    }
+    return { ...row, laborCostPctOfRevenue }
+  })
+}
+
+export async function fetchWorkerStaffDetailMetrics (
+  db: Db,
+  ctx: DailyOpsMetricsContext
+): Promise<DailyOpsWorkerStaffDetailDto[]> {
+  const [workerStaffDetailRaw, revByDateLocationDays, revByDateLocationHours] =
+    await Promise.all([
+      fetchWorkerStaffDetailRows(db, ctx),
+      fetchRevenueByDateAndLocation(db, ctx),
+      fetchRevenueByDateAndLocationFromHourly(db, ctx),
+    ])
+  const revByDateLocation = mergeLocationRevenueMaps(
+    revByDateLocationDays,
+    revByDateLocationHours
+  )
+  return buildWorkerStaffDetailDto(workerStaffDetailRaw, revByDateLocation)
+}
+
 export type LaborMetricsPipelineInput = {
   workersByTeamLocation: Awaited<ReturnType<typeof fetchWorkersByTeamLocation>>
   workersByTeamLocationByDayRaw: Awaited<ReturnType<typeof fetchWorkersByTeamLocationByDay>>
@@ -1193,6 +1440,19 @@ export function assembleDailyOpsLaborMetricsDto(
     (a, b) => a.locationId.localeCompare(b.locationId) || a.date.localeCompare(b.date)
   )
 
+  const revenueByLocationDay: { date: string; locationId: string; revenue: number }[] = []
+  for (const [k, revenue] of revByDateLocation) {
+    const { date, locationId } = parseLocationDayKey(k)
+    revenueByLocationDay.push({
+      date,
+      locationId,
+      revenue: Math.round(revenue * 100) / 100,
+    })
+  }
+  revenueByLocationDay.sort(
+    (a, b) => a.locationId.localeCompare(b.locationId) || a.date.localeCompare(b.date)
+  )
+
   const days = enumerateUtcDatesInclusive(ctx.startDate, ctx.endDate)
   let sumRev = 0
   let sumLab = 0
@@ -1247,6 +1507,7 @@ export function assembleDailyOpsLaborMetricsDto(
     workersByTeamLocation,
     workersByTeamLocationByDay,
     locationLaborPctByDay,
+    revenueByLocationDay,
     hoursCostByContractType,
     contractTypeByDay,
     daily,
@@ -1341,10 +1602,18 @@ export function buildDailyOpsRevenueBreakdownDto(
   hourBundle: BorkHourAggregatesBundle,
   revMap: Map<string, number>,
   labMap: LaborMetricsPipelineInput['labMap'],
+  laborByDateHour: Map<string, number>,
+  profitByInterval: DailyOpsProfitByIntervalDto,
   todayExtras?: TodayRevenueExtras
 ): DailyOpsRevenueBreakdownDto {
   const tp = revenueByTimePeriodFromHourTotals(hourBundle.byHourOnly)
-  const best = computeMostProfitableHour(hourBundle.byDayHour, revMap, labMap)
+  const best = computeMostProfitableHour(
+    hourBundle.byDayHour,
+    revMap,
+    labMap,
+    cat,
+    laborByDateHour
+  )
 
   const revenueByCategory = [
     { key: 'drinks', label: 'Drinks', amount: Math.round(cat.drinks * 100) / 100 },
@@ -1373,13 +1642,8 @@ export function buildDailyOpsRevenueBreakdownDto(
     },
     revenueByCategory,
     revenueByTimePeriod,
-    mostProfitableHour: {
-      hourLabel: best.hourLabel,
-      date: best.date,
-      revenue: Math.round(best.revenue * 100) / 100,
-      laborCost: Math.round(best.laborCost * 100) / 100,
-      profit: Math.round(best.profit * 100) / 100,
-    },
+    mostProfitableHour: roundProfitHourSnapshot(best),
+    profitByInterval,
     todayRevenueDetail: todayExtras
       ? {
           apiHourlyByCalendarHour: todayExtras.apiHourlyByCalendarHour,
