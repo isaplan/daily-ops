@@ -13,6 +13,15 @@
         </p>
       </header>
 
+      <DailyOpsKpiTiles
+        v-if="isSingleDayDashboardPeriod"
+        :period="period"
+        :anchor="anchor"
+        :summary="summary"
+      />
+
+      <DailyOpsVenueStrip :period="period" :anchor="anchor" />
+
       <UAlert v-if="error" color="error" variant="soft" title="Could not load dashboard" :description="String(error)" />
 
       <div v-if="pending" class="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -20,89 +29,8 @@
       </div>
 
       <template v-else-if="summary && revenue && labor">
-        <div class="grid min-w-0 gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <UCard class="border-2 border-gray-900 !bg-white ring-0 shadow-none">
-            <p class="text-sm font-medium text-gray-500">Total Revenue</p>
-            <p class="mt-2 text-2xl font-semibold text-gray-900">{{ formatEur(summary.summary.totalRevenue) }}</p>
-            <p class="mt-1 text-xs text-gray-500">
-              <span v-if="summary.summary.revenueLeadSource === 'inbox_basis_ex_vat'">
-                Headline = Inbox Basis Report (full business day, ex VAT). Bork API breakdown is for detail verification.
-              </span>
-              <span v-else-if="summary.summary.revenueLeadSource === 'bork_api_merged'">
-                Headline = Bork API (business-day aggregates, ex VAT).
-              </span>
-            </p>
-            <dl
-              v-if="summary.summary.revenueSources"
-              class="mt-3 space-y-1.5 border-t border-gray-100 pt-3 text-xs text-gray-700"
-            >
-              <div class="flex justify-between gap-2">
-                <dt class="text-gray-600">
-                  Inbox Basis · ex VAT
-                  <span v-if="summary.summary.revenueLeadSource === 'inbox_basis_ex_vat'" class="ml-1 font-semibold text-gray-900">(leading)</span>
-                </dt>
-                <dd class="tabular-nums font-medium text-gray-900">
-                  {{ summary.summary.revenueSources.inboxBasisExVat != null ? formatEur(summary.summary.revenueSources.inboxBasisExVat) : '—' }}
-                </dd>
-              </div>
-              <div class="flex justify-between gap-2">
-                <dt class="text-gray-600">Bork API · ex VAT (business-day aggregates)</dt>
-                <dd class="tabular-nums font-medium text-gray-900">{{ formatEur(summary.summary.revenueSources.apiBusinessDaysTotal) }}</dd>
-              </div>
-            </dl>
-          </UCard>
-          <UCard class="border-2 border-gray-900 !bg-white ring-0 shadow-none">
-            <p class="text-sm font-medium text-gray-500">Total Labor Cost</p>
-            <p class="mt-2 text-2xl font-semibold text-gray-900">{{ formatEur(headlineLaborCost) }}</p>
-            <p v-if="summary.summary.laborCostPctOfRevenue != null" class="mt-1 text-xs text-gray-500">
-              {{ summary.summary.laborCostPctOfRevenue.toFixed(1) }}% of revenue
-            </p>
-            <dl
-              v-if="summary.summary.laborBreakdown"
-              class="mt-3 space-y-1.5 border-t border-gray-100 pt-3 text-xs text-gray-700"
-            >
-              <div class="flex justify-between gap-2">
-                <dt class="text-gray-600">
-                  Hourly wages
-                  <span class="ml-1 font-semibold text-gray-900">(leading)</span>
-                </dt>
-                <dd class="tabular-nums font-medium text-gray-900">{{ formatEur(summary.summary.laborBreakdown.wages) }}</dd>
-              </div>
-              <div class="flex justify-between gap-2">
-                <dt class="text-gray-600">Loaded cost · per hour</dt>
-                <dd class="tabular-nums font-medium text-gray-900">{{ formatEur(summary.summary.laborBreakdown.loaded) }}</dd>
-              </div>
-              <div class="mt-2 border-t border-gray-100 pt-2">
-                <p class="mb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-500">By team (wages)</p>
-                <div
-                  v-for="team in summary.summary.laborBreakdown.byTeam"
-                  :key="team.key"
-                  class="flex justify-between gap-2"
-                >
-                  <dt class="text-gray-600">{{ team.label }}</dt>
-                  <dd class="tabular-nums font-medium text-gray-900">{{ formatEur(team.wages) }}</dd>
-                </div>
-              </div>
-              <p
-                v-if="summary.summary.laborBreakdown.coverage.daysFound < summary.summary.laborBreakdown.coverage.daysExpected"
-                class="mt-2 text-[10px] italic text-amber-700"
-              >
-                Snapshot coverage {{ summary.summary.laborBreakdown.coverage.daysFound }}/{{ summary.summary.laborBreakdown.coverage.daysExpected }} day-locations
-              </p>
-            </dl>
-          </UCard>
-          <UCard class="border-2 border-gray-900 !bg-white ring-0 shadow-none">
-            <p class="text-sm font-medium text-gray-500">Labor Percentage</p>
-            <p class="mt-2 text-2xl font-semibold text-gray-900">{{ summary.summary.laborCostPctOfRevenue?.toFixed(1) ?? '—' }}%</p>
-            <p class="mt-1 text-xs text-gray-500">of revenue</p>
-          </UCard>
-          <UCard class="border-2 border-gray-900 !bg-white ring-0 shadow-none">
-            <p class="text-sm font-medium text-gray-500">Labor Productivity</p>
-            <p class="mt-2 text-2xl font-semibold text-gray-900">{{ summary.summary.revenuePerLaborHour != null ? formatEur(summary.summary.revenuePerLaborHour) : '—' }}</p>
-            <p class="mt-1 text-xs text-gray-500">per labor hour</p>
-          </UCard>
-        </div>
 
+        <template v-if="isProductivityView">
         <!-- Teams Summary -->
         <div class="min-w-0">
           <h3 class="mb-3 text-sm font-semibold text-gray-700">Teams</h3>
@@ -164,7 +92,7 @@
             </button>
           </div>
         </div>
-
+        </template>
 
         <UCard
           v-if="revenue.todayRevenueDetail && (revenue.todayRevenueDetail.apiHourlyByCalendarHour.length > 0 || revenue.todayRevenueDetail.inboxBasisCronSnapshots.length > 0)"
@@ -217,64 +145,21 @@
           </div>
         </UCard>
 
-        <UCard class="border-2 border-gray-900 !bg-white ring-0 shadow-none">
-          <template #header>
-            <h2 class="text-lg font-semibold text-gray-900">Most Profitable Hour</h2>
-          </template>
-          <p class="mb-4 text-xs text-gray-500">Labor cost for the hour is estimated by splitting each day’s total labor across hours by revenue share.</p>
-          <div class="grid gap-4 sm:grid-cols-4">
-            <div>
-              <p class="text-xs font-medium uppercase tracking-wide text-gray-500">Hour</p>
-              <p class="mt-1 text-lg font-semibold text-gray-900">{{ revenue.mostProfitableHour.hourLabel }}</p>
-            </div>
-            <div>
-              <p class="text-xs font-medium uppercase tracking-wide text-gray-500">Revenue</p>
-              <p class="mt-1 text-lg font-semibold text-gray-900">{{ formatEur(revenue.mostProfitableHour.revenue) }}</p>
-            </div>
-            <div>
-              <p class="text-xs font-medium uppercase tracking-wide text-gray-500">Labor Cost (est.)</p>
-              <p class="mt-1 text-lg font-semibold text-gray-900">{{ formatEur(revenue.mostProfitableHour.laborCost) }}</p>
-            </div>
-            <div>
-              <p class="text-xs font-medium uppercase tracking-wide text-gray-500">Profit</p>
-              <p class="mt-1 text-lg font-semibold text-gray-900">{{ formatEur(revenue.mostProfitableHour.profit) }}</p>
-            </div>
-          </div>
-        </UCard>
+        <DailyOpsProfitByIntervalCard :data="revenue.profitByInterval" :period="period" />
 
-        <UCard class="border-2 border-gray-900 !bg-white ring-0 shadow-none">
-          <template #header>
-            <h2 class="text-lg font-semibold text-gray-900">Labor — Period Rollup</h2>
-          </template>
-          <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <div>
-              <p class="text-xs font-medium text-gray-500">Revenue (range)</p>
-              <p class="mt-1 text-lg font-semibold">{{ formatEur(labor.periodRollup.revenue) }}</p>
-            </div>
-            <div>
-              <p class="text-xs font-medium text-gray-500">Labor cost</p>
-              <p class="mt-1 text-lg font-semibold">{{ formatEur(labor.periodRollup.laborCost) }}</p>
-            </div>
-            <div>
-              <p class="text-xs font-medium text-gray-500">Hours worked</p>
-              <p class="mt-1 text-lg font-semibold">{{ labor.periodRollup.hours.toFixed(1) }} h</p>
-            </div>
-            <div>
-              <p class="text-xs font-medium text-gray-500">€ / labor hour</p>
-              <p class="mt-1 text-lg font-semibold">
-                {{ labor.periodRollup.revenuePerLaborHour != null ? formatEur(labor.periodRollup.revenuePerLaborHour) : '—' }}
-              </p>
-            </div>
-          </div>
-        </UCard>
+        <DailyOpsProfitHourCard
+          title="Most Profitable Hour"
+          :data="revenue.mostProfitableHour"
+        />
 
+        <template v-if="isProductivityView">
         <div class="min-w-0 space-y-6">
           <UCard class="border-2 border-gray-900 !bg-white ring-0 shadow-none">
             <template #header>
               <div class="flex flex-wrap items-center justify-between gap-3">
                 <h2 class="text-lg font-semibold text-gray-900">Teams &amp; Workers</h2>
                 <div
-                  class="inline-flex shrink-0 flex-wrap items-center gap-1 rounded-md border-2 border-gray-900 bg-gray-100 p-0.5"
+                  class="relative z-0 inline-flex shrink-0 flex-wrap items-center gap-1 rounded-md border-2 border-gray-900 bg-gray-100 p-0.5"
                   role="group"
                   aria-label="Teams and workers view"
                 >
@@ -859,6 +744,8 @@
             </table>
           </div>
         </UCard>
+        </div>
+        </template>
 
         <UCard v-if="(labor.inventory?.notes?.length ?? 0) > 0" class="border-2 border-amber-800 bg-amber-50/90">
           <template #header>
@@ -895,9 +782,11 @@
       </div>
     </div>
 
-    <!-- Worker Details Drawer -->
+    <!-- Worker Details Drawer (productivity page only) -->
     <WorkerDetailsDrawer
+      v-if="isProductivityView"
       :is-open="isDrawerOpen"
+      :loading="drawerStaffPending"
       :selected-team="selectedTeam"
       :selected-contract="selectedContract"
       :workers-data="filteredWorkers"
@@ -912,8 +801,11 @@ import type {
   DailyOpsLaborMetricsDto,
   DailyOpsRevenueBreakdownDto,
   DailyOpsSummaryDto,
+  DailyOpsWorkerStaffDetailResponseDto,
   DailyOpsWorkersTeamLocationDayDto,
 } from '~/types/daily-ops-dashboard'
+import { resolveDailyOpsPeriod } from '~/utils/dailyOpsPeriod'
+import { amsterdamTodayYmd } from '~/utils/inbox/importTableQuickDates'
 import { formatDayHoursSharePlain, getDayHoursShareParts } from '~/utils/dailyOpsHoursShare'
 import D3PieChart from '~/components/charts/D3PieChart.vue'
 import D3PieChartV2 from '~/components/charts/D3PieChartV2.vue'
@@ -927,11 +819,16 @@ const props = withDefaults(
   defineProps<{
     /** Last segment of the H1, e.g. Dashboard, Revenue, Productivity */
     pageHeadingSuffix?: string
+    /** Labor detail tables/charts only on /daily-ops/productivity */
+    variant?: 'dashboard' | 'productivity'
   }>(),
   {
     pageHeadingSuffix: 'Dashboard',
+    variant: 'dashboard',
   }
 )
+
+const isProductivityView = computed(() => props.variant === 'productivity')
 
 type LocationRow = { _id: string; name: string; abbreviation?: string }
 
@@ -948,7 +845,12 @@ const laborByDayMetricDefs: { key: LaborDayMetricKey; label: string }[] = [
   { key: 'eurPerH', label: '€ / h' },
 ]
 
-const { dashboardQuery, contextHeadline, locationId } = useDailyOpsDashboardRoute()
+const { dashboardQuery, contextHeadline, locationId, period, anchor } = useDailyOpsDashboardRoute()
+
+const isSingleDayDashboardPeriod = computed(() => {
+  const r = resolveDailyOpsPeriod(period.value, anchor.value ?? amsterdamTodayYmd())
+  return r.startDate === r.endDate
+})
 const { formatEur } = useDashboardEurFormat()
 
 const { data: locationsRes } = useFetch<{ success: boolean; data: LocationRow[] }>('/api/daily-ops/locations')
@@ -988,13 +890,6 @@ const {
 const summary = computed(() => metricsBundle.value?.summary ?? null)
 const revenue = computed(() => metricsBundle.value?.revenue ?? null)
 const labor = computed(() => metricsBundle.value?.labor ?? null)
-
-/** Headline labor cost: snapshot wages when available, legacy total otherwise. */
-const headlineLaborCost = computed((): number => {
-  const bd = summary.value?.summary.laborBreakdown
-  if (bd && bd.wages > 0) return bd.wages
-  return summary.value?.summary.totalLaborCost ?? 0
-})
 
 /** Bands for labor-cost % of revenue (Teams & Workers card only). */
 const laborPctThresholdLow = ref(30)
@@ -1605,12 +1500,14 @@ const formatContractBelowHoursLine = (contractType: string, date: string): strin
 
 type DrawerWorkerRow = {
   date: string
+  locationId: string
   locationName: string
   teamName: string
+  staffName: string
   totalHours: number
   totalCost: number
   laborCostPctOfRevenue: number | null
-  workerCount: number
+  locationDayRevenue: number | null
 }
 
 const selectedTeam = ref<string | null>(null)
@@ -1618,60 +1515,90 @@ const selectedContract = ref<string | null>(null)
 
 const isDrawerOpen = computed(() => selectedTeam.value !== null || selectedContract.value !== null)
 
+const drawerStaffCacheKey = computed(
+  () =>
+    `daily-ops-drawer-staff-${dashboardQuery.value.period}-${dashboardQuery.value.location ?? 'all'}-${dashboardQuery.value.anchor ?? ''}`
+)
+
+const {
+  data: drawerStaffRes,
+  pending: drawerStaffPending,
+  execute: loadDrawerStaff,
+} = await useAsyncData(
+  drawerStaffCacheKey,
+  async (): Promise<DailyOpsWorkerStaffDetailResponseDto> => {
+    const q = { ...dashboardQuery.value }
+    return await $fetch<DailyOpsWorkerStaffDetailResponseDto>(
+      '/api/daily-ops/metrics/worker-staff-detail',
+      { query: q }
+    )
+  },
+  { immediate: false }
+)
+
+watch(isDrawerOpen, (open) => {
+  if (open) void loadDrawerStaff()
+})
+
+const revenueByLocationDayLookup = computed(() => {
+  const m = new Map<string, number>()
+  for (const r of labor.value?.revenueByLocationDay ?? []) {
+    m.set(`${r.date}|${r.locationId}`, r.revenue)
+  }
+  return m
+})
+
 const filteredWorkers = computed((): DrawerWorkerRow[] => {
-  const raw = labor.value?.workersByTeamLocationByDay ?? []
+  const raw = drawerStaffRes.value?.workerStaffDetail ?? []
+  const revLookup = revenueByLocationDayLookup.value
+
+  const sortRows = (rows: DrawerWorkerRow[]) =>
+    rows.sort((a, b) => {
+      const dateCmp = a.date.localeCompare(b.date)
+      if (dateCmp !== 0) return dateCmp
+      const locTeam = `${a.locationName}${a.teamName}`.localeCompare(
+        `${b.locationName}${b.teamName}`
+      )
+      if (locTeam !== 0) return locTeam
+      return a.staffName.localeCompare(b.staffName)
+    })
 
   if (selectedTeam.value) {
-    return raw
-      .filter((r) => r.teamName === selectedTeam.value)
-      .map((r) => ({
-        date: r.date,
-        locationName: r.locationName,
-        teamName: r.teamName,
-        totalHours: r.totalHours,
-        totalCost: r.totalCost,
-        laborCostPctOfRevenue: r.laborCostPctOfRevenue,
-        workerCount: r.workerCount,
-      }))
-      .sort((a, b) => {
-        const dateCmp = a.date.localeCompare(b.date)
-        if (dateCmp !== 0) return dateCmp
-        return `${a.locationName}${a.teamName}`.localeCompare(`${b.locationName}${b.teamName}`)
-      })
+    return sortRows(
+      raw
+        .filter((r) => r.teamName === selectedTeam.value)
+        .map((r) => ({
+          date: r.date,
+          locationId: r.locationId,
+          locationName: r.locationName,
+          teamName: r.teamName,
+          staffName: r.staffName,
+          totalHours: r.totalHours,
+          totalCost: r.totalCost,
+          laborCostPctOfRevenue: r.laborCostPctOfRevenue,
+          locationDayRevenue: revLookup.get(`${r.date}|${r.locationId}`) ?? null,
+        }))
+    )
   }
 
   if (selectedContract.value) {
-    const contractRows = labor.value?.contractTypeByDay ?? []
-    const targetContract = selectedContract.value === 'None' ? '' : selectedContract.value
-    const filteredByContract = contractRows.filter((r) => (r.contractType || '') === targetContract)
-    
-    if (filteredByContract.length === 0) return []
-
-    const aggregated = new Map<string, DrawerWorkerRow>()
-    for (const row of raw) {
-      const key = `${row.date}|${row.locationName}|${row.teamName}`
-      if (!aggregated.has(key)) {
-        aggregated.set(key, {
-          date: row.date,
-          locationName: row.locationName,
-          teamName: row.teamName,
-          totalHours: 0,
-          totalCost: 0,
-          laborCostPctOfRevenue: null,
-          workerCount: 0,
-        })
-      }
-      const agg = aggregated.get(key)!
-      agg.totalHours += row.totalHours
-      agg.totalCost += row.totalCost
-      agg.workerCount += row.workerCount
-    }
-    
-    return Array.from(aggregated.values()).sort((a, b) => {
-      const dateCmp = a.date.localeCompare(b.date)
-      if (dateCmp !== 0) return dateCmp
-      return `${a.locationName}${a.teamName}`.localeCompare(`${b.locationName}${b.teamName}`)
-    })
+    const targetContract =
+      selectedContract.value === 'None' ? '' : selectedContract.value
+    return sortRows(
+      raw
+        .filter((r) => (r.contractType || '') === targetContract)
+        .map((r) => ({
+          date: r.date,
+          locationId: r.locationId,
+          locationName: r.locationName,
+          teamName: r.teamName,
+          staffName: r.staffName,
+          totalHours: r.totalHours,
+          totalCost: r.totalCost,
+          laborCostPctOfRevenue: r.laborCostPctOfRevenue,
+          locationDayRevenue: revLookup.get(`${r.date}|${r.locationId}`) ?? null,
+        }))
+    )
   }
 
   return []
