@@ -3,9 +3,24 @@ import type { DailyOpsPeriodId } from '~/types/daily-ops-dashboard'
 const DAILY_OPS_PERIODS: readonly DailyOpsPeriodId[] = [
   'today',
   'yesterday',
+  'd2',
+  'd3',
+  'd4',
+  'd5',
+  'd6',
+  'd7',
   'this-week',
   'last-week',
 ]
+
+const ROLLING_DAY_OFFSET: Partial<Record<DailyOpsPeriodId, number>> = {
+  d2: 2,
+  d3: 3,
+  d4: 4,
+  d5: 5,
+  d6: 6,
+  d7: 7,
+}
 
 export type DailyOpsDateRange = {
   period: DailyOpsPeriodId
@@ -69,6 +84,13 @@ export function resolveDailyOpsPeriod(
   if (period === 'yesterday') {
     const y = addDaysUtc(parseYmd(today)!, -1)
     const ymd = utcYmd(y)
+    return { period, startDate: ymd, endDate: ymd }
+  }
+
+  const rollDays = ROLLING_DAY_OFFSET[period]
+  if (rollDays != null) {
+    const d = addDaysUtc(parseYmd(today)!, -rollDays)
+    const ymd = utcYmd(d)
     return { period, startDate: ymd, endDate: ymd }
   }
 

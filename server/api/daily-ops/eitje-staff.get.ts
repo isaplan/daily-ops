@@ -3,7 +3,9 @@
  * @created: 2026-05-11T17:50:00.000Z
  * @last-modified: 2026-05-12T01:00:00.000Z
  * @description: Lists deduped Eitje contract rows from inbox-eitje-contracts with member match hints
- * @last-fix: [2026-05-12] contract_start/end from inbox-eitje-hours; ymd fallbacks for startdatum contract columns on contracts
+ * @last-fix: [2026-05-16] compensation_status on matched members (ADR-001)
+ *
+ * @adr-ref: ADR-001
  *
  * @exports-to:
  * ✓ pages/daily-ops/inbox/eitje-staff.vue (GET hub data)
@@ -11,6 +13,7 @@
 
 import { getDb } from '../../utils/db'
 import { ObjectId } from 'mongodb'
+import { compensationStatusFromFields } from '../../utils/memberCompensationRevisions'
 
 type MatchConfidence = 'high' | 'medium' | 'none'
 
@@ -25,6 +28,8 @@ export type EitjeStaffRow = {
   cost_per_hour: number | null
   matched_member_id?: string
   match_confidence: MatchConfidence
+  /** From members SSOT when matched (ADR-001) */
+  compensation_status?: 'ok' | 'missing'
 }
 
 function normStr(s: unknown): string {
@@ -120,12 +125,24 @@ export default defineEventHandler(async (event) => {
     const members = (await db
       .collection('members')
       .find({})
-      .project({ support_id: 1, email: 1, name: 1 })
+      .project({
+        support_id: 1,
+        email: 1,
+        name: 1,
+        compensation_status: 1,
+        contract_type: 1,
+        hourly_rate: 1,
+        cost_per_hour: 1,
+      })
       .toArray()) as {
       _id: ObjectId
       support_id?: string
       email?: string
       name?: string
+      compensation_status?: 'ok' | 'missing'
+      contract_type?: string
+      hourly_rate?: number
+      cost_per_hour?: number
     }[]
 
     /** Newest inbox-eitje-hours row per support_id (daily export stores contract dates here). */
@@ -161,17 +178,25 @@ export default defineEventHandler(async (event) => {
       })
     }
 
-    const bySupport = new Map<string, { id: string }>()
-    const byEmail = new Map<string, { id: string }>()
-    const byName = new Map<string, { id: string }>()
+    const bySupport = new Map<string, { id: string; compensation_status?: 'ok' | 'missing' }>()
+    const byEmail = new Map<string, { id: string; compensation_status?: 'ok' | 'missing' }>()
+    const byName = new Map<string, { id: string; compensation_status?: 'ok' | 'missing' }>()
     for (const m of members) {
       const id = String(m._id)
+      const ct = typeof m.contract_type === 'string' ? m.contract_type : ''
+      const hr = toNum(m.hourly_rate)
+      const cph = toNum(m.cost_per_hour)
+      const status =
+        m.compensation_status === 'ok' || m.compensation_status === 'missing'
+          ? m.compensation_status
+          : compensationStatusFromFields(ct, hr, cph)
+      const entry = { id, compensation_status: status }
       const sup = String(m.support_id ?? '').trim()
-      if (sup) bySupport.set(sup, { id })
+      if (sup) bySupport.set(sup, entry)
       const em = String(m.email ?? '').trim().toLowerCase()
-      if (em && !byEmail.has(em)) byEmail.set(em, { id })
+      if (em && !byEmail.has(em)) byEmail.set(em, entry)
       const nm = normStr(m.name)
-      if (nm && !byName.has(nm)) byName.set(nm, { id })
+      if (nm && !byName.has(nm)) byName.set(nm, entry)
     }
 
     const rows: EitjeStaffRow[] = []
@@ -244,11 +269,14 @@ export default defineEventHandler(async (event) => {
 
       let match_confidence: MatchConfidence = 'none'
       let matched_member_id: string | undefined
+      let compensation_status: 'ok' | 'missing' | undefined
 
       for (const sid of support_ids) {
         if (bySupport.has(sid)) {
           match_confidence = 'high'
-          matched_member_id = bySupport.get(sid)!.id
+          const hit = bySupport.get(sid)!
+          matched_member_id = hit.id
+          compensation_status = hit.compensation_status
           break
         }
       }
@@ -258,7 +286,9 @@ export default defineEventHandler(async (event) => {
           const em = String(d.email ?? '').trim().toLowerCase()
           if (em && byEmail.has(em)) {
             match_confidence = 'medium'
-            matched_member_id = byEmail.get(em)!.id
+            const hit = byEmail.get(em)!
+            matched_member_id = hit.id
+            compensation_status = hit.compensation_status
             hitEmail = true
             break
           }
@@ -267,7 +297,9 @@ export default defineEventHandler(async (event) => {
           const nm = normStr(employee_name)
           if (nm && byName.has(nm)) {
             match_confidence = 'medium'
-            matched_member_id = byName.get(nm)!.id
+            const hit = byName.get(nm)!
+            matched_member_id = hit.id
+            compensation_status = hit.compensation_status
           }
         }
       }
@@ -283,6 +315,7 @@ export default defineEventHandler(async (event) => {
         cost_per_hour,
         ...(matched_member_id ? { matched_member_id } : {}),
         match_confidence,
+        ...(compensation_status ? { compensation_status } : {}),
       })
     }
 
@@ -297,6 +330,7 @@ export default defineEventHandler(async (event) => {
     const total = rows.length
     const matched = rows.filter((r) => r.match_confidence !== 'none').length
     const unmatched = total - matched
+    const missing_compensation = rows.filter((r) => r.compensation_status === 'missing').length
     const distinct_contract_locations = [
       ...new Set(rows.map((r) => r.contract_location.trim()).filter((s) => s && s !== '—')),
     ].sort((a, b) => a.localeCompare(b, 'nl'))
@@ -310,6 +344,7 @@ export default defineEventHandler(async (event) => {
         total_staff: total,
         matched,
         unmatched,
+        missing_compensation,
         distinct_contract_locations,
       },
     }

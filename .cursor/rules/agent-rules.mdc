@@ -4,7 +4,7 @@ alwaysApply: true
 
 # Agent Rules: Daily Ops (Next.js 15 + React 18 + Socket.io)
 
-**Stack:** Next.js 15 • React 18 • TypeScript • Tailwind • Shadcn UI • MongoDB • Socket.io
+**Stack:** Nuxt 3 • Vue 3 • TypeScript • Tailwind • DO (DigitalOcean) • MongoDB
 
 ---
 
@@ -113,6 +113,8 @@ alwaysApply: true
 5. **Get explicit approval** → "Go ahead" / "Proceed"
 6. **THEN execute** (no more discussion)
 
+**Architecture SSOT:** If a change affects business rules, collection ownership, or data flow, update [ARCHITECTURE.md](../../ARCHITECTURE.md) and add an ADR to [DECISIONS.md](../../DECISIONS.md) in the same commit. Reference ADRs from metadata headers via `@adr-ref: ADR-00X`.
+
 ---
 
 ## 🛡️ ABSOLUTE PROHIBITIONS
@@ -177,6 +179,18 @@ grep '"type": "service"' function-registry.json
 **DON'T:**
 - Load full registry (15K tokens wasted)
 - Scan manually (grep is instant)
+
+---
+
+## Daily Ops venue strip KPI
+
+- Venue strip reads **`GET /api/daily-ops/metrics/venue-strip` only** — no second bundle fetch, no DB access in Vue.
+- **Fixed 3 `locationId`s** in `server/utils/dailyOpsVenueStrip.ts` (`VENUE_STRIP_LOCATIONS`) — do not derive strip cards from URL `?location=`.
+- **Productivity and labor rollups** in `dailyOpsVenueStrip.ts` (wages leading; €/h = revenue ÷ gewerkte hours). Operational split (gewerkte, Afwas 50/50) is defined in **`eitjeRebuildAggregationService`** (`gewerkt_*` fields) → **`buildLaborSection`** → snapshot; strip never reads `eitje_raw_data`.
+- **v1 periods:** `today` / `yesterday` single calendar day only; week/month UI is placeholder — API changes need plan phases D–F approval.
+- **Labor read path (ADR-004):** `daily_ops_snapshot_section_labor` first; `eitje_time_registration_aggregation` fallback only. Rebuild agg + snapshot after aggregation schema changes.
+- Before editing `dailyOpsDashboardMetrics.ts`, `bundle.get.ts`, or `aggregateLaborForRange.ts` → **ask user first** (import helpers only in v1).
+- After route/component changes: check dev terminal per RULE #0.5.
 
 ---
 

@@ -2,6 +2,18 @@
 
 Nuxt 4 application for daily operations management with Bork/Eitje integrations, notes, and data synchronization.
 
+## Architecture (read this first)
+
+If you read nothing else in this repo, read these — they are the locked source of truth for data flow, collections, and business rules:
+
+| Document | Purpose |
+|----------|---------|
+| **[ARCHITECTURE.md](./ARCHITECTURE.md)** | System design: collections, SSOT, inbox vs API, snapshots, compensation |
+| **[DECISIONS.md](./DECISIONS.md)** | Append-only ADR log (why we built it this way) |
+| **[ROADMAP.md](./ROADMAP.md)** | Planned and in-progress work |
+
+Implementation detail: [dev-docs/DAILY_OPS_SNAPSHOT_PLAN.md](./dev-docs/DAILY_OPS_SNAPSHOT_PLAN.md) · [dev-docs/COMPENSATION_REVISIONS_PLAN.md](./dev-docs/COMPENSATION_REVISIONS_PLAN.md)
+
 ## Quick Start
 
 Install dependencies:

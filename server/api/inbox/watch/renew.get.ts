@@ -1,9 +1,9 @@
 /**
  * @registry-id: inboxGmailWatchRenewAPI
  * @created: 2026-04-19T12:00:00.000Z
- * @last-modified: 2026-04-22T00:30:00.000Z
+ * @last-modified: 2026-05-14T12:00:00.000Z
  * @description: GET /api/inbox/watch/renew — Gmail users.watch renewal for schedulers (GitHub Actions, DO cron)
- * @last-fix: [2026-04-22] invalid_grant hint aligned with sync-scheduled
+ * @last-fix: [2026-05-14] getGmailOAuthRedirectUri import; invalid_grant hints aligned with sync-scheduled
  *
  * @exports-to:
  *   ✓ .github/workflows/gmail-watch-renew.yml
@@ -12,6 +12,7 @@
 import { getDb } from '../../../utils/db'
 import { ensureInboxCollections } from '../../../utils/inbox/collections'
 import { gmailWatchService } from '../../../services/gmailWatchService'
+import { getGmailOAuthRedirectUri } from '../../../utils/gmailRedirectUri'
 import {
   getGmailInvalidGrantHint,
   getGmailOAuthErrorMessage,
@@ -98,7 +99,7 @@ export default defineEventHandler(async (event) => {
       const gmailRedirectUriEnv = process.env.GMAIL_REDIRECT_URI?.trim() || '(unset)'
       let gmailRedirectUriUsedForOAuth: string
       try {
-        gmailRedirectUriUsedForOAuth = getGmailOAuthRedirectUri()
+        gmailRedirectUriUsedForOAuth = getGmailOAuthRedirectUri(event)
       } catch (e) {
         gmailRedirectUriUsedForOAuth = e instanceof Error ? e.message : 'unknown'
       }

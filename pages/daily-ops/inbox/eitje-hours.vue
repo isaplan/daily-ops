@@ -268,8 +268,8 @@ const filterLocation = ref<string>(FILTER_ALL)
 const filterBusinessDate = ref<string>(FILTER_ALL)
 const filterImportHour = ref<string>(FILTER_ALL)
 
-const MAX_PAGES = 40
-const PAGE_SIZE = 200
+/** Mapped `inbox-eitje-hours` docs are labor rows; one request keeps payloads small and avoids 500s. */
+const MAPPED_ROWS_LIMIT = 20
 
 function formatShortImportDate(iso: string | null | undefined): string {
   if (!iso) return ''
@@ -559,38 +559,22 @@ async function loadMappedRows() {
   fetchWarning.value = null
   storedRange.value = null
   try {
-    const merged: Record<string, unknown>[] = []
-    let page = 1
-    let minP: string | null = null
-    let maxP: string | null = null
-
-    for (;;) {
-      const qs = new URLSearchParams({
-        view: 'mapped',
-        page: String(page),
-        limit: String(PAGE_SIZE),
-      })
-      const res = await $fetch<InboxImportTableApiResponse>(`/api/inbox/eitje/hours?${qs.toString()}`)
-      if (!res.success || !res.data) {
-        loadError.value = 'Failed to load mapped hours'
-        return
-      }
-      merged.push(...res.data.rows)
-      const sr = res.data.storedRowTimeRange
-      if (sr) {
-        if (sr.minParsedAt && (!minP || sr.minParsedAt < minP)) minP = sr.minParsedAt
-        if (sr.maxParsedAt && (!maxP || sr.maxParsedAt > maxP)) maxP = sr.maxParsedAt
-      }
-      if (!res.data.pagination.hasMore) break
-      page += 1
-      if (page > MAX_PAGES) {
-        fetchWarning.value = `Loaded ${merged.length} rows (${MAX_PAGES} pages). Older rows may be hidden; filter in Mongo or raise the cap if needed.`
-        break
-      }
+    const qs = new URLSearchParams({
+      view: 'mapped',
+      page: '1',
+      limit: String(MAPPED_ROWS_LIMIT),
+    })
+    const res = await $fetch<InboxImportTableApiResponse>(`/api/inbox/eitje/hours?${qs.toString()}`)
+    if (!res.success || !res.data) {
+      loadError.value = 'Failed to load mapped hours'
+      return
     }
-
-    rows.value = merged
-    storedRange.value = { minParsedAt: minP, maxParsedAt: maxP }
+    rows.value = res.data.rows
+    const sr = res.data.storedRowTimeRange
+    storedRange.value = sr ? { minParsedAt: sr.minParsedAt ?? null, maxParsedAt: sr.maxParsedAt ?? null } : null
+    if (res.data.pagination.hasMore) {
+      fetchWarning.value = `Showing the ${MAPPED_ROWS_LIMIT} most recent stored rows (newest imports first). More data exists in the database; use Mongo or the attachment table for full history.`
+    }
   } catch (e) {
     loadError.value = e instanceof Error ? e.message : 'Error loading hours'
   } finally {
