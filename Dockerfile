@@ -6,16 +6,16 @@ WORKDIR /app
 # Install pnpm first
 RUN npm install -g pnpm@10.33.0
 
-# Copy package files
+# Copy package files only
 COPY package.json pnpm-lock.yaml ./
 
 # Install dependencies with frozen lockfile
 RUN pnpm install --frozen-lockfile
 
-# Copy source
+# Copy source code
 COPY . .
 
-# Build
+# Build the application
 RUN pnpm run build
 
 # Production stage
@@ -32,10 +32,12 @@ RUN npm install -g pnpm@10.33.0
 # Copy package files
 COPY package.json pnpm-lock.yaml ./
 
-# Install production dependencies only
-RUN pnpm install --prod --frozen-lockfile
+# Install production dependencies only (no devDependencies)
+RUN pnpm install --prod --frozen-lockfile && \
+    # Remove pnpm store to save space
+    pnpm store prune
 
-# Copy built app from builder
+# Copy built app from builder stage
 COPY --from=builder /app/.output ./.output
 
 EXPOSE 3000
