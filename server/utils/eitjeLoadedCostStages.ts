@@ -18,8 +18,6 @@
 
 import { aggIsNumeric } from './eitjeLoadedCostShared'
 
-export { LOADED_FALLBACK_RATIO } from './eitjeLoadedCostShared'
-
 /**
  * Normalized employee_name addFields stage. Must be inserted BEFORE the cost lookups.
  */
