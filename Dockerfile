@@ -45,6 +45,9 @@ RUN echo "Installing production dependencies..." && \
 # Copy built app from builder stage
 COPY --from=builder /app/.output ./.output
 
+# Remove node_modules from .output (should not be bundled)
+RUN rm -rf ./.output/server/node_modules
+
 EXPOSE 3000
 
 # Health check
