@@ -1,24 +1,30 @@
 /**
  * @registry-id: borkRebuildAggregationV2Service
  * @created: 2026-04-14T18:00:00.000Z
- * @last-modified: 2026-05-08T20:14:00.000Z
- * @description: V2 Bork aggregates — writes bork_business_days, bork_sales_by_day, bork_sales_by_hour, bork_sales_by_table, bork_sales_by_worker, bork_sales_by_guest_account, bork_sales_by_product (+ version suffix)
- * @last-fix: [2026-05-08] TODO: Add total_revenue_ex_vat AND total_revenue_incl_vat fields (currently only has total_revenue which is incl VAT; raw line data has VAT breakdown)
+ * @last-modified: 2026-05-13T00:00:00.000Z
+ * @description: V2 Bork aggregates — writes bork_business_days, bork_sales_by_day, bork_sales_by_hour, bork_sales_by_table, bork_sales_by_worker, bork_sales_by_guest_account, bork_sales_by_product (+ version suffix). Every revenue rollup now emits total_revenue (inc VAT, back-compat), total_revenue_ex_vat, total_revenue_inc_vat, total_vat extracted from raw line TotalEx/TotalInc.
+ * @last-fix: [2026-05-13] Phase 0: add ex/inc/vat to every revenue rollup using extractLineRevenue helper. Single-pass design preserved; paymodes intentionally remain inc-only (tender amounts).
  *
- * @CRITICAL: Line revenue uses Lines (Price×Qty); paymode totals use Order.Paymodes (may differ from line totals).
- * @TODO: Extract VAT breakdown from raw.Lines[].Price fields and calculate BOTH ex VAT and incl VAT totals.
+ * @CRITICAL: Line revenue uses Lines[].TotalEx + TotalInc (live data confirmed); paymode totals use Order.Paymodes[].Total (tender amounts, no VAT split).
+ *
+ * @architecture:
+ *   - One pass over bork_raw_data rebuilds all 7 collections.
+ *   - VAT extraction delegated to server/utils/borkVatCalculation.ts (single source of truth).
+ *   - Business day = 08:00 Amsterdam → 07:59:59 next ISO day (see calendarToBusinessDay).
  *
  * @exports-to:
  * ✓ scripts/bork-backfill-weekly-backward.ts
  * ✓ scripts/rebuild-bork-v2-date-range.ts
  * ✓ scripts/bork-full-raw-backfill.ts
  * ✓ scripts/bork-last-7-days-test.ts
+ * ✓ scripts/backfill-bork-vat-fields.ts (Phase 0 backfill)
  * ✓ server/services/borkSyncService.ts
  * ✓ server/api/sales-aggregated.get.ts (read paths via version suffix)
  * ✓ server/utils/borkV2RebuildSuffix.ts (rebuild script write suffix)
  */
 
 import type { Db, Document } from 'mongodb'
+import { extractLineRevenue, resetBorkVatDebugSampler } from '../utils/borkVatCalculation'
 
 function borkDateToISO(borkDate: number): string {
   const s = String(borkDate).padStart(8, '0')
@@ -62,12 +68,23 @@ function isBorkTicketOpenUnsettled(ticket: { ActualDate?: number | string } | nu
   return ad === 10101 || ad === '10101'
 }
 
-type ProductRollup = { productId: string; productName: string; revenue: number; quantity: number }
+type ProductRollup = {
+  productId: string
+  productName: string
+  revenue: number
+  revenue_ex_vat: number
+  revenue_inc_vat: number
+  vat: number
+  quantity: number
+}
 
 type WorkerDayRollup = {
   workerId: string
   workerName: string
   total_revenue: number
+  total_revenue_ex_vat: number
+  total_revenue_inc_vat: number
+  total_vat: number
   total_quantity: number
   record_count: number
 }
@@ -75,9 +92,13 @@ type WorkerDayRollup = {
 type GuestDayRollup = {
   accountName: string
   total_revenue: number
+  total_revenue_ex_vat: number
+  total_revenue_inc_vat: number
+  total_vat: number
   total_quantity: number
 }
 
+/** Paymodes are tender amounts (customer payment); no VAT split applies. */
 type PaymodeDayRollup = {
   paymodeName: string
   groupName: string
@@ -91,6 +112,9 @@ type DayRollupInternal = {
   business_date: string
   status: string
   total_revenue: number
+  total_revenue_ex_vat: number
+  total_revenue_inc_vat: number
+  total_vat: number
   total_quantity: number
   record_count: number
   paymode_total: number
@@ -180,6 +204,9 @@ export async function rebuildBorkSalesAggregationV2(
         business_date: businessDate,
         status: 'aggregated',
         total_revenue: 0,
+        total_revenue_ex_vat: 0,
+        total_revenue_inc_vat: 0,
+        total_vat: 0,
         total_quantity: 0,
         record_count: 0,
         paymode_total: 0,
@@ -191,6 +218,9 @@ export async function rebuildBorkSalesAggregationV2(
     }
     return dayRollupMap.get(dayKey)!
   }
+
+  // Fresh debug sampler per rebuild invocation (gated by DEBUG=bork:vat)
+  resetBorkVatDebugSampler()
 
   try {
     for await (const rawDoc of cursor) {
@@ -234,9 +264,8 @@ export async function rebuildBorkSalesAggregationV2(
           for (const line of lines) {
             if (!line || typeof line !== 'object') continue
 
-            const price = Number(line.Price || 0)
-            const qty = Number(line.Qty || 0)
-            const totalPrice = price * qty
+            const { ex, inc, vat, qty } = extractLineRevenue(line)
+            const price = Number((line as { Price?: number }).Price ?? 0)
             const productName = (line as { ProductName?: string }).ProductName || 'Unknown'
             const productKey = String((line as { ProductKey?: string }).ProductKey || 'unknown')
 
@@ -251,34 +280,49 @@ export async function rebuildBorkSalesAggregationV2(
                 calendar_date: isoDate,
                 calendar_hour: calendarHour,
                 total_revenue: 0,
+                total_revenue_ex_vat: 0,
+                total_revenue_inc_vat: 0,
+                total_vat: 0,
                 total_quantity: 0,
                 record_count: 0,
                 products: new Map<string, ProductRollup>(),
               })
             }
             const he = byHourMap.get(hourKey)!
-            he.total_revenue = (he.total_revenue as number) + totalPrice
+            he.total_revenue = (he.total_revenue as number) + inc
+            he.total_revenue_ex_vat = (he.total_revenue_ex_vat as number) + ex
+            he.total_revenue_inc_vat = (he.total_revenue_inc_vat as number) + inc
+            he.total_vat = (he.total_vat as number) + vat
             he.total_quantity = (he.total_quantity as number) + qty
             he.record_count = (he.record_count as number) + 1
 
             const pmap = he.products as Map<string, ProductRollup>
             if (!pmap.has(productKey)) {
-              pmap.set(productKey, { productId: productKey, productName, revenue: 0, quantity: 0 })
+              pmap.set(productKey, { productId: productKey, productName, revenue: 0, revenue_ex_vat: 0, revenue_inc_vat: 0, vat: 0, quantity: 0 })
             }
             const hp = pmap.get(productKey)!
-            hp.revenue += totalPrice
+            hp.revenue += inc
+            hp.revenue_ex_vat += ex
+            hp.revenue_inc_vat += inc
+            hp.vat += vat
             hp.quantity += qty
 
             const dr = ensureDayRollup(dayKey, unifiedLocationId, unifiedLocationName, businessDate)
-            dr.total_revenue += totalPrice
+            dr.total_revenue += inc
+            dr.total_revenue_ex_vat += ex
+            dr.total_revenue_inc_vat += inc
+            dr.total_vat += vat
             dr.total_quantity += qty
             dr.record_count += 1
 
             if (!dr.products.has(productKey)) {
-              dr.products.set(productKey, { productId: productKey, productName, revenue: 0, quantity: 0 })
+              dr.products.set(productKey, { productId: productKey, productName, revenue: 0, revenue_ex_vat: 0, revenue_inc_vat: 0, vat: 0, quantity: 0 })
             }
             const dp = dr.products.get(productKey)!
-            dp.revenue += totalPrice
+            dp.revenue += inc
+            dp.revenue_ex_vat += ex
+            dp.revenue_inc_vat += inc
+            dp.vat += vat
             dp.quantity += qty
 
             if (!dr.workers.has(unifiedWorkerId)) {
@@ -286,12 +330,18 @@ export async function rebuildBorkSalesAggregationV2(
                 workerId: unifiedWorkerId,
                 workerName: unifiedWorkerName,
                 total_revenue: 0,
+                total_revenue_ex_vat: 0,
+                total_revenue_inc_vat: 0,
+                total_vat: 0,
                 total_quantity: 0,
                 record_count: 0,
               })
             }
             const dw = dr.workers.get(unifiedWorkerId)!
-            dw.total_revenue += totalPrice
+            dw.total_revenue += inc
+            dw.total_revenue_ex_vat += ex
+            dw.total_revenue_inc_vat += inc
+            dw.total_vat += vat
             dw.total_quantity += qty
             dw.record_count += 1
 
@@ -306,12 +356,18 @@ export async function rebuildBorkSalesAggregationV2(
                 productName,
                 unit_price: price,
                 total_revenue: 0,
+                total_revenue_ex_vat: 0,
+                total_revenue_inc_vat: 0,
+                total_vat: 0,
                 total_quantity: 0,
                 record_count: 0,
               })
             }
             const pe = byProductMap.get(productAggKey)!
-            pe.total_revenue = (pe.total_revenue as number) + totalPrice
+            pe.total_revenue = (pe.total_revenue as number) + inc
+            pe.total_revenue_ex_vat = (pe.total_revenue_ex_vat as number) + ex
+            pe.total_revenue_inc_vat = (pe.total_revenue_inc_vat as number) + inc
+            pe.total_vat = (pe.total_vat as number) + vat
             pe.total_quantity = (pe.total_quantity as number) + qty
             pe.record_count = (pe.record_count as number) + 1
 
@@ -328,21 +384,30 @@ export async function rebuildBorkSalesAggregationV2(
                   locationName: unifiedLocationName,
                   tableNumber,
                   total_revenue: 0,
+                  total_revenue_ex_vat: 0,
+                  total_revenue_inc_vat: 0,
+                  total_vat: 0,
                   total_quantity: 0,
                   record_count: 0,
                   products: new Map<string, ProductRollup>(),
                 })
               }
               const te = byTableMap.get(tableKey)!
-              te.total_revenue = (te.total_revenue as number) + totalPrice
+              te.total_revenue = (te.total_revenue as number) + inc
+              te.total_revenue_ex_vat = (te.total_revenue_ex_vat as number) + ex
+              te.total_revenue_inc_vat = (te.total_revenue_inc_vat as number) + inc
+              te.total_vat = (te.total_vat as number) + vat
               te.total_quantity = (te.total_quantity as number) + qty
               te.record_count = (te.record_count as number) + 1
               const tm = te.products as Map<string, ProductRollup>
               if (!tm.has(productKey)) {
-                tm.set(productKey, { productId: productKey, productName, revenue: 0, quantity: 0 })
+                tm.set(productKey, { productId: productKey, productName, revenue: 0, revenue_ex_vat: 0, revenue_inc_vat: 0, vat: 0, quantity: 0 })
               }
               const tp = tm.get(productKey)!
-              tp.revenue += totalPrice
+              tp.revenue += inc
+              tp.revenue_ex_vat += ex
+              tp.revenue_inc_vat += inc
+              tp.vat += vat
               tp.quantity += qty
             }
 
@@ -359,21 +424,30 @@ export async function rebuildBorkSalesAggregationV2(
                 workerId: unifiedWorkerId,
                 workerName: unifiedWorkerName,
                 total_revenue: 0,
+                total_revenue_ex_vat: 0,
+                total_revenue_inc_vat: 0,
+                total_vat: 0,
                 total_quantity: 0,
                 record_count: 0,
                 products: new Map<string, ProductRollup>(),
               })
             }
             const we = byWorkerMap.get(workerKey)!
-            we.total_revenue = (we.total_revenue as number) + totalPrice
+            we.total_revenue = (we.total_revenue as number) + inc
+            we.total_revenue_ex_vat = (we.total_revenue_ex_vat as number) + ex
+            we.total_revenue_inc_vat = (we.total_revenue_inc_vat as number) + inc
+            we.total_vat = (we.total_vat as number) + vat
             we.total_quantity = (we.total_quantity as number) + qty
             we.record_count = (we.record_count as number) + 1
             const wm = we.products as Map<string, ProductRollup>
             if (!wm.has(productKey)) {
-              wm.set(productKey, { productId: productKey, productName, revenue: 0, quantity: 0 })
+              wm.set(productKey, { productId: productKey, productName, revenue: 0, revenue_ex_vat: 0, revenue_inc_vat: 0, vat: 0, quantity: 0 })
             }
             const wp = wm.get(productKey)!
-            wp.revenue += totalPrice
+            wp.revenue += inc
+            wp.revenue_ex_vat += ex
+            wp.revenue_inc_vat += inc
+            wp.vat += vat
             wp.quantity += qty
 
             if (!hasTable) {
@@ -392,32 +466,47 @@ export async function rebuildBorkSalesAggregationV2(
                   workerId: unifiedWorkerId,
                   workerName: unifiedWorkerName,
                   total_revenue: 0,
+                  total_revenue_ex_vat: 0,
+                  total_revenue_inc_vat: 0,
+                  total_vat: 0,
                   total_quantity: 0,
                   record_count: 0,
                   products: new Map<string, ProductRollup>(),
                 })
               }
               const ge = byGuestMap.get(guestKey)!
-              ge.total_revenue = (ge.total_revenue as number) + totalPrice
+              ge.total_revenue = (ge.total_revenue as number) + inc
+              ge.total_revenue_ex_vat = (ge.total_revenue_ex_vat as number) + ex
+              ge.total_revenue_inc_vat = (ge.total_revenue_inc_vat as number) + inc
+              ge.total_vat = (ge.total_vat as number) + vat
               ge.total_quantity = (ge.total_quantity as number) + qty
               ge.record_count = (ge.record_count as number) + 1
               const gm = ge.products as Map<string, ProductRollup>
               if (!gm.has(productKey)) {
-                gm.set(productKey, { productId: productKey, productName, revenue: 0, quantity: 0 })
+                gm.set(productKey, { productId: productKey, productName, revenue: 0, revenue_ex_vat: 0, revenue_inc_vat: 0, vat: 0, quantity: 0 })
               }
               const gp = gm.get(productKey)!
-              gp.revenue += totalPrice
+              gp.revenue += inc
+              gp.revenue_ex_vat += ex
+              gp.revenue_inc_vat += inc
+              gp.vat += vat
               gp.quantity += qty
 
               if (!dr.guests.has(guestAccountName)) {
                 dr.guests.set(guestAccountName, {
                   accountName: guestAccountName,
                   total_revenue: 0,
+                  total_revenue_ex_vat: 0,
+                  total_revenue_inc_vat: 0,
+                  total_vat: 0,
                   total_quantity: 0,
                 })
               }
               const dg = dr.guests.get(guestAccountName)!
-              dg.total_revenue += totalPrice
+              dg.total_revenue += inc
+              dg.total_revenue_ex_vat += ex
+              dg.total_revenue_inc_vat += inc
+              dg.total_vat += vat
               dg.total_quantity += qty
             }
           }
@@ -480,6 +569,9 @@ export async function rebuildBorkSalesAggregationV2(
       business_date: dr.business_date,
       status: dr.status,
       total_revenue: dr.total_revenue,
+      total_revenue_ex_vat: dr.total_revenue_ex_vat,
+      total_revenue_inc_vat: dr.total_revenue_inc_vat,
+      total_vat: dr.total_vat,
       total_quantity: dr.total_quantity,
       record_count: dr.record_count,
       hour_buckets,
@@ -492,6 +584,9 @@ export async function rebuildBorkSalesAggregationV2(
       business_date: dr.business_date,
       status: dr.status,
       total_revenue: dr.total_revenue,
+      total_revenue_ex_vat: dr.total_revenue_ex_vat,
+      total_revenue_inc_vat: dr.total_revenue_inc_vat,
+      total_vat: dr.total_vat,
       total_quantity: dr.total_quantity,
       record_count: dr.record_count,
       hour_buckets,

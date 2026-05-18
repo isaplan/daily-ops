@@ -1,5 +1,6 @@
 import { resolveDailyOpsPeriod } from '~/utils/dailyOpsPeriod'
-import { DAILY_OPS_PERIOD_IDS, type DailyOpsPeriodId } from '~/types/daily-ops-dashboard'
+import { DAILY_OPS_PERIOD_IDS, DAILY_OPS_ROLLING_DAY_PERIOD_IDS, type DailyOpsPeriodId } from '~/types/daily-ops-dashboard'
+import { amsterdamTodayYmd } from '~/utils/inbox/importTableQuickDates'
 
 export type DailyOpsNavKey = 'overview' | 'revenue' | 'productivity' | 'workload' | 'products' | 'insights' | 'inbox'
 
@@ -28,7 +29,7 @@ export function useDailyOpsDashboardRoute() {
   const dashboardQuery = computed(() => {
     const q: Record<string, string> = { period: period.value }
     if (locationId.value) q.location = locationId.value
-    if (anchor.value) q.anchor = anchor.value
+    q.anchor = anchor.value ?? amsterdamTodayYmd()
     return q
   })
 
@@ -64,7 +65,7 @@ export function useDailyOpsDashboardRoute() {
       day: 'numeric',
       timeZone: 'UTC',
     })
-    const anchorYmd = anchor.value ?? new Date().toISOString().slice(0, 10)
+    const anchorYmd = anchor.value ?? amsterdamTodayYmd()
     const anchorUtc = new Date(`${anchorYmd}T12:00:00.000Z`)
     if (period.value === 'today') {
       return `Today: ${fmt.format(anchorUtc)} (UTC)`
@@ -73,6 +74,12 @@ export function useDailyOpsDashboardRoute() {
       const y = new Date(anchorUtc)
       y.setUTCDate(y.getUTCDate() - 1)
       return `Yesterday: ${fmt.format(y)} (UTC)`
+    }
+    if ((DAILY_OPS_ROLLING_DAY_PERIOD_IDS as readonly string[]).includes(period.value)) {
+      const r = resolveDailyOpsPeriod(period.value, anchorYmd)
+      const dayUtc = new Date(`${r.startDate}T12:00:00.000Z`)
+      const weekday = new Intl.DateTimeFormat('en-GB', { weekday: 'long', timeZone: 'UTC' }).format(dayUtc)
+      return `${weekday}: ${fmt.format(dayUtc)} (UTC)`
     }
     const r = resolveDailyOpsPeriod(period.value, anchorYmd)
     if (period.value === 'this-week') {

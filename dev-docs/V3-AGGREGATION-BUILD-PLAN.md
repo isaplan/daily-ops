@@ -1,13 +1,19 @@
 # V3 Aggregation Architecture Build Plan
 
+> ⚠️ **STALE — superseded by `dev-docs/DAILY_OPS_SNAPSHOT_PLAN.md` (2026-05-13).**
+> The "06:00 boundary" and "Part 1 / Part 2" model described below is **NOT** the implemented business-day definition.
+> **Authoritative business day = 08:00 Amsterdam → 07:59:59 next ISO day.** No split parts; one contiguous window.
+> Cron polls: 08:05 (final yesterday), 12:05, 18:05, 23:05 — see `server/tasks/inbox/gmail-sync.ts`.
+> All "06:00", "05:59", "Part 1/Part 2" references in this file are historic and should be read as 08:00 / 07:59 / single window.
+
 ## 🎯 Vision: Working Day Snapshot System with Hourly Granularity
 
 Build a **V3 aggregation pipeline** that creates evolving **working day snapshots** (like V2) but optimized for Nuxt/Nitro, with:
 - Single document per location per working day
-- Updated 6x daily via cron (06:00, 13:00, 16:00, 18:00, 20:00, 22:00 UTC)
+- Updated 4x daily via inbox cron (08:05, 12:05, 18:05, 23:05 Amsterdam) plus event-driven rebuilds
 - Hour-by-hour breakdown for charts
-- Immutable history after 05:59 UTC
-- Part 1 (06:00-23:59) + Part 2 (00:00-05:59) tracking
+- Immutable history after 07:59 Amsterdam (sealed on next-morning 08:05 final report)
+- Single contiguous window 08:00 → 07:59 next day (no Part 1 / Part 2 split)
 
 ---
 

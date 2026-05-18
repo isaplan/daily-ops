@@ -35,7 +35,11 @@
 
             <!-- Content -->
             <div class="min-w-0 flex-1 overflow-y-auto overflow-x-auto px-4 md:px-16">
-              <div v-if="props.workersData.length === 0" class="py-8 text-center">
+              <div v-if="props.loading" class="space-y-2 py-4">
+                <USkeleton v-for="i in 6" :key="i" class="h-8 w-full" />
+              </div>
+
+              <div v-else-if="props.workersData.length === 0" class="py-8 text-center">
                 <p class="text-sm text-gray-500">No workers found</p>
               </div>
 
@@ -52,8 +56,8 @@
                       <th class="px-2 py-2 text-xs font-semibold uppercase tracking-wide text-gray-600 whitespace-nowrap">
                         Team
                       </th>
-                      <th class="px-2 py-2 text-right text-xs font-semibold uppercase tracking-wide text-gray-600 whitespace-nowrap">
-                        Workers
+                      <th class="px-2 py-2 text-xs font-semibold uppercase tracking-wide text-gray-600 whitespace-nowrap">
+                        Staff
                       </th>
                       <th class="px-2 py-2 text-right text-xs font-semibold uppercase tracking-wide text-gray-600 whitespace-nowrap">
                         Hours
@@ -81,8 +85,8 @@
                       <td class="px-2 py-2 font-medium text-gray-900 whitespace-nowrap text-xs">
                         {{ row.teamName }}
                       </td>
-                      <td class="px-2 py-2 text-right text-gray-900 whitespace-nowrap text-xs">
-                        {{ row.workerCount }}
+                      <td class="px-2 py-2 text-gray-900 whitespace-nowrap text-xs">
+                        {{ row.staffName }}
                       </td>
                       <td class="px-2 py-2 text-right text-gray-900 tabular-nums whitespace-nowrap text-xs">
                         {{ row.totalHours.toFixed(1) }}h
@@ -91,7 +95,7 @@
                         {{ formatEur(row.totalCost) }}
                       </td>
                       <td class="px-2 py-2 text-right text-gray-900 tabular-nums whitespace-nowrap text-xs">
-                        {{ formatLaborPct(row.laborCostPctOfRevenue) }}
+                        {{ formatLaborPct(resolveRowLaborPct(row)) }}
                       </td>
                     </tr>
                   </tbody>
@@ -100,11 +104,11 @@
             </div>
 
             <!-- Footer Summary -->
-            <div v-if="props.workersData.length > 0" class="shrink-0 border-t border-gray-100 bg-gray-50 px-4 py-4 md:px-16">
-              <div class="grid grid-cols-4 gap-4 text-sm">
+            <div v-if="props.workersData.length > 0 && !props.loading" class="shrink-0 border-t border-gray-100 bg-gray-50 px-4 py-4 md:px-16">
+              <div class="grid grid-cols-2 gap-4 text-sm sm:grid-cols-3 lg:grid-cols-5">
                 <div>
-                  <p class="text-xs font-medium uppercase tracking-wide text-gray-500">Total Workers</p>
-                  <p class="mt-1 text-lg font-semibold text-gray-900">{{ totalWorkers }}</p>
+                  <p class="text-xs font-medium uppercase tracking-wide text-gray-500">Staff rows</p>
+                  <p class="mt-1 text-lg font-semibold text-gray-900">{{ totalStaff }}</p>
                 </div>
                 <div>
                   <p class="text-xs font-medium uppercase tracking-wide text-gray-500">Total Hours</p>
@@ -120,6 +124,12 @@
                     {{ totalHours > 0 ? formatEur(totalCost / totalHours) : '—' }}
                   </p>
                 </div>
+                <div>
+                  <p class="text-xs font-medium uppercase tracking-wide text-gray-500">Avg % Rev.</p>
+                  <p class="mt-1 text-lg font-semibold text-gray-900">
+                    {{ formatLaborPct(avgLaborPctOfRevenue) }}
+                  </p>
+                </div>
               </div>
             </div>
           </div>
@@ -132,22 +142,25 @@
 <script setup lang="ts">
 type WorkerRow = {
   date: string
+  locationId: string
   locationName: string
   teamName: string
+  staffName: string
   totalHours: number
   totalCost: number
   laborCostPctOfRevenue: number | null
-  workerCount: number
+  locationDayRevenue: number | null
 }
 
 type Props = {
   isOpen: boolean
+  loading?: boolean
   selectedTeam: string | null
   selectedContract: string | null
   workersData: WorkerRow[]
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), { loading: false })
 
 const emit = defineEmits<{
   close: []
@@ -161,9 +174,37 @@ const title = computed(() => {
   return 'Workers'
 })
 
-const totalWorkers = computed(() => props.workersData.reduce((sum, row) => sum + row.workerCount, 0))
+const totalStaff = computed(() => props.workersData.length)
 const totalHours = computed(() => props.workersData.reduce((sum, row) => sum + row.totalHours, 0))
 const totalCost = computed(() => props.workersData.reduce((sum, row) => sum + row.totalCost, 0))
+
+const totalRevenueForDrawer = computed(() => {
+  const seen = new Set<string>()
+  let sum = 0
+  for (const row of props.workersData) {
+    const key = `${row.date}|${row.locationId}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    sum += row.locationDayRevenue ?? 0
+  }
+  return sum
+})
+
+const avgLaborPctOfRevenue = computed((): number | null => {
+  if (totalRevenueForDrawer.value <= 0 || totalCost.value <= 0) return null
+  return Math.round((totalCost.value / totalRevenueForDrawer.value) * 1000) / 10
+})
+
+const resolveRowLaborPct = (row: WorkerRow): number | null => {
+  if (row.laborCostPctOfRevenue != null && Number.isFinite(row.laborCostPctOfRevenue)) {
+    return row.laborCostPctOfRevenue
+  }
+  const rev = row.locationDayRevenue
+  if (rev != null && rev > 0 && row.totalCost > 0) {
+    return Math.round((row.totalCost / rev) * 1000) / 10
+  }
+  return null
+}
 
 const formatLaborPct = (pct: number | null): string => {
   if (pct == null || !Number.isFinite(pct)) return '—'
@@ -185,7 +226,9 @@ const workersByDate = computed(() => {
   return props.workersData.sort((a, b) => {
     const dateCmp = a.date.localeCompare(b.date)
     if (dateCmp !== 0) return dateCmp
-    return `${a.locationName}${a.teamName}`.localeCompare(`${b.locationName}${b.teamName}`)
+    const locTeam = `${a.locationName}${a.teamName}`.localeCompare(`${b.locationName}${b.teamName}`)
+    if (locTeam !== 0) return locTeam
+    return a.staffName.localeCompare(b.staffName)
   })
 })
 

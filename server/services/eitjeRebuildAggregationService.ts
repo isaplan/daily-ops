@@ -1,13 +1,17 @@
 /**
  * @registry-id: eitjeRebuildAggregationService
  * @created: 2026-04-05T12:00:00.000Z
- * @last-modified: 2026-05-11T15:00:00.000Z
+ * @last-modified: 2026-05-16T12:00:00.000Z
  * @description: Rebuilds eitje_time_registration_aggregation day rows from eitje_raw_data for a date range
- * @last-fix: [2026-05-11] Labor period = Amsterdam calendar date of shift ISO start (not Bork post-midnight day)
+ * @last-fix: [2026-05-16] aggregatedAt on write; string keys; dedupe after insert.
+ *   Prior: [2026-05-16] Dedupe agg rows after insert (concurrent rebuild race).
+ *   Prior: [2026-05-14] Nul-uren: employer cost_per_hour = hourly_rate × 1.36 before loaded math.
+ *   Prior: [2026-05-14] cost_per_hour + total_cost_loaded; members eitje_id string cast fix.
  *
  * @exports-to:
  * ✓ server/services/eitjeSyncService.ts
  * ✓ server/api/eitje/v2/sync.post.ts (optional future)
+ * ✓ server/utils/dailyOpsSnapshot/buildLaborSection.ts (consumes total_cost_loaded)
  */
 
 import type { Db } from 'mongodb'
@@ -16,6 +20,17 @@ import {
   EITJE_LABOR_PERIOD_FROM_SHIFT_START_FIELD,
   EITJE_LABOR_SHIFT_START_FIELD,
 } from '../utils/eitjeHours'
+import {
+  EITJE_CONTRACT_CPH_LOOKUP,
+  EITJE_NORM_NAME_FIELD,
+  EITJE_RESOLVE_COST_PER_HOUR_FIELDS,
+} from '../utils/eitjeLoadedCostStages'
+import {
+  EITJE_LOADED_COST_FIELDS,
+  EITJE_NUL_UREN_EMPLOYER_CPH_OVERRIDE,
+} from '../utils/eitjeLoadedCostEmployerStages'
+import { fixAggregationDuplicates } from './dataIntegrityService'
+import { enqueueSnapshotBuild } from '../utils/dailyOpsSnapshot/jobCoalescer'
 
 function addUtcDays (d: Date, delta: number): Date {
   const x = new Date(d.getTime())
@@ -26,6 +41,7 @@ function addUtcDays (d: Date, delta: number): Date {
 export type RebuildAggResult = {
   deletedPeriods: number
   inserted: number
+  aggDeduped: number
 }
 
 function dayStartUtc (dateStr: string): Date {
@@ -142,24 +158,38 @@ export async function rebuildEitjeTimeRegistrationAggregation (
     {
       $lookup: {
         from: 'members',
-        let: { uid: '$userId' },
+        let: { uid: { $toString: { $ifNull: ['$userId', ''] } } },
         pipeline: [
+          {
+            $addFields: {
+              _eitje_id_str: { $toString: { $ifNull: ['$eitje_id', ''] } },
+              _eitje_ids_str: {
+                $map: {
+                  input: { $ifNull: ['$eitje_ids', []] },
+                  as: 'x',
+                  in: { $toString: '$$x' },
+                },
+              },
+            },
+          },
           {
             $match: {
               $expr: {
                 $or: [
-                  { $eq: ['$eitje_id', '$$uid'] },
-                  { $in: ['$$uid', { $ifNull: ['$eitje_ids', []] }] }
-                ]
+                  { $eq: ['$_eitje_id_str', '$$uid'] },
+                  { $in: ['$$uid', '$_eitje_ids_str'] },
+                ],
               },
             },
           },
           { $limit: 1 },
-          { $project: { hourly_rate: 1 } },
+          { $project: { hourly_rate: 1, cost_per_hour: 1, contract_type: 1 } },
         ],
         as: 'memberDoc',
       },
     },
+    EITJE_NORM_NAME_FIELD,
+    EITJE_CONTRACT_CPH_LOOKUP,
     {
       $lookup: {
         from: 'unified_user',
@@ -248,7 +278,9 @@ export async function rebuildEitjeTimeRegistrationAggregation (
         },
       },
     },
-    // Merge buckets when raw payloads mix number/string/ObjectId for same worker or team.
+    EITJE_RESOLVE_COST_PER_HOUR_FIELDS,
+    EITJE_NUL_UREN_EMPLOYER_CPH_OVERRIDE,
+    EITJE_LOADED_COST_FIELDS,
     {
       $addFields: {
         locationIdNorm: { $toString: '$locationId' },
@@ -268,8 +300,11 @@ export async function rebuildEitjeTimeRegistrationAggregation (
         user_name: { $first: '$user_name' },
         team_name: { $first: '$team_name' },
         hourly_rate: { $first: '$hourly_rate' },
+        cost_per_hour: { $first: '$cost_per_hour' },
+        loaded_cost_source: { $first: '$loaded_cost_source' },
         total_hours: { $sum: '$hours' },
         total_cost: { $sum: '$cost' },
+        total_cost_loaded: { $sum: '$loaded_cost' },
         record_count: { $sum: 1 },
       },
     },
@@ -285,17 +320,40 @@ export async function rebuildEitjeTimeRegistrationAggregation (
         teamId: '$_id.teamId',
         team_name: 1,
         hourly_rate: 1,
+        cost_per_hour: 1,
+        loaded_cost_source: 1,
         total_hours: 1,
         total_cost: 1,
+        total_cost_loaded: 1,
         record_count: 1,
       },
     },
   ]
 
-  const docs = await db.collection('eitje_raw_data').aggregate(pipeline).toArray() as Record<string, unknown>[]
+  const builtAt = new Date()
+  const docs = (await db.collection('eitje_raw_data').aggregate(pipeline).toArray()) as Record<string, unknown>[]
+  for (const doc of docs) {
+    doc.aggregatedAt = builtAt
+    doc.locationId = String(doc.locationId ?? '')
+    doc.userId = String(doc.userId ?? '')
+    doc.teamId = String(doc.teamId ?? '')
+  }
   if (docs.length > 0) {
     await collAgg.insertMany(docs)
   }
 
-  return { deletedPeriods: del.deletedCount, inserted: docs.length }
+  const aggDeduped = await fixAggregationDuplicates({ startDate, endDate })
+
+  const periods = await collAgg.distinct('period', {
+    period_type: 'day',
+    period: { $gte: startDate, $lte: endDate },
+  })
+  for (const period of periods) {
+    const locs = await collAgg.distinct('locationId', { period_type: 'day', period })
+    for (const loc of locs) {
+      enqueueSnapshotBuild({ businessDate: String(period), locationId: String(loc) })
+    }
+  }
+
+  return { deletedPeriods: del.deletedCount, inserted: docs.length, aggDeduped }
 }

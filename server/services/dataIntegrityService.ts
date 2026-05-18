@@ -193,9 +193,9 @@ export async function checkAggregationDuplicates (options: {
       $group: {
         _id: {
           period: '$period',
-          locationId: '$locationId',
-          userId: '$userId',
-          teamId: '$teamId',
+          locationId: { $toString: '$locationId' },
+          userId: { $toString: '$userId' },
+          teamId: { $toString: '$teamId' },
         },
         count: { $sum: 1 },
       },
@@ -534,9 +534,59 @@ export async function fixAggregationDuplicates (options: { startDate: string; en
   const coll = db.collection(options.endpoint === 'planning_shifts' ? 'eitje_planning_registration_aggregation' : 'eitje_time_registration_aggregation')
   const pipeline: unknown[] = [
     { $match: { period_type: 'day', period: { $gte: options.startDate, $lte: options.endDate } } },
-    { $group: { _id: { period: '$period', locationId: '$locationId', userId: '$userId', teamId: '$teamId' }, ids: { $push: '$_id' }, count: { $sum: 1 } } },
+    {
+      $group: {
+        _id: {
+          period: '$period',
+          locationId: { $toString: '$locationId' },
+          userId: { $toString: '$userId' },
+          teamId: { $toString: '$teamId' },
+        },
+        docs: {
+          $push: {
+            _id: '$_id',
+            loaded: { $ifNull: ['$total_cost_loaded', 0] },
+            wage: { $ifNull: ['$total_cost', 0] },
+          },
+        },
+        count: { $sum: 1 },
+      },
+    },
     { $match: { count: { $gt: 1 } } },
-    { $project: { remove: { $slice: ['$ids', 1, { $subtract: [{ $size: '$ids' }, 1] }] } } },
+    {
+      $project: {
+        remove: {
+          $let: {
+            vars: {
+              best: {
+                $arrayElemAt: [
+                  {
+                    $sortArray: {
+                      input: '$docs',
+                      sortBy: { loaded: -1, wage: -1 },
+                    },
+                  },
+                  0,
+                ],
+              },
+            },
+            in: {
+              $map: {
+                input: {
+                  $filter: {
+                    input: '$docs',
+                    as: 'd',
+                    cond: { $ne: ['$$d._id', '$$best._id'] },
+                  },
+                },
+                as: 'drop',
+                in: '$$drop._id',
+              },
+            },
+          },
+        },
+      },
+    },
     { $unwind: '$remove' },
     { $group: { _id: null, toDelete: { $push: '$remove' } } },
   ]

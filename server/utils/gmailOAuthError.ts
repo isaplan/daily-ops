@@ -1,8 +1,8 @@
 /**
  * Normalize googleapis / Gaxios OAuth errors for inbox routes.
  *
- * @last-modified: 2026-04-22T00:30:00.000Z
- * @last-fix: [2026-04-22] getGmailInvalidGrantHint for Playground-aligned env (token mismatch vs localhost)
+ * @last-modified: 2026-05-14T12:00:00.000Z
+ * @last-fix: [2026-05-14] invalid_grant hints: app redirect (NUXT_PUBLIC_SITE_URL / GMAIL_REDIRECT_URI) — drop Playground-centric copy
  *
  * @exports-to:
  * ✓ server/api/inbox/watch.post.ts
@@ -32,13 +32,16 @@ export function isInvalidGrantError(error: unknown): boolean {
   return getGmailOAuthErrorMessage(error).toLowerCase().includes('invalid_grant')
 }
 
-/** Actionable hint when refresh fails — different copy if redirect still looks like localhost. */
+/** Actionable hint when Google rejects the refresh token. */
 export function getGmailInvalidGrantHint(redirectUriEnv: string, redirectUriUsed: string): string {
-  const a = (redirectUriEnv + redirectUriUsed).toLowerCase()
-  const looksLocal =
-    a.includes('localhost') || a.includes('127.0.0.1') || a.includes('0.0.0.0')
-  if (looksLocal) {
-    return 'Redirect URI is still localhost somewhere. On App Platform, the Web component env can override app-level GMAIL_REDIRECT_URI — remove the duplicate or set https://developers.google.com/oauthplayground on the daily-ops component, redeploy, then ensure GMAIL_REFRESH_TOKEN was issued for that same redirect + client.'
+  const envTrim = redirectUriEnv === '(unset)' ? '' : redirectUriEnv.trim()
+  const used = (redirectUriUsed || '').trim()
+  if (envTrim && used && envTrim !== used) {
+    return `GMAIL_REDIRECT_URI in env does not match the redirect URI the server uses for OAuth (${used}). Remove GMAIL_REDIRECT_URI and set NUXT_PUBLIC_SITE_URL to your app origin (https://…), or set GMAIL_REDIRECT_URI to that exact callback URL including /api/auth/gmail/callback, redeploy, then Connect Gmail again.`
   }
-  return 'Redirect URI matches Playground. invalid_grant here almost always means GMAIL_REFRESH_TOKEN is revoked or was issued for different GMAIL_CLIENT_ID / GMAIL_CLIENT_SECRET than on the server. In OAuth Playground use the exact same OAuth client as DigitalOcean, authorize Gmail API scopes, copy the new refresh token into GMAIL_REFRESH_TOKEN (DO secrets), save, redeploy.'
+  const combined = `${redirectUriEnv}${redirectUriUsed}`.toLowerCase()
+  if (combined.includes('localhost') || combined.includes('127.0.0.1')) {
+    return 'Redirect involves localhost. On production, set NUXT_PUBLIC_SITE_URL to your public https origin (e.g. DigitalOcean default ingress) and register https://ORIGIN/api/auth/gmail/callback in Google Cloud Console. Re-authorize after deploy.'
+  }
+  return 'invalid_grant: refresh token rejected — revoked token, wrong GMAIL_CLIENT_ID/SECRET vs the client that issued the token, or redirect URI not listed in Google Cloud Console. Align NUXT_PUBLIC_SITE_URL (or full GMAIL_REDIRECT_URI callback) with an authorized redirect URI, then Connect Gmail and update GMAIL_REFRESH_TOKEN on the server.'
 }

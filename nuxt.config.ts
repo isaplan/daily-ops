@@ -1,6 +1,13 @@
-/** Set `DISABLE_INBOX_SCHEDULED=1` locally to skip Gmail poll when Mongo is offline. */
+/**
+ * Nitro crons (Gmail + Bork/Eitje) run on DO production only.
+ * Local `pnpm dev` often uses prod Mongo — duplicating crons causes overlap/timeouts.
+ * Set `ENABLE_NITRO_SCHEDULED_TASKS=1` to test crons locally; `DISABLE_*` still fine-tunes production.
+ */
+const enableNitroScheduled =
+  process.env.NODE_ENV === 'production' || process.env.ENABLE_NITRO_SCHEDULED_TASKS === '1'
+/** Set `DISABLE_INBOX_SCHEDULED=1` to skip Gmail poll (e.g. prod without inbox). */
 const disableInboxSchedule = process.env.DISABLE_INBOX_SCHEDULED === '1'
-/** Set `DISABLE_INTEGRATIONS_SCHEDULED=1` locally to skip Bork/Eitje Nitro cron (same as DISABLE_INBOX pattern). */
+/** Set `DISABLE_INTEGRATIONS_SCHEDULED=1` to skip Bork/Eitje Nitro cron on production. */
 const disableIntegrationsSchedule = process.env.DISABLE_INTEGRATIONS_SCHEDULED === '1'
 
 /**
@@ -30,7 +37,12 @@ if (CURRENT_TZ !== APP_TIMEZONE && CURRENT_TZ !== 'local') {
 }
 
 const scheduledTasks: Record<string, string[]> = {}
-if (!disableInboxSchedule) {
+if (!enableNitroScheduled) {
+  console.log(
+    '[NUXT CONFIG] Nitro scheduled tasks disabled (not production). DO runs crons; set ENABLE_NITRO_SCHEDULED_TASKS=1 to test locally.',
+  )
+}
+if (enableNitroScheduled && !disableInboxSchedule) {
   /**
    * Gmail inbox poll — **4×/day** Amsterdam (`inbox:gmail-sync`). Canonical spec + purposes: `server/tasks/inbox/gmail-sync.ts` metadata header.
    * Not the Bork/Eitje API integration schedule (`integrations:bork-eitje-*`).
@@ -41,7 +53,7 @@ if (!disableInboxSchedule) {
   scheduledTasks['5 18 * * *'] = ['inbox:gmail-sync']
   scheduledTasks['5 23 * * *'] = ['inbox:gmail-sync']
 }
-if (!disableIntegrationsSchedule) {
+if (enableNitroScheduled && !disableIntegrationsSchedule) {
   /**
    * Bork + Eitje **morning maintenance** (06:00): `master-data` then `historical-data` for both integrations.
    * Same sync pipeline as daily (`runIntegrationCronJob` → raw upsert + Bork V2 / Eitje labor rules for that job type).

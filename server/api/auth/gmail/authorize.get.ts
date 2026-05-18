@@ -1,16 +1,16 @@
 /**
  * @registry-id: gmailAuthAuthorizeAPI
  * @created: 2026-05-02T15:00:00.000Z
- * @last-modified: 2026-05-03T20:12:00.000Z
+ * @last-modified: 2026-05-14T12:00:00.000Z
  * @description: GET /api/auth/gmail/authorize — redirect to Google OAuth consent
- * @last-fix: [2026-05-03] Use dynamic redirect_uri from env
+ * @last-fix: [2026-05-14] getGmailOAuthRedirectUri(event) — request origin when env unset (DO URL)
  *
  * @exports-to:
  * ✓ pages/daily-ops/inbox/index.vue (UI button)
  */
 
 import { google } from 'googleapis'
-import { getGmailRedirectUri } from '../../../utils/gmailRedirectUri'
+import { getGmailOAuthRedirectUri } from '../../../utils/gmailRedirectUri'
 
 export default defineEventHandler(async (event) => {
   const clientId = process.env.GMAIL_CLIENT_ID
@@ -23,7 +23,7 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  const redirectUri = getGmailRedirectUri()
+  const redirectUri = getGmailOAuthRedirectUri(event)
 
   const oauth2Client = new google.auth.OAuth2(clientId, clientSecret, redirectUri)
 

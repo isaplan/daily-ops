@@ -1,15 +1,16 @@
 /**
  * @registry-id: inboxSyncScheduledAPI
  * @created: 2026-04-20T00:00:00.000Z
- * @last-modified: 2026-04-22T00:30:00.000Z
+ * @last-modified: 2026-05-14T12:00:00.000Z
  * @description: GET /api/inbox/sync-scheduled — Gmail poll for GitHub Actions (same UTC hours as Bork/Eitje +10m via inbox-daily-sync.yml)
- * @last-fix: [2026-04-22] invalid_grant hint: token/client mismatch when redirect already Playground
+ * @last-fix: [2026-05-14] getGmailOAuthRedirectUri import; invalid_grant hints without Playground default
  *
  * @exports-to:
  * ✓ .github/workflows/inbox-daily-sync.yml
  */
 
 import { runInboxGmailSync } from '../../services/inboxSyncService'
+import { getGmailOAuthRedirectUri } from '../../utils/gmailRedirectUri'
 import {
   getGmailInvalidGrantHint,
   getGmailOAuthErrorMessage,
@@ -41,7 +42,7 @@ export default defineEventHandler(async (event) => {
       const gmailRedirectUriEnv = process.env.GMAIL_REDIRECT_URI?.trim() || '(unset)'
       let gmailRedirectUriUsedForOAuth: string
       try {
-        gmailRedirectUriUsedForOAuth = getGmailOAuthRedirectUri()
+        gmailRedirectUriUsedForOAuth = getGmailOAuthRedirectUri(event)
       } catch (e) {
         gmailRedirectUriUsedForOAuth = e instanceof Error ? e.message : 'unknown'
       }
