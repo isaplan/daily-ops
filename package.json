@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "nuxt build && rm -rf .output/server/node_modules",
+    "build": "nuxt build",
     "dev": "nuxt dev -p 8080",
     "dev:clean": "lsof -ti:8080 | xargs kill -9 2>/dev/null; rm -rf .nuxt .output node_modules/.vite node_modules/.cache && nuxt prepare && nuxt dev -p 8080",
     "generate": "nuxt generate",
