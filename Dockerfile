@@ -36,11 +36,8 @@ RUN npm install -g pnpm@10.33.0
 # Copy package files
 COPY package.json pnpm-lock.yaml ./
 
-# Install production dependencies only (no devDependencies)
-RUN echo "Installing production dependencies..." && \
-    pnpm install --prod --frozen-lockfile && \
-    pnpm store prune && \
-    echo "Production dependencies installed"
+# Copy node_modules from builder (no re-install needed)
+COPY --from=builder /app/node_modules ./node_modules
 
 # Copy built app from builder stage
 COPY --from=builder /app/.output ./.output
