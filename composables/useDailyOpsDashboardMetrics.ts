@@ -14,13 +14,14 @@ import type {
   DailyOpsRevenueBreakdownDto,
   DailyOpsSummaryDto,
 } from '~/types/daily-ops-dashboard'
+import type { ComputedRef } from 'vue'
 
 export type DailyOpsDashboardMetrics = {
-  summary: DailyOpsSummaryDto | null
-  revenue: DailyOpsRevenueBreakdownDto | null
-  labor: DailyOpsLaborMetricsDto | null
-  pending: boolean
-  error: unknown
+  summary: ComputedRef<DailyOpsSummaryDto | null>
+  revenue: ComputedRef<DailyOpsRevenueBreakdownDto | null>
+  labor: ComputedRef<DailyOpsLaborMetricsDto | null>
+  pending: ComputedRef<boolean>
+  error: ComputedRef<unknown>
   refresh: () => Promise<void>
 }
 

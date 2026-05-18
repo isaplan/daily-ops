@@ -714,7 +714,10 @@ const locationTitle = computed(() => {
   return hit?.name ?? 'Selected Location'
 })
 
-const { summary, revenue, labor, pending, error, refresh: refreshMetrics } = useDailyOpsDashboardMetrics()
+const { summary: summaryRef, revenue: revenueRef, labor: laborRef, pending, error, refresh: refreshMetrics } = useDailyOpsDashboardMetrics()
+const summary = computed(() => summaryRef.value ?? null)
+const revenue = computed(() => revenueRef.value ?? null)
+const labor = computed(() => laborRef.value ?? null)
 
 const {
   laborPctThresholdLow,
