@@ -10,13 +10,17 @@ RUN npm install -g pnpm@10.33.0
 COPY package.json pnpm-lock.yaml ./
 
 # Install dependencies with frozen lockfile
-RUN pnpm install --frozen-lockfile
+RUN echo "Installing dependencies..." && \
+    pnpm install --frozen-lockfile && \
+    echo "Dependencies installed successfully"
 
 # Copy source code
 COPY . .
 
 # Build the application
-RUN pnpm run build
+RUN echo "Starting build..." && \
+    pnpm run build && \
+    echo "Build completed successfully"
 
 # Production stage
 FROM node:22.22.1-alpine
@@ -33,9 +37,10 @@ RUN npm install -g pnpm@10.33.0
 COPY package.json pnpm-lock.yaml ./
 
 # Install production dependencies only (no devDependencies)
-RUN pnpm install --prod --frozen-lockfile && \
-    # Remove pnpm store to save space
-    pnpm store prune
+RUN echo "Installing production dependencies..." && \
+    pnpm install --prod --frozen-lockfile && \
+    pnpm store prune && \
+    echo "Production dependencies installed"
 
 # Copy built app from builder stage
 COPY --from=builder /app/.output ./.output
