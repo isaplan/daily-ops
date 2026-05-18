@@ -27,6 +27,8 @@ Thumbs.db
 dist/
 build/
 out/
+.output/
+.nuxt/
 
 # Runtime
 .cache/
