@@ -13,6 +13,7 @@
 import type { Db } from 'mongodb'
 import {
   mergeSalesOnlyProducts,
+  pruneNonSellableCatalogProducts,
   syncProductCatalogForCredential,
   type BorkCredentialRow,
 } from '../utils/productCatalog'
@@ -66,10 +67,11 @@ export async function syncProductCatalogFromBorkApi(db: Db): Promise<ProductCata
   }
 
   const salesOnlyAdded = await mergeSalesOnlyProducts(db, syncedAt)
+  const pruned = await pruneNonSellableCatalogProducts(db)
 
   const ok = locationsOk > 0
   const message = ok
-    ? `Synced catalog for ${locationsOk}/${creds.length} location(s); ${productsWritten} API product rows; ${salesOnlyAdded} sales-only keys added.`
+    ? `Synced catalog for ${locationsOk}/${creds.length} location(s); ${productsWritten} API product rows; removed ${pruned} non-sellable (melding / no VAT).`
     : `Catalog sync failed: ${errors[0] ?? 'no locations succeeded'}`
 
   return {

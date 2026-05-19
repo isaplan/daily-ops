@@ -3,7 +3,7 @@
  * @created: 2026-05-20T00:00:00.000Z
  * @last-modified: 2026-05-20T00:00:00.000Z
  * @description: Unified product_catalog hub — Bork API catalog + sales rollups
- * @last-fix: [2026-05-20] Initial product_catalog sync, merge, and hub read path
+ * @last-fix: [2026-05-20] Exclude melding + no-VAT from catalog; sellable filter on read
  *
  * @exports-to:
  * ✓ server/services/productCatalogService.ts
@@ -32,6 +32,34 @@ const FOOD_HINTS =
 
 const SIZE_PATTERN =
   /\s+((?:fluit|vaas|pint|glas|mug|fles|pitcher|kan)\b|\d+(?:[.,]\d+)?\s*(?:cl|ml|l))\s*$/i
+
+/** Bork group names that are operational, not guest menu products. */
+const NON_SELLABLE_GROUP = /^melding$/i
+
+export function isMeldingGroupName(name: string | null | undefined): boolean {
+  const n = (name ?? '').trim()
+  if (!n) return false
+  return NON_SELLABLE_GROUP.test(n)
+}
+
+/** Sellable menu SKU: mapped 21/6% VAT and not under Melding. */
+export function isSellableCatalogProduct(input: {
+  vatPercent: 21 | 6 | null
+  groupPathNames: string[]
+  subCategory?: string | null
+}): boolean {
+  if (input.vatPercent == null) return false
+  if (isMeldingGroupName(input.subCategory)) return false
+  return !input.groupPathNames.some((n) => isMeldingGroupName(n))
+}
+
+export function isSellableCatalogDoc(doc: ProductCatalogDoc): boolean {
+  return isSellableCatalogProduct({
+    vatPercent: doc.vat_percent,
+    groupPathNames: [doc.sub_category ?? ''],
+    subCategory: doc.sub_category,
+  })
+}
 
 type BorkGroupRow = {
   Key?: string
@@ -290,6 +318,16 @@ export async function upsertCatalogProductFromApi(
   const groupName = pathNames[pathNames.length - 1] ?? null
   const category = classifyCategoryFromNames(pathNames)
   const vatPercent = resolveCatalogVatPercent(Number(product.Vat ?? 0))
+  if (
+    !isSellableCatalogProduct({
+      vatPercent,
+      groupPathNames: pathNames,
+      subCategory: groupName,
+    })
+  ) {
+    return
+  }
+
   const listInc = Number(product.Price ?? 0)
   const listIncRounded = Number.isFinite(listInc) && listInc > 0 ? Math.round(listInc * 100) / 100 : null
   const listEx = listIncRounded != null ? priceExFromInc(listIncRounded, vatPercent) : null
@@ -341,49 +379,22 @@ export async function upsertCatalogProductFromApi(
   )
 }
 
-export async function mergeSalesOnlyProducts(db: Db, syncedAt: Date): Promise<number> {
-  const suffix = listBorkAggReadSuffixCandidates().find((s) => s) ?? '_v2'
-  const collName = `bork_sales_by_product${suffix}`
-  const exists = await db.listCollections({ name: collName }).hasNext()
-  if (!exists) return 0
+/** No-op: sales-only keys lack catalog VAT and are not sellable menu products. */
+export async function mergeSalesOnlyProducts(_db: Db, _syncedAt: Date): Promise<number> {
+  return 0
+}
 
-  const pipeline = [
-    {
-      $group: {
-        _id: '$productId',
-        productName: { $first: '$productName' },
-        locationIds: { $addToSet: '$locationId' },
-      },
-    },
-  ]
-  const rows = await db.collection(collName).aggregate(pipeline).toArray()
-  let upserts = 0
-  for (const row of rows) {
-    const productKey = String(row._id ?? '')
-    if (!productKey) continue
-    const found = await db.collection(COLLECTION).findOne({ product_key: productKey })
-    if (found) continue
-    const displayName = String(row.productName ?? 'Unknown')
-    const { family_name, size_label } = parseProductVariantLabel(displayName)
-    const locationIds = (row.locationIds as unknown[]).map((id) => String(id))
-    const doc: ProductCatalogDoc = {
-      product_key: productKey,
-      display_name: displayName,
-      family_name,
-      size_label,
-      category: 'other',
-      sub_category: null,
-      vat_percent: null,
-      vat_label: 'unknown',
-      location_ids: locationIds,
-      locations: [],
-      sources: { sales_seen_at: syncedAt.toISOString() },
-      updated_at: syncedAt,
-    }
-    await db.collection(COLLECTION).updateOne({ product_key: productKey }, { $set: doc }, { upsert: true })
-    upserts++
-  }
-  return upserts
+/** Remove melding / no-VAT rows left from earlier syncs. */
+export async function pruneNonSellableCatalogProducts(db: Db): Promise<number> {
+  const result = await db.collection(COLLECTION).deleteMany({
+    $or: [
+      { vat_percent: null },
+      { vat_label: 'unknown' },
+      { sub_category: { $regex: /^melding$/i } },
+      { 'locations.sub_category': { $regex: /^melding$/i } },
+    ],
+  })
+  return result.deletedCount
 }
 
 export function normalizeProductCatalogDateRange(
@@ -548,11 +559,13 @@ export async function fetchProductCatalogHubRows(
   if (opts.category) filter.category = opts.category
   if (opts.locationId) filter.location_ids = opts.locationId
 
-  const docs = await db
-    .collection<ProductCatalogDoc>(COLLECTION)
-    .find(filter)
-    .sort({ family_name: 1, display_name: 1 })
-    .toArray()
+  const docs = (
+    await db
+      .collection<ProductCatalogDoc>(COLLECTION)
+      .find(filter)
+      .sort({ family_name: 1, display_name: 1 })
+      .toArray()
+  ).filter(isSellableCatalogDoc)
 
   const salesMap = await loadSalesByProduct(db, opts.range)
   let rows = docs.map((doc) => attachSalesToDoc(doc, salesMap.get(doc.product_key)))

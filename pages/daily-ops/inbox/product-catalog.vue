@@ -88,10 +88,11 @@
             class="w-full"
             placeholder="Location"
           />
-          <label class="flex items-center gap-2 text-sm text-gray-700">
-            <UCheckbox v-model="onlyWithSales" />
-            Only with sales
-          </label>
+          <UCheckbox
+            v-model="onlyWithSales"
+            label="Only with sales"
+            @update:model-value="onFilterChange"
+          />
           <UButton variant="outline" color="neutral" :loading="loading" @click="load(true)">Apply</UButton>
         </div>
 
@@ -283,6 +284,10 @@ const priceRangeEx = (row: ProductCatalogHubRow) => {
   return money(min)
 }
 
+const onFilterChange = () => {
+  void load(true)
+}
+
 const toggleExpanded = (i: number) => {
   const next = new Set(expanded.value)
   if (next.has(i)) next.delete(i)
@@ -303,7 +308,7 @@ const load = async (resetPage = false) => {
     if (search.value.trim()) params.set('search', search.value.trim())
     if (categoryFilter.value !== FILTER_ALL) params.set('category', categoryFilter.value)
     if (locationFilter.value !== FILTER_ALL) params.set('location', locationFilter.value)
-    if (onlyWithSales.value) params.set('only_with_sales', '1')
+    if (onlyWithSales.value === true) params.set('only_with_sales', '1')
 
     const res = await $fetch<{
       success: boolean

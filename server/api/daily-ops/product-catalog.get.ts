@@ -3,7 +3,7 @@
  * @created: 2026-05-20T00:00:00.000Z
  * @last-modified: 2026-05-20T00:00:00.000Z
  * @description: Unified product_catalog hub — menu + last-N-day sales per variant row
- * @last-fix: [2026-05-20] Initial product catalog list API
+ * @last-fix: [2026-05-20] only_with_sales filter; sellable catalog rows only
  *
  * @exports-to:
  * ✓ pages/daily-ops/inbox/product-catalog.vue
