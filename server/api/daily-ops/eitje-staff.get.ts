@@ -3,7 +3,7 @@
  * @created: 2026-05-11T17:50:00.000Z
  * @last-modified: 2026-05-12T01:00:00.000Z
  * @description: Lists deduped Eitje contract rows from inbox-eitje-contracts with member match hints
- * @last-fix: [2026-05-16] compensation_status on matched members (ADR-001)
+ * @last-fix: [2026-05-18] ZZP rows: cost_per_hour = hourly_rate only
  *
  * @adr-ref: ADR-001
  *
@@ -13,7 +13,11 @@
 
 import { getDb } from '../../utils/db'
 import { ObjectId } from 'mongodb'
-import { compensationStatusFromFields } from '../../utils/memberCompensationRevisions'
+import {
+  compensationStatusFromFields,
+  isNulUrenContract,
+  isZzpContract,
+} from '../../utils/memberCompensationRevisions'
 
 type MatchConfidence = 'high' | 'medium' | 'none'
 
@@ -81,10 +85,6 @@ function ymdEndFromDoc(doc: Record<string, unknown>): string | null {
     ?? ymdFromValue(doc.einddatum)
     ?? ymdFromValue(doc.EndDate)
   )
-}
-
-function isNulUrenContract(contractType: string): boolean {
-  return /nul\s*uren/i.test(contractType)
 }
 
 function toNum(v: unknown): number | null {
@@ -246,7 +246,9 @@ export default defineEventHandler(async (event) => {
       }
 
       let cost_per_hour: number | null = null
-      if (isNulUrenContract(contract_type) && hourly_rate != null) {
+      if (isZzpContract(contract_type) && hourly_rate != null) {
+        cost_per_hour = hourly_rate
+      } else if (isNulUrenContract(contract_type) && hourly_rate != null) {
         cost_per_hour = hourly_rate * 1.36
       } else {
         for (const d of sorted) {

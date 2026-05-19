@@ -1,23 +1,33 @@
 <template>
   <section class="min-w-0">
-    <div v-if="pending" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
-      <USkeleton v-for="i in 7" :key="i" class="h-24 w-full rounded-lg" />
+    <div v-if="pending" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8">
+      <USkeleton v-for="i in 8" :key="i" class="h-24 w-full rounded-lg" />
     </div>
 
     <div
       v-else-if="totals"
-      class="grid min-w-0 gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7"
+      class="grid min-w-0 gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8"
     >
-      <button
-        v-for="tile in tiles"
-        :key="tile.id"
-        type="button"
-        class="rounded-lg border-2 border-gray-900 bg-white p-4 text-left shadow-none transition-all hover:bg-gray-50 hover:shadow-md active:scale-[0.98]"
-        @click="openTile(tile.id)"
-      >
-        <p class="text-sm font-medium text-gray-500">{{ tile.label }}</p>
-        <p class="mt-2 text-2xl font-semibold tabular-nums text-gray-900">{{ tile.display }}</p>
-      </button>
+      <template v-for="tile in tiles">
+        <button
+          v-if="tile.opensDrawer"
+          :key="tile.id"
+          type="button"
+          class="rounded-lg border-2 border-gray-900 bg-white p-4 text-left shadow-none transition-all hover:bg-gray-50 hover:shadow-md active:scale-[0.98]"
+          @click="openTile(tile.id)"
+        >
+          <p class="text-sm font-medium text-gray-500">{{ tile.label }}</p>
+          <p class="mt-2 text-2xl font-semibold tabular-nums text-gray-900">{{ tile.display }}</p>
+        </button>
+        <div
+          v-else
+          :key="`${tile.id}-summary`"
+          class="rounded-lg border-2 border-gray-900 bg-white p-4 text-left shadow-none"
+        >
+          <p class="text-sm font-medium text-gray-500">{{ tile.label }}</p>
+          <p class="mt-2 text-2xl font-semibold tabular-nums text-gray-900">{{ tile.display }}</p>
+        </div>
+      </template>
     </div>
 
     <DailyOpsKpiDrawer
@@ -27,18 +37,21 @@
       :summary-rows="drawerContent.summaryRows"
       :venue-columns="drawerContent.venueColumns"
       :venue-rows="drawerContent.venueRows"
+      :venue-sections="drawerContent.venueSections"
       @close="activeDrawer = null"
     />
   </section>
 </template>
 
 <script setup lang="ts">
-import type { DailyOpsSummaryDto, VenueStripResponseDto } from '~/types/daily-ops-dashboard'
+import type { DailyOpsSummaryDto, VenueStripCardDto, VenueStripResponseDto } from '~/types/daily-ops-dashboard'
 import { resolveDailyOpsPeriod } from '~/utils/dailyOpsPeriod'
-import { amsterdamTodayYmd } from '~/utils/inbox/importTableQuickDates'
+import type { KpiDrawerVenueSection } from '~/components/daily-ops/DailyOpsKpiDrawer.vue'
 
 type KpiDrawerSummaryRow = { label: string; value: string }
 type KpiDrawerVenueRow = { locationName: string; cells: string[] }
+
+type GewerktStaffFilter = 'gewerkt' | 'keuken' | 'bediening' | 'overig'
 
 type KpiTileId =
   | 'revenue'
@@ -48,6 +61,7 @@ type KpiTileId =
   | 'gewerkt'
   | 'gewerktKeuken'
   | 'gewerktBediening'
+  | 'gewerktOverig'
 
 const props = defineProps<{
   period: string
@@ -60,7 +74,7 @@ const { formatEurWhole, formatHoursWhole, formatPctWhole, formatEurPerHourWhole 
 const isSingleDayPeriod = computed(() => {
   const { startDate, endDate } = resolveDailyOpsPeriod(
     typeof props.period === 'string' ? props.period : 'today',
-    props.anchor ?? amsterdamTodayYmd()
+    props.anchor ?? undefined
   )
   return startDate === endDate
 })
@@ -92,16 +106,20 @@ const totals = computed(() => {
   let revenue = 0
   let laborAllWages = 0
   let laborGewerktWages = 0
+  let allHours = 0
   let gewerktHours = 0
   let keukenHours = 0
   let bedieningHours = 0
+  let otherHours = 0
   for (const v of list) {
     revenue += v.revenue.total
     laborAllWages += v.labor.all.wages
     laborGewerktWages += v.labor.gewerkt.wages
+    allHours += v.labor.all.hours
     gewerktHours += v.labor.gewerkt.hours
     keukenHours += v.labor.keuken.hours
     bedieningHours += v.labor.bediening.hours
+    otherHours += v.labor.other?.hours ?? 0
   }
   const laborGewerktPct = revenue > 0 ? (laborGewerktWages / revenue) * 100 : null
   const laborAllPct = revenue > 0 ? (laborAllWages / revenue) * 100 : null
@@ -114,9 +132,11 @@ const totals = computed(() => {
     laborAllPct,
     laborPct: laborGewerktPct,
     productivity,
+    allHours,
     gewerktHours,
     keukenHours,
     bedieningHours,
+    otherHours,
   }
 })
 
@@ -124,13 +144,19 @@ const tiles = computed(() => {
   const t = totals.value
   if (!t) return []
   return [
-    { id: 'revenue' as const, label: 'Total Revenue', display: formatEurWhole(t.revenue) },
-    { id: 'labor' as const, label: 'Total Labor Cost', display: formatEurWhole(t.laborGewerktWages) },
-    { id: 'laborPct' as const, label: 'Labor Percentage', display: formatPctWhole(t.laborPct) },
-    { id: 'productivity' as const, label: 'Labor Productivity', display: formatEurPerHourWhole(t.productivity) },
-    { id: 'gewerkt' as const, label: 'Gewerkte uren', display: formatHoursWhole(t.gewerktHours) },
-    { id: 'gewerktKeuken' as const, label: 'Gewerkte uren · Keuken', display: formatHoursWhole(t.keukenHours) },
-    { id: 'gewerktBediening' as const, label: 'Gewerkte uren · Bediening', display: formatHoursWhole(t.bedieningHours) },
+    { id: 'revenue' as const, label: 'Total Revenue', display: formatEurWhole(t.revenue), opensDrawer: true },
+    { id: 'labor' as const, label: 'Total Labor Cost', display: formatEurWhole(t.laborGewerktWages), opensDrawer: true },
+    { id: 'laborPct' as const, label: 'Labor Percentage', display: formatPctWhole(t.laborPct), opensDrawer: true },
+    { id: 'productivity' as const, label: 'Labor Productivity', display: formatEurPerHourWhole(t.productivity), opensDrawer: true },
+    {
+      id: 'gewerkt' as const,
+      label: 'All uren',
+      display: formatHoursWhole(t.allHours),
+      opensDrawer: false,
+    },
+    { id: 'gewerktKeuken' as const, label: 'Gewerkte uren · Keuken', display: formatHoursWhole(t.keukenHours), opensDrawer: true },
+    { id: 'gewerktBediening' as const, label: 'Gewerkte uren · Bediening', display: formatHoursWhole(t.bedieningHours), opensDrawer: true },
+    { id: 'gewerktOverig' as const, label: 'Gewerkte uren · Overig', display: formatHoursWhole(t.otherHours), opensDrawer: true },
   ]
 })
 
@@ -196,9 +222,42 @@ function venueBedieningRows (): KpiDrawerVenueRow[] {
   }))
 }
 
+function staffForVenue (venue: VenueStripCardDto, filter: GewerktStaffFilter) {
+  const workers = venue.workers ?? []
+  return workers
+    .filter((w) => {
+      if (filter === 'gewerkt') return w.bucket === 'keuken' || w.bucket === 'bediening'
+      return w.bucket === filter
+    })
+    .map((w) => ({
+      name: w.userName,
+      team: w.teamName,
+      hours: formatHoursWhole(w.hours),
+      wages: formatEurWhole(w.wages),
+    }))
+}
+
+function venueSectionsForGewerkt (
+  filter: GewerktStaffFilter,
+  cellsForVenue: (v: VenueStripCardDto) => string[],
+): KpiDrawerVenueSection[] {
+  return venues.value.map((v) => ({
+    locationName: v.locationName,
+    cells: cellsForVenue(v),
+    staff: staffForVenue(v, filter),
+  }))
+}
+
 const drawerContent = computed(() => {
   const t = totals.value
-  const empty = { title: '', intro: '', summaryRows: [] as KpiDrawerSummaryRow[], venueColumns: [] as string[], venueRows: [] as KpiDrawerVenueRow[] }
+  const empty = {
+    title: '',
+    intro: '',
+    summaryRows: [] as KpiDrawerSummaryRow[],
+    venueColumns: [] as string[],
+    venueRows: [] as KpiDrawerVenueRow[],
+    venueSections: [] as KpiDrawerVenueSection[],
+  }
   if (!t || !activeDrawer.value) return empty
 
   const s = props.summary?.summary
@@ -273,37 +332,51 @@ const drawerContent = computed(() => {
           ],
         })),
       }
-    case 'gewerkt':
-      return {
-        title: 'Gewerkte uren',
-        intro: 'Operational worked hours (gewerkte_uren); Afwas split 50/50 into Keuken and Bediening.',
-        summaryRows: [
-          { label: 'Combined hours', value: formatHoursWhole(t.gewerktHours) },
-          { label: 'Keuken', value: formatHoursWhole(t.keukenHours) },
-          { label: 'Bediening', value: formatHoursWhole(t.bedieningHours) },
-        ],
-        venueColumns: ['Hours', 'Wages', '% rev'],
-        venueRows: venueGewerktRows(),
-      }
     case 'gewerktKeuken':
       return {
         title: 'Gewerkte uren · Keuken',
-        intro: 'Keuken team gewerkte hours (plus half of Afwas).',
+        intro: 'Keuken team gewerkte hours (plus half of Afwas per person).',
         summaryRows: [
           { label: 'Combined Keuken hours', value: formatHoursWhole(t.keukenHours) },
         ],
         venueColumns: ['Hours', 'Wages', 'Food €/h'],
-        venueRows: venueKeukenRows(),
+        venueRows: [],
+        venueSections: venueSectionsForGewerkt('keuken', (v) => [
+          formatHoursWhole(v.labor.keuken.hours),
+          formatEurWhole(v.labor.keuken.wages),
+          formatEurPerHourWhole(v.productivity.keukenPerHour),
+        ]),
       }
     case 'gewerktBediening':
       return {
         title: 'Gewerkte uren · Bediening',
-        intro: 'Bediening team gewerkte hours (plus half of Afwas).',
+        intro: 'Bediening team gewerkte hours (plus half of Afwas per person).',
         summaryRows: [
           { label: 'Combined Bediening hours', value: formatHoursWhole(t.bedieningHours) },
         ],
         venueColumns: ['Hours', 'Wages', 'Bev €/h'],
-        venueRows: venueBedieningRows(),
+        venueRows: [],
+        venueSections: venueSectionsForGewerkt('bediening', (v) => [
+          formatHoursWhole(v.labor.bediening.hours),
+          formatEurWhole(v.labor.bediening.wages),
+          formatEurPerHourWhole(v.productivity.bedieningPerHour),
+        ]),
+      }
+    case 'gewerktOverig':
+      return {
+        title: 'Gewerkte uren · Overig',
+        intro: 'All hours minus gewerkt: Ziek, Management, Algemeen, HR, stock teams, etc.',
+        summaryRows: [
+          { label: 'Combined Overig hours', value: formatHoursWhole(t.otherHours) },
+          { label: 'All hours (3 venues)', value: formatHoursWhole(t.gewerktHours + t.otherHours) },
+        ],
+        venueColumns: ['Hours', 'Wages', '% rev'],
+        venueRows: [],
+        venueSections: venueSectionsForGewerkt('overig', (v) => [
+          formatHoursWhole(v.labor.other?.hours ?? 0),
+          formatEurWhole(v.labor.other?.wages ?? 0),
+          formatPctWhole(v.labor.other?.laborPctOfRevenue ?? null),
+        ]),
       }
     default:
       return empty

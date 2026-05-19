@@ -119,15 +119,15 @@
           </div>
           <div>
             <p class="text-xs font-semibold text-gray-500 mb-3">API settings</p>
-            <TabRail v-model="dsRailSettings" :options="dsRailSettingsOptions" />
+            <UiTabRail v-model="dsRailSettings" :options="dsRailSettingsOptions" />
           </div>
           <div>
             <p class="text-xs font-semibold text-gray-500 mb-3">Todo's List</p>
-            <TabRail v-model="dsRailTodos" :options="dsRailTodosOptions" />
+            <UiTabRail v-model="dsRailTodos" :options="dsRailTodosOptions" />
           </div>
           <div>
             <p class="text-xs font-semibold text-gray-500 mb-3">Note editor aside</p>
-            <TabRail v-model="dsRailNote" :options="dsRailNoteOptions" />
+            <UiTabRail v-model="dsRailNote" :options="dsRailNoteOptions" />
           </div>
         </div>
       </section>

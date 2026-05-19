@@ -137,6 +137,15 @@
             Bork sales
           </UButton>
           <UButton
+            to="/daily-ops/inbox/bork-staff"
+            variant="outline"
+            color="neutral"
+            block
+            class="justify-center border-2 border-gray-900 font-semibold"
+          >
+            Bork staff
+          </UButton>
+          <UButton
             :to="{ path: '/daily-ops/inbox', hash: '#recent-emails' }"
             variant="outline"
             color="neutral"

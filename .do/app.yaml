@@ -1,0 +1,8 @@
+alerts:
+- rule: DEPLOYMENT_FAILED
+- rule: DOMAIN_FAILED
+
+buildpack_stack: ubuntu-24
+
+features:
+- buildpack-stack=ubuntu-24

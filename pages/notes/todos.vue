@@ -6,7 +6,7 @@
     <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
       <div class="flex items-center gap-3">
         <span class="text-sm font-medium text-gray-600">Show:</span>
-        <TabRail v-model="filterMode" :options="todoFilterTabOptions" />
+        <UiTabRail v-model="filterMode" :options="todoFilterTabOptions" />
       </div>
       <div class="flex items-center gap-1">
         <div class="relative w-48">

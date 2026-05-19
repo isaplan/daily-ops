@@ -40,7 +40,7 @@
           </nav>
         </div>
 
-        <div class="flex justify-end">
+        <div v-if="showLocationShortcuts" class="flex justify-end">
           <nav
             aria-label="Location shortcuts"
             class="inline-flex max-w-max flex-wrap gap-1 rounded-md border-2 border-gray-900 bg-white p-1"
@@ -74,7 +74,7 @@
       </div>
     </div>
 
-    <div class="min-w-0 pt-40">
+    <div class="min-w-0" :class="showLocationShortcuts ? 'pt-40' : 'pt-28'">
       <slot />
     </div>
   </div>
@@ -82,9 +82,13 @@
 
 <script setup lang="ts">
 import type { DailyOpsPeriodId } from '~/types/daily-ops-dashboard'
-import { amsterdamTodayYmd, amsterdamYmdForOffset, weekdayShortForYmd } from '~/utils/inbox/importTableQuickDates'
+import { addCalendarDaysYmd, amsterdamOpenRegisterBusinessDateYmd } from '~/utils/dailyOpsBusinessDate'
+import { weekdayShortForYmd } from '~/utils/inbox/importTableQuickDates'
 
 type LocationRow = { _id: string; name: string; abbreviation?: string }
+
+/** Set true to restore fixed location filter (All / Van Kinsbergen / Bar Bea / L'amour). */
+const showLocationShortcuts = false
 
 const DAILY_OPS_SHORTCUT_ABBREVS = ['VKB', 'BEA', 'LAT'] as const
 
@@ -114,13 +118,14 @@ const {
   setLocation,
 } = useDailyOpsDashboardRoute()
 
-const anchorYmd = computed(() => amsterdamTodayYmd())
+const anchorYmd = computed(() => amsterdamOpenRegisterBusinessDateYmd())
 
-/** Today · Yesterday · (weekday labels for anchor−2 … anchor−7). */
+/** Today · Yesterday · (weekday labels for open register day −2 … −7). */
 const periodOptions = computed((): { id: DailyOpsPeriodId; label: string }[] => {
+  const open = anchorYmd.value
   const rolling = ([2, 3, 4, 5, 6, 7] as const).map((off) => ({
     id: `d${off}` as DailyOpsPeriodId,
-    label: weekdayShortForYmd(amsterdamYmdForOffset(-off), 'en-GB'),
+    label: weekdayShortForYmd(addCalendarDaysYmd(open, -off), 'en-GB'),
   }))
   return [
     { id: 'today', label: 'Today' },

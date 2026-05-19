@@ -3,7 +3,7 @@
  * @created: 2026-05-02T15:00:00.000Z
  * @last-modified: 2026-05-14T12:00:00.000Z
  * @description: Clean rebuild of Gmail API service — explicit token + redirect_uri handling
- * @last-fix: [2026-05-14] resolveGmailOAuthRedirectUriForServer for cron/watch; [2026-05-14] OAuth redirect env + DB
+ * @last-fix: [2026-05-19] Prefer Mongo refresh token over env; re-init OAuth client when token changes after Connect Gmail
  *
  * @exports-to:
  * ✓ server/services/emailProcessorService.ts
@@ -46,6 +46,22 @@ export type FetchEmailsResult = {
 class GmailApiService {
   private gmail: gmail_v1.Gmail | null = null
   private auth: ReturnType<typeof google.auth.OAuth2> | null = null
+  /** Detect Connect Gmail / env changes so we do not keep a stale OAuth client. */
+  private initializedRefreshPrefix = ''
+
+  private async resolveRefreshToken(): Promise<string> {
+    const fromDb = await getGmailRefreshToken()
+    if (fromDb) {
+      return fromDb
+    }
+    const fromEnv = process.env.GMAIL_REFRESH_TOKEN?.trim()
+    if (fromEnv) {
+      return fromEnv
+    }
+    throw new Error(
+      'No refresh token found. Connect Gmail using the UI first.',
+    )
+  }
 
   async initialize(): Promise<void> {
     const clientId = process.env.GMAIL_CLIENT_ID
@@ -57,18 +73,7 @@ class GmailApiService {
       )
     }
 
-    let refreshToken = process.env.GMAIL_REFRESH_TOKEN
-
-    if (!refreshToken) {
-      refreshToken = await getGmailRefreshToken()
-    }
-
-    if (!refreshToken) {
-      throw new Error(
-        'No refresh token found. Connect Gmail using the UI first.',
-      )
-    }
-
+    const refreshToken = await this.resolveRefreshToken()
     const redirectUri = await resolveGmailOAuthRedirectUriForServer()
 
     console.log('[gmailApiService] Initializing with:')
@@ -81,10 +86,18 @@ class GmailApiService {
 
     this.auth = oauth2Client
     this.gmail = google.gmail({ version: 'v1', auth: oauth2Client })
+    this.initializedRefreshPrefix = refreshToken.slice(0, 24)
   }
 
   private async ensureInitialized(): Promise<void> {
-    if (!this.gmail || !this.auth) {
+    const currentPrefix = (await this.resolveRefreshToken()).slice(0, 24)
+    if (
+      !this.gmail
+      || !this.auth
+      || currentPrefix !== this.initializedRefreshPrefix
+    ) {
+      this.gmail = null
+      this.auth = null
       await this.initialize()
     }
   }

@@ -137,7 +137,7 @@ import type {
   VenueStripResponseDto,
 } from '~/types/daily-ops-dashboard'
 import { resolveDailyOpsPeriod } from '~/utils/dailyOpsPeriod'
-import { amsterdamTodayYmd, weekdayShortForYmd } from '~/utils/inbox/importTableQuickDates'
+import { weekdayShortForYmd } from '~/utils/inbox/importTableQuickDates'
 
 const props = defineProps<{
   period: DailyOpsPeriodId
@@ -164,7 +164,7 @@ function formatPct (value: number): string {
 }
 
 const isSingleDayPeriod = computed(() => {
-  const r = resolveDailyOpsPeriod(props.period, props.anchor ?? amsterdamTodayYmd())
+  const r = resolveDailyOpsPeriod(props.period, props.anchor ?? undefined)
   return r.startDate === r.endDate
 })
 
@@ -172,7 +172,7 @@ const periodLabel = computed(() => {
   if (props.period === 'today') return 'Today'
   if (props.period === 'yesterday') return 'Yesterday'
   if (/^d[2-7]$/.test(props.period)) {
-    const r = resolveDailyOpsPeriod(props.period, props.anchor ?? amsterdamTodayYmd())
+    const r = resolveDailyOpsPeriod(props.period, props.anchor ?? undefined)
     return weekdayShortForYmd(r.startDate)
   }
   return props.period

@@ -19,7 +19,7 @@
         :readonly="!!note && isTrashed"
         class="min-w-0 flex-1 text-5xl font-bold rounded-none px-0"
       />
-          <TabRail
+          <UiTabRail
             v-if="asideRailOptions.length"
             :model-value="asideTab"
             :options="asideRailOptions"

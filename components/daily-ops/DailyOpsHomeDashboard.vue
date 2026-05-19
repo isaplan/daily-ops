@@ -674,7 +674,6 @@
 <script setup lang="ts">
 import type { DailyOpsWorkerStaffDetailResponseDto } from '~/types/daily-ops-dashboard'
 import { resolveDailyOpsPeriod } from '~/utils/dailyOpsPeriod'
-import { amsterdamTodayYmd } from '~/utils/inbox/importTableQuickDates'
 import DashboardDayHoursShare from '~/components/daily-ops/DashboardDayHoursShare.vue'
 import WorkerDetailsDrawer from '~/components/daily-ops/WorkerDetailsDrawer.vue'
 import { laborByDayMetricDefs } from '~/composables/useDailyOpsLaborTables'
@@ -700,7 +699,7 @@ type LocationRow = { _id: string; name: string; abbreviation?: string }
 const { dashboardQuery, contextHeadline, locationId, period, anchor } = useDailyOpsDashboardRoute()
 
 const isSingleDayDashboardPeriod = computed(() => {
-  const r = resolveDailyOpsPeriod(period.value, anchor.value ?? amsterdamTodayYmd())
+  const r = resolveDailyOpsPeriod(period.value, anchor.value ?? undefined)
   return r.startDate === r.endDate
 })
 const { formatEur } = useDashboardEurFormat()

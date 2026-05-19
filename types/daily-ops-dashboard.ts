@@ -274,6 +274,16 @@ export type VenueStripContractRowDto = {
   loaded: number
 }
 
+/** Per-person line for KPI gewerkte drawers (Afwas may appear twice after 50/50 split). */
+export type VenueStripWorkerLineDto = {
+  userId: string
+  userName: string
+  teamName: string
+  bucket: 'keuken' | 'bediening' | 'overig'
+  hours: number
+  wages: number
+}
+
 export type VenueStripCardDto = {
   locationId: string
   locationName: string
@@ -289,7 +299,11 @@ export type VenueStripCardDto = {
     gewerkt: VenueStripLaborRowDto
     keuken: VenueStripLaborRowDto
     bediening: VenueStripLaborRowDto
+    /** All hours − gewerkt (Ziek, Management, Algemeen, …). */
+    other: VenueStripLaborRowDto
   }
+  /** Staff lines for gewerkte KPI drawers, same source as labor totals. */
+  workers: VenueStripWorkerLineDto[]
   productivity: {
     totalPerHour: number | null
     keukenPerHour: number | null

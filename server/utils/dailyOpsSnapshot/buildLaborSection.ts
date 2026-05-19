@@ -6,7 +6,7 @@
  *   from eitje_time_registration_aggregation. Reads total_cost (wages) and total_cost_loaded
  *   (loaded labor cost — Eitje-style) directly from the agg, which itself resolves cost_per_hour
  *   from inbox-eitje-contracts → members → fallback 1.36 at aggregation time.
- * @last-fix: [2026-05-14] Nul-uren employer cph (rate×1.36) is applied in agg; snapshot reads loaded_cost_source as-is.
+ * @last-fix: [2026-05-20] Enrich zero-wage rows from members (ZZP hourly_rate on support_id).
  *
  * @architecture:
  *   - Eitje agg rows now carry: total_cost, total_cost_loaded, cost_per_hour, loaded_cost_source,
@@ -19,6 +19,7 @@
  */
 
 import type { Db } from 'mongodb'
+import { enrichEitjeAggRowsFromMembers } from '../eitjeAggCompensationEnrich'
 import type {
   DailyOpsSnapshotLaborSection,
   LaborCostPair,
@@ -46,6 +47,8 @@ export async function buildLaborSection(
     .collection('eitje_time_registration_aggregation')
     .find({ period: businessDate, locationId })
     .toArray()
+
+  await enrichEitjeAggRowsFromMembers(db, rows as Record<string, unknown>[])
 
   const totals = emptyPair()
   const teamsMap = new Map<string, LaborCostPair & { teamId: string; teamName: string }>()

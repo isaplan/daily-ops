@@ -221,6 +221,75 @@
           </div>
         </div>
 
+        <!-- Bork: sales by location (unified_user) -->
+        <div
+          v-if="member.bork_sales"
+          class="mb-6 overflow-hidden rounded-2xl border border-amber-200/80 bg-gradient-to-br from-amber-50/50 via-white to-white p-6 shadow-sm"
+        >
+          <div class="mb-5 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h2 class="text-xl font-bold tracking-tight text-gray-900">Bork sales</h2>
+              <p class="text-sm text-gray-600">
+                Guest revenue (ex VAT) from POS, linked via
+                <span class="font-medium text-gray-800">unified_user</span>.
+              </p>
+              <div class="mt-3 flex flex-wrap gap-2">
+                <span
+                  class="inline-flex items-center gap-1.5 rounded-lg bg-amber-100/90 px-3 py-1.5 text-sm font-semibold text-amber-950 ring-1 ring-amber-300/60"
+                >
+                  Total {{ formatBorkMoney(member.bork_sales.totals.total_sales_ex_vat) }}
+                </span>
+                <span
+                  v-if="member.bork_sales.totals.avg_sales_per_day != null"
+                  class="inline-flex items-center gap-1.5 rounded-lg bg-gray-100 px-3 py-1.5 text-sm font-semibold text-gray-900"
+                >
+                  Avg {{ formatBorkMoney(member.bork_sales.totals.avg_sales_per_day) }}/day
+                </span>
+                <span
+                  v-if="member.bork_sales.totals.productivity_per_hour != null"
+                  class="inline-flex items-center gap-1.5 rounded-lg bg-violet-100/90 px-3 py-1.5 text-sm font-semibold text-violet-950 ring-1 ring-violet-300/60"
+                >
+                  {{ formatBorkMoney(member.bork_sales.totals.productivity_per_hour) }}/h
+                </span>
+                <span class="text-xs text-gray-500 self-center">
+                  {{ member.bork_sales.totals.days_active }} active day(s)
+                </span>
+              </div>
+            </div>
+            <div class="text-xs text-gray-500 sm:text-right">
+              <p>
+                {{ formatIsoDate(member.bork_sales.range_start) }} –
+                {{ formatIsoDate(member.bork_sales.range_end) }}
+              </p>
+              <NuxtLink
+                to="/daily-ops/inbox/bork-staff"
+                class="mt-1 inline-block font-medium text-primary-600 hover:underline"
+              >
+                Bork staff hub →
+              </NuxtLink>
+            </div>
+          </div>
+          <div
+            v-if="member.bork_sales.by_location.length"
+            class="grid gap-4 sm:grid-cols-2"
+          >
+            <div
+              v-for="loc in member.bork_sales.by_location"
+              :key="loc.location_id"
+              class="rounded-xl border border-gray-200/80 bg-white/90 p-4 shadow-sm"
+            >
+              <p class="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Location</p>
+              <p class="text-base font-semibold text-gray-900">{{ loc.location_name }}</p>
+              <p class="mt-2 text-sm font-semibold tabular-nums text-amber-900">
+                {{ formatBorkMoney(loc.total_sales_ex_vat) }}
+              </p>
+              <p class="mt-1 text-xs text-gray-500">
+                {{ loc.days_active }} day(s) · {{ loc.total_quantity }} items
+              </p>
+            </div>
+          </div>
+        </div>
+
         <!-- Eitje: every location + team this person appears on (worked + planned) -->
         <div
           v-if="member.eitje_places"
@@ -485,6 +554,25 @@ type MemberItem = {
     planned_hours: number
     places_count: number
   }
+  bork_sales?: {
+    range_start: string
+    range_end: string
+    totals: {
+      total_sales_ex_vat: number
+      days_active: number
+      avg_sales_per_day: number | null
+      total_quantity: number
+      worked_hours: number | null
+      productivity_per_hour: number | null
+    }
+    by_location: Array<{
+      location_id: string
+      location_name: string
+      total_sales_ex_vat: number
+      days_active: number
+      total_quantity: number
+    }>
+  }
 }
 type ConnectionNote = { _id: string; slug?: string; title: string; content?: string; created_at?: string | null }
 type ConnectionTodo = { _id: string; text: string; checked: boolean; noteId: string; noteSlug?: string; noteTitle: string }
@@ -635,6 +723,11 @@ function formatIsoDate(val: string | null | undefined) {
   } catch {
     return val ?? ''
   }
+}
+
+function formatBorkMoney(n: number | null | undefined) {
+  if (n == null || !Number.isFinite(n)) return '—'
+  return `€${n.toLocaleString('nl-NL', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
 }
 
 const hasWorkerData = computed(() => {

@@ -1,9 +1,9 @@
 /**
  * @registry-id: memberCompensationRevisions
  * @created: 2026-05-16T12:00:00.000Z
- * @last-modified: 2026-05-16T12:00:00.000Z
+ * @last-modified: 2026-05-18T12:00:00.000Z
  * @description: Open/close compensation revision intervals on members (forward-only, idempotent)
- * @last-fix: [2026-05-16] Initial — ADR-001, ADR-002, ADR-005
+ * @last-fix: [2026-05-18] ZZP: cost_per_hour = hourly_rate only (ignore inbox Loonkosten)
  *
  * @architecture-ref: ARCHITECTURE.md#5-business-rules
  * @adr-ref: ADR-001, ADR-002, ADR-005
@@ -28,6 +28,10 @@ export function isNulUrenContract(contractType: string): boolean {
   return /nul\s*uren/i.test(String(contractType ?? ''))
 }
 
+export function isZzpContract(contractType: string): boolean {
+  return /zzp/i.test(String(contractType ?? ''))
+}
+
 export function toNum(v: unknown): number | null {
   if (v == null) return null
   if (typeof v === 'number' && Number.isFinite(v)) return v
@@ -40,9 +44,9 @@ export function resolveCostModel(
   hourlyRate: number | null,
   costPerHour: number | null
 ): CompensationCostModel {
+  if (isZzpContract(contractType) && hourlyRate != null) return 'zzp_invoice'
   if (costPerHour != null) return 'stored_cph'
   if (isNulUrenContract(contractType) && hourlyRate != null) return 'nul_uren_1_36'
-  if (/zzp/i.test(contractType) && hourlyRate != null) return 'zzp_invoice'
   return 'manual'
 }
 
@@ -51,6 +55,7 @@ export function resolveCostPerHour(
   hourlyRate: number | null,
   costPerHour: number | null
 ): number | null {
+  if (isZzpContract(contractType)) return hourlyRate
   if (costPerHour != null) return costPerHour
   if (isNulUrenContract(contractType) && hourlyRate != null) return hourlyRate * NUL_UREN_RATIO
   return hourlyRate

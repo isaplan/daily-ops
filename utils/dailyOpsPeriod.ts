@@ -1,4 +1,8 @@
 import type { DailyOpsPeriodId } from '~/types/daily-ops-dashboard'
+import {
+  addCalendarDaysYmd,
+  amsterdamOpenRegisterBusinessDateYmd,
+} from '~/utils/dailyOpsBusinessDate'
 
 const DAILY_OPS_PERIODS: readonly DailyOpsPeriodId[] = [
   'today',
@@ -13,7 +17,10 @@ const DAILY_OPS_PERIODS: readonly DailyOpsPeriodId[] = [
   'last-week',
 ]
 
-const ROLLING_DAY_OFFSET: Partial<Record<DailyOpsPeriodId, number>> = {
+/** Days before the open register day (today = 0). */
+const REGISTER_DAY_OFFSET: Partial<Record<DailyOpsPeriodId, number>> = {
+  today: 0,
+  yesterday: 1,
   d2: 2,
   d3: 3,
   d4: 4,
@@ -32,7 +39,6 @@ function pad(n: number): string {
   return String(n).padStart(2, '0')
 }
 
-/** YYYY-MM-DD in UTC (matches toISOString().slice(0, 10) for a UTC calendar day). */
 function utcYmd(d: Date): string {
   return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`
 }
@@ -63,36 +69,25 @@ function addDaysUtc(d: Date, days: number): Date {
 }
 
 /**
- * Resolves a dashboard period to inclusive UTC date range (YYYY-MM-DD).
- * Anchor defaults to current UTC date; optional `anchor` query can align client and server.
+ * Resolves a dashboard period to inclusive business_date range (YYYY-MM-DD).
+ * Single-day tabs use the open Amsterdam register day at `now` (08:00 boundary), not UTC calendar.
  */
 export function resolveDailyOpsPeriod(
   raw: string | undefined,
-  anchor?: string
+  anchor?: string,
+  now: Date = new Date(),
 ): DailyOpsDateRange {
   const period = (DAILY_OPS_PERIODS.includes(raw as DailyOpsPeriodId) ? raw : 'today') as DailyOpsPeriodId
 
-  const anchorDate =
-    anchor && parseYmd(anchor) ? parseYmd(anchor)! : new Date()
-
-  const today = utcYmd(anchorDate)
-
-  if (period === 'today') {
-    return { period, startDate: today, endDate: today }
-  }
-
-  if (period === 'yesterday') {
-    const y = addDaysUtc(parseYmd(today)!, -1)
-    const ymd = utcYmd(y)
+  const openRegister = amsterdamOpenRegisterBusinessDateYmd(now)
+  const dayOffset = REGISTER_DAY_OFFSET[period]
+  if (dayOffset != null) {
+    const ymd = addCalendarDaysYmd(openRegister, -dayOffset)
     return { period, startDate: ymd, endDate: ymd }
   }
 
-  const rollDays = ROLLING_DAY_OFFSET[period]
-  if (rollDays != null) {
-    const d = addDaysUtc(parseYmd(today)!, -rollDays)
-    const ymd = utcYmd(d)
-    return { period, startDate: ymd, endDate: ymd }
-  }
+  const refYmd = anchor && parseYmd(anchor) ? anchor : openRegister
+  const anchorDate = parseYmd(refYmd)!
 
   if (period === 'this-week') {
     const start = startOfIsoWeekUtc(anchorDate)
