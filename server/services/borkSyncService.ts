@@ -1,26 +1,35 @@
 /**
  * @registry-id: borkSyncService
  * @created: 2026-04-06T12:00:00.000Z
- * @last-modified: 2026-05-11T12:00:00.000Z
+ * @last-modified: 2026-05-20T12:00:00.000Z
  * @description: Bork/Trivec gateway fetch + bork_raw_data upserts; drives Bork cron/sync; calls V2 aggregation after sync
- * @last-fix: [2026-05-11] Master/historical exclude today (ticket dates); V2 rebuild after master + historical jobs
+ * @last-fix: [2026-05-20] Master-data job refreshes unified product_catalog from Bork catalog API.
+ *   Prior: [2026-05-19] Clearer V2 line: calendar rebuild window vs register-day rollup counts.
+ *   Prior: [2026-05-19] Daily pulls yesterday+today tickets; per-day ticket counts in sync message.
+ *   Prior: [2026-05-19] Ticket + V2 rebuild windows use Europe/Amsterdam calendar days (not toISOString UTC).
+ *   Prior: [2026-05-11] Master/historical exclude today (ticket dates); V2 rebuild after master + historical jobs
  *
  * @exports-to:
  * ✓ server/api/bork/v2/cron.post.ts
  * ✓ server/api/bork/v2/sync.post.ts
  * ✓ server/services/borkRebuildAggregationV2Service.ts
  * ✓ server/services/integrationCronRunner.ts
+ * ✓ server/services/productCatalogService.ts
  */
 
 import { ObjectId, type Db, type Document } from 'mongodb'
 import { rebuildBorkSalesAggregationV2 } from './borkRebuildAggregationV2Service'
+import { syncProductCatalogFromBorkApi } from './productCatalogService'
 import { resolveBorkAggRebuildSuffix } from '../utils/borkAggVersionSuffix'
+import { addCalendarDaysYmd, calendarYmdInAmsterdam } from '~/utils/dailyOpsBusinessDate'
 
 export type BorkLocationSyncResult = {
   locationId: string
   ok: boolean
   path?: string
   error?: string
+  /** Amsterdam calendar day (YYYY-MM-DD) → ticket rows stored this run */
+  ticketsByDate?: Record<string, number>
 }
 
 export type BorkSyncJobResult = {
@@ -31,10 +40,146 @@ export type BorkSyncJobResult = {
 }
 
 const BORK_HISTORICAL_TICKET_DAYS = 30
+const PER_DAY_TICKET_BREAKDOWN_MAX_DAYS = 7
 
 function getDateRangeForJobType (jobType: string): { days: number } {
   if (jobType === 'historical-data') return { days: BORK_HISTORICAL_TICKET_DAYS }
-  return { days: 1 } // daily-data: today; master-data: yesterday only (see startDayOffset below)
+  if (jobType === 'daily-data') return { days: 2 }
+  return { days: 1 } // master-data: yesterday only (see startDayOffset below)
+}
+
+function borkCompactToYmd (compact: string): string {
+  const s = compact.padStart(8, '0')
+  return `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6, 8)}`
+}
+
+function formatOpsDayLabel (ymd: string): string {
+  const parts = ymd.split('-').map((x) => Number(x))
+  const y = parts[0] ?? 0
+  const m = parts[1] ?? 1
+  const d = parts[2] ?? 1
+  return new Intl.DateTimeFormat('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    timeZone: 'UTC',
+  }).format(new Date(Date.UTC(y, m - 1, d, 12, 0, 0)))
+}
+
+function daySpanInclusive (startYmd: string, endYmd: string): number {
+  let n = 0
+  let cur = startYmd
+  while (cur <= endYmd) {
+    n++
+    if (cur === endYmd) break
+    cur = addCalendarDaysYmd(cur, 1)
+  }
+  return n
+}
+
+function formatPerDayTicketBreakdown (
+  byDate: Record<string, number>,
+  startYmd: string,
+  endYmd: string,
+): string {
+  const parts: string[] = []
+  let cur = startYmd
+  while (cur <= endYmd) {
+    const n = byDate[cur] ?? 0
+    parts.push(`${n} on ${formatOpsDayLabel(cur)}`)
+    if (cur === endYmd) break
+    cur = addCalendarDaysYmd(cur, 1)
+  }
+  return parts.join(', ')
+}
+
+function mergeTicketsByDate (locations: BorkLocationSyncResult[]): Record<string, number> {
+  const out: Record<string, number> = {}
+  for (const loc of locations) {
+    if (!loc.ticketsByDate) continue
+    for (const [ymd, n] of Object.entries(loc.ticketsByDate)) {
+      out[ymd] = (out[ymd] ?? 0) + n
+    }
+  }
+  return out
+}
+
+function ticketWindowForJob (jobType: string, now = new Date()): { startYmd: string; endYmd: string } {
+  const todayYmd = calendarYmdInAmsterdam(now)
+  if (jobType === 'daily-data') {
+    return { startYmd: addCalendarDaysYmd(todayYmd, -1), endYmd: todayYmd }
+  }
+  if (jobType === 'master-data') {
+    const y = addCalendarDaysYmd(todayYmd, -1)
+    return { startYmd: y, endYmd: y }
+  }
+  if (jobType === 'historical-data') {
+    const endYmd = addCalendarDaysYmd(todayYmd, -1)
+    return {
+      startYmd: addCalendarDaysYmd(endYmd, -(BORK_HISTORICAL_TICKET_DAYS - 1)),
+      endYmd,
+    }
+  }
+  return { startYmd: todayYmd, endYmd: todayYmd }
+}
+
+function formatBorkRawSyncMessage (input: {
+  okCount: number
+  totalCreds: number
+  syncOk: boolean
+  jobType: string
+  ticketsByDate: Record<string, number>
+  startYmd: string
+  endYmd: string
+}): string {
+  const { okCount, totalCreds, syncOk, jobType, ticketsByDate, startYmd, endYmd } = input
+  if (!syncOk) {
+    return `0/${totalCreds} locations succeeded — check Bork API credentials and network access`
+  }
+  const span = daySpanInclusive(startYmd, endYmd)
+  let msg = `Synced ${okCount}/${totalCreds} location(s) into bork_raw_data`
+  const totalTickets = Object.values(ticketsByDate).reduce((a, b) => a + b, 0)
+  if (span <= PER_DAY_TICKET_BREAKDOWN_MAX_DAYS) {
+    msg += `; tickets: ${formatPerDayTicketBreakdown(ticketsByDate, startYmd, endYmd)}`
+  } else if (totalTickets > 0) {
+    msg += `; tickets: ${totalTickets} (${startYmd}…${endYmd})`
+  } else if (jobType === 'historical-data') {
+    msg += ` (${startYmd}…${endYmd})`
+  }
+  return msg
+}
+
+function formatV2CalendarRangeLabel (startYmd: string, endYmd: string): string {
+  if (startYmd === endYmd) return formatOpsDayLabel(startYmd)
+  return `${formatOpsDayLabel(startYmd)}–${formatOpsDayLabel(endYmd)}`
+}
+
+function formatV2RebuildMessage (
+  v2: {
+    businessDays: number
+    salesHours: number
+    tables: number
+    workers: number
+    guestAccounts: number
+    productLines: number
+  },
+  suffix: string,
+  calendarStartYmd: string,
+  calendarEndYmd: string,
+): string {
+  const hasStats =
+    v2.businessDays > 0 ||
+    v2.salesHours > 0 ||
+    v2.tables > 0 ||
+    v2.workers > 0 ||
+    v2.productLines > 0
+  if (!hasStats) return ''
+  const cal = formatV2CalendarRangeLabel(calendarStartYmd, calendarEndYmd)
+  const tag = suffix ? `, ${suffix}` : ''
+  return (
+    ` · V2 rebuild (${cal} calendar${tag}): ${v2.businessDays} register days, ` +
+    `${v2.salesHours} hour buckets, ${v2.tables} tables, ${v2.workers} workers, ` +
+    `${v2.guestAccounts} guest slices, ${v2.productLines} product lines`
+  )
 }
 
 async function tryFetchBorkTicketData (
@@ -86,22 +231,22 @@ async function syncLocationDates (
   const config = getDateRangeForJobType(jobType)
   const now = new Date()
   const dates: string[] = []
-  /** Historical + master never include “today”; daily-data starts at today (i=0). */
+  /** Historical + master skip today; daily-data: i=0 today, i=1 yesterday (Amsterdam). */
   const startDayOffset = jobType === 'historical-data' || jobType === 'master-data' ? 1 : 0
 
+  const todayYmd = calendarYmdInAmsterdam(now)
   for (let i = startDayOffset; i < startDayOffset + config.days; i++) {
-    const d = new Date(now)
-    d.setDate(d.getDate() - i)
-    const year = d.getFullYear()
-    const month = String(d.getMonth() + 1).padStart(2, '0')
-    const day = String(d.getDate()).padStart(2, '0')
-    dates.push(`${year}${month}${day}`)
+    dates.push(addCalendarDaysYmd(todayYmd, -i).replace(/-/g, ''))
   }
 
   let lastError = ''
   let successCount = 0
+  const ticketsByDate: Record<string, number> = {}
 
   for (const dateStr of dates) {
+    const ymd = borkCompactToYmd(dateStr)
+    ticketsByDate[ymd] = ticketsByDate[ymd] ?? 0
+
     const r = await tryFetchBorkTicketData(baseUrl, apiKey, dateStr)
 
     if (!r.ok) {
@@ -127,6 +272,8 @@ async function syncLocationDates (
       continue
     }
 
+    ticketsByDate[ymd] += records.length
+
     // Upsert into bork_raw_data
     const syncDedupKey = `${lid}:bork_daily:${dateStr}`
     const upsertDate = new Date()
@@ -151,10 +298,15 @@ async function syncLocationDates (
   }
 
   if (successCount > 0) {
-    return { locationId: lid, ok: true, path: `/ticket/day.json/{date}` }
+    return { locationId: lid, ok: true, path: `/ticket/day.json/{date}`, ticketsByDate }
   }
 
-  return { locationId: lid, ok: false, error: lastError || 'no data returned for any date' }
+  return {
+    locationId: lid,
+    ok: false,
+    error: lastError || 'no data returned for any date',
+    ticketsByDate,
+  }
 }
 
 /** Load Bork credentials: active or legacy rows without isActive:false */
@@ -187,69 +339,81 @@ export async function executeBorkJob (db: Db, jobType: string): Promise<BorkSync
 
   const okCount = locations.filter((x) => x.ok).length
   const syncOk = okCount > 0
-  const message = syncOk
-    ? `Synced ${okCount}/${creds.length} location(s) into bork_raw_data`
-    : `0/${creds.length} locations succeeded — check Bork API credentials and network access`
+  const { startYmd, endYmd } = ticketWindowForJob(jobType)
+  const message = formatBorkRawSyncMessage({
+    okCount,
+    totalCreds: creds.length,
+    syncOk,
+    jobType,
+    ticketsByDate: mergeTicketsByDate(locations),
+    startYmd,
+    endYmd,
+  })
 
-  // After sync completes, trigger V2 aggregation for daily data
+  // After sync completes, trigger V2 aggregation (register-day rollups from raw tickets)
   let v2AggregationResult: Awaited<ReturnType<typeof rebuildBorkSalesAggregationV2>> | null = null
   let v2RebuildSuffix = ''
+  let v2CalendarStartYmd: string | null = null
+  let v2CalendarEndYmd: string | null = null
 
   if (syncOk && jobType === 'daily-data') {
     try {
-      const today = new Date().toISOString().slice(0, 10)
-      const yesterday = new Date()
-      yesterday.setUTCDate(yesterday.getUTCDate() - 1)
-      const yesterdayStr = yesterday.toISOString().slice(0, 10)
+      const todayYmd = calendarYmdInAmsterdam(new Date())
+      const yesterdayYmd = addCalendarDaysYmd(todayYmd, -1)
       v2RebuildSuffix = resolveBorkAggRebuildSuffix() ?? '_v2'
+      v2CalendarStartYmd = yesterdayYmd
+      v2CalendarEndYmd = todayYmd
 
-      // Rebuild yesterday + today: yesterday completes (all tickets closed), today is in-progress
-      v2AggregationResult = await rebuildBorkSalesAggregationV2(db, yesterdayStr, today, v2RebuildSuffix)
+      v2AggregationResult = await rebuildBorkSalesAggregationV2(db, yesterdayYmd, todayYmd, v2RebuildSuffix)
     } catch (e) {
       console.error('[borkSyncService] Aggregation error:', e)
-      // Don't fail the sync if aggregation fails
     }
   }
 
+  let catalogSyncMessage = ''
   if (syncOk && jobType === 'master-data') {
     try {
-      const yesterday = new Date()
-      yesterday.setUTCDate(yesterday.getUTCDate() - 1)
-      const yesterdayStr = yesterday.toISOString().slice(0, 10)
+      const yesterdayYmd = addCalendarDaysYmd(calendarYmdInAmsterdam(new Date()), -1)
       v2RebuildSuffix = resolveBorkAggRebuildSuffix() ?? '_v2'
-      v2AggregationResult = await rebuildBorkSalesAggregationV2(db, yesterdayStr, yesterdayStr, v2RebuildSuffix)
+      v2CalendarStartYmd = yesterdayYmd
+      v2CalendarEndYmd = yesterdayYmd
+      v2AggregationResult = await rebuildBorkSalesAggregationV2(db, yesterdayYmd, yesterdayYmd, v2RebuildSuffix)
     } catch (e) {
       console.error('[borkSyncService] Master V2 aggregation error:', e)
+    }
+    try {
+      const catalog = await syncProductCatalogFromBorkApi(db)
+      if (catalog.message) catalogSyncMessage = ` · ${catalog.message}`
+    } catch (e) {
+      console.error('[borkSyncService] product_catalog sync error:', e)
     }
   }
 
   if (syncOk && jobType === 'historical-data') {
     try {
-      const end = new Date()
-      end.setUTCDate(end.getUTCDate() - 1)
-      const start = new Date(end)
-      start.setUTCDate(start.getUTCDate() - (BORK_HISTORICAL_TICKET_DAYS - 1))
-      const startStr = start.toISOString().slice(0, 10)
-      const endStr = end.toISOString().slice(0, 10)
+      const todayYmd = calendarYmdInAmsterdam(new Date())
+      const endStr = addCalendarDaysYmd(todayYmd, -1)
+      const startStr = addCalendarDaysYmd(endStr, -(BORK_HISTORICAL_TICKET_DAYS - 1))
       v2RebuildSuffix = resolveBorkAggRebuildSuffix() ?? '_v2'
+      v2CalendarStartYmd = startStr
+      v2CalendarEndYmd = endStr
       v2AggregationResult = await rebuildBorkSalesAggregationV2(db, startStr, endStr, v2RebuildSuffix)
     } catch (e) {
       console.error('[borkSyncService] Historical V2 aggregation error:', e)
     }
   }
 
-  const v2 = v2AggregationResult
   const v2Message =
-    v2 &&
-    (v2.businessDays > 0 ||
-      v2.salesHours > 0 ||
-      v2.tables > 0 ||
-      v2.workers > 0 ||
-      v2.productLines > 0)
-      ? `; V2 (${v2RebuildSuffix || 'none'}): ${v2.businessDays} business days, ${v2.salesHours} hour buckets, ${v2.tables} tables, ${v2.workers} workers, ${v2.guestAccounts} guest slices, ${v2.productLines} product lines`
+    v2AggregationResult && v2CalendarStartYmd && v2CalendarEndYmd
+      ? formatV2RebuildMessage(
+          v2AggregationResult,
+          v2RebuildSuffix,
+          v2CalendarStartYmd,
+          v2CalendarEndYmd,
+        )
       : ''
 
-  const finalMessage = `${message}${v2Message}`
+  const finalMessage = `${message}${v2Message}${catalogSyncMessage}`
 
   return {
     ok: syncOk,

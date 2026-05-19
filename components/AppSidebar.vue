@@ -140,6 +140,8 @@
             <li><NuxtLink to="/daily-ops/inbox/eitje-staff" :class="navLinkClass(route.path === '/daily-ops/inbox/eitje-staff')">Eitje staff</NuxtLink></li>
             <li><NuxtLink to="/daily-ops/inbox/eitje-hours" :class="navLinkClass(route.path === '/daily-ops/inbox/eitje-hours')">Eitje hours</NuxtLink></li>
             <li><NuxtLink to="/daily-ops/inbox/bork-sales" :class="navLinkClass(route.path === '/daily-ops/inbox/bork-sales')">Bork sales</NuxtLink></li>
+            <li><NuxtLink to="/daily-ops/inbox/bork-staff" :class="navLinkClass(route.path === '/daily-ops/inbox/bork-staff')">Bork staff</NuxtLink></li>
+            <li><NuxtLink to="/daily-ops/inbox/product-catalog" :class="navLinkClass(route.path === '/daily-ops/inbox/product-catalog')">Product catalog</NuxtLink></li>
           </ul>
         </li>
         <!-- Settings -->
