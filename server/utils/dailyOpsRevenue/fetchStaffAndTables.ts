@@ -94,7 +94,7 @@ export async function fetchLocationSpaceSplit(
   db: Db,
   ctx: DailyOpsRevenueQueryContext,
 ): Promise<Array<{ space: string; revenue: number; itemsCount: number; revenuePerItem: number }>> {
-  const tables = await fetchTableRevenue(db, ctx)
+  const tables = await fetchTableRevenue(db, ctx, ctx.locationSpace)
   const map = new Map<string, { revenue: number; itemsCount: number }>()
   for (const t of tables) {
     const key = t.locationSpace

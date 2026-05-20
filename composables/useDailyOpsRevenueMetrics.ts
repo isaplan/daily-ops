@@ -1,6 +1,7 @@
 import type {
   DailyOpsRevenueCategoryDto,
   DailyOpsRevenueCoOccurrenceDto,
+  DailyOpsRevenueHourlyCategoryStackDto,
   DailyOpsRevenueHourlyMatrixDto,
   DailyOpsRevenueKpiDto,
   DailyOpsRevenueLocationDto,
@@ -18,99 +19,149 @@ function buildQueryString(q: Record<string, string>): string {
   return new URLSearchParams(q).toString()
 }
 
+function timeseriesGranularity(startDate: string, endDate: string): 'day' | 'week' | 'month' {
+  const days =
+    Math.ceil((Date.parse(endDate) - Date.parse(startDate)) / 86400000) + 1
+  if (days <= 45) return 'day'
+  if (days <= 120) return 'week'
+  return 'month'
+}
+
 export function useDailyOpsRevenueMetrics() {
-  const { revenueQuery } = useDailyOpsRevenuePeriod()
-  const qs = computed(() => buildQueryString(revenueQuery.value))
-
-  const summary = useFetch<DailyOpsRevenueKpiDto>(
-    () => `/api/daily-ops/revenue/summary?${qs.value}`,
-    { watch: [qs], key: () => `rev-summary-${qs.value}` },
+  const { revenueQuery, primaryRange } = useDailyOpsRevenuePeriod()
+  const { pnlQueryParams } = useDailyOpsRevenuePnlAssumptions()
+  const mergedQuery = computed(() => ({
+    ...revenueQuery.value,
+    ...pnlQueryParams.value,
+  }))
+  const qs = computed(() => buildQueryString(mergedQuery.value))
+  const cacheKey = computed(() => `rev-${qs.value}`)
+  const gran = computed(() =>
+    timeseriesGranularity(primaryRange.value.startDate, primaryRange.value.endDate),
   )
 
-  const pnl = useFetch<DailyOpsSimplePnLDto>(
-    () => `/api/daily-ops/revenue/pnl?${qs.value}`,
-    { watch: [qs], key: () => `rev-pnl-${qs.value}` },
-  )
-
-  const locations = useFetch<DailyOpsRevenueLocationDto[]>(
-    () => `/api/daily-ops/revenue/locations?${qs.value}`,
-    { watch: [qs], key: () => `rev-loc-${qs.value}` },
-  )
-
-  const timeseries = useFetch<DailyOpsRevenueTimeseriesDto>(
-    () => `/api/daily-ops/revenue/timeseries?${qs.value}&granularity=day`,
-    { watch: [qs], key: () => `rev-ts-${qs.value}` },
-  )
-
-  const rollingMedians = useFetch<DailyOpsRevenueRollingMediansDto>(
-    () => `/api/daily-ops/revenue/rolling-medians?${qs.value}`,
-    { watch: [qs], key: () => `rev-roll-${qs.value}` },
-  )
-
-  const categories = useFetch<DailyOpsRevenueCategoryDto[]>(
-    () => `/api/daily-ops/revenue/categories?${qs.value}`,
-    { watch: [qs], key: () => `rev-cat-${qs.value}` },
-  )
-
-  const products = useFetch<DailyOpsRevenueProductRow[]>(
-    () => `/api/daily-ops/revenue/products?${qs.value}&limit=20`,
-    { watch: [qs], key: () => `rev-prod-${qs.value}` },
-  )
-
-  const hourlyMatrix = useFetch<DailyOpsRevenueHourlyMatrixDto>(
-    () => `/api/daily-ops/revenue/hourly-matrix?${qs.value}`,
-    { watch: [qs], key: () => `rev-hour-${qs.value}` },
-  )
-
-  const coOccurrence = useFetch<DailyOpsRevenueCoOccurrenceDto>(
-    () => `/api/daily-ops/revenue/co-occurrence?${qs.value}`,
-    { watch: [qs], key: () => `rev-co-${qs.value}` },
-  )
-
-  const staff = useFetch<DailyOpsRevenueStaffRow[]>(
-    () => `/api/daily-ops/revenue/per-staff?${qs.value}`,
-    { watch: [qs], key: () => `rev-staff-${qs.value}` },
-  )
-
-  const tables = useFetch<DailyOpsRevenueTableRow[]>(
-    () => `/api/daily-ops/revenue/per-table?${qs.value}`,
-    { watch: [qs], key: () => `rev-tbl-${qs.value}` },
-  )
-
-  const locationSpaces = useFetch<
-    Array<{ space: string; revenue: number; itemsCount: number; revenuePerItem: number }>
-  >(() => `/api/daily-ops/revenue/per-location-space?${qs.value}`, {
-    watch: [qs],
-    key: () => `rev-space-${qs.value}`,
-  })
-
-  const orderPaymentRhythm = useFetch<DailyOpsOrderPaymentRhythmPoint[]>(
-    () => `/api/daily-ops/revenue/order-payment-rhythm?${qs.value}`,
-    { watch: [qs], key: () => `rev-rhythm-${qs.value}` },
-  )
-
-  function weekdayPattern(weekday: string) {
-    return useFetch<DailyOpsWeekdayPatternRow[]>(
-      () => `/api/daily-ops/revenue/weekday-pattern?${qs.value}&weekday=${weekday}`,
-      { watch: [qs], key: () => `rev-wd-${weekday}-${qs.value}` },
+  function useRevenueSlice<T>(
+    suffix: string | (() => string),
+    path: string,
+    extraQuery?: () => Record<string, string>,
+  ) {
+    const key = computed(() =>
+      `${cacheKey.value}-${typeof suffix === 'function' ? suffix() : suffix}`,
     )
+    const { data, pending, error, refresh } = useAsyncData(
+      key,
+      () =>
+        $fetch<T>(path, {
+          query: { ...mergedQuery.value, ...extraQuery?.() },
+        }),
+      { watch: [qs] },
+    )
+    return {
+      data: computed(() => data.value ?? null),
+      pending,
+      error,
+      refresh,
+    }
+  }
+
+  const summarySlice = useRevenueSlice<DailyOpsRevenueKpiDto>('summary', '/api/daily-ops/revenue/summary')
+  const pnlSlice = useRevenueSlice<DailyOpsSimplePnLDto>('pnl', '/api/daily-ops/revenue/pnl')
+  const locationsSlice = useRevenueSlice<DailyOpsRevenueLocationDto[]>(
+    'locations',
+    '/api/daily-ops/revenue/locations',
+  )
+  const timeseriesSlice = useRevenueSlice<DailyOpsRevenueTimeseriesDto>(
+    () => `timeseries-${gran.value}`,
+    '/api/daily-ops/revenue/timeseries',
+    () => ({ granularity: gran.value }),
+  )
+  const rollingMediansSlice = useRevenueSlice<DailyOpsRevenueRollingMediansDto>(
+    'rolling-medians',
+    '/api/daily-ops/revenue/rolling-medians',
+  )
+  const categoriesSlice = useRevenueSlice<DailyOpsRevenueCategoryDto[]>(
+    'categories',
+    '/api/daily-ops/revenue/categories',
+  )
+  const productsSlice = useRevenueSlice<DailyOpsRevenueProductRow[]>(
+    'products',
+    '/api/daily-ops/revenue/products',
+    () => ({ limit: '20' }),
+  )
+  const hourlyMatrixSlice = useRevenueSlice<DailyOpsRevenueHourlyMatrixDto>(
+    'hourly-matrix',
+    '/api/daily-ops/revenue/hourly-matrix',
+  )
+  const hourlyCategoryStackSlice = useRevenueSlice<DailyOpsRevenueHourlyCategoryStackDto>(
+    'hourly-category-stack',
+    '/api/daily-ops/revenue/hourly-category-stack',
+  )
+  const coOccurrenceSlice = useRevenueSlice<DailyOpsRevenueCoOccurrenceDto>(
+    'co-occurrence',
+    '/api/daily-ops/revenue/co-occurrence',
+  )
+  const staffSlice = useRevenueSlice<DailyOpsRevenueStaffRow[]>(
+    'per-staff',
+    '/api/daily-ops/revenue/per-staff',
+  )
+  const tablesSlice = useRevenueSlice<DailyOpsRevenueTableRow[]>(
+    'per-table',
+    '/api/daily-ops/revenue/per-table',
+  )
+  const locationSpacesSlice = useRevenueSlice<
+    Array<{ space: string; revenue: number; itemsCount: number; revenuePerItem: number }>
+  >('per-location-space', '/api/daily-ops/revenue/per-location-space')
+  const orderPaymentRhythmSlice = useRevenueSlice<DailyOpsOrderPaymentRhythmPoint[]>(
+    'order-payment-rhythm',
+    '/api/daily-ops/revenue/order-payment-rhythm',
+  )
+
+  const overviewPending = computed(
+    () =>
+      summarySlice.pending.value ||
+      pnlSlice.pending.value ||
+      locationsSlice.pending.value,
+  )
+
+  function weekdayPattern(weekday: Ref<string> | string) {
+    const w = computed(() => (typeof weekday === 'string' ? weekday : weekday.value))
+    const key = computed(() => `${cacheKey.value}-weekday-${w.value}`)
+    const { data, pending, error, refresh } = useAsyncData(
+      key,
+      () =>
+        $fetch<DailyOpsWeekdayPatternRow[]>('/api/daily-ops/revenue/weekday-pattern', {
+          query: { ...mergedQuery.value, weekday: w.value },
+        }),
+      { watch: [qs, w] },
+    )
+    return {
+      data: computed(() => data.value ?? null),
+      pending,
+      error,
+      refresh,
+    }
   }
 
   return {
     revenueQuery,
-    summary,
-    pnl,
-    locations,
-    timeseries,
-    rollingMedians,
-    categories,
-    products,
-    hourlyMatrix,
-    coOccurrence,
-    staff,
-    tables,
-    locationSpaces,
-    orderPaymentRhythm,
+    qs,
+    overviewPending,
+    summary: summarySlice.data,
+    pnl: pnlSlice.data,
+    locations: locationsSlice.data,
+    timeseries: timeseriesSlice.data,
+    rollingMedians: rollingMediansSlice.data,
+    categories: categoriesSlice.data,
+    products: productsSlice.data,
+    hourlyMatrix: hourlyMatrixSlice.data,
+    hourlyCategoryStack: hourlyCategoryStackSlice.data,
+    coOccurrence: coOccurrenceSlice.data,
+    mergedQuery,
+    gran,
+    staff: staffSlice.data,
+    tables: tablesSlice.data,
+    locationSpaces: locationSpacesSlice.data,
+    orderPaymentRhythm: orderPaymentRhythmSlice.data,
     weekdayPattern,
   }
 }
@@ -118,21 +169,48 @@ export function useDailyOpsRevenueMetrics() {
 export function useDailyOpsProductivityRevenueMetrics() {
   const { revenueQuery } = useDailyOpsRevenuePeriod()
   const qs = computed(() => buildQueryString(revenueQuery.value))
+  const cacheKey = computed(() => `prod-${qs.value}`)
 
-  const staff = useFetch<DailyOpsRevenueStaffRow[]>(
-    () => `/api/daily-ops/productivity/workers-revenue?${qs.value}`,
-    { watch: [qs], key: () => `prod-staff-${qs.value}` },
+  function useProdSlice<T>(suffix: string, path: string) {
+    const key = computed(() => `${cacheKey.value}-${suffix}`)
+    const { data, pending, error, refresh } = useAsyncData(
+      key,
+      () => $fetch<T>(path, { query: revenueQuery.value }),
+      { watch: [qs] },
+    )
+    return {
+      data: computed(() => data.value ?? null),
+      pending,
+      error,
+      refresh,
+    }
+  }
+
+  const staffSlice = useProdSlice<DailyOpsRevenueStaffRow[]>(
+    'staff',
+    '/api/daily-ops/productivity/workers-revenue',
+  )
+  const tablesSlice = useProdSlice<DailyOpsRevenueTableRow[]>(
+    'tables',
+    '/api/daily-ops/productivity/tables-revenue',
+  )
+  const rhythmSlice = useProdSlice<DailyOpsOrderPaymentRhythmPoint[]>(
+    'rhythm',
+    '/api/daily-ops/productivity/order-payment-rhythm',
   )
 
-  const tables = useFetch<DailyOpsRevenueTableRow[]>(
-    () => `/api/daily-ops/productivity/tables-revenue?${qs.value}`,
-    { watch: [qs], key: () => `prod-tbl-${qs.value}` },
+  const overviewPending = computed(
+    () =>
+      staffSlice.pending.value ||
+      tablesSlice.pending.value ||
+      rhythmSlice.pending.value,
   )
 
-  const orderPaymentRhythm = useFetch<DailyOpsOrderPaymentRhythmPoint[]>(
-    () => `/api/daily-ops/productivity/order-payment-rhythm?${qs.value}`,
-    { watch: [qs], key: () => `prod-rhythm-${qs.value}` },
-  )
-
-  return { revenueQuery, staff, tables, orderPaymentRhythm }
+  return {
+    revenueQuery,
+    overviewPending,
+    staff: staffSlice.data,
+    tables: tablesSlice.data,
+    orderPaymentRhythm: rhythmSlice.data,
+  }
 }

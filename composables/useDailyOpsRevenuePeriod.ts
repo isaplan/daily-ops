@@ -46,6 +46,21 @@ export function useDailyOpsRevenuePeriod() {
     return typeof e === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(e) ? e : null
   })
 
+  const locationSpace = computed(() => {
+    const s = route.query.space
+    return typeof s === 'string' && s.length > 0 && s !== 'all' ? s : null
+  })
+
+  const compareStartDate = computed(() => {
+    const s = route.query.compareStartDate
+    return typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null
+  })
+
+  const compareEndDate = computed(() => {
+    const e = route.query.compareEndDate
+    return typeof e === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(e) ? e : null
+  })
+
   const openRegisterYmd = computed(() => amsterdamOpenRegisterBusinessDateYmd())
 
   const primaryRange = computed(() =>
@@ -56,7 +71,10 @@ export function useDailyOpsRevenuePeriod() {
   )
 
   const compareRange = computed(() =>
-    resolveRevenueCompareRange(compareTo.value, primaryRange.value, new Date()),
+    resolveRevenueCompareRange(compareTo.value, primaryRange.value, new Date(), {
+      startDate: compareStartDate.value ?? undefined,
+      endDate: compareEndDate.value ?? undefined,
+    }),
   )
 
   const revenueQuery = computed(() => {
@@ -66,6 +84,7 @@ export function useDailyOpsRevenuePeriod() {
       anchor: openRegisterYmd.value,
     }
     if (locationId.value) q.location = locationId.value
+    if (locationSpace.value) q.space = locationSpace.value
     if (period.value === 'custom' && startDate.value && endDate.value) {
       q.startDate = startDate.value
       q.endDate = endDate.value
@@ -110,13 +129,35 @@ export function useDailyOpsRevenuePeriod() {
     })
   }
 
+  function setLocationSpace(space: string | null) {
+    const q = { ...route.query } as Record<string, string | string[] | null | undefined>
+    if (space) q.space = space
+    else delete q.space
+    router.replace({ path: route.path, query: q })
+  }
+
+  function setCustomCompareRange(start: string, end: string) {
+    router.replace({
+      path: route.path,
+      query: {
+        ...route.query,
+        compareTo: 'custom',
+        compareStartDate: start,
+        compareEndDate: end,
+      },
+    })
+  }
+
   return {
     period,
     compareTo,
     locationId,
+    locationSpace,
     anchor,
     startDate,
     endDate,
+    compareStartDate,
+    compareEndDate,
     openRegisterYmd,
     primaryRange,
     compareRange,
@@ -124,6 +165,8 @@ export function useDailyOpsRevenuePeriod() {
     setPeriod,
     setCompareTo,
     setLocation,
+    setLocationSpace,
     setCustomRange,
+    setCustomCompareRange,
   }
 }

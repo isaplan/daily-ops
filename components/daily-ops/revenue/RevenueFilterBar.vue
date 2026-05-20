@@ -78,7 +78,26 @@
         <option value="none">Geen</option>
         <option value="previous">Vorige periode</option>
         <option value="ly">Vorig jaar</option>
+        <option value="custom">Aangepast…</option>
       </select>
+    </div>
+
+    <div v-if="compareTo === 'custom'" class="flex gap-2">
+      <div class="flex flex-col gap-1">
+        <label class="text-xs font-semibold uppercase text-gray-500">Vergelijk van</label>
+        <input v-model="cmpStart" type="date" class="rounded border px-2 py-1.5 text-sm" />
+      </div>
+      <div class="flex flex-col gap-1">
+        <label class="text-xs font-semibold uppercase text-gray-500">Vergelijk tot</label>
+        <input v-model="cmpEnd" type="date" class="rounded border px-2 py-1.5 text-sm" />
+      </div>
+      <button
+        type="button"
+        class="self-end rounded bg-gray-900 px-3 py-1.5 text-sm font-semibold text-white"
+        @click="applyCustomCompare"
+      >
+        Toepassen
+      </button>
     </div>
 
     <div class="flex flex-col gap-1">
@@ -95,7 +114,30 @@
       </select>
     </div>
 
-    <p class="text-sm text-gray-600">
+    <div class="flex flex-col gap-1">
+      <label class="text-xs font-semibold uppercase text-gray-500">Ruimte</label>
+      <select
+        :value="locationSpace ?? 'all'"
+        class="min-w-[120px] rounded border border-gray-300 px-2 py-1.5 text-sm"
+        @change="onSpaceChange"
+      >
+        <option value="all">Alle</option>
+        <option value="bar">Bar</option>
+        <option value="restaurant">Restaurant</option>
+        <option value="terras">Terras</option>
+      </select>
+    </div>
+
+    <button
+      v-if="showExport"
+      type="button"
+      class="rounded border border-gray-300 px-3 py-1.5 text-sm font-medium hover:bg-gray-50"
+      @click="emit('export')"
+    >
+      Export CSV
+    </button>
+
+    <p class="w-full text-sm text-gray-600 sm:w-auto">
       {{ primaryRange.label }} · {{ primaryRange.startDate }} – {{ primaryRange.endDate }}
       <span v-if="compareRange"> · vs {{ compareRange.label }}</span>
     </p>
@@ -105,29 +147,42 @@
 <script setup lang="ts">
 import type { DailyOpsRevenueCompareKind, DailyOpsRevenuePeriodId } from '~/types/daily-ops-revenue'
 
+defineProps<{ showExport?: boolean }>()
+const emit = defineEmits<{ export: [] }>()
+
 const {
   period,
   compareTo,
   locationId,
+  locationSpace,
   primaryRange,
   compareRange,
+  compareStartDate,
+  compareEndDate,
   setPeriod,
   setCompareTo,
   setLocation,
+  setLocationSpace,
   setCustomRange,
+  setCustomCompareRange,
 } = useDailyOpsRevenuePeriod()
 
 const customStart = ref(primaryRange.value.startDate)
 const customEnd = ref(primaryRange.value.endDate)
+const cmpStart = ref(compareStartDate.value ?? '')
+const cmpEnd = ref(compareEndDate.value ?? '')
 
 watch(primaryRange, (r) => {
   customStart.value = r.startDate
   customEnd.value = r.endDate
 })
+watch([compareStartDate, compareEndDate], ([s, e]) => {
+  if (s) cmpStart.value = s
+  if (e) cmpEnd.value = e
+})
 
 function onPeriodChange(e: Event) {
-  const v = (e.target as HTMLSelectElement).value as DailyOpsRevenuePeriodId
-  setPeriod(v)
+  setPeriod((e.target as HTMLSelectElement).value as DailyOpsRevenuePeriodId)
 }
 
 function onCompareChange(e: Event) {
@@ -139,9 +194,16 @@ function onLocationChange(e: Event) {
   setLocation(v === 'all' ? null : v)
 }
 
+function onSpaceChange(e: Event) {
+  const v = (e.target as HTMLSelectElement).value
+  setLocationSpace(v === 'all' ? null : v)
+}
+
 function applyCustom() {
-  if (customStart.value && customEnd.value) {
-    setCustomRange(customStart.value, customEnd.value)
-  }
+  if (customStart.value && customEnd.value) setCustomRange(customStart.value, customEnd.value)
+}
+
+function applyCustomCompare() {
+  if (cmpStart.value && cmpEnd.value) setCustomCompareRange(cmpStart.value, cmpEnd.value)
 }
 </script>

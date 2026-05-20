@@ -64,10 +64,15 @@ export async function computeSimplePnL(
     const cmpResult = round2(
       cmpTotals.revenue - cmpFoodCogs - cmpBevCogs - round2(cmpLabor.loaded) - round2((cmpTotals.revenue * assumptions.overheadPct) / 100),
     )
+    const cmpOverhead = round2((cmpTotals.revenue * assumptions.overheadPct) / 100)
     dto.compare = {
-      revenue: round2(cmpTotals.revenue),
-      result: cmpResult,
       label: ctx.compareLabel,
+      revenue: round2(cmpTotals.revenue),
+      foodCogs: cmpFoodCogs,
+      bevCogs: cmpBevCogs,
+      laborCost: round2(cmpLabor.loaded),
+      overhead: cmpOverhead,
+      result: cmpResult,
     }
   }
 

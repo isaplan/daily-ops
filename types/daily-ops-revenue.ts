@@ -92,9 +92,13 @@ export type DailyOpsSimplePnLDto = {
   result: number
   assumptions: DailyOpsSimplePnLAssumptions
   compare?: {
-    revenue: number
-    result: number
     label: string
+    revenue: number
+    foodCogs: number
+    bevCogs: number
+    laborCost: number
+    overhead: number
+    result: number
   }
 }
 
@@ -176,11 +180,28 @@ export type DailyOpsRevenueCategoryDto = {
   pctOfTotal: number
 }
 
+export type DailyOpsRevenueProductWeekdaySlice = {
+  dayOfWeek: string
+  itemsCount: number
+  revenue: number
+}
+
 export type DailyOpsRevenueProductRow = {
   productName: string
   revenue: number
   itemsCount: number
   revenuePerItem: number
+  byWeekday?: DailyOpsRevenueProductWeekdaySlice[]
+}
+
+export type DailyOpsHourlyCategoryStackPoint = {
+  hour: number
+  keuken: number
+  dranken: number
+}
+
+export type DailyOpsRevenueHourlyCategoryStackDto = {
+  points: DailyOpsHourlyCategoryStackPoint[]
 }
 
 export type DailyOpsRevenueStaffRow = {

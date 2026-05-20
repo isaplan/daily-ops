@@ -1,5 +1,5 @@
 <template>
-  <RevenuePage />
+  <DailyOpsRevenuePage />
 </template>
 
 <script setup lang="ts">
