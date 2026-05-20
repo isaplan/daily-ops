@@ -83,6 +83,38 @@
       "file": "server/api/daily-ops/bork-staff/unified-users.get.ts",
       "status": "completed",
       "touch_again": true
+    },
+    {
+      "id": "dailyOpsRevenuePeriod",
+      "name": "dailyOpsRevenuePeriod",
+      "type": "util",
+      "file": "utils/dailyOpsRevenuePeriod.ts",
+      "status": "completed",
+      "touch_again": true
+    },
+    {
+      "id": "dailyOpsRevenueFetchRange",
+      "name": "dailyOpsRevenueFetchRange",
+      "type": "util",
+      "file": "server/utils/dailyOpsRevenue/fetchRevenueRange.ts",
+      "status": "completed",
+      "touch_again": true
+    },
+    {
+      "id": "dailyOpsRevenueSummaryGet",
+      "name": "dailyOpsRevenueSummaryGet",
+      "type": "api",
+      "file": "server/api/daily-ops/revenue/summary.get.ts",
+      "status": "completed",
+      "touch_again": true
+    },
+    {
+      "id": "dailyOpsSnapshotBuildRevenueProducts",
+      "name": "dailyOpsSnapshotBuildRevenueProducts",
+      "type": "util",
+      "file": "server/utils/dailyOpsSnapshot/buildRevenueProductsSection.ts",
+      "status": "completed",
+      "touch_again": true
     }
   ]
 }

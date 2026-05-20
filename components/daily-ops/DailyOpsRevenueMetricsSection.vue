@@ -15,5 +15,5 @@ defineProps<{
   period: string
 }>()
 
-const { revenue, pending } = useDailyOpsRevenueMetrics()
+const { revenue, pending } = useDailyOpsRevenueBreakdown()
 </script>

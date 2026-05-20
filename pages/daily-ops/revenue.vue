@@ -1,5 +1,5 @@
 <template>
-  <DailyOpsHomeDashboard page-heading-suffix="Revenue" />
+  <RevenuePage />
 </template>
 
 <script setup lang="ts">
