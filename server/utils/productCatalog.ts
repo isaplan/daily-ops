@@ -3,7 +3,7 @@
  * @created: 2026-05-20T00:00:00.000Z
  * @last-modified: 2026-05-20T00:00:00.000Z
  * @description: Unified product_catalog hub — Bork API catalog + sales rollups
- * @last-fix: [2026-05-20] Exclude melding + no-VAT from catalog; sellable filter on read
+ * @last-fix: [2026-05-20] Map category from Bork Hoofdgroep (L2) + sub from Productgroep (L3/L4)
  *
  * @exports-to:
  * ✓ server/services/productCatalogService.ts
@@ -25,11 +25,6 @@ import type {
 
 const COLLECTION = 'product_catalog'
 
-const BEVERAGE_HINTS =
-  /\b(drank|drink|drinks|bar|tap|bier|beer|wine|wijn|cocktail|coffee|koffie|thee|tea|fris|soda|spirit)\b/i
-const FOOD_HINTS =
-  /\b(keuken|kitchen|food|gerecht|dish|lunch|diner|dessert|burger|pizza|snack|voorgerecht|hoofdgerecht)\b/i
-
 const SIZE_PATTERN =
   /\s+((?:fluit|vaas|pint|glas|mug|fles|pitcher|kan)\b|\d+(?:[.,]\d+)?\s*(?:cl|ml|l))\s*$/i
 
@@ -42,23 +37,84 @@ export function isMeldingGroupName(name: string | null | undefined): boolean {
   return NON_SELLABLE_GROUP.test(n)
 }
 
+/** Bork group path aligned with registry export (Winkel → Hoofdgroep → Productgroep → Product). */
+export type BorkGroupCatalogPath = {
+  ancestors: BorkGroupRow[]
+  hoofdgroep: string | null
+  productgroep: string | null
+  leafGroupName: string | null
+  pathNames: string[]
+}
+
+export function classifyCategoryFromHoofdgroep(hoofdgroep: string | null): ProductCatalogCategory {
+  const h = (hoofdgroep ?? '').trim().toLowerCase()
+  if (/^dranken\s+(hoog|laag)$/.test(h)) return 'beverage'
+  if (h === 'keuken') return 'food'
+  if (h === 'non-food') return 'other'
+  return 'other'
+}
+
+export function resolveBorkGroupCatalogPath(
+  groups: BorkGroupRow[],
+  productGroupKey: string | null
+): BorkGroupCatalogPath {
+  if (!productGroupKey) {
+    return { ancestors: [], hoofdgroep: null, productgroep: null, leafGroupName: null, pathNames: [] }
+  }
+  const leaf = groups.find((g) => groupKeyString(g.Key) === productGroupKey)
+  if (!leaf || leaf.LeftNr == null || leaf.RightNr == null) {
+    const name = leaf?.Name ?? null
+    return {
+      ancestors: leaf ? [leaf] : [],
+      hoofdgroep: null,
+      productgroep: name,
+      leafGroupName: name,
+      pathNames: name ? [name] : [],
+    }
+  }
+  const ancestors = groups
+    .filter(
+      (o) =>
+        o.LeftNr != null &&
+        o.RightNr != null &&
+        o.LeftNr <= leaf.LeftNr! &&
+        o.RightNr >= leaf.RightNr!
+    )
+    .sort((a, b) => (a.GroupLevel ?? 0) - (b.GroupLevel ?? 0))
+  const pathNames = ancestors.map((a) => a.Name).filter((n): n is string => Boolean(n))
+  const hoofdgroep = ancestors.find((a) => a.GroupLevel === 2)?.Name ?? null
+  const level3 = ancestors.find((a) => a.GroupLevel === 3)
+  const leafLevel = leaf.GroupLevel ?? 0
+  let productgroep: string | null = leaf.Name ?? null
+  if (leafLevel >= 4 && level3?.Name) {
+    productgroep = level3.Name
+  } else if (leafLevel === 3) {
+    productgroep = leaf.Name ?? null
+  }
+  return {
+    ancestors,
+    hoofdgroep,
+    productgroep,
+    leafGroupName: leaf.Name ?? null,
+    pathNames,
+  }
+}
+
 /** Sellable menu SKU: mapped 21/6% VAT and not under Melding. */
 export function isSellableCatalogProduct(input: {
   vatPercent: 21 | 6 | null
-  groupPathNames: string[]
-  subCategory?: string | null
+  groupPath: BorkGroupCatalogPath
 }): boolean {
   if (input.vatPercent == null) return false
-  if (isMeldingGroupName(input.subCategory)) return false
-  return !input.groupPathNames.some((n) => isMeldingGroupName(n))
+  if (isMeldingGroupName(input.groupPath.productgroep)) return false
+  if (isMeldingGroupName(input.groupPath.leafGroupName)) return false
+  return !input.groupPath.ancestors.some((a) => isMeldingGroupName(a.Name))
 }
 
 export function isSellableCatalogDoc(doc: ProductCatalogDoc): boolean {
-  return isSellableCatalogProduct({
-    vatPercent: doc.vat_percent,
-    groupPathNames: [doc.sub_category ?? ''],
-    subCategory: doc.sub_category,
-  })
+  if (doc.vat_percent == null) return false
+  if (isMeldingGroupName(doc.sub_category) || isMeldingGroupName(doc.hoofdgroep)) return false
+  return true
 }
 
 type BorkGroupRow = {
@@ -119,13 +175,6 @@ export function priceExFromInc(inc: number, vatPercent: 21 | 6 | null): number |
   return Math.round((inc / (1 + vatPercent / 100)) * 100) / 100
 }
 
-function classifyCategoryFromNames(names: string[]): ProductCatalogCategory {
-  const joined = names.filter(Boolean).join(' ')
-  if (BEVERAGE_HINTS.test(joined)) return 'beverage'
-  if (FOOD_HINTS.test(joined)) return 'food'
-  return 'other'
-}
-
 function extractRecords(payload: unknown): unknown[] {
   if (Array.isArray(payload)) return payload
   if (payload && typeof payload === 'object') {
@@ -146,8 +195,10 @@ function groupKeyString(key: unknown): string | null {
 }
 
 export function buildGroupIndex(groups: unknown[]): {
+  rows: BorkGroupRow[]
   byKey: Map<string, BorkGroupRow>
   ancestorNames: (groupKey: string | null) => string[]
+  resolvePath: (groupKey: string | null) => BorkGroupCatalogPath
 } {
   const rows = groups.filter((g): g is BorkGroupRow => !!g && typeof g === 'object')
   const byKey = new Map<string, BorkGroupRow>()
@@ -156,28 +207,10 @@ export function buildGroupIndex(groups: unknown[]): {
     if (k) byKey.set(k, g)
   }
 
-  const ancestorNames = (groupKey: string | null): string[] => {
-    if (!groupKey) return []
-    const g = byKey.get(groupKey)
-    if (!g || g.LeftNr == null || g.RightNr == null) {
-      return g?.Name ? [g.Name] : []
-    }
-    const names: string[] = []
-    for (const other of rows) {
-      if (
-        other.LeftNr != null &&
-        other.RightNr != null &&
-        other.LeftNr <= g.LeftNr &&
-        other.RightNr >= g.RightNr &&
-        other.Name
-      ) {
-        names.push(other.Name)
-      }
-    }
-    return names.length > 0 ? names : g.Name ? [g.Name] : []
-  }
+  const resolvePath = (groupKey: string | null) => resolveBorkGroupCatalogPath(rows, groupKey)
+  const ancestorNames = (groupKey: string | null) => resolvePath(groupKey).pathNames
 
-  return { byKey, ancestorNames }
+  return { rows, byKey, ancestorNames, resolvePath }
 }
 
 export async function fetchBorkCatalogJson(
@@ -282,6 +315,23 @@ function pickPrimaryCategory(locations: ProductCatalogLocationRow[]): ProductCat
   return 'other'
 }
 
+function pickPrimaryHoofdgroep(locations: ProductCatalogLocationRow[]): string | null {
+  const counts = new Map<string, number>()
+  for (const l of locations) {
+    if (!l.hoofdgroep) continue
+    counts.set(l.hoofdgroep, (counts.get(l.hoofdgroep) ?? 0) + 1)
+  }
+  let best: string | null = null
+  let bestN = 0
+  for (const [name, n] of counts) {
+    if (n > bestN) {
+      best = name
+      bestN = n
+    }
+  }
+  return best
+}
+
 function pickPrimarySubCategory(locations: ProductCatalogLocationRow[]): string | null {
   const counts = new Map<string, number>()
   for (const l of locations) {
@@ -314,17 +364,10 @@ export async function upsertCatalogProductFromApi(
 
   const displayName = String(product.Name ?? '').trim() || 'Unknown'
   const groupKey = groupKeyString(product.GroupKey)
-  const pathNames = ctx.groupIndex.ancestorNames(groupKey)
-  const groupName = pathNames[pathNames.length - 1] ?? null
-  const category = classifyCategoryFromNames(pathNames)
+  const groupPath = ctx.groupIndex.resolvePath(groupKey)
+  const category = classifyCategoryFromHoofdgroep(groupPath.hoofdgroep)
   const vatPercent = resolveCatalogVatPercent(Number(product.Vat ?? 0))
-  if (
-    !isSellableCatalogProduct({
-      vatPercent,
-      groupPathNames: pathNames,
-      subCategory: groupName,
-    })
-  ) {
+  if (!isSellableCatalogProduct({ vatPercent, groupPath })) {
     return
   }
 
@@ -340,8 +383,9 @@ export async function upsertCatalogProductFromApi(
     vat_percent: vatPercent,
     vat_label: vatLabelFromPercent(vatPercent),
     group_key: groupKey,
-    group_name: groupName,
-    sub_category: groupName,
+    group_name: groupPath.leafGroupName,
+    hoofdgroep: groupPath.hoofdgroep,
+    sub_category: groupPath.productgroep,
     category,
     sold_unit_price_inc_vat: null,
     sold_quantity: 0,
@@ -360,6 +404,7 @@ export async function upsertCatalogProductFromApi(
     family_name,
     size_label,
     category: pickPrimaryCategory(locations),
+    hoofdgroep: pickPrimaryHoofdgroep(locations),
     sub_category: pickPrimarySubCategory(locations),
     vat_percent: vatPercent,
     vat_label: vatLabelFromPercent(vatPercent),
@@ -391,7 +436,9 @@ export async function pruneNonSellableCatalogProducts(db: Db): Promise<number> {
       { vat_percent: null },
       { vat_label: 'unknown' },
       { sub_category: { $regex: /^melding$/i } },
+      { hoofdgroep: { $regex: /^melding$/i } },
       { 'locations.sub_category': { $regex: /^melding$/i } },
+      { 'locations.hoofdgroep': { $regex: /^melding$/i } },
     ],
   })
   return result.deletedCount
@@ -508,6 +555,7 @@ function attachSalesToDoc(
         vat_label: doc.vat_label,
         group_key: null,
         group_name: null,
+        hoofdgroep: doc.hoofdgroep,
         sub_category: doc.sub_category,
         category: doc.category,
         sold_unit_price_inc_vat: b.unit_price > 0 ? b.unit_price : null,

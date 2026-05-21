@@ -11,6 +11,9 @@ export type ProductCatalogLocationRow = {
   vat_label: ProductCatalogVatLabel
   group_key: string | null
   group_name: string | null
+  /** Bork Hoofdgroep (GroupLevel 2): Dranken Hoog / Dranken Laag / Keuken / Non-Food */
+  hoofdgroep: string | null
+  /** Bork Productgroep (GroupLevel 3, or L3 when product sits in L4+) */
   sub_category: string | null
   category: ProductCatalogCategory
   /** Last sold unit price in period (when differs from list) */
@@ -25,7 +28,9 @@ export type ProductCatalogDoc = {
   display_name: string
   family_name: string
   size_label: string | null
+  /** Food / Beverage / Other — derived from hoofdgroep */
   category: ProductCatalogCategory
+  hoofdgroep: string | null
   sub_category: string | null
   vat_percent: 21 | 6 | null
   vat_label: ProductCatalogVatLabel

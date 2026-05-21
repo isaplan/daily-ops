@@ -5,9 +5,9 @@
         <div>
           <h1 class="text-3xl font-bold text-gray-900">Product catalog</h1>
           <p class="mt-2 text-gray-600">
-            Unified <span class="font-mono text-gray-800">product_catalog</span> — Bork menu (API) +
-            sold metrics from <span class="font-mono text-gray-800">bork_sales_by_product</span>. One row per
-            sellable SKU (e.g. size variant).
+            Unified <span class="font-mono text-gray-800">product_catalog</span> — Bork menu (API), grouped like the
+            registry: <strong>Hoofdgroep</strong> (Dranken Hoog/Laag, Keuken) → <strong>Productgroep</strong> → product.
+            Sold metrics from <span class="font-mono text-gray-800">bork_sales_by_product</span>.
           </p>
           <p v-if="activeRange" class="mt-1 text-sm text-gray-500">
             Sales period: {{ activeRange.range_start }} – {{ activeRange.range_end }}
@@ -109,7 +109,8 @@
                 <th class="w-8 pb-2 pr-2" />
                 <th class="pb-2 pr-3 font-medium">Product</th>
                 <th class="pb-2 pr-3 font-medium">Category</th>
-                <th class="pb-2 pr-3 font-medium">Sub</th>
+                <th class="pb-2 pr-3 font-medium">Hoofdgroep</th>
+                <th class="pb-2 pr-3 font-medium">Productgroep</th>
                 <th class="pb-2 pr-3 text-right font-medium">List ex</th>
                 <th class="pb-2 pr-3 text-right font-medium">List inc</th>
                 <th class="pb-2 pr-3 font-medium">VAT</th>
@@ -139,6 +140,7 @@
                     </p>
                   </td>
                   <td class="py-2.5 pr-3 capitalize text-gray-700">{{ row.category }}</td>
+                  <td class="py-2.5 pr-3 text-gray-600">{{ row.hoofdgroep || '—' }}</td>
                   <td class="py-2.5 pr-3 text-gray-600">{{ row.sub_category || '—' }}</td>
                   <td class="py-2.5 pr-3 text-right font-mono tabular-nums">
                     {{ priceRangeEx(row) }}
@@ -155,11 +157,13 @@
                   <td class="py-2.5 pr-3 text-right font-mono tabular-nums">{{ money(row.sold_revenue_inc_vat) }}</td>
                 </tr>
                 <tr v-if="expanded.has(i)" class="border-b border-gray-100 bg-gray-50/80">
-                  <td colspan="9" class="px-4 py-3">
+                  <td colspan="10" class="px-4 py-3">
                     <table class="ml-6 w-full max-w-4xl text-xs">
                       <thead>
                         <tr class="border-b border-gray-200 text-gray-500">
                           <th class="py-1 pr-3 text-left font-medium">Location</th>
+                          <th class="py-1 pr-3 font-medium">Hoofdgroep</th>
+                          <th class="py-1 pr-3 font-medium">Productgroep</th>
                           <th class="py-1 pr-3 text-right font-medium">List ex</th>
                           <th class="py-1 pr-3 text-right font-medium">List inc</th>
                           <th class="py-1 pr-3 font-medium">VAT</th>
@@ -175,6 +179,8 @@
                           class="border-b border-gray-100"
                         >
                           <td class="py-1.5 pr-3 text-gray-800">{{ loc.location_name }}</td>
+                          <td class="py-1.5 pr-3 text-gray-600">{{ loc.hoofdgroep || '—' }}</td>
+                          <td class="py-1.5 pr-3 text-gray-600">{{ loc.sub_category || '—' }}</td>
                           <td class="py-1.5 pr-3 text-right font-mono">{{ money(loc.list_price_ex_vat) }}</td>
                           <td class="py-1.5 pr-3 text-right font-mono">{{ money(loc.list_price_inc_vat) }}</td>
                           <td class="py-1.5 pr-3">{{ loc.vat_label === 'unknown' ? '—' : `${loc.vat_label}%` }}</td>
