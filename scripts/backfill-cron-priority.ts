@@ -11,7 +11,7 @@ import { MongoClient } from 'mongodb'
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/daily-ops'
 
 function calculateCronPriority (cronHour: number | undefined): number {
-  if (cronHour === 7) return 3
+  if (cronHour === 7 || cronHour === 8) return 3
   if (cronHour === 23) return 2
   if (cronHour === 18) return 1
   return 0

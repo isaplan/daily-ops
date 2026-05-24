@@ -3,7 +3,7 @@
  * @created: 2026-05-20T00:00:00.000Z
  * @last-modified: 2026-05-20T00:00:00.000Z
  * @description: Sync unified product_catalog from Bork API credentials
- * @last-fix: [2026-05-20] Initial catalog sync orchestration
+ * @last-fix: [2026-05-24] Recompute brand families after catalog sync
  *
  * @exports-to:
  * ✓ server/api/daily-ops/product-catalog/sync.post.ts
@@ -14,9 +14,11 @@ import type { Db } from 'mongodb'
 import {
   mergeSalesOnlyProducts,
   pruneNonSellableCatalogProducts,
+  recomputeAllCatalogFamilyNames,
   syncProductCatalogForCredential,
   type BorkCredentialRow,
 } from '../utils/productCatalog'
+import { autoLinkUnmappedMenuItems } from '../utils/menuCatalogLink'
 
 export type ProductCatalogSyncResult = {
   ok: boolean
@@ -68,10 +70,12 @@ export async function syncProductCatalogFromBorkApi(db: Db): Promise<ProductCata
 
   const salesOnlyAdded = await mergeSalesOnlyProducts(db, syncedAt)
   const pruned = await pruneNonSellableCatalogProducts(db)
+  const familiesUpdated = await recomputeAllCatalogFamilyNames(db)
+  const menuLinks = await autoLinkUnmappedMenuItems(db, { limit: 3000 })
 
   const ok = locationsOk > 0
   const message = ok
-    ? `Synced catalog for ${locationsOk}/${creds.length} location(s); ${productsWritten} API product rows; removed ${pruned} non-sellable (melding / no VAT).`
+    ? `Synced catalog for ${locationsOk}/${creds.length} location(s); ${productsWritten} API product rows; removed ${pruned} non-sellable (melding / no VAT); ${familiesUpdated} brand families updated; ${menuLinks.linked} menu item link(s).`
     : `Catalog sync failed: ${errors[0] ?? 'no locations succeeded'}`
 
   return {

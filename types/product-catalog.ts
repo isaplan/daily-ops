@@ -36,11 +36,27 @@ export type ProductCatalogDoc = {
   vat_label: ProductCatalogVatLabel
   location_ids: string[]
   locations: ProductCatalogLocationRow[]
+  /** Live Bork SKU vs menu-only (pre–go-live). */
+  catalog_status?: 'live' | 'planned'
   sources: {
     api_catalog_at?: string
     sales_seen_at?: string
+    menu_item_id?: string
   }
   updated_at: Date
+}
+
+export type ProductCatalogMenuPriceRow = {
+  menu_id: string
+  menu_name: string
+  menu_item_id: string
+  menu_item_name: string
+  price_inc_vat: number | null
+  cost_per_item: number | null
+  margin_percent: number | null
+  effective_date: string | null
+  source: 'menu' | 'menu_version'
+  version_saved_at?: string
 }
 
 export type ProductCatalogHubRow = ProductCatalogDoc & {
@@ -48,6 +64,7 @@ export type ProductCatalogHubRow = ProductCatalogDoc & {
   sold_revenue_inc_vat: number
   sold_revenue_ex_vat: number
   price_range_inc_vat: { min: number | null; max: number | null }
+  menu_prices?: ProductCatalogMenuPriceRow[]
 }
 
 export type ProductCatalogDateRange = {

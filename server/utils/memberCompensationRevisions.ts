@@ -1,9 +1,9 @@
 /**
  * @registry-id: memberCompensationRevisions
  * @created: 2026-05-16T12:00:00.000Z
- * @last-modified: 2026-05-18T12:00:00.000Z
+ * @last-modified: 2026-05-21T12:00:00.000Z
  * @description: Open/close compensation revision intervals on members (forward-only, idempotent)
- * @last-fix: [2026-05-18] ZZP: cost_per_hour = hourly_rate only (ignore inbox Loonkosten)
+ * @last-fix: [2026-05-21] Nul-uren loaded ratio 1.36 → 1.56
  *
  * @architecture-ref: ARCHITECTURE.md#5-business-rules
  * @adr-ref: ADR-001, ADR-002, ADR-005
@@ -22,7 +22,7 @@ import type {
   CompensationStatus,
 } from '../../types/member-compensation'
 
-const NUL_UREN_RATIO = 1.36
+const NUL_UREN_RATIO = 1.56
 
 export function isNulUrenContract(contractType: string): boolean {
   return /nul\s*uren/i.test(String(contractType ?? ''))

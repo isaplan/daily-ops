@@ -3,7 +3,7 @@
  * @created: 2026-05-16T23:30:00.000Z
  * @last-modified: 2026-05-19T00:00:00.000Z
  * @description: Builds per-venue KPI cards for the Daily Ops venue strip (3 fixed locations, single day).
- * @last-fix: [2026-05-20] Enrich agg rows from members when wages missing (ZZP support_id).
+ * @last-fix: [2026-05-21] Labor KPIs use loaded cost; % rev from loaded
  *
  * @exports-to:
  * ✓ server/api/daily-ops/metrics/venue-strip.get.ts
@@ -67,7 +67,7 @@ function emptyLaborBlock (): VenueStripCardDto['labor'] {
 function withLaborPct (row: VenueStripLaborRowDto, revenue: number): VenueStripLaborRowDto {
   return {
     ...row,
-    laborPctOfRevenue: revenue > 0 ? round2((row.wages / revenue) * 100) : null,
+    laborPctOfRevenue: revenue > 0 ? round2((row.loaded / revenue) * 100) : null,
   }
 }
 
@@ -445,7 +445,7 @@ async function fetchContractsByTeam (
           loaded: { $round: ['$loaded', 2] },
         },
       },
-      { $sort: { teamBucket: 1, wages: -1 } },
+      { $sort: { teamBucket: 1, loaded: -1 } },
     ])
     .toArray()) as {
     teamBucket: VenueStripTeamBucket

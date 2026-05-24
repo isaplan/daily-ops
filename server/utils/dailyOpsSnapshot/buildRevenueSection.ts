@@ -1,18 +1,19 @@
 /**
  * @registry-id: dailyOpsSnapshotBuildRevenueSection
  * @created: 2026-05-13T00:00:00.000Z
- * @last-modified: 2026-05-13T09:20:00.000Z
+ * @last-modified: 2026-05-18T12:00:00.000Z
  * @description: Builds DailyOpsSnapshotRevenueSection for one (businessDate, locationId).
  *   Reads only from aggregated collections: bork_business_days, bork_sales_by_hour,
  *   inbox-bork-basis-report. Never touches bork_raw_data.
- * @last-fix: [2026-05-13] Coerce DEBUG to string before .includes (boolean env).
+ * @last-fix: [2026-05-18] Lead inbox = pickBasisReportByCronPriority (morning 7/8 final, not cron 23).
  *
  * @architecture:
  *   - Lead-source decision: if any inbox row exists for (businessDate, locationId), inbox wins
  *     for headline `totals`. Otherwise bork V2 wins. borkTotals always populated for cross-check.
+ *   - Inbox headline: `pickBasisReportByCronPriority` from basis-report-mapper (cron 7/8 = final yesterday).
  *   - Hourly: pre-fill 24 slots (business_hour 0..23 → calendar_hour 8..7-next). Sourced from
  *     bork_sales_by_hour. No intraday inbox per-hour split (inbox is daily-level).
- *   - Intraday: capture each inbox poll (cron_hour 18/23 for same-day, 8 for next-morning seal).
+ *   - Intraday: all inbox rows stored in `intraday` for audit; 18/23 are partials only.
  *
  * @exports-to:
  *   ✓ server/services/dailyOpsSnapshotService.ts
@@ -25,6 +26,7 @@ import type {
   LeadRevenueSource,
   RevenueBreakdown,
 } from '../../../types/daily-ops-snapshot'
+import { pickBasisReportByCronPriority, type BasisReportData } from '../inbox/basis-report-mapper'
 
 const DEBUG = String(process.env.DEBUG ?? '').includes('snapshot:build')
 
@@ -69,9 +71,7 @@ export async function buildRevenueSection(
     record_count: Number(borkDay?.record_count ?? 0),
   }
 
-  const sealedInbox = inboxRows.find((r) => r.cron_hour === 8)
-  const latestInbox = inboxRows[inboxRows.length - 1] ?? null
-  const leadInbox = sealedInbox ?? latestInbox
+  const leadInbox = pickBasisReportByCronPriority(inboxRows as BasisReportData[]) ?? null
 
   let leadSource: LeadRevenueSource = 'none'
   let totals: RevenueBreakdown & { quantity: number; record_count: number } = {

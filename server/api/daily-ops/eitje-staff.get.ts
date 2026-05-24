@@ -18,6 +18,7 @@ import {
   isNulUrenContract,
   isZzpContract,
 } from '../../utils/memberCompensationRevisions'
+import { LOADED_FALLBACK_RATIO } from '../../utils/eitjeLoadedCostShared'
 
 type MatchConfidence = 'high' | 'medium' | 'none'
 
@@ -249,7 +250,7 @@ export default defineEventHandler(async (event) => {
       if (isZzpContract(contract_type) && hourly_rate != null) {
         cost_per_hour = hourly_rate
       } else if (isNulUrenContract(contract_type) && hourly_rate != null) {
-        cost_per_hour = hourly_rate * 1.36
+        cost_per_hour = hourly_rate * LOADED_FALLBACK_RATIO
       } else {
         for (const d of sorted) {
           const c = toNum(d.cost_per_hour)

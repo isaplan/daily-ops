@@ -1,10 +1,22 @@
 /**
- * Basis Report Mapper — Transform parsed XLSX data into structured sales format
- * Handles: Netto Sales, Betalingen, Correcties, Interne Verkoop
- * Preserves: Inc VAT, Ex VAT prices
- * 
- * @last-modified: 2026-05-08T16:50:00.000Z
- * @last-fix: [2026-05-08] Added business_date field for proper business day context and filtering
+ * @registry-id: basisReportMapper
+ * @created: 2026-04-01T00:00:00.000Z
+ * @last-modified: 2026-05-18T12:00:00.000Z
+ * @description: Parse Trivec Basis inbox XLSX → inbox-bork-basis-report rows.
+ * @last-fix: [2026-05-18] SSOT cron_priority + pickByCronPriority; cron 7/8 = final yesterday
+ *
+ * ## Basis inbox pick rule (SSOT — all revenue headline reads)
+ * First **morning** poll (~07/08, cron_hour **7 or 8**) delivers the **final yesterday**
+ * revenue for `business_date`. Subject/attachment say "Yesterday" / report date = next ISO day.
+ * Cron **18/23** are **intraday partials** for the same calendar batch day — never headline totals.
+ *
+ * `calculateBasisCronPriority(cron_hour)` → 3 = morning final (7|8), 2 = 23, 1 = 18.
+ * `pickBasisReportByCronPriority(rows)` — sort by that priority DESC, then received_at DESC.
+ *
+ * @exports-to:
+ * ✓ server/utils/dailyOpsSnapshot/buildRevenueSection.ts
+ * ✓ server/utils/dailyOpsDashboardMetrics.ts
+ * ✓ server/services/inboxProcessService.ts
  */
 
 import type { ParseResult } from '~/types/inbox'
@@ -48,7 +60,7 @@ export type BasisReportData = {
   location_raw?: string
   
   cron_hour?: number
-  cron_priority?: number // 3 = cron 7 (final), 2 = cron 23, 1 = cron 18
+  cron_priority?: number // denormalized; pick logic uses calculateBasisCronPriority(cron_hour)
   business_hour?: number
   business_date?: string
   received_at?: Date
@@ -340,8 +352,7 @@ export async function mapBasisReportXLSX(
   const finalRevenueIncl = sections.netto_sales?.grand_total?.price_incl_vat || 0
   const finalRevenueEx = sections.netto_sales?.grand_total?.price_ex_vat || 0
 
-  // Calculate cron priority: 3 = cron 7 (final), 2 = cron 23, 1 = cron 18, 0 = other
-  const cronPriority = cronHour === 7 ? 3 : cronHour === 23 ? 2 : cronHour === 18 ? 1 : 0
+  const cronPriority = calculateBasisCronPriority(cronHour)
 
   if (db && locationRaw && !locationId) {
     try {
@@ -640,6 +651,26 @@ function extractBatchHourFromSubject(subject?: string): number | undefined {
     }
   }
   return undefined
+}
+
+/** Morning final yesterday (7|8) > night partial (23) > evening partial (18). */
+export function calculateBasisCronPriority(cronHour: number | undefined): number {
+  if (cronHour === 7 || cronHour === 8) return 3
+  if (cronHour === 23) return 2
+  if (cronHour === 18) return 1
+  return 0
+}
+
+/** Pick one Basis row per venue-day — same rule as dailyOpsDashboardMetrics.pickBasisReportsPerLocation. */
+export function pickBasisReportByCronPriority(reports: BasisReportData[]): BasisReportData | undefined {
+  if (reports.length === 0) return undefined
+  return [...reports].sort((a, b) => {
+    const priorityDiff = calculateBasisCronPriority(b.cron_hour) - calculateBasisCronPriority(a.cron_hour)
+    if (priorityDiff !== 0) return priorityDiff
+    const aTime = a.received_at ? new Date(a.received_at).getTime() : 0
+    const bTime = b.received_at ? new Date(b.received_at).getTime() : 0
+    return bTime - aTime
+  })[0]
 }
 
 /** Hour 0–23 on the Europe/Amsterdam civil clock (CEST/CET). */

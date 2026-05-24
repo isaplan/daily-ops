@@ -18,7 +18,7 @@ import { dataMappingService } from './dataMappingService'
 import { storeRawData, isTestDataType, updateSourceFileName } from './rawDataStorageService'
 import { gmailApiService } from './gmailApiService'
 import { aggregateDailySalesForEmail } from './borkSalesDailyAggregation'
-import { mapBasisReportXLSX } from '../utils/inbox/basis-report-mapper'
+import { mapBasisReportXLSX, calculateBasisCronPriority } from '../utils/inbox/basis-report-mapper'
 import { matchVenueLocationFromText } from '../utils/inbox/basis-report-location'
 import { getDb } from '../utils/db'
 import { enqueueSnapshotBuild } from '../utils/dailyOpsSnapshot/jobCoalescer'
@@ -111,10 +111,10 @@ async function handleParsedMapping(
           { upsert: true },
         )
 
-        // Snapshot hook: 08:05 → seal final; intraday polls → enqueue partial rebuild.
+        // Snapshot hook: morning final (cron 7/8) seals; intraday 18/23 → partial rebuild.
         if (basisReport.business_date && basisReport.location_id) {
           const key = { businessDate: basisReport.business_date, locationId: String(basisReport.location_id) }
-          if (basisReport.cron_hour === 8) {
+          if (calculateBasisCronPriority(basisReport.cron_hour) === 3) {
             void sealDailyOpsSnapshot(key)
           } else {
             enqueueSnapshotBuild(key)

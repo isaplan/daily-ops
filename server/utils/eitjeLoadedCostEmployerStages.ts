@@ -95,7 +95,7 @@ export const EITJE_LOADED_COST_FIELDS = {
                     aggIsNumeric('$hourly_rate'),
                   ],
                 },
-                'nul-uren-employer-1.36',
+                'nul-uren-employer-1.56',
                 {
                   $cond: [
                     aggIsNumeric('$$memberCph'),
@@ -105,7 +105,7 @@ export const EITJE_LOADED_COST_FIELDS = {
                         aggIsNumeric('$$contractCph'),
                         'inbox-eitje-contracts',
                         {
-                          $cond: [aggIsNumeric('$hourly_rate'), 'fallback-1.36', 'none'],
+                          $cond: [aggIsNumeric('$hourly_rate'), 'fallback-1.56', 'none'],
                         },
                       ],
                     },

@@ -27,8 +27,15 @@ function timeseriesGranularity(startDate: string, endDate: string): 'day' | 'wee
   return 'month'
 }
 
+export type DailyOpsRevenueTabId = 'overview' | 'trends' | 'hourly' | 'dimensions'
+
 export function useDailyOpsRevenueMetrics() {
-  const { revenueQuery, primaryRange } = useDailyOpsRevenuePeriod()
+  const route = useRoute()
+  const onRevenuePage = route.path.includes('/daily-ops/revenue')
+  const periodState = onRevenuePage
+    ? useDailyOpsRevenueAnalyticsPeriod()
+    : useDailyOpsRevenuePeriod()
+  const { revenueQuery, primaryRange } = periodState
   const { pnlQueryParams } = useDailyOpsRevenuePnlAssumptions()
   const mergedQuery = computed(() => ({
     ...revenueQuery.value,
@@ -39,6 +46,10 @@ export function useDailyOpsRevenueMetrics() {
   const gran = computed(() =>
     timeseriesGranularity(primaryRange.value.startDate, primaryRange.value.endDate),
   )
+
+  const trendsActive = ref(false)
+  const hourlyActive = ref(false)
+  const dimensionsActive = ref(false)
 
   function useRevenueSlice<T>(
     suffix: string | (() => string),
@@ -64,64 +75,116 @@ export function useDailyOpsRevenueMetrics() {
     }
   }
 
+  function useLazyRevenueSlice<T>(
+    suffix: string | (() => string),
+    path: string,
+    active: Ref<boolean>,
+    extraQuery?: () => Record<string, string>,
+  ) {
+    const key = computed(() =>
+      `${cacheKey.value}-${typeof suffix === 'function' ? suffix() : suffix}`,
+    )
+    const { data, pending: fetchPending, error, refresh, execute, status } = useAsyncData(
+      key,
+      () =>
+        $fetch<T>(path, {
+          query: { ...mergedQuery.value, ...extraQuery?.() },
+        }),
+      { immediate: false },
+    )
+
+    watch(
+      [qs, active],
+      ([, isActive]) => {
+        if (isActive) execute()
+      },
+      { immediate: true },
+    )
+
+    return {
+      data: computed(() => data.value ?? null),
+      pending: computed(() => active.value && (fetchPending.value || status.value === 'idle')),
+      error,
+      refresh,
+    }
+  }
+
   const summarySlice = useRevenueSlice<DailyOpsRevenueKpiDto>('summary', '/api/daily-ops/revenue/summary')
   const pnlSlice = useRevenueSlice<DailyOpsSimplePnLDto>('pnl', '/api/daily-ops/revenue/pnl')
   const locationsSlice = useRevenueSlice<DailyOpsRevenueLocationDto[]>(
     'locations',
     '/api/daily-ops/revenue/locations',
   )
-  const timeseriesSlice = useRevenueSlice<DailyOpsRevenueTimeseriesDto>(
-    () => `timeseries-${gran.value}`,
+  const dailyTimeseriesSlice = useRevenueSlice<DailyOpsRevenueTimeseriesDto>(
+    'timeseries-day',
     '/api/daily-ops/revenue/timeseries',
-    () => ({ granularity: gran.value }),
-  )
-  const rollingMediansSlice = useRevenueSlice<DailyOpsRevenueRollingMediansDto>(
-    'rolling-medians',
-    '/api/daily-ops/revenue/rolling-medians',
-  )
-  const categoriesSlice = useRevenueSlice<DailyOpsRevenueCategoryDto[]>(
-    'categories',
-    '/api/daily-ops/revenue/categories',
-  )
-  const productsSlice = useRevenueSlice<DailyOpsRevenueProductRow[]>(
-    'products',
-    '/api/daily-ops/revenue/products',
-    () => ({ limit: '20' }),
-  )
-  const hourlyMatrixSlice = useRevenueSlice<DailyOpsRevenueHourlyMatrixDto>(
-    'hourly-matrix',
-    '/api/daily-ops/revenue/hourly-matrix',
-  )
-  const hourlyCategoryStackSlice = useRevenueSlice<DailyOpsRevenueHourlyCategoryStackDto>(
-    'hourly-category-stack',
-    '/api/daily-ops/revenue/hourly-category-stack',
-  )
-  const coOccurrenceSlice = useRevenueSlice<DailyOpsRevenueCoOccurrenceDto>(
-    'co-occurrence',
-    '/api/daily-ops/revenue/co-occurrence',
-  )
-  const staffSlice = useRevenueSlice<DailyOpsRevenueStaffRow[]>(
-    'per-staff',
-    '/api/daily-ops/revenue/per-staff',
-  )
-  const tablesSlice = useRevenueSlice<DailyOpsRevenueTableRow[]>(
-    'per-table',
-    '/api/daily-ops/revenue/per-table',
-  )
-  const locationSpacesSlice = useRevenueSlice<
-    Array<{ space: string; revenue: number; itemsCount: number; revenuePerItem: number }>
-  >('per-location-space', '/api/daily-ops/revenue/per-location-space')
-  const orderPaymentRhythmSlice = useRevenueSlice<DailyOpsOrderPaymentRhythmPoint[]>(
-    'order-payment-rhythm',
-    '/api/daily-ops/revenue/order-payment-rhythm',
+    () => ({ granularity: 'day' }),
   )
 
-  const overviewPending = computed(
-    () =>
-      summarySlice.pending.value ||
-      pnlSlice.pending.value ||
-      locationsSlice.pending.value,
+  const timeseriesSlice = useLazyRevenueSlice<DailyOpsRevenueTimeseriesDto>(
+    () => `timeseries-${gran.value}`,
+    '/api/daily-ops/revenue/timeseries',
+    trendsActive,
+    () => ({ granularity: gran.value }),
   )
+  const rollingMediansSlice = useLazyRevenueSlice<DailyOpsRevenueRollingMediansDto>(
+    'rolling-medians',
+    '/api/daily-ops/revenue/rolling-medians',
+    trendsActive,
+  )
+  const categoriesSlice = useLazyRevenueSlice<DailyOpsRevenueCategoryDto[]>(
+    'categories',
+    '/api/daily-ops/revenue/categories',
+    hourlyActive,
+  )
+  const productsSlice = useLazyRevenueSlice<DailyOpsRevenueProductRow[]>(
+    'products',
+    '/api/daily-ops/revenue/products',
+    hourlyActive,
+    () => ({ limit: '20' }),
+  )
+  const hourlyMatrixSlice = useLazyRevenueSlice<DailyOpsRevenueHourlyMatrixDto>(
+    'hourly-matrix',
+    '/api/daily-ops/revenue/hourly-matrix',
+    hourlyActive,
+  )
+  const hourlyCategoryStackSlice = useLazyRevenueSlice<DailyOpsRevenueHourlyCategoryStackDto>(
+    'hourly-category-stack',
+    '/api/daily-ops/revenue/hourly-category-stack',
+    hourlyActive,
+  )
+  const coOccurrenceSlice = useLazyRevenueSlice<DailyOpsRevenueCoOccurrenceDto>(
+    'co-occurrence',
+    '/api/daily-ops/revenue/co-occurrence',
+    hourlyActive,
+  )
+  const locationSpacesSlice = useLazyRevenueSlice<
+    Array<{ space: string; revenue: number; itemsCount: number; revenuePerItem: number }>
+  >('per-location-space', '/api/daily-ops/revenue/per-location-space', dimensionsActive)
+  const staffSlice = useLazyRevenueSlice<DailyOpsRevenueStaffRow[]>(
+    'per-staff',
+    '/api/daily-ops/revenue/per-staff',
+    hourlyActive,
+  )
+  const tablesSlice = useLazyRevenueSlice<DailyOpsRevenueTableRow[]>(
+    'per-table',
+    '/api/daily-ops/revenue/per-table',
+    hourlyActive,
+  )
+  const orderPaymentRhythmSlice = useLazyRevenueSlice<DailyOpsOrderPaymentRhythmPoint[]>(
+    'order-payment-rhythm',
+    '/api/daily-ops/revenue/order-payment-rhythm',
+    hourlyActive,
+  )
+
+  function activateRevenueTab(tab: DailyOpsRevenueTabId) {
+    if (tab === 'trends') trendsActive.value = true
+    if (tab === 'hourly') hourlyActive.value = true
+    if (tab === 'dimensions') dimensionsActive.value = true
+  }
+
+  /** Block shell only until summary KPIs are ready — pnl/locations load in place. */
+  const overviewPending = computed(() => summarySlice.pending.value)
 
   function weekdayPattern(weekday: Ref<string> | string) {
     const w = computed(() => (typeof weekday === 'string' ? weekday : weekday.value))
@@ -132,8 +195,11 @@ export function useDailyOpsRevenueMetrics() {
         $fetch<DailyOpsWeekdayPatternRow[]>('/api/daily-ops/revenue/weekday-pattern', {
           query: { ...mergedQuery.value, weekday: w.value },
         }),
-      { watch: [qs, w] },
+      { watch: [qs, w], immediate: trendsActive.value },
     )
+    watch(trendsActive, (on) => {
+      if (on) refresh()
+    })
     return {
       data: computed(() => data.value ?? null),
       pending,
@@ -146,10 +212,15 @@ export function useDailyOpsRevenueMetrics() {
     revenueQuery,
     qs,
     overviewPending,
+    activateRevenueTab,
     summary: summarySlice.data,
     pnl: pnlSlice.data,
+    pnlPending: pnlSlice.pending,
     locations: locationsSlice.data,
+    locationsPending: locationsSlice.pending,
     timeseries: timeseriesSlice.data,
+    dailyTimeseries: dailyTimeseriesSlice.data,
+    dailyTimeseriesPending: dailyTimeseriesSlice.pending,
     rollingMedians: rollingMediansSlice.data,
     categories: categoriesSlice.data,
     products: productsSlice.data,

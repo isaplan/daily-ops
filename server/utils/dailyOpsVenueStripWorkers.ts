@@ -23,18 +23,19 @@ function isOperationalTeam (teamName: string): boolean {
 }
 
 /** Expand one person+team into drawer lines (Afwas → ½ Keuken + ½ Bediening). */
+/** `laborCost` = loaded employer cost (Eitje-style), stored in DTO `wages` for display. */
 export function expandWorkerLineForTeam (
   userId: string,
   userName: string,
   teamName: string,
   hours: number,
-  wages: number,
+  laborCost: number,
   operational: boolean,
 ): VenueStripWorkerLineDto[] {
   const uid = userId || ''
   const name = userName.trim() || '—'
   const h = round2(hours)
-  const w = round2(wages)
+  const w = round2(laborCost)
   if (h <= 0 && w <= 0) return []
 
   if (operational) {
@@ -91,14 +92,14 @@ export function workersFromSnapshot (doc: DailyOpsSnapshotLaborSection | null): 
   for (const w of doc.workers ?? []) {
     const teamName = String(w.teamName ?? '')
     const hours = Number(w.hours ?? 0)
-    const wages = Number(w.wage_cost ?? 0)
+    const loaded = Number(w.loaded_cost ?? 0)
     lines.push(
       ...expandWorkerLineForTeam(
         String(w.userId ?? ''),
         String(w.userName ?? ''),
         teamName,
         hours,
-        wages,
+        loaded,
         isOperationalTeam(teamName),
       ),
     )

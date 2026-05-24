@@ -1,61 +1,55 @@
 /**
  * @registry-id: dailyOpsRevenueFetchRange
  * @created: 2026-05-20T00:00:00.000Z
- * @last-modified: 2026-05-20T00:00:00.000Z
- * @description: Revenue + items for a date range (snapshot-first, Bork fallback)
- * @last-fix: [2026-05-20] Initial
+ * @last-modified: 2026-05-24T14:00:00.000Z
+ * @description: Revenue + items for a date range — **snapshot read only** (ADR-004)
+ * @last-fix: [2026-05-24] Removed Bork aggregate fallback on GET; missing snapshot → zeros + unknown
+ * @adr-ref: ADR-004
+ *
+ * @architecture:
+ *   Daily Ops revenue APIs must NOT read bork_* or inbox on GET.
+ *   Writers (dailyOpsSnapshotService) materialize inbox + Bork into snapshot sections.
  *
  * @exports-to:
  * ✓ server/api/daily-ops/revenue/*
  */
 
 import type { Db } from 'mongodb'
-import { ObjectId } from 'mongodb'
 import { DAILY_OPS_SNAPSHOT_COLLECTIONS } from '~/types/daily-ops-snapshot'
 import type { DailyOpsRevenueQueryContext } from '~/types/daily-ops-revenue'
 import { eachBusinessDate } from './dateRange'
-import { resolveBorkAggReadSuffix } from '../borkAggVersionSuffix'
-import { BORK_DOC_REVENUE_EXPR } from '../dailyOpsDashboardMetrics'
+import { rollupFoodBeverageFromCategories } from '../borkFoodBeverageSplit'
 
 export type RevenueRangeTotals = {
+  /** Lead-source headline (ex VAT). */
   revenue: number
+  /** Lead-source inc VAT (same snapshots as `revenue`). */
+  revenueIncVat: number
+  /** Bork cross-check ex VAT from snapshot `borkTotals` (written at snapshot build). */
+  borkRevenueIncVat: number
+  borkRevenueExVat: number
   itemsCount: number
   foodRevenue: number
   beverageRevenue: number
   leadSource: 'inbox_basis' | 'bork_api' | 'unknown'
+  /** True when no snapshot revenue rows exist for the requested range. */
+  dataGap: boolean
 }
 
-async function sumFromSnapshots(
-  db: Db,
-  ctx: Pick<DailyOpsRevenueQueryContext, 'startDate' | 'endDate' | 'locationId'>,
-): Promise<RevenueRangeTotals | null> {
-  const filter: Record<string, unknown> = {
-    businessDate: { $gte: ctx.startDate, $lte: ctx.endDate },
-  }
-  if (ctx.locationId) filter.locationId = ctx.locationId
+function round2(n: number): number {
+  return Math.round(n * 100) / 100
+}
 
-  const rows = await db.collection(DAILY_OPS_SNAPSHOT_COLLECTIONS.revenueSection).find(filter).toArray()
-  if (rows.length === 0) return null
-
-  let revenue = 0
-  let itemsCount = 0
-  let inboxDays = 0
-  for (const r of rows) {
-    const doc = r as Record<string, unknown>
-    const totals = doc.totals as { ex_vat?: number; quantity?: number } | undefined
-    revenue += Number(totals?.ex_vat ?? 0)
-    itemsCount += Number(totals?.quantity ?? 0)
-    if (doc.leadSource === 'inbox') inboxDays++
-  }
-
-  const foodBev = await sumFoodBevFromProductSnapshots(db, ctx)
-  return {
-    revenue,
-    itemsCount,
-    foodRevenue: foodBev.food,
-    beverageRevenue: foodBev.beverage,
-    leadSource: inboxDays > 0 ? 'inbox_basis' : 'bork_api',
-  }
+const EMPTY_TOTALS: RevenueRangeTotals = {
+  revenue: 0,
+  revenueIncVat: 0,
+  borkRevenueIncVat: 0,
+  borkRevenueExVat: 0,
+  itemsCount: 0,
+  foodRevenue: 0,
+  beverageRevenue: 0,
+  leadSource: 'unknown',
+  dataGap: true,
 }
 
 async function sumFoodBevFromProductSnapshots(
@@ -69,114 +63,63 @@ async function sumFoodBevFromProductSnapshots(
   const rows = await db.collection(DAILY_OPS_SNAPSHOT_COLLECTIONS.revenueProductsSection).find(filter).toArray()
   let food = 0
   let beverage = 0
-  const drinkRe =
-    /drank|bier|wine|wijn|bar|cocktail|koffie|thee|limonade|gin|vodka|whisk|rum|cola|fanta|prosecco|cider|tap|fles speciaalbier|wijnen/i
   for (const doc of rows) {
     const cats = (doc as { categories?: Array<{ name: string; revenue_ex_vat: number }> }).categories ?? []
-    for (const c of cats) {
-      if (drinkRe.test(c.name)) beverage += c.revenue_ex_vat
-      else if (/keuken|food|kitchen/i.test(c.name)) food += c.revenue_ex_vat
-    }
+    const split = rollupFoodBeverageFromCategories(cats)
+    food += split.food
+    beverage += split.beverage
   }
-  if (food + beverage > 0) return { food, beverage }
-  return { food: 0, beverage: 0 }
+  return { food, beverage }
 }
 
-async function sumFromBork(
-  db: Db,
-  ctx: Pick<DailyOpsRevenueQueryContext, 'startDate' | 'endDate' | 'locationId'>,
-): Promise<RevenueRangeTotals> {
-  const suffix = resolveBorkAggReadSuffix()
-  const coll = `bork_business_days${suffix}`
-  const match: Record<string, unknown> = {
-    business_date: { $gte: ctx.startDate, $lte: ctx.endDate },
-  }
-  if (ctx.locationId && ObjectId.isValid(ctx.locationId)) {
-    match.locationId = new ObjectId(ctx.locationId)
-  }
-
-  const agg = await db
-    .collection(coll)
-    .aggregate([
-      { $match: match },
-      {
-        $group: {
-          _id: null,
-          revenue: { $sum: BORK_DOC_REVENUE_EXPR },
-          itemsCount: { $sum: { $ifNull: ['$total_quantity', 0] } },
-        },
-      },
-    ])
-    .toArray()
-
-  const row = agg[0] as { revenue?: number; itemsCount?: number } | undefined
-  const hourColl = `bork_sales_by_hour${suffix}`
-  const hourMatch = { ...match }
-  const catAgg = await db
-    .collection(hourColl)
-    .aggregate([
-      { $match: hourMatch },
-      { $unwind: { path: '$products', preserveNullAndEmptyArrays: false } },
-      {
-        $group: {
-          _id: null,
-          food: {
-            $sum: {
-              $cond: [
-                {
-                  $regexMatch: {
-                    input: { $ifNull: ['$products.productName', ''] },
-                    regex: 'drank|bier|wine|wijn|cocktail|koffie|thee|limonade',
-                    options: 'i',
-                  },
-                },
-                0,
-                { $ifNull: ['$products.total_revenue_ex_vat', '$products.total_revenue', 0] },
-              ],
-            },
-          },
-          beverage: {
-            $sum: {
-              $cond: [
-                {
-                  $regexMatch: {
-                    input: { $ifNull: ['$products.productName', ''] },
-                    regex: 'drank|bier|wine|wijn|cocktail|koffie|thee|limonade',
-                    options: 'i',
-                  },
-                },
-                { $ifNull: ['$products.total_revenue_ex_vat', '$products.total_revenue', 0] },
-                0,
-              ],
-            },
-          },
-        },
-      },
-    ])
-    .toArray()
-  const cat = catAgg[0] as { food?: number; beverage?: number } | undefined
-
-  return {
-    revenue: Number(row?.revenue ?? 0),
-    itemsCount: Number(row?.itemsCount ?? 0),
-    foodRevenue: Number(cat?.food ?? 0),
-    beverageRevenue: Number(cat?.beverage ?? 0),
-    leadSource: 'bork_api',
-  }
-}
-
+/** Snapshot-only range rollup — no bork_* / inbox reads. */
 export async function fetchRevenueRange(
   db: Db,
   ctx: DailyOpsRevenueQueryContext,
 ): Promise<RevenueRangeTotals> {
-  const slice = {
+  const filter: Record<string, unknown> = {
+    businessDate: { $gte: ctx.startDate, $lte: ctx.endDate },
+  }
+  if (ctx.locationId) filter.locationId = ctx.locationId
+
+  const rows = await db.collection(DAILY_OPS_SNAPSHOT_COLLECTIONS.revenueSection).find(filter).toArray()
+  if (rows.length === 0) return { ...EMPTY_TOTALS }
+
+  let revenue = 0
+  let revenueIncVat = 0
+  let borkRevenueIncVat = 0
+  let borkRevenueExVat = 0
+  let itemsCount = 0
+  let inboxDays = 0
+  for (const r of rows) {
+    const doc = r as Record<string, unknown>
+    const totals = doc.totals as { ex_vat?: number; inc_vat?: number; quantity?: number } | undefined
+    const borkTotals = doc.borkTotals as { ex_vat?: number; inc_vat?: number } | undefined
+    revenue += Number(totals?.ex_vat ?? 0)
+    revenueIncVat += Number(totals?.inc_vat ?? 0)
+    borkRevenueExVat += Number(borkTotals?.ex_vat ?? 0)
+    borkRevenueIncVat += Number(borkTotals?.inc_vat ?? 0)
+    itemsCount += Number(totals?.quantity ?? 0)
+    if (doc.leadSource === 'inbox') inboxDays++
+  }
+
+  const foodBev = await sumFoodBevFromProductSnapshots(db, {
     startDate: ctx.startDate,
     endDate: ctx.endDate,
     locationId: ctx.locationId,
+  })
+
+  return {
+    revenue: round2(revenue),
+    revenueIncVat: round2(revenueIncVat),
+    borkRevenueIncVat: round2(borkRevenueIncVat),
+    borkRevenueExVat: round2(borkRevenueExVat),
+    itemsCount,
+    foodRevenue: foodBev.food,
+    beverageRevenue: foodBev.beverage,
+    leadSource: inboxDays > 0 ? 'inbox_basis' : revenue > 0 ? 'bork_api' : 'unknown',
+    dataGap: false,
   }
-  const snap = await sumFromSnapshots(db, slice)
-  if (snap && snap.revenue > 0) return snap
-  return sumFromBork(db, slice)
 }
 
 export async function fetchRevenueRangeForDates(

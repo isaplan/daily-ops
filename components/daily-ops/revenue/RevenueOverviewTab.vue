@@ -1,6 +1,10 @@
 <template>
   <section class="space-y-6">
-    <DailyOpsRevenueKpiStrip :summary="summary" />
+    <DailyOpsRevenueKpiStrip
+      :summary="summary"
+      :daily-timeseries="dailyTimeseries"
+      :daily-pending="dailyPending"
+    />
     <DailyOpsRevenuePnLCard :pnl="pnl" />
     <div v-if="locations?.length" class="grid gap-6 lg:grid-cols-2">
       <ChartsD3PieChartV2 :data="pieData" :width="360" :height="280" />
@@ -9,7 +13,8 @@
           <thead class="bg-gray-50 text-left text-xs uppercase text-gray-500">
             <tr>
               <th class="px-3 py-2">Zaak</th>
-              <th class="px-3 py-2 text-right">Omzet</th>
+              <th class="px-3 py-2 text-right">Omzet ex</th>
+              <th class="px-3 py-2 text-right">Bork inc</th>
               <th class="px-3 py-2 text-right">%</th>
               <th v-if="hasLocCompare" class="px-3 py-2 text-right">VJ / vgl.</th>
             </tr>
@@ -18,6 +23,7 @@
             <tr v-for="loc in locations" :key="loc.locationId" class="border-t">
               <td class="px-3 py-2">{{ loc.locationName }}</td>
               <td class="px-3 py-2 text-right">{{ formatEur(loc.revenue) }}</td>
+              <td class="px-3 py-2 text-right text-gray-600">{{ formatEur(loc.borkRevenueIncVat) }}</td>
               <td class="px-3 py-2 text-right">{{ loc.pctOfTotal }}%</td>
               <td v-if="hasLocCompare" class="px-3 py-2 text-right text-xs text-gray-600">
                 {{ loc.compareRevenue != null ? formatEur(loc.compareRevenue) : '—' }}
@@ -32,12 +38,19 @@
 </template>
 
 <script setup lang="ts">
-import type { DailyOpsRevenueKpiDto, DailyOpsRevenueLocationDto, DailyOpsSimplePnLDto } from '~/types/daily-ops-revenue'
+import type {
+  DailyOpsRevenueKpiDto,
+  DailyOpsRevenueLocationDto,
+  DailyOpsRevenueTimeseriesDto,
+  DailyOpsSimplePnLDto,
+} from '~/types/daily-ops-revenue'
 
 const props = defineProps<{
   summary: DailyOpsRevenueKpiDto | null
   pnl: DailyOpsSimplePnLDto | null
   locations: DailyOpsRevenueLocationDto[] | null
+  dailyTimeseries: DailyOpsRevenueTimeseriesDto | null
+  dailyPending?: boolean
 }>()
 
 const { formatEur } = useDashboardEurFormat()

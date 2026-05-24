@@ -4,34 +4,10 @@ import type {
   DailyOpsRevenueTimeseriesDto,
   DailyOpsRevenueTimeseriesPoint,
 } from '~/types/daily-ops-revenue'
-import { DAILY_OPS_SNAPSHOT_COLLECTIONS } from '~/types/daily-ops-snapshot'
-import { eachBusinessDate } from './dateRange'
-import { fetchRevenueRangeForDates } from './fetchRevenueRange'
+import { buildRevenueDailySeries } from './fetchRevenueDailySeries'
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100
-}
-
-async function buildDailySeries(
-  db: Db,
-  startDate: string,
-  endDate: string,
-  locationId?: string,
-): Promise<DailyOpsRevenueTimeseriesPoint[]> {
-  const points: DailyOpsRevenueTimeseriesPoint[] = []
-  for (const date of eachBusinessDate(startDate, endDate)) {
-    const filter: Record<string, unknown> = { businessDate: date }
-    if (locationId) filter.locationId = locationId
-    const snap = await db.collection(DAILY_OPS_SNAPSHOT_COLLECTIONS.revenueSection).findOne(filter)
-    if (snap?.totals) {
-      const t = snap.totals as { ex_vat: number; quantity: number }
-      points.push({ date, revenue: round2(t.ex_vat), itemsCount: t.quantity })
-    } else {
-      const t = await fetchRevenueRangeForDates(db, date, date, locationId)
-      points.push({ date, revenue: round2(t.revenue), itemsCount: t.itemsCount })
-    }
-  }
-  return points
 }
 
 function bucketKey(date: string, granularity: 'week' | 'month' | 'quarter'): string {
@@ -74,16 +50,21 @@ export async function fetchRevenueTimeseries(
   ctx: DailyOpsRevenueQueryContext,
   granularity: 'day' | 'week' | 'month' | 'quarter' = 'day',
 ): Promise<DailyOpsRevenueTimeseriesDto> {
-  const dailyCurrent = await buildDailySeries(db, ctx.startDate, ctx.endDate, ctx.locationId)
+  const dailyCurrent = await buildRevenueDailySeries(
+    db,
+    ctx.startDate,
+    ctx.endDate,
+    ctx.locationId,
+  )
   const current = aggregatePoints(dailyCurrent, granularity)
 
   let compare: DailyOpsRevenueTimeseriesDto['compare']
   if (ctx.compareStartDate && ctx.compareEndDate) {
-    const dailyCmp = await buildDailySeries(
+    const dailyCmp = await buildRevenueDailySeries(
       db,
       ctx.compareStartDate,
       ctx.compareEndDate,
-      ctx.locationId,
+      ctx.compareLocationId ?? ctx.locationId,
     )
     compare = aggregatePoints(dailyCmp, granularity)
   }

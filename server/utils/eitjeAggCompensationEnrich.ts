@@ -116,7 +116,8 @@ function rowNeedsEnrichment (row: Record<string, unknown>): boolean {
   const hours = Number(row.total_hours ?? row.hours ?? 0)
   if (hours <= 0) return false
   const wages = Number(row.total_cost ?? row.wage_cost ?? 0)
-  return wages <= 0
+  const loaded = Number(row.total_cost_loaded ?? row.loaded_cost ?? 0)
+  return wages <= 0 || loaded <= 0
 }
 
 function applyCompensationToRow (

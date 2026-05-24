@@ -262,7 +262,7 @@ export type VenueStripLaborRowDto = {
   hours: number
   wages: number
   loaded: number
-  /** Wage cost as % of venue revenue (filled server-side). */
+  /** Loaded labor cost as % of venue revenue (filled server-side). */
   laborPctOfRevenue: number | null
 }
 
@@ -281,6 +281,7 @@ export type VenueStripWorkerLineDto = {
   teamName: string
   bucket: 'keuken' | 'bediening' | 'overig'
   hours: number
+  /** Loaded employer cost (Eitje-style). */
   wages: number
 }
 

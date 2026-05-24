@@ -6,6 +6,8 @@ import {
   productGroupFromFilename,
 } from '../../utils/parseMenuDump'
 import type { MenuItem, MenuImportResult } from '../../../types/menuItem'
+import { getDb } from '../../utils/db'
+import { autoLinkUnmappedMenuItems } from '../../utils/menuCatalogLink'
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10 MB
 
@@ -96,11 +98,19 @@ export default defineEventHandler(async (event): Promise<MenuImportResult> => {
     await processOneFile(file, coll, now, acc)
   }
 
+  let menuLinks = { linked: 0, planned_created: 0 }
+  if (acc.imported > 0 || acc.updated > 0) {
+    const db = await getDb()
+    const r = await autoLinkUnmappedMenuItems(db, { limit: 500 })
+    menuLinks = { linked: r.linked, planned_created: r.planned_created }
+  }
+
   return {
     success: acc.errors.length === 0,
     imported: acc.imported,
     updated: acc.updated,
     failed: acc.errors.length,
     errors: acc.errors,
+    menu_catalog_links: menuLinks,
   }
 })

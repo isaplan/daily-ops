@@ -25,6 +25,8 @@ export async function fetchLocationSplit(
       locationId: v.locationId,
       locationName: v.locationName,
       revenue: round2(t.revenue),
+      revenueIncVat: round2(t.revenueIncVat),
+      borkRevenueIncVat: round2(t.borkRevenueIncVat),
       itemsCount: t.itemsCount,
       revenuePerItem: t.itemsCount > 0 ? round2(t.revenue / t.itemsCount) : 0,
       pctOfTotal: 0,

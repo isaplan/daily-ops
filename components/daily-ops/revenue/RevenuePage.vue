@@ -6,8 +6,6 @@
         <p class="text-sm text-gray-600">Alle bedragen excl. BTW</p>
       </header>
 
-      <DailyOpsRevenueFilterBar show-export @export="onExport" />
-
       <nav class="flex flex-wrap gap-1 border-b border-gray-200">
         <button
           v-for="tab in tabs"
@@ -30,6 +28,8 @@
         :summary="summary"
         :pnl="pnl"
         :locations="locations"
+        :daily-timeseries="dailyTimeseries"
+        :daily-pending="dailyTimeseriesPending"
       />
       <DailyOpsRevenueTrendsTab
         v-else-if="activeTab === 'trends'"
@@ -57,6 +57,8 @@ const {
   summary,
   pnl,
   locations,
+  dailyTimeseries,
+  dailyTimeseriesPending,
   timeseries,
   rollingMedians,
   categories,
@@ -66,10 +68,8 @@ const {
   coOccurrence,
   locationSpaces,
   overviewPending,
+  activateRevenueTab,
 } = useDailyOpsRevenueMetrics()
-
-const { downloadCsv } = useDailyOpsRevenueExport()
-const { formatEur } = useDashboardEurFormat()
 
 const tabs = [
   { id: 'overview', label: 'Overzicht' },
@@ -81,34 +81,10 @@ const tabs = [
 type TabId = (typeof tabs)[number]['id']
 const activeTab = ref<TabId>('overview')
 
+watch(activeTab, (tab) => activateRevenueTab(tab), { immediate: true })
+
 const tabPending = computed(() => {
   if (activeTab.value === 'overview') return overviewPending.value
   return false
 })
-
-function onExport() {
-  if (activeTab.value === 'overview' && summary.value) {
-    downloadCsv('revenue-summary.csv', ['Metric', 'Waarde'], [
-      ['Omzet', formatEur(summary.value.revenue)],
-      ['Stuks', summary.value.itemsCount],
-      ['€/stuk', formatEur(summary.value.revenuePerItem)],
-    ])
-    return
-  }
-  if (activeTab.value === 'trends' && timeseries.value) {
-    downloadCsv(
-      'revenue-timeseries.csv',
-      ['Datum', 'Omzet', 'Stuks'],
-      timeseries.value.current.map((p) => [p.date, p.revenue, p.itemsCount]),
-    )
-    return
-  }
-  if (activeTab.value === 'hourly' && products.value) {
-    downloadCsv(
-      'revenue-products.csv',
-      ['Product', 'Omzet', 'Stuks'],
-      products.value.map((p) => [p.productName, p.revenue, p.itemsCount]),
-    )
-  }
-}
 </script>

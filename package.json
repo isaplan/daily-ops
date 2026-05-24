@@ -19,6 +19,7 @@
     "eitje:backfill": "npx --yes tsx scripts/eitje-full-raw-backfill.ts",
     "eitje:rebuild:labor": "npx --yes tsx scripts/rebuild-eitje-labor-aggregation.ts",
     "eitje:rebuild:labor:all": "npx --yes tsx scripts/rebuild-eitje-labor-aggregation.ts all",
+    "eitje:backfill:labor-loaded": "npx --yes tsx scripts/rebuild-eitje-labor-aggregation.ts all --snapshots",
     "eitje:ensure-agg-index": "npx --yes tsx scripts/ensure-eitje-agg-unique-index.ts",
     "eitje:repair-labor-day": "npx --yes tsx scripts/repair-labor-day.ts",
     "inbox:remap-eitje-hours": "npx --yes tsx scripts/remap-inbox-eitje-hours-from-parseddatas.ts",
@@ -26,6 +27,10 @@
     "backfill:cron-priority-eitje-hours": "npx --yes tsx scripts/backfill-cron-priority-eitje-hours.ts",
     "backfill:eitje-hours-from-parseddatas": "npx --yes tsx scripts/backfill-eitje-hours-from-parseddatas.ts",
     "members:backfill-unified-user-id": "npx --yes tsx scripts/backfill-members-unified-user-id.ts",
+    "snapshots:backfill": "npx --yes tsx scripts/backfill-revenue-snapshot-sections.ts",
+    "snapshots:backfill:dry-run": "npx --yes tsx scripts/backfill-revenue-snapshot-sections.ts -- --dry-run",
+    "snapshots:backfill:infected": "npx --yes tsx scripts/backfill-infected-revenue-snapshots.ts",
+    "snapshots:backfill:infected:dry-run": "npx --yes tsx scripts/backfill-infected-revenue-snapshots.ts -- --dry-run",
     "start": "node .output/server/index.mjs"
   },
   "dependencies": {

@@ -5,7 +5,7 @@
  * @description: Builds DailyOpsSnapshotLaborSection for one (businessDate, locationId)
  *   from eitje_time_registration_aggregation. Reads total_cost (wages) and total_cost_loaded
  *   (loaded labor cost — Eitje-style) directly from the agg, which itself resolves cost_per_hour
- *   from inbox-eitje-contracts → members → fallback 1.36 at aggregation time.
+ *   from inbox-eitje-contracts → members → fallback 1.56 at aggregation time.
  * @last-fix: [2026-05-20] Enrich zero-wage rows from members (ZZP hourly_rate on support_id).
  *
  * @architecture:
@@ -61,7 +61,10 @@ export async function buildLaborSection(
     const loadedCost = Number(r.total_cost_loaded ?? 0)
     const cph = typeof r.cost_per_hour === 'number' ? r.cost_per_hour : null
     const loadedSource = typeof r.loaded_cost_source === 'string' ? r.loaded_cost_source : 'none'
-    const fallback = loadedSource === 'fallback-1.36' || loadedSource === 'none'
+    const fallback =
+      loadedSource === 'fallback-1.56' ||
+      loadedSource === 'fallback-1.36' ||
+      loadedSource === 'none'
     const userId = String(r.userId ?? '')
     const teamId = String(r.teamId ?? '')
     const teamName = String(r.team_name ?? '')

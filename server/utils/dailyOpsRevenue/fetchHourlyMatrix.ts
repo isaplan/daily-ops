@@ -2,10 +2,11 @@ import type { Db } from 'mongodb'
 import type { DailyOpsRevenueHourlyMatrixDto, DailyOpsRevenueQueryContext } from '~/types/daily-ops-revenue'
 import { DAILY_OPS_SNAPSHOT_COLLECTIONS } from '~/types/daily-ops-snapshot'
 import { eachBusinessDate } from './dateRange'
+import { matrixTotalRevenue, type HourlyMatrixAccumCell } from './borkRevenueRead'
 
 const DOW_ORDER = [1, 2, 3, 4, 5, 6, 0]
 
-function emptyCell() {
+function emptyCell(): HourlyMatrixAccumCell {
   return { revenue: 0, itemsCount: 0, foodRevenue: 0, drinksRevenue: 0 }
 }
 
@@ -13,9 +14,7 @@ export async function fetchHourlyMatrix(
   db: Db,
   ctx: DailyOpsRevenueQueryContext,
 ): Promise<DailyOpsRevenueHourlyMatrixDto> {
-  const accum = Array.from({ length: 24 }, () =>
-    DOW_ORDER.map(() => emptyCell()),
-  )
+  const accum = Array.from({ length: 24 }, () => DOW_ORDER.map(() => emptyCell()))
 
   const filter: Record<string, unknown> = {
     businessDate: { $gte: ctx.startDate, $lte: ctx.endDate },
@@ -42,7 +41,7 @@ export async function fetchHourlyMatrix(
     }
   }
 
-  if (snaps.length === 0) {
+  if (matrixTotalRevenue(accum) === 0) {
     for (const date of eachBusinessDate(ctx.startDate, ctx.endDate)) {
       const dayFilter = { ...filter, businessDate: date }
       const revSnap = await db.collection(DAILY_OPS_SNAPSHOT_COLLECTIONS.revenueSection).findOne(dayFilter)

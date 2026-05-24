@@ -18,7 +18,7 @@ import type {
   DailyOpsRevenueQueryContext,
 } from '~/types/daily-ops-revenue'
 
-const COMPARE_SET = new Set<string>(['none', 'previous', 'ly', 'custom'])
+const COMPARE_SET = new Set<string>(['none', 'previous', 'ly', 'custom', 'ab'])
 
 export function parseRevenueQuery(q: Record<string, unknown>): DailyOpsRevenueQueryContext {
   const periodRaw = typeof q.period === 'string' ? q.period : 'today'
@@ -30,18 +30,32 @@ export function parseRevenueQuery(q: Record<string, unknown>): DailyOpsRevenueQu
     endDate: customEnd,
   })
 
-  const compareRaw = typeof q.compareTo === 'string' ? q.compareTo : 'none'
+  let compareRaw = typeof q.compareTo === 'string' ? q.compareTo : 'none'
+  const comparePeriodRaw = typeof q.comparePeriod === 'string' ? q.comparePeriod : undefined
+  if (compareRaw === 'none' && comparePeriodRaw) compareRaw = 'ab'
+
   const compareKind = (COMPARE_SET.has(compareRaw) ? compareRaw : 'none') as DailyOpsRevenueCompareKind
   const compareStart = typeof q.compareStartDate === 'string' ? q.compareStartDate : undefined
   const compareEnd = typeof q.compareEndDate === 'string' ? q.compareEndDate : undefined
-  const compareRange = resolveRevenueCompareRange(compareKind, range, new Date(), {
-    startDate: compareStart,
-    endDate: compareEnd,
-  })
+
+  let compareRange =
+    compareKind === 'ab' && comparePeriodRaw
+      ? resolveDailyOpsRevenuePeriod(comparePeriodRaw, anchor, new Date())
+      : resolveRevenueCompareRange(compareKind, range, new Date(), {
+          startDate: compareStart,
+          endDate: compareEnd,
+        })
+
+  if (compareKind === 'ab' && compareRange) {
+    compareRange = { ...compareRange, label: `Vergelijk: ${compareRange.label}` }
+  }
 
   const locRaw = typeof q.location === 'string' ? q.location : undefined
   const locationId = locRaw && locRaw !== 'all' ? locRaw : undefined
   const locationSpace = typeof q.space === 'string' ? q.space : undefined
+  const compareLocRaw = typeof q.compareLocation === 'string' ? q.compareLocation : undefined
+  const compareLocationId =
+    compareLocRaw && compareLocRaw !== 'all' ? compareLocRaw : undefined
 
   return {
     period: range.period,
@@ -54,5 +68,6 @@ export function parseRevenueQuery(q: Record<string, unknown>): DailyOpsRevenueQu
     compareStartDate: compareRange?.startDate,
     compareEndDate: compareRange?.endDate,
     compareLabel: compareRange?.label,
+    compareLocationId,
   }
 }

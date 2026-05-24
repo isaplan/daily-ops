@@ -48,16 +48,17 @@ export async function computeSimplePnL(
   }
 
   if (ctx.compareStartDate && ctx.compareEndDate && ctx.compareLabel) {
+    const cmpLoc = ctx.compareLocationId ?? ctx.locationId
     const cmpTotals = await fetchRevenueRangeForDates(
       db,
       ctx.compareStartDate,
       ctx.compareEndDate,
-      ctx.locationId,
+      cmpLoc,
     )
     const cmpLabor = await aggregateLaborForRange(db, {
       startDate: ctx.compareStartDate,
       endDate: ctx.compareEndDate,
-      locationId: ctx.locationId,
+      locationId: cmpLoc,
     })
     const cmpFoodCogs = round2((cmpTotals.foodRevenue * assumptions.foodCogsPct) / 100)
     const cmpBevCogs = round2((cmpTotals.beverageRevenue * assumptions.bevCogsPct) / 100)

@@ -104,8 +104,8 @@ const totals = computed(() => {
   const list = venues.value
   if (!list.length) return null
   let revenue = 0
-  let laborAllWages = 0
-  let laborGewerktWages = 0
+  let laborAllLoaded = 0
+  let laborGewerktLoaded = 0
   let allHours = 0
   let gewerktHours = 0
   let keukenHours = 0
@@ -113,21 +113,21 @@ const totals = computed(() => {
   let otherHours = 0
   for (const v of list) {
     revenue += v.revenue.total
-    laborAllWages += v.labor.all.wages
-    laborGewerktWages += v.labor.gewerkt.wages
+    laborAllLoaded += v.labor.all.loaded
+    laborGewerktLoaded += v.labor.gewerkt.loaded
     allHours += v.labor.all.hours
     gewerktHours += v.labor.gewerkt.hours
     keukenHours += v.labor.keuken.hours
     bedieningHours += v.labor.bediening.hours
     otherHours += v.labor.other?.hours ?? 0
   }
-  const laborGewerktPct = revenue > 0 ? (laborGewerktWages / revenue) * 100 : null
-  const laborAllPct = revenue > 0 ? (laborAllWages / revenue) * 100 : null
+  const laborGewerktPct = revenue > 0 ? (laborGewerktLoaded / revenue) * 100 : null
+  const laborAllPct = revenue > 0 ? (laborAllLoaded / revenue) * 100 : null
   const productivity = gewerktHours > 0 && revenue > 0 ? revenue / gewerktHours : null
   return {
     revenue,
-    laborAllWages,
-    laborGewerktWages,
+    laborAllLoaded,
+    laborGewerktLoaded,
     laborGewerktPct,
     laborAllPct,
     laborPct: laborGewerktPct,
@@ -145,7 +145,7 @@ const tiles = computed(() => {
   if (!t) return []
   return [
     { id: 'revenue' as const, label: 'Total Revenue', display: formatEurWhole(t.revenue), opensDrawer: true },
-    { id: 'labor' as const, label: 'Total Labor Cost', display: formatEurWhole(t.laborGewerktWages), opensDrawer: true },
+    { id: 'labor' as const, label: 'Total Labor Cost', display: formatEurWhole(t.laborGewerktLoaded), opensDrawer: true },
     { id: 'laborPct' as const, label: 'Labor Percentage', display: formatPctWhole(t.laborPct), opensDrawer: true },
     { id: 'productivity' as const, label: 'Labor Productivity', display: formatEurPerHourWhole(t.productivity), opensDrawer: true },
     {
@@ -181,9 +181,9 @@ function venueLaborRows (): KpiDrawerVenueRow[] {
   return venues.value.map((v) => ({
     locationName: v.locationName,
     cells: [
-      formatEurWhole(v.labor.gewerkt.wages),
+      formatEurWhole(v.labor.gewerkt.loaded),
       formatPctWhole(v.labor.gewerkt.laborPctOfRevenue),
-      formatEurWhole(v.labor.all.wages),
+      formatEurWhole(v.labor.all.loaded),
       formatPctWhole(v.labor.all.laborPctOfRevenue),
     ],
   }))
@@ -194,7 +194,7 @@ function venueGewerktRows (): KpiDrawerVenueRow[] {
     locationName: v.locationName,
     cells: [
       formatHoursWhole(v.labor.gewerkt.hours),
-      formatEurWhole(v.labor.gewerkt.wages),
+      formatEurWhole(v.labor.gewerkt.loaded),
       formatPctWhole(v.labor.gewerkt.laborPctOfRevenue),
     ],
   }))
@@ -205,7 +205,7 @@ function venueKeukenRows (): KpiDrawerVenueRow[] {
     locationName: v.locationName,
     cells: [
       formatHoursWhole(v.labor.keuken.hours),
-      formatEurWhole(v.labor.keuken.wages),
+      formatEurWhole(v.labor.keuken.loaded),
       formatEurPerHourWhole(v.productivity.keukenPerHour),
     ],
   }))
@@ -216,7 +216,7 @@ function venueBedieningRows (): KpiDrawerVenueRow[] {
     locationName: v.locationName,
     cells: [
       formatHoursWhole(v.labor.bediening.hours),
-      formatEurWhole(v.labor.bediening.wages),
+      formatEurWhole(v.labor.bediening.loaded),
       formatEurPerHourWhole(v.productivity.bedieningPerHour),
     ],
   }))
@@ -327,7 +327,7 @@ const drawerContent = computed(() => {
           locationName: v.locationName,
           cells: [
             formatHoursWhole(v.labor.gewerkt.hours),
-            formatEurWhole(v.labor.gewerkt.wages),
+            formatEurWhole(v.labor.gewerkt.loaded),
             formatEurPerHourWhole(v.productivity.totalPerHour),
           ],
         })),
@@ -343,7 +343,7 @@ const drawerContent = computed(() => {
         venueRows: [],
         venueSections: venueSectionsForGewerkt('keuken', (v) => [
           formatHoursWhole(v.labor.keuken.hours),
-          formatEurWhole(v.labor.keuken.wages),
+          formatEurWhole(v.labor.keuken.loaded),
           formatEurPerHourWhole(v.productivity.keukenPerHour),
         ]),
       }
@@ -358,7 +358,7 @@ const drawerContent = computed(() => {
         venueRows: [],
         venueSections: venueSectionsForGewerkt('bediening', (v) => [
           formatHoursWhole(v.labor.bediening.hours),
-          formatEurWhole(v.labor.bediening.wages),
+          formatEurWhole(v.labor.bediening.loaded),
           formatEurPerHourWhole(v.productivity.bedieningPerHour),
         ]),
       }
@@ -374,7 +374,7 @@ const drawerContent = computed(() => {
         venueRows: [],
         venueSections: venueSectionsForGewerkt('overig', (v) => [
           formatHoursWhole(v.labor.other?.hours ?? 0),
-          formatEurWhole(v.labor.other?.wages ?? 0),
+          formatEurWhole(v.labor.other?.loaded ?? 0),
           formatPctWhole(v.labor.other?.laborPctOfRevenue ?? null),
         ]),
       }

@@ -45,6 +45,7 @@ const PERIOD_LABELS: Partial<Record<DailyOpsRevenuePeriodId, string>> = {
   winter: 'Winter',
   'this-year': 'Dit jaar',
   'last-year': 'Vorig jaar',
+  'year-2': '2 jaar geleden',
   ytd: 'Jaar tot nu toe',
   'last-365d': 'Laatste 365 dagen',
   'last-14d': 'Laatste 14 dagen',
@@ -218,6 +219,9 @@ export function resolveDailyOpsRevenuePeriod(
   }
   if (period === 'last-year') {
     return { period, startDate: `${year - 1}-01-01`, endDate: `${year - 1}-12-31`, label }
+  }
+  if (period === 'year-2') {
+    return { period, startDate: `${year - 2}-01-01`, endDate: `${year - 2}-12-31`, label }
   }
   if (period === 'ytd') {
     return { period, startDate: `${year}-01-01`, endDate: refYmd, label }

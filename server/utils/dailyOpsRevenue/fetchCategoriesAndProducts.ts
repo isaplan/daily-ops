@@ -1,6 +1,4 @@
 import type { Db } from 'mongodb'
-import { ObjectId } from 'mongodb'
-import { resolveBorkAggReadSuffix } from '../borkAggVersionSuffix'
 import type {
   DailyOpsRevenueCategoryDto,
   DailyOpsRevenueProductRow,
@@ -94,37 +92,34 @@ async function fetchProductWeekdayDistribution(
   const out = new Map<string, Array<{ dayOfWeek: string; itemsCount: number; revenue: number }>>()
   if (productNames.length === 0) return out
 
-  const suffix = resolveBorkAggReadSuffix()
-  const coll = `bork_sales_by_product${suffix}`
-  const match: Record<string, unknown> = {
-    business_date: { $gte: ctx.startDate, $lte: ctx.endDate },
-    productName: { $in: productNames },
+  const nameSet = new Set(productNames)
+  const filter: Record<string, unknown> = {
+    businessDate: { $gte: ctx.startDate, $lte: ctx.endDate },
   }
-  if (ctx.locationId && ObjectId.isValid(ctx.locationId)) {
-    match.locationId = new ObjectId(ctx.locationId)
-  }
+  if (ctx.locationId) filter.locationId = ctx.locationId
 
-  const rows = await db
-    .collection(coll)
-    .find(match)
-    .project({ productName: 1, business_date: 1, total_quantity: 1, total_revenue_ex_vat: 1, total_revenue: 1 })
+  const snaps = await db
+    .collection(DAILY_OPS_SNAPSHOT_COLLECTIONS.revenueProductsSection)
+    .find(filter)
+    .project({ businessDate: 1, products: 1 })
     .toArray()
 
   const acc = new Map<string, Map<string, { itemsCount: number; revenue: number }>>()
-  for (const r of rows) {
-    const doc = r as Record<string, unknown>
-    const name = String(doc.productName ?? '')
-    const date = String(doc.business_date ?? '')
-    if (!name || !date) continue
+  for (const s of snaps) {
+    const date = String((s as { businessDate?: string }).businessDate ?? '')
+    if (!date) continue
     const dow = DOW_KEYS[new Date(`${date}T12:00:00Z`).getUTCDay()]!
-    const rev = Number(doc.total_revenue_ex_vat ?? doc.total_revenue ?? 0)
-    const qty = Number(doc.total_quantity ?? 0)
-    if (!acc.has(name)) acc.set(name, new Map())
-    const m = acc.get(name)!
-    const cur = m.get(dow) ?? { itemsCount: 0, revenue: 0 }
-    cur.itemsCount += qty
-    cur.revenue += rev
-    m.set(dow, cur)
+    const products = (s as { products?: Array<{ productName: string; revenue_ex_vat: number; quantity: number }> })
+      .products ?? []
+    for (const p of products) {
+      if (!nameSet.has(p.productName)) continue
+      if (!acc.has(p.productName)) acc.set(p.productName, new Map())
+      const m = acc.get(p.productName)!
+      const cur = m.get(dow) ?? { itemsCount: 0, revenue: 0 }
+      cur.itemsCount += p.quantity
+      cur.revenue += p.revenue_ex_vat
+      m.set(dow, cur)
+    }
   }
 
   for (const [name, m] of acc) {

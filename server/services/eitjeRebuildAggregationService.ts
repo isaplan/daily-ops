@@ -6,6 +6,7 @@
  * @last-fix: [2026-05-19] Member lookup also matches support_id; hourly_rate falls back to inbox contract.
  *   Prior: [2026-05-16] aggregatedAt on write; string keys; dedupe after insert.
  *   Prior: [2026-05-16] Dedupe agg rows after insert (concurrent rebuild race).
+ *   Prior: [2026-05-21] Nul-uren / fallback loaded ratio 1.36 → 1.56 (LOADED_FALLBACK_RATIO).
  *   Prior: [2026-05-14] Nul-uren: employer cost_per_hour = hourly_rate × 1.36 before loaded math.
  *   Prior: [2026-05-14] cost_per_hour + total_cost_loaded; members eitje_id string cast fix.
  *

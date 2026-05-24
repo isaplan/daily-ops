@@ -3,7 +3,7 @@
     "totalByType": {},
     "totalFiles": 0,
     "version": "2.0.0",
-    "generated_at": "2026-05-18T22:30:20.463Z"
+    "generated_at": "2026-05-24T15:50:02.766Z"
   },
   "index": {
     "byName": {},
@@ -11,110 +11,5 @@
     "byType": {},
     "byLastSeen": []
   },
-  "functions": [
-    {
-      "id": "memberBorkContext",
-      "name": "memberBorkContext",
-      "type": "util",
-      "file": "server/utils/memberBorkContext.ts",
-      "status": "completed",
-      "touch_again": true
-    },
-    {
-      "id": "dailyOpsBorkStaffHubGet",
-      "name": "dailyOpsBorkStaffHubGet",
-      "type": "api",
-      "file": "server/api/daily-ops/bork-staff.get.ts",
-      "status": "completed",
-      "touch_again": true
-    },
-    {
-      "id": "productCatalog",
-      "name": "productCatalog",
-      "type": "util",
-      "file": "server/utils/productCatalog.ts",
-      "status": "completed",
-      "touch_again": true
-    },
-    {
-      "id": "productCatalogService",
-      "name": "productCatalogService",
-      "type": "service",
-      "file": "server/services/productCatalogService.ts",
-      "status": "completed",
-      "touch_again": true
-    },
-    {
-      "id": "dailyOpsProductCatalogGet",
-      "name": "dailyOpsProductCatalogGet",
-      "type": "api",
-      "file": "server/api/daily-ops/product-catalog.get.ts",
-      "status": "completed",
-      "touch_again": true
-    },
-    {
-      "id": "dailyOpsProductCatalogSyncPost",
-      "name": "dailyOpsProductCatalogSyncPost",
-      "type": "api",
-      "file": "server/api/daily-ops/product-catalog/sync.post.ts",
-      "status": "completed",
-      "touch_again": true
-    },
-    {
-      "id": "borkUserLinking",
-      "name": "borkUserLinking",
-      "type": "util",
-      "file": "server/utils/borkUserLinking.ts",
-      "status": "completed",
-      "touch_again": true
-    },
-    {
-      "id": "dailyOpsBorkStaffLinkPost",
-      "name": "dailyOpsBorkStaffLinkPost",
-      "type": "api",
-      "file": "server/api/daily-ops/bork-staff/link.post.ts",
-      "status": "completed",
-      "touch_again": true
-    },
-    {
-      "id": "dailyOpsBorkStaffUnifiedUsersGet",
-      "name": "dailyOpsBorkStaffUnifiedUsersGet",
-      "type": "api",
-      "file": "server/api/daily-ops/bork-staff/unified-users.get.ts",
-      "status": "completed",
-      "touch_again": true
-    },
-    {
-      "id": "dailyOpsRevenuePeriod",
-      "name": "dailyOpsRevenuePeriod",
-      "type": "util",
-      "file": "utils/dailyOpsRevenuePeriod.ts",
-      "status": "completed",
-      "touch_again": true
-    },
-    {
-      "id": "dailyOpsRevenueFetchRange",
-      "name": "dailyOpsRevenueFetchRange",
-      "type": "util",
-      "file": "server/utils/dailyOpsRevenue/fetchRevenueRange.ts",
-      "status": "completed",
-      "touch_again": true
-    },
-    {
-      "id": "dailyOpsRevenueSummaryGet",
-      "name": "dailyOpsRevenueSummaryGet",
-      "type": "api",
-      "file": "server/api/daily-ops/revenue/summary.get.ts",
-      "status": "completed",
-      "touch_again": true
-    },
-    {
-      "id": "dailyOpsSnapshotBuildRevenueProducts",
-      "name": "dailyOpsSnapshotBuildRevenueProducts",
-      "type": "util",
-      "file": "server/utils/dailyOpsSnapshot/buildRevenueProductsSection.ts",
-      "status": "completed",
-      "touch_again": true
-    }
-  ]
+  "functions": []
 }

@@ -42,6 +42,7 @@ export const DAILY_OPS_REVENUE_PERIOD_IDS = [
   'winter',
   'this-year',
   'last-year',
+  'year-2',
   'ytd',
   'last-365d',
   'last-14d',
@@ -52,7 +53,38 @@ export const DAILY_OPS_REVENUE_PERIOD_IDS = [
 
 export type DailyOpsRevenuePeriodId = (typeof DAILY_OPS_REVENUE_PERIOD_IDS)[number]
 
-export type DailyOpsRevenueCompareKind = 'none' | 'previous' | 'ly' | 'custom'
+/** Revenue analytics page — no single-day / partial-period shortcuts. */
+export const REVENUE_ANALYTICS_PERIOD_IDS = [
+  'this-week',
+  'last-week',
+  'this-month',
+  'last-month',
+  'this-year',
+  'last-year',
+  'year-2',
+  'last-7d',
+  'last-14d',
+  'last-30d',
+  'last-60d',
+  'last-90d',
+  'last-365d',
+  'q1',
+  'q2',
+  'q3',
+  'q4',
+  'last-q',
+  'lente',
+  'zomer',
+  'herfst',
+  'winter',
+  'custom',
+] as const satisfies readonly DailyOpsRevenuePeriodId[]
+
+export type RevenueAnalyticsPeriodId = (typeof REVENUE_ANALYTICS_PERIOD_IDS)[number]
+
+export const REVENUE_ANALYTICS_DEFAULT_PERIOD: RevenueAnalyticsPeriodId = 'last-week'
+
+export type DailyOpsRevenueCompareKind = 'none' | 'previous' | 'ly' | 'custom' | 'ab'
 
 export type DailyOpsRevenueRange = {
   period: DailyOpsRevenuePeriodId
@@ -72,6 +104,8 @@ export type DailyOpsRevenueQueryContext = {
   compareStartDate?: string
   compareEndDate?: string
   compareLabel?: string
+  /** B-side location when compareKind === 'ab'. */
+  compareLocationId?: string
 }
 
 export type DailyOpsSimplePnLAssumptions = {
@@ -102,20 +136,45 @@ export type DailyOpsSimplePnLDto = {
   }
 }
 
+export type DailyOpsRevenueKpiVsBenchmark = {
+  value: number
+  benchmark: number
+  delta: number
+  pct: number | null
+  above: boolean
+}
+
 export type DailyOpsRevenueKpiDto = {
   revenue: number
+  /** Lead-source inc VAT (same snapshots as `revenue`). */
+  revenueIncVat: number
+  /** Bork API inc VAT from snapshot `borkTotals` — compare to Datalab. */
+  borkRevenueIncVat: number
+  /** Bork API ex VAT — gap vs lead ex when lead is inbox. */
+  borkRevenueExVat: number
   itemsCount: number
   revenuePerItem: number
+  businessDays: number
+  avgRevenuePerDay: number
   leadSource: 'inbox_basis' | 'bork_api' | 'unknown'
   currentLabel: string
   compareDelta?: { amount: number; pct: number | null }
   compareLabel?: string
+  vs60d?: {
+    label: string
+    revenue: DailyOpsRevenueKpiVsBenchmark
+    itemsCount: DailyOpsRevenueKpiVsBenchmark
+    avgRevenuePerDay: DailyOpsRevenueKpiVsBenchmark
+    revenuePerItem: DailyOpsRevenueKpiVsBenchmark
+  }
 }
 
 export type DailyOpsRevenueLocationDto = {
   locationId: string
   locationName: string
   revenue: number
+  revenueIncVat: number
+  borkRevenueIncVat: number
   itemsCount: number
   revenuePerItem: number
   pctOfTotal: number

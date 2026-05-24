@@ -1,8 +1,7 @@
 import type { Db } from 'mongodb'
 import type { DailyOpsRevenueQueryContext, DailyOpsRevenueRollingMediansDto } from '~/types/daily-ops-revenue'
-import { amsterdamOpenRegisterBusinessDateYmd } from '~/utils/dailyOpsBusinessDate'
-import { addCalendarDaysYmd } from '~/utils/dailyOpsBusinessDate'
-import { fetchRevenueRangeForDates } from './fetchRevenueRange'
+import { amsterdamOpenRegisterBusinessDateYmd, addCalendarDaysYmd } from '~/utils/dailyOpsBusinessDate'
+import { fetchRevenueDailyMap } from './fetchRevenueDailySeries'
 import { eachBusinessDate } from './dateRange'
 
 function median(nums: number[]): number {
@@ -29,12 +28,8 @@ async function dailyRevenues(
   locationId?: string,
 ): Promise<number[]> {
   const start = addCalendarDaysYmd(endDate, -(days - 1))
-  const out: number[] = []
-  for (const date of eachBusinessDate(start, endDate)) {
-    const t = await fetchRevenueRangeForDates(db, date, date, locationId)
-    out.push(t.revenue)
-  }
-  return out
+  const byDate = await fetchRevenueDailyMap(db, start, endDate, locationId)
+  return [...eachBusinessDate(start, endDate)].map((date) => byDate.get(date)?.revenue ?? 0)
 }
 
 export async function computeRollingMedians(
