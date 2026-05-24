@@ -5,9 +5,13 @@
  * Usage:
  *   npx tsx scripts/rebuild-eitje-labor-aggregation.ts 2026-05-01 2026-05-10
  *   npx tsx scripts/rebuild-eitje-labor-aggregation.ts all
+ *   npx tsx scripts/rebuild-eitje-labor-aggregation.ts all --snapshots
  *
  * `all` — scans `eitje_raw_data` (time_registration_shifts) for min/max `date`, then rebuilds
  * in chunks (default 31 days) so large histories complete without OOM.
+ *
+ * `--snapshots` — after each agg chunk, rebuild daily_ops snapshots (required outside Nuxt;
+ *   in-app enqueueSnapshotBuild is a no-op in tsx).
  *
  * Env:
  *   MONGODB_URI, MONGODB_DB_NAME
@@ -17,6 +21,7 @@ import { resolve } from 'node:path'
 import { readFileSync, existsSync } from 'node:fs'
 import { MongoClient, type Db } from 'mongodb'
 import { rebuildEitjeTimeRegistrationAggregation } from '../server/services/eitjeRebuildAggregationService.ts'
+import { buildDailyOpsSnapshotRange } from '../server/services/dailyOpsSnapshotService.ts'
 
 function loadDotEnv () {
   for (const file of ['.env.local', '.env']) {
@@ -76,17 +81,24 @@ async function rawShiftDateBounds (db: Db): Promise<{ start: string; end: string
   }
 }
 
+function hasFlag (name: string): boolean {
+  return process.argv.includes(`--${name}`)
+}
+
 async function rebuildRangeChunked (
   db: Db,
   startYmd: string,
   endYmd: string,
-  chunkDays: number
-): Promise<{ deletedPeriods: number; inserted: number; chunks: number }> {
+  chunkDays: number,
+  withSnapshots: boolean
+): Promise<{ deletedPeriods: number; inserted: number; chunks: number; snapshotsBuilt: number; snapshotErrors: number }> {
   let start = parseUtcYmd(startYmd)
   const end = parseUtcYmd(endYmd)
   let deletedPeriods = 0
   let inserted = 0
   let chunks = 0
+  let snapshotsBuilt = 0
+  let snapshotErrors = 0
 
   while (start.getTime() <= end.getTime()) {
     const chunkEnd = addUtcDays(start, chunkDays - 1)
@@ -98,11 +110,18 @@ async function rebuildRangeChunked (
     const r = await rebuildEitjeTimeRegistrationAggregation(db, s, e)
     deletedPeriods += r.deletedPeriods
     inserted += r.inserted
-    console.log(`    deleted ${r.deletedPeriods} agg rows, inserted ${r.inserted}`)
+    console.log(`    agg: deleted ${r.deletedPeriods}, inserted ${r.inserted}, deduped ${r.aggDeduped}`)
+    if (withSnapshots) {
+      console.log(`    snapshots: rebuilding ${s} .. ${e} ...`)
+      const snap = await buildDailyOpsSnapshotRange({ startDate: s, endDate: e })
+      snapshotsBuilt += snap.built
+      snapshotErrors += snap.errors
+      console.log(`    snapshots: built=${snap.built} errors=${snap.errors}`)
+    }
     start = addUtcDays(chunkEndClamped, 1)
   }
 
-  return { deletedPeriods, inserted, chunks }
+  return { deletedPeriods, inserted, chunks, snapshotsBuilt, snapshotErrors }
 }
 
 async function main () {
@@ -116,9 +135,11 @@ async function main () {
 
   const rawChunk = process.env.EITJE_REBUILD_CHUNK_DAYS
   const chunkDays = Math.max(1, parseInt(rawChunk ?? '31', 10) || 31)
+  const withSnapshots = hasFlag('snapshots') || process.env.EITJE_REBUILD_SNAPSHOTS === '1'
 
-  let start = process.argv[2] ?? process.env.EITJE_REBUILD_START
-  let end = process.argv[3] ?? process.env.EITJE_REBUILD_END
+  const dateArgs = process.argv.slice(2).filter((a) => !a.startsWith('--'))
+  let start = dateArgs[0] ?? process.env.EITJE_REBUILD_START
+  let end = dateArgs[1] ?? process.env.EITJE_REBUILD_END
 
   const client = new MongoClient(uri)
   await client.connect()
@@ -135,15 +156,15 @@ async function main () {
       start = bounds.start
       end = bounds.end
       console.log(`Full raw range: ${start} .. ${end} (UTC calendar days from min/max shift timestamps)`)
-      console.log(`Rebuilding in chunks of ${chunkDays} days...`)
-      const sum = await rebuildRangeChunked(db, start, end, chunkDays)
+      console.log(`Rebuilding in chunks of ${chunkDays} days (snapshots=${withSnapshots})...`)
+      const sum = await rebuildRangeChunked(db, start, end, chunkDays, withSnapshots)
       console.log('Done (all chunks):', sum)
       return
     }
 
     if (!start || !end) {
-      console.error('Usage: npx tsx scripts/rebuild-eitje-labor-aggregation.ts <startDate> <endDate>')
-      console.error('   or: npx tsx scripts/rebuild-eitje-labor-aggregation.ts all')
+      console.error('Usage: npx tsx scripts/rebuild-eitje-labor-aggregation.ts <startDate> <endDate> [--snapshots]')
+      console.error('   or: npx tsx scripts/rebuild-eitje-labor-aggregation.ts all [--snapshots]')
       process.exit(1)
     }
 
@@ -152,13 +173,17 @@ async function main () {
       (parseUtcYmd(end).getTime() - parseUtcYmd(start).getTime()) / 86400000 > chunkDays
 
     if (useChunk) {
-      console.log(`Rebuilding ${start} .. ${end} in chunks of ${chunkDays} days...`)
-      const sum = await rebuildRangeChunked(db, start, end, chunkDays)
+      console.log(`Rebuilding ${start} .. ${end} in chunks of ${chunkDays} days (snapshots=${withSnapshots})...`)
+      const sum = await rebuildRangeChunked(db, start, end, chunkDays, withSnapshots)
       console.log('Done:', sum)
     } else {
-      console.log(`Rebuilding Eitje labor aggregation ${start} .. ${end} ...`)
+      console.log(`Rebuilding Eitje labor aggregation ${start} .. ${end} (snapshots=${withSnapshots})...`)
       const r = await rebuildEitjeTimeRegistrationAggregation(db, start, end)
-      console.log('Done:', r)
+      console.log('Done agg:', r)
+      if (withSnapshots) {
+        const snap = await buildDailyOpsSnapshotRange({ startDate: start, endDate: end })
+        console.log('Done snapshots:', snap)
+      }
     }
   } finally {
     await client.close()

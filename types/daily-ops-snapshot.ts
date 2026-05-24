@@ -98,6 +98,10 @@ export type DailyOpsSnapshotMaster = {
   sections: {
     revenue: boolean
     labor: boolean
+    revenueHourly?: boolean
+    revenueProducts?: boolean
+    revenueTables?: boolean
+    revenueWorkers?: boolean
   }
 
   lastBuiltAt: Date
@@ -175,9 +179,69 @@ export type DailyOpsSnapshotLaborSection = {
   lastBuiltAt: Date
 }
 
-/** Names of the three collections used. Single source of truth — import from here. */
+/** Hourly revenue rollup (24 slots) — snapshot-first read for revenue dashboard. */
+export type DailyOpsSnapshotRevenueHourlySection = {
+  _id?: unknown
+  schema_version: 1
+  businessDate: string
+  locationId: string
+  locationName: string
+  hourly: DailyOpsSnapshotRevenueSection['hourly']
+  lastBuiltAt: Date
+}
+
+/** Top products + category totals for one business day. */
+export type DailyOpsSnapshotRevenueProductsSection = {
+  _id?: unknown
+  schema_version: 1
+  businessDate: string
+  locationId: string
+  locationName: string
+  categories: Array<{ name: string; revenue_ex_vat: number; quantity: number }>
+  products: Array<{ productId: string; productName: string; revenue_ex_vat: number; quantity: number }>
+  lastBuiltAt: Date
+}
+
+/** Per-table revenue for one business day. */
+export type DailyOpsSnapshotRevenueTablesSection = {
+  _id?: unknown
+  schema_version: 1
+  businessDate: string
+  locationId: string
+  locationName: string
+  tables: Array<{
+    tableNum: string
+    locationSpace: string
+    revenue_ex_vat: number
+    quantity: number
+  }>
+  lastBuiltAt: Date
+}
+
+/** Per-worker revenue for one business day. */
+export type DailyOpsSnapshotRevenueWorkersSection = {
+  _id?: unknown
+  schema_version: 1
+  businessDate: string
+  locationId: string
+  locationName: string
+  workers: Array<{
+    workerId: string
+    workerName: string
+    revenue_ex_vat: number
+    quantity: number
+    order_count: number
+  }>
+  lastBuiltAt: Date
+}
+
+/** Names of snapshot collections. Single source of truth — import from here. */
 export const DAILY_OPS_SNAPSHOT_COLLECTIONS = {
   master: 'daily_ops_snapshot',
   revenueSection: 'daily_ops_snapshot_section_revenue',
   laborSection: 'daily_ops_snapshot_section_labor',
+  revenueHourlySection: 'daily_ops_snapshot_section_revenue_hourly',
+  revenueProductsSection: 'daily_ops_snapshot_section_products',
+  revenueTablesSection: 'daily_ops_snapshot_section_tables',
+  revenueWorkersSection: 'daily_ops_snapshot_section_workers',
 } as const

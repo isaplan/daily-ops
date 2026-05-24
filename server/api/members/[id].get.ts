@@ -1,9 +1,9 @@
 /**
  * @registry-id: membersIdGetApi
  * @created: 2026-03-01T00:00:00.000Z
- * @last-modified: 2026-05-16T12:00:00.000Z
+ * @last-modified: 2026-05-19T12:00:00.000Z
  * @description: GET /api/members/[id] — member profile (compensation from members only)
- * @last-fix: [2026-05-16] Removed inbox-contracts fallback; compensation_status + history (ADR-001)
+ * @last-fix: [2026-05-19] Bork sales rollup via unified_user_id (memberBorkContext)
  *
  * @architecture-ref: ARCHITECTURE.md#4-canonical-entities
  * @adr-ref: ADR-001
@@ -16,7 +16,12 @@ import { ObjectId } from 'mongodb'
 import { getDb } from '../../utils/db'
 import { fetchMemberEitjePlaces } from '../../utils/memberEitjeContext'
 import {
+  enrichMemberBorkWithProductivity,
+  fetchMemberBorkSales,
+} from '../../utils/memberBorkContext'
+import {
   compensationStatusFromFields,
+  resolveCostPerHour,
   toNum,
 } from '../../utils/memberCompensationRevisions'
 import type { CompensationRevision } from '../../../types/member-compensation'
@@ -64,7 +69,8 @@ export default defineEventHandler(async (event) => {
   const contractTypeStr = typeof m.contract_type === 'string' ? m.contract_type : ''
   const hourlyNum = typeof m.hourly_rate === 'number' && Number.isFinite(m.hourly_rate) ? m.hourly_rate : undefined
   const storedCost = toNum(m.cost_per_hour)
-  const costPerHour = storedCost ?? undefined
+  const resolvedCost = resolveCostPerHour(contractTypeStr, hourlyNum ?? null, storedCost)
+  const costPerHour = resolvedCost ?? undefined
 
   const compensation_status =
     typeof m.compensation_status === 'string' && (m.compensation_status === 'ok' || m.compensation_status === 'missing')
@@ -100,12 +106,24 @@ export default defineEventHandler(async (event) => {
     places_count: merged.length,
   }
 
-  const unifiedUserId =
+  const unifiedUserOid =
     m.unified_user_id instanceof ObjectId
-      ? String(m.unified_user_id)
-      : typeof m.unified_user_id === 'string'
-        ? m.unified_user_id
-        : undefined
+      ? m.unified_user_id
+      : typeof m.unified_user_id === 'string' && /^[0-9a-f]{24}$/i.test(m.unified_user_id)
+        ? new ObjectId(m.unified_user_id)
+        : null
+  const unifiedUserId = unifiedUserOid ? String(unifiedUserOid) : undefined
+
+  let bork_sales: Awaited<ReturnType<typeof fetchMemberBorkSales>> | null = null
+  if (unifiedUserOid) {
+    const rawBork = await fetchMemberBorkSales(db, { unifiedUserId: unifiedUserOid, monthsBack: 12 })
+    if (rawBork) {
+      bork_sales = await enrichMemberBorkWithProductivity(db, rawBork, {
+        supportId: supportIdStr,
+        userName: name,
+      })
+    }
+  }
 
   const data = {
     _id: String(member._id),
@@ -143,6 +161,7 @@ export default defineEventHandler(async (event) => {
       data_source: eitje_places.source,
     },
     eitje_totals,
+    ...(bork_sales ? { bork_sales } : {}),
   }
   return { success: true, data }
 })

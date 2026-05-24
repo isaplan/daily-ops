@@ -140,6 +140,8 @@
             <li><NuxtLink to="/daily-ops/inbox/eitje-staff" :class="navLinkClass(route.path === '/daily-ops/inbox/eitje-staff')">Eitje staff</NuxtLink></li>
             <li><NuxtLink to="/daily-ops/inbox/eitje-hours" :class="navLinkClass(route.path === '/daily-ops/inbox/eitje-hours')">Eitje hours</NuxtLink></li>
             <li><NuxtLink to="/daily-ops/inbox/bork-sales" :class="navLinkClass(route.path === '/daily-ops/inbox/bork-sales')">Bork sales</NuxtLink></li>
+            <li><NuxtLink to="/daily-ops/inbox/bork-staff" :class="navLinkClass(route.path === '/daily-ops/inbox/bork-staff')">Bork staff</NuxtLink></li>
+            <li><NuxtLink to="/daily-ops/inbox/product-catalog" :class="navLinkClass(route.path === '/daily-ops/inbox/product-catalog')">Product catalog</NuxtLink></li>
           </ul>
         </li>
         <!-- Settings -->
@@ -258,6 +260,30 @@
         <span>System Used</span>
       </NuxtLink>
 
+      <UTooltip v-if="collapsed" text="Ops notifications" :popper="{ placement: 'right' }">
+        <NuxtLink to="/ops-notifications" :class="navLinkClass(isOpsNotifications)" class="flex items-center relative">
+          <UIcon name="i-lucide-bell-ring" class="size-5 shrink-0" />
+          <span
+            v-if="opsNotifCount > 0"
+            class="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-bold text-white"
+          >
+            {{ opsNotifCount > 99 ? '99+' : opsNotifCount }}
+          </span>
+        </NuxtLink>
+      </UTooltip>
+      <NuxtLink
+        v-else
+        to="/ops-notifications"
+        :class="navLinkClass(isOpsNotifications)"
+        class="flex items-center gap-3 relative"
+      >
+        <UIcon name="i-lucide-bell-ring" class="size-4 shrink-0" />
+        <span class="flex-1">Ops notifications</span>
+        <UBadge v-if="opsNotifCount > 0" color="error" variant="solid" size="sm">
+          {{ opsNotifCount > 99 ? '99+' : opsNotifCount }}
+        </UBadge>
+      </NuxtLink>
+
       <UTooltip v-if="collapsed" text="Organisation" :popper="{ placement: 'right' }">
         <NuxtLink to="/organisation" :class="navLinkClass(isOrganisation)" class="flex items-center">
           <UIcon name="i-lucide-building-2" class="size-5 shrink-0" />
@@ -335,7 +361,13 @@ const isAllNotes = computed(() => route.path === '/notes/all')
 const isTodos = computed(() => route.path === '/notes/todos')
 const isAgreed = computed(() => route.path === '/notes/agreed')
 const isProjects = computed(() => route.path === '/notes/projects')
+const isOpsNotifications = computed(() => route.path === '/ops-notifications')
 const isOrganisation = computed(() => route.path === '/organisation')
+
+const { count: opsNotifCount, refresh: refreshOpsNotifCount } = useOpsNotificationsCount()
+onMounted(() => {
+  refreshOpsNotifCount()
+})
 const isDesignSystem = computed(() => route.path === '/design-system')
 const isDesignSystemUsed = computed(() => route.path === '/design-system-used')
 

@@ -34,7 +34,61 @@
                   <dd class="shrink-0 text-right font-medium tabular-nums text-gray-900">{{ row.value }}</dd>
                 </div>
               </dl>
-              <div v-if="venueRows.length">
+              <div v-if="venueSections.length">
+                <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">By venue</p>
+                <div class="space-y-6">
+                  <section
+                    v-for="section in venueSections"
+                    :key="section.locationName"
+                    class="min-w-0"
+                  >
+                    <div class="flex flex-wrap items-baseline justify-between gap-2 border-b border-gray-200 pb-2">
+                      <h3 class="text-sm font-semibold text-gray-900">{{ section.locationName }}</h3>
+                      <div class="flex flex-wrap gap-x-4 gap-y-1 text-sm tabular-nums text-gray-700">
+                        <span
+                          v-for="(cell, idx) in section.cells"
+                          :key="idx"
+                        >
+                          <span class="text-gray-500">{{ venueColumns[idx] }}:</span>
+                          {{ cell }}
+                        </span>
+                      </div>
+                    </div>
+                    <p
+                      v-if="section.staff.length"
+                      class="mt-2 text-xs font-semibold uppercase tracking-wide text-gray-500"
+                    >
+                      Staff
+                    </p>
+                    <table
+                      v-if="section.staff.length"
+                      class="mt-1 w-full min-w-[320px] text-left text-sm"
+                    >
+                      <thead>
+                        <tr class="border-b border-gray-100 text-xs uppercase text-gray-500">
+                          <th class="py-1.5 pr-3 font-medium">Name</th>
+                          <th class="py-1.5 pr-3 font-medium">Team</th>
+                          <th class="py-1.5 pr-3 text-right font-medium">Hours</th>
+                          <th class="py-1.5 text-right font-medium">Wages</th>
+                        </tr>
+                      </thead>
+                      <tbody class="divide-y divide-gray-50">
+                        <tr
+                          v-for="(person, pIdx) in section.staff"
+                          :key="`${person.name}-${person.team}-${pIdx}`"
+                        >
+                          <td class="py-1.5 pr-3 text-gray-900">{{ person.name }}</td>
+                          <td class="py-1.5 pr-3 text-gray-600">{{ person.team }}</td>
+                          <td class="py-1.5 pr-3 text-right tabular-nums text-gray-900">{{ person.hours }}</td>
+                          <td class="py-1.5 text-right tabular-nums text-gray-900">{{ person.wages }}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                    <p v-else class="mt-2 text-sm text-gray-500">No staff in this category for this venue.</p>
+                  </section>
+                </div>
+              </div>
+              <div v-else-if="venueRows.length">
                 <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">By venue</p>
                 <table class="w-full min-w-[320px] text-left text-sm">
                   <thead>
@@ -74,6 +128,12 @@
 <script setup lang="ts">
 export type KpiDrawerSummaryRow = { label: string; value: string }
 export type KpiDrawerVenueRow = { locationName: string; cells: string[] }
+export type KpiDrawerStaffRow = { name: string; team: string; hours: string; wages: string }
+export type KpiDrawerVenueSection = {
+  locationName: string
+  cells: string[]
+  staff: KpiDrawerStaffRow[]
+}
 
 withDefaults(
   defineProps<{
@@ -83,13 +143,15 @@ withDefaults(
     summaryRows?: KpiDrawerSummaryRow[]
     venueColumns?: string[]
     venueRows?: KpiDrawerVenueRow[]
+    venueSections?: KpiDrawerVenueSection[]
   }>(),
   {
     intro: '',
     summaryRows: () => [],
     venueColumns: () => [],
     venueRows: () => [],
-  }
+    venueSections: () => [],
+  },
 )
 
 const emit = defineEmits<{ close: [] }>()

@@ -68,7 +68,7 @@
                 <span class="text-gray-600">{{ row.label }}</span>
                 <span class="shrink-0 text-right tabular-nums text-gray-900">
                   <span class="text-gray-600">{{ row.data.workers }} workers · {{ formatHours(row.data.hours) }} · </span>
-                  <span class="font-semibold">{{ formatEurWhole(row.data.wages) }}</span>
+                  <span class="font-semibold">{{ formatEurWhole(row.data.loaded) }}</span>
                   <span v-if="row.data.laborPctOfRevenue != null" class="text-gray-600">
                     · {{ formatPct(row.data.laborPctOfRevenue) }} rev
                   </span>
@@ -116,7 +116,7 @@
                       <UIcon name="i-lucide-user" class="size-3 shrink-0" aria-hidden="true" />
                     </span>
                     <span class="text-right">{{ formatHours(r.hours) }}</span>
-                    <span class="text-right font-medium">{{ formatEurWhole(r.wages) }}</span>
+                    <span class="text-right font-medium">{{ formatEurWhole(r.loaded) }}</span>
                   </li>
                 </ul>
               </div>
@@ -137,7 +137,7 @@ import type {
   VenueStripResponseDto,
 } from '~/types/daily-ops-dashboard'
 import { resolveDailyOpsPeriod } from '~/utils/dailyOpsPeriod'
-import { amsterdamTodayYmd, weekdayShortForYmd } from '~/utils/inbox/importTableQuickDates'
+import { weekdayShortForYmd } from '~/utils/inbox/importTableQuickDates'
 
 const props = defineProps<{
   period: DailyOpsPeriodId
@@ -164,7 +164,7 @@ function formatPct (value: number): string {
 }
 
 const isSingleDayPeriod = computed(() => {
-  const r = resolveDailyOpsPeriod(props.period, props.anchor ?? amsterdamTodayYmd())
+  const r = resolveDailyOpsPeriod(props.period, props.anchor ?? undefined)
   return r.startDate === r.endDate
 })
 
@@ -172,7 +172,7 @@ const periodLabel = computed(() => {
   if (props.period === 'today') return 'Today'
   if (props.period === 'yesterday') return 'Yesterday'
   if (/^d[2-7]$/.test(props.period)) {
-    const r = resolveDailyOpsPeriod(props.period, props.anchor ?? amsterdamTodayYmd())
+    const r = resolveDailyOpsPeriod(props.period, props.anchor ?? undefined)
     return weekdayShortForYmd(r.startDate)
   }
   return props.period

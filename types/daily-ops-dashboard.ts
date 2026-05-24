@@ -262,7 +262,7 @@ export type VenueStripLaborRowDto = {
   hours: number
   wages: number
   loaded: number
-  /** Wage cost as % of venue revenue (filled server-side). */
+  /** Loaded labor cost as % of venue revenue (filled server-side). */
   laborPctOfRevenue: number | null
 }
 
@@ -272,6 +272,17 @@ export type VenueStripContractRowDto = {
   hours: number
   wages: number
   loaded: number
+}
+
+/** Per-person line for KPI gewerkte drawers (Afwas may appear twice after 50/50 split). */
+export type VenueStripWorkerLineDto = {
+  userId: string
+  userName: string
+  teamName: string
+  bucket: 'keuken' | 'bediening' | 'overig'
+  hours: number
+  /** Loaded employer cost (Eitje-style). */
+  wages: number
 }
 
 export type VenueStripCardDto = {
@@ -289,7 +300,11 @@ export type VenueStripCardDto = {
     gewerkt: VenueStripLaborRowDto
     keuken: VenueStripLaborRowDto
     bediening: VenueStripLaborRowDto
+    /** All hours − gewerkt (Ziek, Management, Algemeen, …). */
+    other: VenueStripLaborRowDto
   }
+  /** Staff lines for gewerkte KPI drawers, same source as labor totals. */
+  workers: VenueStripWorkerLineDto[]
   productivity: {
     totalPerHour: number | null
     keukenPerHour: number | null

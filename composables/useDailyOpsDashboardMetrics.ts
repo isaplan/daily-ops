@@ -106,8 +106,8 @@ export function useDailyOpsLaborMetrics() {
   }
 }
 
-/** Revenue-only fetch for revenue cards (dedupes with dashboard when same query). */
-export function useDailyOpsRevenueMetrics() {
+/** Legacy overview revenue breakdown (bundle slice). */
+export function useDailyOpsRevenueBreakdown() {
   const { dashboardQuery } = useDailyOpsDashboardRoute()
   const cacheKey = computed(() => `${metricsKey(dashboardQuery.value)}-revenue`)
 

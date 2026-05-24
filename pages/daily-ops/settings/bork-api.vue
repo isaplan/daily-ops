@@ -16,7 +16,7 @@
         :description="connectionMessage"
         :icon="connectionStatus === 'success' ? 'i-lucide-check-circle' : 'i-lucide-x-circle'"
       />
-      <TabRail v-model="activeTab" :options="apiSettingsTabOptions" />
+      <UiTabRail v-model="activeTab" :options="apiSettingsTabOptions" />
 
       <div v-if="activeTab === 'credentials'" class="space-y-6">
         <UCard>
@@ -167,7 +167,7 @@
           <template #header>
             <div class="space-y-1">
               <p class="font-semibold text-gray-900">Daily Data Sync</p>
-              <p class="text-sm text-gray-500">Automated sync for today's sales data. Runs for all locations with Bork credentials.</p>
+              <p class="text-sm text-gray-500">Automated sync for today and yesterday sales (Amsterdam calendar days). Runs for all locations with Bork credentials.</p>
             </div>
           </template>
 
@@ -175,7 +175,7 @@
             <div class="flex items-center justify-between">
               <div class="space-y-0.5">
                 <p class="text-sm font-medium text-gray-900">Enable Daily Data Sync</p>
-                <p class="text-sm text-gray-600">Sync today's data at set times for all locations</p>
+                <p class="text-sm text-gray-600">Sync today and yesterday at set times for all locations (catches missed runs)</p>
                 <p class="text-xs text-gray-500">Sync runs at 01:00, 08:00, 15:00, 18:00, 19:00, 20:00, 21:00, 23:00 (Europe/Amsterdam)</p>
               </div>
               <SettingsCronSwitch
@@ -185,7 +185,7 @@
             </div>
             <div class="border-t pt-4">
               <p class="text-sm font-semibold mb-2 block text-gray-900">Scope</p>
-              <p class="text-sm text-gray-600">All locations with Bork credentials; sales (tickets) for today</p>
+              <p class="text-sm text-gray-600">All locations with Bork credentials; sales (tickets) for today and yesterday</p>
             </div>
             <p v-if="dailyCronStatus?.lastRun" class="text-sm text-gray-600">
               Last run: {{ new Date(String(dailyCronStatus.lastRunUTC || dailyCronStatus.lastRun)).toLocaleString() }}
@@ -197,9 +197,9 @@
               Cron job not configured yet. Toggle the switch to create it.
             </p>
             <UButton
-              color="gray"
-              variant="ghost"
+              variant="solid"
               size="sm"
+              class="!bg-gray-900 !text-white hover:!bg-gray-800"
               :loading="runningNowJob === 'daily-data'"
               :disabled="!dailyCronStatus"
               @click="runNow('daily-data')"
@@ -259,9 +259,9 @@
               Cron job not configured yet. Toggle the switch to create it.
             </p>
             <UButton
-              color="gray"
-              variant="ghost"
+              variant="solid"
               size="sm"
+              class="!bg-gray-900 !text-white hover:!bg-gray-800"
               :loading="runningNowJob === 'master-data'"
               :disabled="!masterCronStatus"
               @click="runNow('master-data')"
@@ -304,9 +304,9 @@
               Cron job not configured yet. Toggle the switch to create it.
             </p>
             <UButton
-              color="gray"
-              variant="ghost"
+              variant="solid"
               size="sm"
+              class="!bg-gray-900 !text-white hover:!bg-gray-800"
               :loading="runningNowJob === 'historical-data'"
               :disabled="!historicalCronStatus"
               @click="runNow('historical-data')"

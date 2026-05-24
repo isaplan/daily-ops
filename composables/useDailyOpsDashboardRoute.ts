@@ -1,6 +1,6 @@
 import { resolveDailyOpsPeriod } from '~/utils/dailyOpsPeriod'
 import { DAILY_OPS_PERIOD_IDS, DAILY_OPS_ROLLING_DAY_PERIOD_IDS, type DailyOpsPeriodId } from '~/types/daily-ops-dashboard'
-import { amsterdamTodayYmd } from '~/utils/inbox/importTableQuickDates'
+import { amsterdamOpenRegisterBusinessDateYmd, AMSTERDAM_TZ } from '~/utils/dailyOpsBusinessDate'
 
 export type DailyOpsNavKey = 'overview' | 'revenue' | 'productivity' | 'workload' | 'products' | 'insights' | 'inbox'
 
@@ -26,12 +26,28 @@ export function useDailyOpsDashboardRoute() {
     return typeof a === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(a) ? a : null
   })
 
+  const openRegisterYmd = computed(() => amsterdamOpenRegisterBusinessDateYmd())
+
   const dashboardQuery = computed(() => {
     const q: Record<string, string> = { period: period.value }
     if (locationId.value) q.location = locationId.value
-    q.anchor = anchor.value ?? amsterdamTodayYmd()
+    q.anchor = openRegisterYmd.value
     return q
   })
+
+  if (import.meta.client) {
+    watch(
+      openRegisterYmd,
+      (open) => {
+        if (anchor.value === open) return
+        router.replace({
+          path: route.path,
+          query: { ...route.query, anchor: open },
+        })
+      },
+      { immediate: true },
+    )
+  }
 
   function setPeriod(next: DailyOpsPeriodId) {
     router.replace({ path: route.path, query: { ...route.query, period: next } })
@@ -63,35 +79,32 @@ export function useDailyOpsDashboardRoute() {
       year: 'numeric',
       month: 'long',
       day: 'numeric',
-      timeZone: 'UTC',
+      timeZone: AMSTERDAM_TZ,
     })
-    const anchorYmd = anchor.value ?? amsterdamTodayYmd()
-    const anchorUtc = new Date(`${anchorYmd}T12:00:00.000Z`)
+    const r = resolveDailyOpsPeriod(period.value, anchor.value ?? undefined)
+    const dayRef = new Date(`${r.startDate}T12:00:00.000Z`)
+
     if (period.value === 'today') {
-      return `Today: ${fmt.format(anchorUtc)} (UTC)`
+      return `Today (register day): ${fmt.format(dayRef)} · Amsterdam`
     }
     if (period.value === 'yesterday') {
-      const y = new Date(anchorUtc)
-      y.setUTCDate(y.getUTCDate() - 1)
-      return `Yesterday: ${fmt.format(y)} (UTC)`
+      return `Yesterday (register day): ${fmt.format(dayRef)} · Amsterdam`
     }
     if ((DAILY_OPS_ROLLING_DAY_PERIOD_IDS as readonly string[]).includes(period.value)) {
-      const r = resolveDailyOpsPeriod(period.value, anchorYmd)
-      const dayUtc = new Date(`${r.startDate}T12:00:00.000Z`)
-      const weekday = new Intl.DateTimeFormat('en-GB', { weekday: 'long', timeZone: 'UTC' }).format(dayUtc)
-      return `${weekday}: ${fmt.format(dayUtc)} (UTC)`
+      const weekday = new Intl.DateTimeFormat('en-GB', { weekday: 'long', timeZone: AMSTERDAM_TZ }).format(dayRef)
+      return `${weekday} (register day): ${fmt.format(dayRef)} · Amsterdam`
     }
-    const r = resolveDailyOpsPeriod(period.value, anchorYmd)
     if (period.value === 'this-week') {
-      return `This week: ${r.startDate} → ${r.endDate} (UTC)`
+      return `This week: ${r.startDate} → ${r.endDate} · Amsterdam`
     }
-    return `Last week: ${r.startDate} → ${r.endDate} (UTC)`
+    return `Last week: ${r.startDate} → ${r.endDate} · Amsterdam`
   })
 
   return {
     period,
     locationId,
     anchor,
+    openRegisterYmd,
     dashboardQuery,
     activeNav,
     contextHeadline,

@@ -16,7 +16,7 @@
         :description="connectionMessage"
         :icon="connectionStatus === 'success' ? 'i-lucide-check-circle' : 'i-lucide-x-circle'"
       />
-      <TabRail v-model="activeTab" :options="apiSettingsTabOptions" />
+      <UiTabRail v-model="activeTab" :options="apiSettingsTabOptions" />
 
       <div v-if="activeTab === 'credentials'" class="space-y-6">
         <UCard>
@@ -171,9 +171,9 @@
               Cron job not configured yet. Toggle the switch to create it.
             </p>
             <UButton
-              color="gray"
-              variant="ghost"
+              variant="solid"
               size="sm"
+              class="!bg-gray-900 !text-white hover:!bg-gray-800"
               :loading="runningNowJob === 'daily-data'"
               :disabled="!dailyCronStatus"
               @click="runNow('daily-data')"
@@ -235,9 +235,9 @@
               Cron job not configured yet. Toggle the switch to create it.
             </p>
             <UButton
-              color="gray"
-              variant="ghost"
+              variant="solid"
               size="sm"
+              class="!bg-gray-900 !text-white hover:!bg-gray-800"
               :loading="runningNowJob === 'master-data'"
               :disabled="!masterCronStatus"
               @click="runNow('master-data')"
@@ -307,9 +307,9 @@
               Cron job not configured yet. Toggle the switch to create it.
             </p>
             <UButton
-              color="gray"
-              variant="ghost"
+              variant="solid"
               size="sm"
+              class="!bg-gray-900 !text-white hover:!bg-gray-800"
               :loading="runningNowJob === 'historical-data'"
               :disabled="!historicalCronStatus"
               @click="runNow('historical-data')"

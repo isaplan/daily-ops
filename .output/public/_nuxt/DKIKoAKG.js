@@ -1,1 +1,0 @@
-import{f as a,x as n,o,c as r,at as s}from"./GJsCpteP.js";const m=a({__name:"new",async setup(c){let e,t;return[e,t]=n(()=>s("/notes/projects/create",{replace:!0})),await e,t(),(_,p)=>(o(),r("div"))}});export{m as default};

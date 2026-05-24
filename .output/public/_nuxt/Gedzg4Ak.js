@@ -1,1 +1,0 @@
-import{f as a,x as r,o,c as n,at as s}from"./GJsCpteP.js";const m=a({__name:"by-worker",async setup(c){let e,t;return[e,t]=r(()=>s("/workers",{replace:!0})),await e,t(),(_,p)=>(o(),n("div"))}});export{m as default};

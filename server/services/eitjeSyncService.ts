@@ -1,9 +1,11 @@
 /**
  * @registry-id: eitjeSyncService
  * @created: 2026-04-05T12:00:00.000Z
- * @last-modified: 2026-05-16T16:00:00.000Z
+ * @last-modified: 2026-05-19T18:30:00.000Z
  * @description: Fetches Eitje Open API resources and upserts eitje_raw_data; drives cron/sync handlers
- * @last-fix: [2026-05-16] Dedupe labor agg after every sync window (integrity pass).
+ * @last-fix: [2026-05-19] Per-day shift counts in sync messages; Amsterdam calendar windows for all job types.
+ *   Prior: [2026-05-19] Daily/historical sync windows use Europe/Amsterdam calendar days (not toISOString UTC).
+ *   Prior: [2026-05-16] Dedupe labor agg after every sync window (integrity pass).
  *   Prior: [2026-05-11] Historical ends yesterday / skip labor rebuild when no upserts.
  *
  * @exports-to:
@@ -22,6 +24,7 @@ import { eitjeFetchJson, legacyEitjeV2Headers, normalizeEitjeBaseUrl, type Eitje
 import { rebuildEitjeTimeRegistrationAggregation } from './eitjeRebuildAggregationService'
 import { runEitjeLaborAggIntegrity } from '../utils/eitjeAggIntegrity'
 import { enqueueSnapshotBuild } from '../utils/dailyOpsSnapshot/jobCoalescer'
+import { addCalendarDaysYmd, calendarYmdInAmsterdam } from '~/utils/dailyOpsBusinessDate'
 import { linkMemberUnifiedUserId } from '../utils/memberEitjeContext'
 import { ObjectId } from 'mongodb'
 import './dailyOpsSnapshotService' // registers snapshot runner — side-effect import
@@ -37,7 +40,13 @@ export type EitjeSyncJobResult = {
   ok: boolean
   jobType: string
   message: string
-  timeRegistration?: { upserted: number; fetched: number; error?: string }
+  timeRegistration?: {
+    upserted: number
+    fetched: number
+    error?: string
+    /** Amsterdam labor period (shift start) → shift count from API response */
+    fetchedByPeriod?: Record<string, number>
+  }
   master?: { endpoints: Array<{ name: string; upserted: number; fetched: number; error?: string }> }
   aggregation?: { deletedPeriods: number; inserted: number; error?: string }
 }
@@ -116,6 +125,99 @@ function num (v: unknown): number | undefined {
   if (v == null) return undefined
   const n = Number(v)
   return Number.isFinite(n) ? n : undefined
+}
+
+/** Labor business day = Amsterdam calendar date of shift clock-in (matches eitjeHours aggregation). */
+function laborPeriodYmdFromShiftRaw (raw: Record<string, unknown>): string | null {
+  const start = raw.start ?? raw.start_time ?? raw.started_at ?? raw.from
+  const instant = toDate(start) ?? toDate(raw.date ?? raw.work_date ?? raw.day ?? raw.worked_on)
+  return instant ? calendarYmdInAmsterdam(instant) : null
+}
+
+function countFetchedByLaborPeriod (records: Record<string, unknown>[]): Record<string, number> {
+  const out: Record<string, number> = {}
+  for (const raw of records) {
+    const period = laborPeriodYmdFromShiftRaw(raw)
+    if (!period) continue
+    out[period] = (out[period] ?? 0) + 1
+  }
+  return out
+}
+
+function mergeFetchedByPeriod (
+  a: Record<string, number>,
+  b: Record<string, number>,
+): Record<string, number> {
+  const out = { ...a }
+  for (const [ymd, n] of Object.entries(b)) out[ymd] = (out[ymd] ?? 0) + n
+  return out
+}
+
+function daySpanInclusive (startYmd: string, endYmd: string): number {
+  let n = 0
+  let cur = startYmd
+  while (cur <= endYmd) {
+    n++
+    if (cur === endYmd) break
+    cur = addCalendarDaysYmd(cur, 1)
+  }
+  return n
+}
+
+/** e.g. 2026-05-19 → "19 May" */
+function formatOpsDayLabel (ymd: string): string {
+  const parts = ymd.split('-').map((x) => Number(x))
+  const y = parts[0] ?? 0
+  const m = parts[1] ?? 1
+  const d = parts[2] ?? 1
+  return new Intl.DateTimeFormat('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    timeZone: 'UTC',
+  }).format(new Date(Date.UTC(y, m - 1, d, 12, 0, 0)))
+}
+
+function formatPerDayShiftBreakdown (
+  byPeriod: Record<string, number>,
+  startYmd: string,
+  endYmd: string,
+): string {
+  const parts: string[] = []
+  let cur = startYmd
+  while (cur <= endYmd) {
+    const n = byPeriod[cur] ?? 0
+    parts.push(`${n} on ${formatOpsDayLabel(cur)}`)
+    if (cur === endYmd) break
+    cur = addCalendarDaysYmd(cur, 1)
+  }
+  return parts.join(', ')
+}
+
+const PER_DAY_BREAKDOWN_MAX_DAYS = 7
+
+function formatTimeRegistrationSyncMessage (input: {
+  tr: { fetched: number; upserted: number; fetchedByPeriod?: Record<string, number> }
+  startYmd: string
+  endYmd: string
+  aggInserted?: number
+  jobType?: string
+  skippedRebuild?: boolean
+}): string {
+  const { tr, startYmd, endYmd, aggInserted, jobType, skippedRebuild } = input
+  const span = daySpanInclusive(startYmd, endYmd)
+  let msg = `Synced ${tr.fetched} shifts (${tr.upserted} writes)`
+  if (tr.fetchedByPeriod && span <= PER_DAY_BREAKDOWN_MAX_DAYS) {
+    msg += `: ${formatPerDayShiftBreakdown(tr.fetchedByPeriod, startYmd, endYmd)}`
+  } else if (span > PER_DAY_BREAKDOWN_MAX_DAYS) {
+    msg += ` (${startYmd}…${endYmd})`
+  }
+  if (skippedRebuild) {
+    msg += `, no raw changes — skipped labor aggregation rebuild for ${startYmd}…${endYmd}`
+  } else if (aggInserted != null) {
+    const suffix = jobType ? ` (${jobType}, ${startYmd}…${endYmd})` : ''
+    msg += `; aggregation +${aggInserted} rows${suffix}`
+  }
+  return msg
 }
 
 type RawUpsertBody = {
@@ -284,7 +386,7 @@ async function syncTimeRegistrationShiftsWindow (
   creds: EitjeStoredCredentials,
   startDate: string,
   endDate: string
-): Promise<{ upserted: number; fetched: number; error?: string }> {
+): Promise<{ upserted: number; fetched: number; fetchedByPeriod: Record<string, number>; error?: string }> {
   // Legacy Next.js integration used GET with JSON body filters for this endpoint.
   const tryLegacyGetWithBody = async (): Promise<{ records: Record<string, unknown>[]; lastError?: string; lastStatus: number }> => {
     const base = normalizeEitjeBaseUrl(creds.baseUrl).replace(/\/$/, '')
@@ -341,8 +443,9 @@ async function syncTimeRegistrationShiftsWindow (
 
   const legacyBodyResult = await tryLegacyGetWithBody()
   if (legacyBodyResult.records.length > 0) {
+    const fetchedByPeriod = countFetchedByLaborPeriod(legacyBodyResult.records)
     const upserted = await persistRawTimeRegistrationShifts(db, legacyBodyResult.records)
-    return { upserted, fetched: legacyBodyResult.records.length }
+    return { upserted, fetched: legacyBodyResult.records.length, fetchedByPeriod }
   }
 
   const queryAttempts: Record<string, string | undefined>[] = [
@@ -377,11 +480,12 @@ async function syncTimeRegistrationShiftsWindow (
 
   if (records.length === 0 && err) {
     const legacyErr = legacyBodyResult.lastError ? `; legacy-body: ${legacyBodyResult.lastError.slice(0, 200)}` : ''
-    return { upserted: 0, fetched: 0, error: `HTTP ${status}: ${err.slice(0, 400)}${legacyErr}` }
+    return { upserted: 0, fetched: 0, fetchedByPeriod: {}, error: `HTTP ${status}: ${err.slice(0, 400)}${legacyErr}` }
   }
 
+  const fetchedByPeriod = countFetchedByLaborPeriod(records)
   const upserted = await persistRawTimeRegistrationShifts(db, records)
-  return { upserted, fetched: records.length }
+  return { upserted, fetched: records.length, fetchedByPeriod }
 }
 
 const sleepMs = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
@@ -391,12 +495,13 @@ async function syncTimeRegistrationShifts (
   creds: EitjeStoredCredentials,
   startDate: string,
   endDate: string
-): Promise<{ upserted: number; fetched: number; error?: string }> {
+): Promise<{ upserted: number; fetched: number; fetchedByPeriod: Record<string, number>; error?: string }> {
   const maxDays = envInt('EITJE_TIME_REGISTRATION_MAX_DAYS', 7)
   const chunkDelayMs = envInt('EITJE_BACKFILL_CHUNK_DELAY_MS', 0)
   const chunks = splitDateRangeForEitje(startDate, endDate, maxDays)
   let upserted = 0
   let fetched = 0
+  let fetchedByPeriod: Record<string, number> = {}
   let i = 0
   for (const ch of chunks) {
     i++
@@ -405,14 +510,16 @@ async function syncTimeRegistrationShifts (
       return {
         upserted,
         fetched,
+        fetchedByPeriod,
         error: `${r.error} (window ${ch.startDate}–${ch.endDate})`,
       }
     }
     upserted += r.upserted
     fetched += r.fetched
+    fetchedByPeriod = mergeFetchedByPeriod(fetchedByPeriod, r.fetchedByPeriod)
     if (chunkDelayMs > 0 && i < chunks.length) await sleepMs(chunkDelayMs)
   }
-  return { upserted, fetched }
+  return { upserted, fetched, fetchedByPeriod }
 }
 
 async function syncListEndpoint (
@@ -468,21 +575,17 @@ async function syncListEndpoint (
 }
 
 function dateRangeDays (days: number): { start: string; end: string } {
-  const end = new Date()
-  const start = new Date()
-  start.setUTCDate(start.getUTCDate() - days)
-  const fmt = (d: Date) => d.toISOString().split('T')[0] ?? ''
-  return { start: fmt(start), end: fmt(end) }
+  const end = calendarYmdInAmsterdam(new Date())
+  const start = addCalendarDaysYmd(end, -days)
+  return { start, end }
 }
 
-/** N calendar days ending on **yesterday** (UTC date); never includes “today” (daily job owns today). */
+/** N Amsterdam calendar days ending on **yesterday**; never includes “today” (daily job owns today). */
 function dateRangeDaysEndingYesterday (totalDays: number): { start: string; end: string } {
-  const end = new Date()
-  end.setUTCDate(end.getUTCDate() - 1)
-  const start = new Date(end)
-  start.setUTCDate(start.getUTCDate() - (totalDays - 1))
-  const fmt = (d: Date) => d.toISOString().split('T')[0] ?? ''
-  return { start: fmt(start), end: fmt(end) }
+  const todayYmd = calendarYmdInAmsterdam(new Date())
+  const end = addCalendarDaysYmd(todayYmd, -1)
+  const start = addCalendarDaysYmd(end, -(totalDays - 1))
+  return { start, end }
 }
 
 export async function pingEitjeApi (creds: EitjeStoredCredentials): Promise<{ ok: boolean; message: string }> {
@@ -550,26 +653,21 @@ export async function executeEitjeJob (db: Db, jobType: string): Promise<EitjeSy
     // Cron: 01:00, 08:00, 15:00, 18:00–21:00, 23:00 Europe/Amsterdam (see nuxt.config)
     // Aggregate TODAY + YESTERDAY - ensures no backfill gaps
     const now = new Date()
-    const todayUtc = now.toISOString().split('T')[0] ?? ''
-    
-    // Calculate yesterday
-    const yesterday = new Date(now)
-    yesterday.setDate(yesterday.getDate() - 1)
-    const yesterdayUtc = yesterday.toISOString().split('T')[0] ?? ''
-    
-    // Fetch both days
-    const tr = await syncTimeRegistrationShifts(db, creds, yesterdayUtc, todayUtc)
+    const todayYmd = calendarYmdInAmsterdam(now)
+    const yesterdayYmd = addCalendarDaysYmd(todayYmd, -1)
+
+    const tr = await syncTimeRegistrationShifts(db, creds, yesterdayYmd, todayYmd)
     let agg: { deletedPeriods: number; inserted: number; aggDeduped?: number; error?: string } | undefined
     let integrityDeduped = 0
 
     try {
       // Rebuild aggregation for both days
-      agg = await rebuildEitjeTimeRegistrationAggregation(db, yesterdayUtc, todayUtc)
+      agg = await rebuildEitjeTimeRegistrationAggregation(db, yesterdayYmd, todayYmd)
 
       // Map Eitje IDs to unified collections after aggregation
       await syncUnifiedCollectionsFromRawData(db)
       // Snapshot rebuilds (debounced) — one per (period, locationId) touched.
-      for (const period of [yesterdayUtc, todayUtc]) {
+      for (const period of [yesterdayYmd, todayYmd]) {
         const locs = await db.collection('eitje_time_registration_aggregation').distinct('locationId', { period })
         for (const loc of locs) enqueueSnapshotBuild({ businessDate: period, locationId: String(loc) })
       }
@@ -580,7 +678,7 @@ export async function executeEitjeJob (db: Db, jobType: string): Promise<EitjeSy
         error: e instanceof Error ? e.message : String(e),
       }
     } finally {
-      integrityDeduped = await runEitjeLaborAggIntegrity(db, yesterdayUtc, todayUtc)
+      integrityDeduped = await runEitjeLaborAggIntegrity(db, yesterdayYmd, todayYmd)
     }
 
     const ok = !tr.error && (tr.fetched > 0 || tr.upserted > 0 || (agg?.inserted ?? 0) > 0)
@@ -590,7 +688,12 @@ export async function executeEitjeJob (db: Db, jobType: string): Promise<EitjeSy
       jobType,
       message: tr.error
         ? `Time registration: ${tr.error}`
-        : `Synced ${tr.fetched} shifts (${tr.upserted} writes), aggregation +${agg?.inserted ?? 0} rows for ${yesterdayUtc}–${todayUtc}`,
+        : formatTimeRegistrationSyncMessage({
+            tr,
+            startYmd: yesterdayYmd,
+            endYmd: todayYmd,
+            aggInserted: agg?.inserted,
+          }),
       timeRegistration: tr,
       aggregation: agg ? { ...agg, integrityDeduped } : { integrityDeduped },
     }
@@ -630,9 +733,14 @@ export async function executeEitjeJob (db: Db, jobType: string): Promise<EitjeSy
     jobType,
     message: tr.error
       ? `Time registration: ${tr.error}`
-      : agg?.skippedRebuild
-        ? `Synced ${tr.fetched} shifts (${tr.upserted} writes), no raw changes — skipped labor aggregation rebuild for ${start}…${end}`
-        : `Synced ${tr.fetched} shifts (${tr.upserted} writes), aggregation +${agg?.inserted ?? 0} rows (${jobType}, ${start}…${end})`,
+      : formatTimeRegistrationSyncMessage({
+          tr,
+          startYmd: start,
+          endYmd: end,
+          aggInserted: agg?.skippedRebuild ? undefined : agg?.inserted,
+          jobType,
+          skippedRebuild: agg?.skippedRebuild,
+        }),
     timeRegistration: tr,
     aggregation: agg ? { ...agg, integrityDeduped } : { integrityDeduped },
   }
@@ -871,7 +979,14 @@ export async function syncEitjeByRequest (db: Db, body: {
     return {
       ok: !tr.error,
       jobType: 'manual',
-      message: tr.error ?? `OK: ${tr.fetched} fetched, agg +${agg?.inserted ?? 0}`,
+      message: tr.error
+        ? `Time registration: ${tr.error}`
+        : formatTimeRegistrationSyncMessage({
+            tr,
+            startYmd: start,
+            endYmd: end,
+            aggInserted: agg?.inserted,
+          }),
       timeRegistration: tr,
       aggregation: agg ? { ...agg, integrityDeduped } : { integrityDeduped },
     }

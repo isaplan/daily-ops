@@ -33,6 +33,10 @@ import {
   type DailyOpsSnapshotMaster,
 } from '../../types/daily-ops-snapshot'
 import { buildRevenueSection } from '../utils/dailyOpsSnapshot/buildRevenueSection'
+import { buildRevenueHourlySection } from '../utils/dailyOpsSnapshot/buildRevenueHourlySection'
+import { buildRevenueProductsSection } from '../utils/dailyOpsSnapshot/buildRevenueProductsSection'
+import { buildRevenueTablesSection } from '../utils/dailyOpsSnapshot/buildRevenueTablesSection'
+import { buildRevenueWorkersSection } from '../utils/dailyOpsSnapshot/buildRevenueWorkersSection'
 import { buildLaborSection } from '../utils/dailyOpsSnapshot/buildLaborSection'
 import { buildCards } from '../utils/dailyOpsSnapshot/buildCards'
 import { resolveSources } from '../utils/dailyOpsSnapshot/resolveSources'
@@ -87,11 +91,17 @@ export async function buildDailyOpsSnapshot(input: BuildSnapshotInput): Promise<
       if (!locationName && DEBUG) {
         console.warn(`[snapshot:build] ${businessDate} ${locationId} | missing locationName`)
       }
-      const [revenue, labor, sources] = await Promise.all([
-        buildRevenueSection(db, { businessDate, locationId, locationName }),
-        buildLaborSection(db, { businessDate, locationId, locationName }),
-        resolveSources(db, businessDate, locationId),
-      ])
+      const buildInput = { businessDate, locationId, locationName }
+      const [revenue, labor, sources, revenueHourly, revenueProducts, revenueTables, revenueWorkers] =
+        await Promise.all([
+          buildRevenueSection(db, buildInput),
+          buildLaborSection(db, buildInput),
+          resolveSources(db, businessDate, locationId),
+          buildRevenueHourlySection(db, buildInput),
+          buildRevenueProductsSection(db, buildInput),
+          buildRevenueTablesSection(db, buildInput),
+          buildRevenueWorkersSection(db, buildInput),
+        ])
       const cards = buildCards(revenue, labor)
 
       const sealed = sources.inbox.cronHour === 8
@@ -104,7 +114,14 @@ export async function buildDailyOpsSnapshot(input: BuildSnapshotInput): Promise<
         leadRevenueSource: revenue.leadSource,
         cards,
         sources,
-        sections: { revenue: true, labor: true },
+        sections: {
+          revenue: true,
+          labor: true,
+          revenueHourly: true,
+          revenueProducts: true,
+          revenueTables: true,
+          revenueWorkers: true,
+        },
         lastBuiltAt: new Date(),
         sealedAt: sealed ? new Date() : null,
       }
@@ -114,6 +131,18 @@ export async function buildDailyOpsSnapshot(input: BuildSnapshotInput): Promise<
         db.collection(DAILY_OPS_SNAPSHOT_COLLECTIONS.master).updateOne(filter, { $set: master }, { upsert: true }),
         db.collection(DAILY_OPS_SNAPSHOT_COLLECTIONS.revenueSection).updateOne(filter, { $set: revenue }, { upsert: true }),
         db.collection(DAILY_OPS_SNAPSHOT_COLLECTIONS.laborSection).updateOne(filter, { $set: labor }, { upsert: true }),
+        db
+          .collection(DAILY_OPS_SNAPSHOT_COLLECTIONS.revenueHourlySection)
+          .updateOne(filter, { $set: revenueHourly }, { upsert: true }),
+        db
+          .collection(DAILY_OPS_SNAPSHOT_COLLECTIONS.revenueProductsSection)
+          .updateOne(filter, { $set: revenueProducts }, { upsert: true }),
+        db
+          .collection(DAILY_OPS_SNAPSHOT_COLLECTIONS.revenueTablesSection)
+          .updateOne(filter, { $set: revenueTables }, { upsert: true }),
+        db
+          .collection(DAILY_OPS_SNAPSHOT_COLLECTIONS.revenueWorkersSection)
+          .updateOne(filter, { $set: revenueWorkers }, { upsert: true }),
       ])
 
       if (DEBUG) {

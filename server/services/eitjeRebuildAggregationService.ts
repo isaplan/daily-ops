@@ -1,10 +1,12 @@
 /**
  * @registry-id: eitjeRebuildAggregationService
  * @created: 2026-04-05T12:00:00.000Z
- * @last-modified: 2026-05-16T12:00:00.000Z
+ * @last-modified: 2026-05-19T20:30:00.000Z
  * @description: Rebuilds eitje_time_registration_aggregation day rows from eitje_raw_data for a date range
- * @last-fix: [2026-05-16] aggregatedAt on write; string keys; dedupe after insert.
+ * @last-fix: [2026-05-19] Member lookup also matches support_id; hourly_rate falls back to inbox contract.
+ *   Prior: [2026-05-16] aggregatedAt on write; string keys; dedupe after insert.
  *   Prior: [2026-05-16] Dedupe agg rows after insert (concurrent rebuild race).
+ *   Prior: [2026-05-21] Nul-uren / fallback loaded ratio 1.36 → 1.56 (LOADED_FALLBACK_RATIO).
  *   Prior: [2026-05-14] Nul-uren: employer cost_per_hour = hourly_rate × 1.36 before loaded math.
  *   Prior: [2026-05-14] cost_per_hour + total_cost_loaded; members eitje_id string cast fix.
  *
@@ -178,12 +180,18 @@ export async function rebuildEitjeTimeRegistrationAggregation (
                 $or: [
                   { $eq: ['$_eitje_id_str', '$$uid'] },
                   { $in: ['$$uid', '$_eitje_ids_str'] },
+                  {
+                    $eq: [
+                      { $toString: { $ifNull: ['$support_id', ''] } },
+                      '$$uid',
+                    ],
+                  },
                 ],
               },
             },
           },
           { $limit: 1 },
-          { $project: { hourly_rate: 1, cost_per_hour: 1, contract_type: 1 } },
+          { $project: { hourly_rate: 1, hourly_wage: 1, cost_per_hour: 1, contract_type: 1 } },
         ],
         as: 'memberDoc',
       },
@@ -250,13 +258,21 @@ export async function rebuildEitjeTimeRegistrationAggregation (
         hourly_rate: {
           $ifNull: [
             { $arrayElemAt: ['$memberDoc.hourly_rate', 0] },
+            { $arrayElemAt: ['$memberDoc.hourly_wage', 0] },
             { $arrayElemAt: ['$u.hourly_rate', 0] },
-          ]
+            { $arrayElemAt: ['$contractDoc.hourly_rate', 0] },
+            { $arrayElemAt: ['$contractDoc.hourly_wage', 0] },
+          ],
         },
         cost: {
           $cond: [
-            { $and: [{ $ne: ['$hours', null] }, { $ne: [{ $ifNull: [{ $arrayElemAt: ['$memberDoc.hourly_rate', 0] }, { $arrayElemAt: ['$u.hourly_rate', 0] }] }, null] }] },
-            { $multiply: ['$hours', { $ifNull: [{ $arrayElemAt: ['$memberDoc.hourly_rate', 0] }, { $arrayElemAt: ['$u.hourly_rate', 0] }] }] },
+            {
+              $and: [
+                { $ne: ['$hours', null] },
+                { $ne: ['$hourly_rate', null] },
+              ],
+            },
+            { $multiply: ['$hours', '$hourly_rate'] },
             {
               $ifNull: [
                 { $divide: [{ $toDouble: '$extracted.amountInCents' }, 100] },

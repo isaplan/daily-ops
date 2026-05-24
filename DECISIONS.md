@@ -63,3 +63,31 @@ Append-only log of locked decisions. When changing behavior that contradicts an 
 **Decision:** Open a new revision only when `contract_type`, `hourly_rate`, or `cost_per_hour` (material fields) change vs the latest open revision.
 
 **Consequences:** `materialFieldsChanged()` guard in `server/utils/memberCompensationRevisions.ts`.
+
+---
+
+## ADR-006 — Hot / warm / cold data tiers
+
+**Status:** Accepted (2026-05-24)
+
+**Context:** Revenue and dashboard loads timed out because read paths scanned Bork/Eitje aggregates per day while raw and fat aggregate collections duplicated snapshot data. Mongo on DO should stay small; raw is immutable after seal.
+
+**Decision:**
+
+| Tier | What | Retention | UI reads? |
+|------|------|-----------|-----------|
+| **Hot** | `daily_ops_snapshot*` + precomputed `daily_ops_revenue_benchmark` | 2 years | **Yes — only source** for Daily Ops / Revenue overview |
+| **Warm** | `bork_business_days`, `eitje_time_registration_aggregation`; fat `bork_sales_by_*` during pipeline | Day-level **2 years**; fat slices **until snapshot sealed** then delete per day | **No** on GET (writers + backfill jobs only) |
+| **Cold** | DO Spaces blobs: `bork/{locationId}/{businessDate}.json.gz`, `eitje/{locationId}/{businessDate}.json.gz` | Indefinite | On-demand rebuild jobs only |
+
+Additional rules:
+
+- **Eitje shift raw** follows the same blob-and-delete policy as Bork raw. Eitje master-data endpoints (`users`, `teams`, `environments`) stay in Mongo.
+- **No duplicate serving shapes:** once revenue hourly is in snapshot, `bork_sales_by_hour` for that day is dropped from Mongo.
+- **60-day window** = benchmark precompute + backfill completeness SLA — not an analytics cutoff.
+- **90-day optional grace** in Mongo for shift/line drill-down before raw purge; older → rebuild from blob (async job).
+- Revenue overview must not call live Bork aggregation on request; missing snapshot → partial response / backfill queue.
+
+**Consequences:** Implement per [dev-docs/DATA_RETENTION_PLAN.md](./dev-docs/DATA_RETENTION_PLAN.md). ADR-004 read rule unchanged; ADR-006 adds retention and purge rules.
+
+---

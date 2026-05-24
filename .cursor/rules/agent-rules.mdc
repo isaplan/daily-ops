@@ -190,7 +190,23 @@ grep '"type": "service"' function-registry.json
 - **v1 periods:** `today` / `yesterday` single calendar day only; week/month UI is placeholder — API changes need plan phases D–F approval.
 - **Labor read path (ADR-004):** `daily_ops_snapshot_section_labor` first; `eitje_time_registration_aggregation` fallback only. Rebuild agg + snapshot after aggregation schema changes.
 - Before editing `dailyOpsDashboardMetrics.ts`, `bundle.get.ts`, or `aggregateLaborForRange.ts` → **ask user first** (import helpers only in v1).
+- **Basis inbox revenue pick (SSOT):** `calculateBasisCronPriority` / `pickBasisReportByCronPriority` in `basis-report-mapper.ts`. Morning cron **7 or 8** = final yesterday for `business_date`; **18/23** are intraday partials only. Never pick “latest cron_hour” for headline totals.
+- **Daily Ops GET = snapshot only (ADR-004):** Revenue/labor/dashboard read APIs use `daily_ops_snapshot*` only. Never `bork_*`, `inbox-*`, or raw on page load. Missing snapshot → `dataGap` / zeros; fix via snapshot rebuild, not live agg on GET.
+- **Ops notifications:** `/ops-notifications` (sidebar above Organisation). Modular scan: `server/utils/opsNotifications/` — snapshot gaps, **Bork vs Inbox** discrepancy (≥10% or €500), **missed morning cron**, intraday-only Basis, unmapped inbox, **ADR-004 live Bork on GET**, monolith file size. Extend detectors there; never hide issues with Bork fallback on GET.
 - After route/component changes: check dev terminal per RULE #0.5.
+
+---
+
+## Data retention — hot / warm / cold (ADR-006)
+
+**SSOT:** [DECISIONS.md ADR-006](../../DECISIONS.md#adr-006--hot--warm--cold-data-tiers) · [dev-docs/DATA_RETENTION_PLAN.md](../../dev-docs/DATA_RETENTION_PLAN.md)
+
+- **Hot (2y, UI reads):** `daily_ops_snapshot*` + `daily_ops_revenue_benchmark` only on Revenue / Daily Ops GET paths.
+- **Warm (2y):** `bork_business_days`, `eitje_time_registration_aggregation`. Fat `bork_sales_by_*` = pipeline buffer — **delete per day after snapshot sealed**.
+- **Cold:** Bork + Eitje **shift** raw → DO Spaces blob → delete from Mongo. Eitje master-data (`users`, `teams`, `environments`) stays in Mongo.
+- **60d** = benchmark precompute + backfill SLA (not a delete cutoff). **90d** = optional Mongo grace for shift drill-down.
+- **Never** read-time Bork/Eitje aggregation on Revenue overview (ADR-004 + ADR-006). Missing snapshot → partial / backfill queue.
+- New archive/purge/revenue-read code: **`@adr-ref: ADR-006`** in metadata header + update `@exports-to`.
 
 ---
 
@@ -206,5 +222,7 @@ grep '"type": "service"' function-registry.json
 ## 🔗 RELATED DOCS
 
 - `.cursor/rules/metadata-header-system.md` → Full metadata format + examples
+- `dev-docs/DATA_RETENTION_PLAN.md` → Hot/warm/cold tiers (ADR-006 implementation)
+- `DECISIONS.md` → ADR log (ADR-006 retention)
 - `dev-docs/IMPLEMENTATION_PLAN.md` → Project architecture + timelines
 - See `function-registry.json` for all tracked code

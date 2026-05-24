@@ -1,7 +1,7 @@
 /**
  * Daily Ops dashboard: Bork revenue + Eitje labor aggregations (fast paths on prebuilt collections).
- * @last-modified: 2026-05-17T00:00:00.000Z
- * @last-fix: [2026-05-18] Bork revenue sum falls back to total_revenue when ex-VAT field is zero. Profit extreme hours (best + least) in one pass
+ * @last-modified: 2026-05-18T12:00:00.000Z
+ * @last-fix: [2026-05-18] pickBasisReportsPerLocation delegates to basis-report-mapper SSOT
  * 
  * @business-day-definition:
  * A "business day" runs 08:00 to 07:59:59 NEXT ISO day (Amsterdam time).
@@ -17,9 +17,8 @@
  * Eitje dagelijkse uren: full previous calendar day is expected on the **morning (~08:05)** poll; **12:05** weekly
  * export refines earlier-week days; 18/23 inbox polls are Bork-intraday–centric for revenue validation.
  * 
- * pickBasisReportsPerLocation: Picks the report with **cron_hour = 7** per location per business_date.
- * This is the final complete report that arrives on the NEXT ISO calendar day morning.
- * Falls back to cron 23, then cron 18 if cron 7 missing (shouldn't happen for closed days).
+ * pickBasisReportsPerLocation: Uses pickBasisReportByCronPriority (basis-report-mapper SSOT).
+ * Morning cron_hour **7 or 8** = final complete yesterday report for business_date.
  * 
  * @related-files:
  * ✓ server/tasks/inbox/gmail-sync.ts — runs 4×/day at 08:05, 12:05, 18:05, 23:05 Amsterdam
@@ -27,8 +26,9 @@
  */
 import type { Db } from 'mongodb'
 import { ObjectId } from 'mongodb'
-import type { BasisReportData } from './inbox/basis-report-mapper'
+import { pickBasisReportByCronPriority, type BasisReportData } from './inbox/basis-report-mapper'
 import { resolveBorkAggReadSuffix } from './borkAggVersionSuffix'
+import { sumFoodBeverageFromHourAggregates } from './borkFoodBeverageSplit'
 import { resolveDailyOpsPeriod } from '~/utils/dailyOpsPeriod'
 import type {
   DailyOpsLaborDayDto,
@@ -54,6 +54,19 @@ export const BORK_DOC_REVENUE_EXPR = {
 } as const
 
 export const BORK_REVENUE_SUM_REDUCE = { $sum: BORK_DOC_REVENUE_EXPR } as const
+
+/** Prefer inc-VAT field; else `total_revenue` (gross). */
+export const BORK_DOC_REVENUE_INC_EXPR = {
+  $let: {
+    vars: {
+      inc: { $ifNull: ['$total_revenue_inc_vat', 0] },
+      gross: { $ifNull: ['$total_revenue', 0] },
+    },
+    in: { $cond: [{ $gt: ['$$inc', 0] }, '$$inc', '$$gross'] },
+  },
+} as const
+
+export const BORK_REVENUE_INC_SUM_REDUCE = { $sum: BORK_DOC_REVENUE_INC_EXPR } as const
 
 const DRINK_NAME_PATTERN =
   /wine|wijn|beer|bier|gint|gin |vodka|whisk|whiskey|rum|cocktail|cola|sprite|fanta|coffee|koffie|thee|tea|sap|juice|fris|prosecco|champagne|cider|tonic|latte|cappuccino|espresso|pils|stelz|borrel|aperol|campari|martini|soda|limonade/i
@@ -188,70 +201,12 @@ export async function fetchEitjeLaborTotals(db: Db, ctx: DailyOpsMetricsContext)
 }
 
 /**
- * Drinks vs food from `bork_sales_by_hour.products` (rebuilt by Bork aggregation from raw tickets).
- * Same name-pattern heuristic as legacy raw pipeline; no `bork_raw_data` scan.
- * Hour-level revenue minus summed product lines is added to food (missing/empty product arrays).
+ * Drinks vs food from `bork_sales_by_hour.products` via `product_catalog` category (Hoofdgroep),
+ * with name-pattern fallback for unmapped product keys.
  */
 export async function fetchRevenueByCategoryFromHourAggregates(db: Db, ctx: DailyOpsMetricsContext) {
-  const sfx = resolveBorkAggReadSuffix()
   const match = borkV2SalesMatch(ctx)
-
-  const [facetRow] = (await db
-    .collection(`bork_sales_by_hour${sfx}`)
-    .aggregate([
-      { $match: match },
-      {
-        $facet: {
-          categoryFromLines: [
-            { $unwind: { path: '$products', preserveNullAndEmptyArrays: false } },
-            {
-              $addFields: {
-                productName: { $ifNull: ['$products.productName', ''] },
-                lineValue: { $toDouble: { $ifNull: ['$products.revenue', 0] } },
-              },
-            },
-            {
-              $addFields: {
-                bucket: {
-                  $cond: {
-                    if: { $regexMatch: { input: '$productName', regex: DRINK_NAME_PATTERN } },
-                    then: 'drinks',
-                    else: 'food',
-                  },
-                },
-              },
-            },
-            { $group: { _id: '$bucket', amount: { $sum: '$lineValue' } } },
-          ],
-          hourRevenueTotal: [
-            { $group: { _id: null, total: { $sum: { $ifNull: ['$total_revenue', 0] } } } },
-          ],
-          productLinesTotal: [
-            { $unwind: { path: '$products', preserveNullAndEmptyArrays: false } },
-            {
-              $group: {
-                _id: null,
-                total: { $sum: { $toDouble: { $ifNull: ['$products.revenue', 0] } } },
-              },
-            },
-          ],
-        },
-      },
-    ])
-    .toArray()) as {
-    categoryFromLines: { _id: string; amount: number }[]
-    hourRevenueTotal: { _id: null; total: number }[]
-    productLinesTotal: { _id: null; total: number }[]
-  }[]
-
-  const byCat = facetRow?.categoryFromLines ?? []
-  let drinks = byCat.find((x) => x._id === 'drinks')?.amount ?? 0
-  let food = byCat.find((x) => x._id === 'food')?.amount ?? 0
-  const hourGrand = facetRow?.hourRevenueTotal?.[0]?.total ?? 0
-  const lineGrand = facetRow?.productLinesTotal?.[0]?.total ?? 0
-  const gap = Math.max(0, hourGrand - lineGrand)
-  food += gap
-
+  const { food, drinks } = await sumFoodBeverageFromHourAggregates(db, match)
   return { drinks, food }
 }
 
@@ -590,9 +545,7 @@ function normalizeBasisLocationLabel(s: string): string {
 
 /**
  * Per-location deduplication: pick FINAL Bork basis report per business_date per location.
- *
- * For business day N, batches typically arrive: cron 18 → cron 23 → cron 7–8 next ISO morning (08:05 poll).
- * Implementation: sort by cron_priority DESC, then received_at DESC (see basis-report-mapper).
+ * Delegates to pickBasisReportByCronPriority (see basis-report-mapper metadata).
  */
 function pickBasisReportsPerLocation(reports: BasisReportData[]): Map<string, BasisReportData> {
   const byLocDate = new Map<string, BasisReportData[]>()
@@ -613,17 +566,7 @@ function pickBasisReportsPerLocation(reports: BasisReportData[]): Map<string, Ba
   const result = new Map<string, BasisReportData>()
   
   for (const [key, list] of byLocDate) {
-    // Sort by cron_priority DESC (3 = final, 2 = night, 1 = evening)
-    // Then by received_at DESC (latest first) as tiebreaker
-    const sorted = [...list].sort((a, b) => {
-      const priorityDiff = (b.cron_priority ?? 0) - (a.cron_priority ?? 0)
-      if (priorityDiff !== 0) return priorityDiff
-      const aTime = a.received_at ? new Date(a.received_at).getTime() : 0
-      const bTime = b.received_at ? new Date(b.received_at).getTime() : 0
-      return bTime - aTime
-    })
-    
-    const best = sorted[0]
+    const best = pickBasisReportByCronPriority(list)
     if (best) result.set(key, best)
   }
   
@@ -1260,7 +1203,7 @@ export async function inventoryCollections(db: Db, ctx: DailyOpsMetricsContext) 
     )
   if (hours === 0) notes.push(`No rows in bork_sales_by_hour${sfx} for this range.`)
   if (eitje === 0) notes.push('No rows in eitje_time_registration_aggregation for this range — rebuild Eitje aggregation.')
-  notes.push('Food vs drinks uses a name-pattern heuristic on `bork_sales_by_hour.products` (from Bork rebuild); tune DRINK_NAME_PATTERN as needed.')
+  notes.push('Food vs drinks uses `product_catalog` (Hoofdgroep) on hour product lines, with a name fallback for unmapped keys.')
   notes.push('Hour-level labor cost uses daily labor prorated by that day’s hourly revenue share.')
   if (ctx.locationId === undefined) {
     notes.push('All locations: labor productivity min/max merges revenue and hours only when both exist for the same location/day.')

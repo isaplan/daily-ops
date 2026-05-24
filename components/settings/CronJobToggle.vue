@@ -18,7 +18,14 @@
       Cron job not configured yet. Toggle the switch to create it.
     </p>
 
-    <UButton variant="outline" size="sm" :disabled="!enabled || runNowLoading" :loading="runNowLoading" @click="$emit('run-now')">
+    <UButton
+      variant="solid"
+      size="sm"
+      class="!bg-gray-900 !text-white hover:!bg-gray-800"
+      :disabled="!enabled || runNowLoading"
+      :loading="runNowLoading"
+      @click="$emit('run-now')"
+    >
       Run Now
     </UButton>
   </div>

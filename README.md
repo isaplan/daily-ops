@@ -12,7 +12,7 @@ If you read nothing else in this repo, read these — they are the locked source
 | **[DECISIONS.md](./DECISIONS.md)** | Append-only ADR log (why we built it this way) |
 | **[ROADMAP.md](./ROADMAP.md)** | Planned and in-progress work |
 
-Implementation detail: [dev-docs/DAILY_OPS_SNAPSHOT_PLAN.md](./dev-docs/DAILY_OPS_SNAPSHOT_PLAN.md) · [dev-docs/COMPENSATION_REVISIONS_PLAN.md](./dev-docs/COMPENSATION_REVISIONS_PLAN.md)
+Implementation detail: [dev-docs/DAILY_OPS_SNAPSHOT_PLAN.md](./dev-docs/DAILY_OPS_SNAPSHOT_PLAN.md) · [dev-docs/DATA_RETENTION_PLAN.md](./dev-docs/DATA_RETENTION_PLAN.md) (hot/warm/cold tiers, **ADR-006**) · [dev-docs/COMPENSATION_REVISIONS_PLAN.md](./dev-docs/COMPENSATION_REVISIONS_PLAN.md)
 
 ## Quick Start
 

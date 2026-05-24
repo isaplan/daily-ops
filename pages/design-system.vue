@@ -325,15 +325,15 @@
             <div class="bg-white rounded-lg p-6 border border-gray-200 space-y-6">
               <div>
                 <p class="text-xs font-semibold text-gray-500 mb-2">API settings</p>
-                <TabRail v-model="dsTabRailSettings" :options="dsTabRailSettingsOpts" />
+                <UiTabRail v-model="dsTabRailSettings" :options="dsTabRailSettingsOpts" />
               </div>
               <div>
                 <p class="text-xs font-semibold text-gray-500 mb-2">Todo's List</p>
-                <TabRail v-model="dsTabRailTodos" :options="dsTabRailTodosOpts" />
+                <UiTabRail v-model="dsTabRailTodos" :options="dsTabRailTodosOpts" />
               </div>
               <div>
                 <p class="text-xs font-semibold text-gray-500 mb-2">Note aside</p>
-                <TabRail v-model="dsTabRailNote" :options="dsTabRailNoteOpts" />
+                <UiTabRail v-model="dsTabRailNote" :options="dsTabRailNoteOpts" />
               </div>
             </div>
           </div>

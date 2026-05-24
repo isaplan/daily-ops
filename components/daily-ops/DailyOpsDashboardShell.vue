@@ -1,11 +1,30 @@
 <template>
   <div class="min-w-0">
-    <div
-      class="fixed right-10 top-3 z-50"
-    >
-      <div class="space-y-2">
-        <div class="flex justify-end">
-          <div class="inline-flex max-w-max flex-wrap items-center gap-1 rounded-md border-2 border-gray-900 bg-white p-1">
+    <div class="sticky top-3 z-10 mb-4 flex w-full min-w-0 flex-col items-end gap-2">
+        <div class="flex w-full min-w-0 justify-end">
+          <nav
+            ref="sectionNavEl"
+            aria-label="Daily Ops sections"
+            class="scrollbar-hide inline-flex w-max max-w-full min-w-0 shrink-0 flex-nowrap gap-1 overflow-x-auto rounded-md border-2 border-gray-900 bg-white p-1"
+          >
+            <NuxtLink
+              v-for="item in navItems"
+              :key="item.key"
+              :to="{ path: item.path, query: dashboardQuery }"
+              class="inline-flex shrink-0 items-center rounded px-4 py-2 text-sm font-semibold no-underline transition-colors"
+              :class="activeNav === item.key
+                ? 'bg-gray-900 text-white'
+                : 'text-gray-700 hover:bg-gray-100'"
+            >
+              {{ item.label }}
+            </NuxtLink>
+          </nav>
+        </div>
+
+        <DailyOpsRevenueAnalyticsNav v-if="isRevenueRoute" />
+
+        <div v-if="!hideOpsPeriodNav" class="flex w-full min-w-0 justify-end">
+          <div class="inline-flex w-max max-w-full shrink-0 flex-nowrap items-center gap-1 rounded-md border-2 border-gray-900 bg-white p-1">
             <NuxtLink
               v-for="opt in periodOptions"
               :key="opt.id"
@@ -22,28 +41,10 @@
           </div>
         </div>
 
-        <div class="flex justify-end">
-          <nav aria-label="Daily Ops sections"
-            class="inline-flex max-w-max flex-wrap gap-1 rounded-md border-2 border-gray-900 bg-white p-1"
-          >
-            <NuxtLink
-              v-for="item in navItems"
-              :key="item.key"
-              :to="{ path: item.path, query: dashboardQuery }"
-              class="inline-flex items-center rounded px-4 py-2 text-sm font-semibold no-underline transition-colors"
-              :class="activeNav === item.key
-                ? 'bg-gray-900 text-white'
-                : 'text-gray-700 hover:bg-gray-100'"
-            >
-              {{ item.label }}
-            </NuxtLink>
-          </nav>
-        </div>
-
-        <div class="flex justify-end">
+        <div v-if="showLocationShortcuts" class="flex w-full min-w-0 justify-end">
           <nav
             aria-label="Location shortcuts"
-            class="inline-flex max-w-max flex-wrap gap-1 rounded-md border-2 border-gray-900 bg-white p-1"
+            class="inline-flex w-max max-w-full shrink-0 flex-nowrap gap-1 rounded-md border-2 border-gray-900 bg-white p-1"
           >
             <button
               type="button"
@@ -71,10 +72,9 @@
           </button>
           </nav>
         </div>
-      </div>
     </div>
 
-    <div class="min-w-0 pt-40">
+    <div class="min-w-0">
       <slot />
     </div>
   </div>
@@ -82,9 +82,13 @@
 
 <script setup lang="ts">
 import type { DailyOpsPeriodId } from '~/types/daily-ops-dashboard'
-import { amsterdamTodayYmd, amsterdamYmdForOffset, weekdayShortForYmd } from '~/utils/inbox/importTableQuickDates'
+import { addCalendarDaysYmd, amsterdamOpenRegisterBusinessDateYmd } from '~/utils/dailyOpsBusinessDate'
+import { weekdayShortForYmd } from '~/utils/inbox/importTableQuickDates'
 
 type LocationRow = { _id: string; name: string; abbreviation?: string }
+
+/** Set true to restore fixed location filter (All / Van Kinsbergen / Bar Bea / L'amour). */
+const showLocationShortcuts = false
 
 const DAILY_OPS_SHORTCUT_ABBREVS = ['VKB', 'BEA', 'LAT'] as const
 
@@ -106,6 +110,36 @@ function unifiedRowMatchesShortcut(row: LocationRow, abbrev: string): boolean {
 
 const route = useRoute()
 
+const sectionNavEl = ref<HTMLElement | null>(null)
+const sectionNavWidthPx = ref(0)
+
+function measureSectionNavWidth() {
+  sectionNavWidthPx.value = sectionNavEl.value?.offsetWidth ?? 0
+}
+
+let sectionNavResizeObserver: ResizeObserver | undefined
+
+onMounted(() => {
+  measureSectionNavWidth()
+  if (typeof ResizeObserver !== 'undefined' && sectionNavEl.value) {
+    sectionNavResizeObserver = new ResizeObserver(measureSectionNavWidth)
+    sectionNavResizeObserver.observe(sectionNavEl.value)
+  }
+})
+
+onUnmounted(() => {
+  sectionNavResizeObserver?.disconnect()
+})
+
+provide('dailyOpsSectionNavWidthPx', sectionNavWidthPx)
+
+const isRevenueRoute = computed(() => route.path.includes('/daily-ops/revenue'))
+
+watch(isRevenueRoute, () => {
+  nextTick(measureSectionNavWidth)
+})
+const hideOpsPeriodNav = computed(() => isRevenueRoute.value)
+
 const {
   period,
   locationId,
@@ -114,13 +148,14 @@ const {
   setLocation,
 } = useDailyOpsDashboardRoute()
 
-const anchorYmd = computed(() => amsterdamTodayYmd())
+const anchorYmd = computed(() => amsterdamOpenRegisterBusinessDateYmd())
 
-/** Today · Yesterday · (weekday labels for anchor−2 … anchor−7). */
+/** Today · Yesterday · (weekday labels for open register day −2 … −7). */
 const periodOptions = computed((): { id: DailyOpsPeriodId; label: string }[] => {
+  const open = anchorYmd.value
   const rolling = ([2, 3, 4, 5, 6, 7] as const).map((off) => ({
     id: `d${off}` as DailyOpsPeriodId,
-    label: weekdayShortForYmd(amsterdamYmdForOffset(-off), 'en-GB'),
+    label: weekdayShortForYmd(addCalendarDaysYmd(open, -off), 'en-GB'),
   }))
   return [
     { id: 'today', label: 'Today' },

@@ -115,10 +115,11 @@ flowchart TB
 | Business day | **08:00 Amsterdam → 07:59:59** next calendar day |
 | Eitje `period` | ISO date of shift start = `business_date` (no 00:00–07:59 shifts assumed) |
 | Revenue in snapshots | **ex_vat**, **inc_vat**, **vat** from Bork line data — no fixed VAT divisor |
-| Nul-uren loaded cost | `hourly_rate × 1.36` when contract type matches `/nul/i` and no stored `cost_per_hour` |
+| Nul-uren loaded cost | `hourly_rate × 1.56` when contract type matches `/nul/i` and no stored `cost_per_hour` |
 | Compensation effective date | `contract_start_date` from import if present, else `importedAt` (ADR-002) |
 | Revision idempotency | No new row if material fields unchanged (ADR-005) |
 | Dashboard reads | Snapshots only (ADR-004) |
+| Data tiers / retention | Hot / warm / cold (ADR-006) |
 | Timezone | Deploy with `TZ=Europe/Amsterdam` |
 
 ---
@@ -148,6 +149,8 @@ Collections (see `types/daily-ops-snapshot.ts`):
 
 **Triggers:** Eitje/Bork rebuild complete, inbox basis seal, coalesced job queue.
 
+**Retention (ADR-006):** Hot = snapshots + benchmark (2y UI reads). Warm = day-level aggregates (2y). Cold = Bork/Eitje day raw in DO Spaces blobs after seal. Fat `bork_sales_by_*` dropped per day once snapshot section exists. See [dev-docs/DATA_RETENTION_PLAN.md](./dev-docs/DATA_RETENTION_PLAN.md).
+
 ---
 
 ## 8. Conventions for contributors and agents
@@ -171,6 +174,7 @@ Planned read-only tools over snapshots + `members` + `compensationHistory` — s
 | Doc | Topic |
 |-----|--------|
 | [dev-docs/DAILY_OPS_SNAPSHOT_PLAN.md](./dev-docs/DAILY_OPS_SNAPSHOT_PLAN.md) | Snapshot implementation detail |
+| [dev-docs/DATA_RETENTION_PLAN.md](./dev-docs/DATA_RETENTION_PLAN.md) | Hot/warm/cold tiers, purge, blobs |
 | [dev-docs/COMPENSATION_REVISIONS_PLAN.md](./dev-docs/COMPENSATION_REVISIONS_PLAN.md) | Compensation feature build steps |
 | [dev-docs/TIMEZONE_AND_DEPLOYMENT.md](./dev-docs/TIMEZONE_AND_DEPLOYMENT.md) | TZ and cron |
 | [dev-docs/BORK_REVENUE_LOGIC_AND_AGGREGATION.md](./dev-docs/BORK_REVENUE_LOGIC_AND_AGGREGATION.md) | Bork VAT and aggregation |

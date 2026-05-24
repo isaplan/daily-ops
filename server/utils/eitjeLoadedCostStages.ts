@@ -4,7 +4,7 @@
  * @last-modified: 2026-05-14T12:00:00.000Z
  * @description: MongoDB aggregation stages: normalized employee name, contract lookup,
  *   and resolved cost_per_hour (before nul-uren employer override — see eitjeLoadedCostEmployerStages).
- * @last-fix: [2026-05-16] members.cost_per_hour before inbox contracts (ADR-001)
+ * @last-fix: [2026-05-18] ZZP: cost_per_hour = hourly_rate (ignore contract Loonkosten)
  *
  * @adr-ref: ADR-001
  *
@@ -70,26 +70,41 @@ export const EITJE_CONTRACT_CPH_LOOKUP = {
       { $match: { $expr: { $eq: ['$_norm', '$$normName'] } } },
       { $sort: { importedAt: -1 } },
       { $limit: 1 },
-      { $project: { cost_per_hour: 1, hourly_rate: 1, contract_type: 1 } },
+      { $project: { cost_per_hour: 1, hourly_rate: 1, hourly_wage: 1, contract_type: 1 } },
     ],
     as: 'contractDoc',
   },
 }
 
-/** Priority: memberDoc.cost_per_hour → contractDoc.cost_per_hour → null (ADR-001). */
+/** ZZP: hourly_rate only. Else memberDoc.cost_per_hour → contractDoc.cost_per_hour (ADR-001). */
 export const EITJE_RESOLVE_COST_PER_HOUR_FIELDS = {
   $addFields: {
     cost_per_hour: {
       $let: {
         vars: {
+          contractType: {
+            $toString: {
+              $ifNull: [
+                { $arrayElemAt: ['$memberDoc.contract_type', 0] },
+                { $arrayElemAt: ['$contractDoc.contract_type', 0] },
+                '',
+              ],
+            },
+          },
           contractCph: { $arrayElemAt: ['$contractDoc.cost_per_hour', 0] },
           memberCph: { $arrayElemAt: ['$memberDoc.cost_per_hour', 0] },
         },
         in: {
           $cond: [
-            aggIsNumeric('$$memberCph'),
-            '$$memberCph',
-            { $cond: [aggIsNumeric('$$contractCph'), '$$contractCph', null] },
+            { $regexMatch: { input: '$$contractType', regex: 'zzp', options: 'i' } },
+            { $cond: [aggIsNumeric('$hourly_rate'), '$hourly_rate', null] },
+            {
+              $cond: [
+                aggIsNumeric('$$memberCph'),
+                '$$memberCph',
+                { $cond: [aggIsNumeric('$$contractCph'), '$$contractCph', null] },
+              ],
+            },
           ],
         },
       },

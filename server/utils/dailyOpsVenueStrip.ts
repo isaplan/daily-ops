@@ -1,9 +1,9 @@
 /**
  * @registry-id: dailyOpsVenueStrip
  * @created: 2026-05-16T23:30:00.000Z
- * @last-modified: 2026-05-18T00:45:00.000Z
+ * @last-modified: 2026-05-19T00:00:00.000Z
  * @description: Builds per-venue KPI cards for the Daily Ops venue strip (3 fixed locations, single day).
- * @last-fix: [2026-05-18] Legacy eitje agg without gewerkt_* → operational team total_hours fallback.
+ * @last-fix: [2026-05-21] Labor KPIs use loaded cost; % rev from loaded
  *
  * @exports-to:
  * ✓ server/api/daily-ops/metrics/venue-strip.get.ts
@@ -17,6 +17,7 @@ import type {
   VenueStripLaborRowDto,
   VenueStripResponseDto,
   VenueStripTeamBucket,
+  VenueStripWorkerLineDto,
 } from '../../types/daily-ops-dashboard'
 import type { DailyOpsMetricsContext } from './dailyOpsDashboardMetrics'
 import {
@@ -32,6 +33,11 @@ import {
   type VenueLaborSlice,
 } from './eitjeVenueLaborRollup'
 import type { DailyOpsSnapshotLaborSection } from '../../types/daily-ops-snapshot'
+import {
+  enrichEitjeAggRowsFromMembers,
+  enrichSnapshotLaborWorkersFromMembers,
+} from './eitjeAggCompensationEnrich'
+import { workersFromEitjeAggRows, workersFromSnapshot } from './dailyOpsVenueStripWorkers'
 
 export const VENUE_STRIP_LOCATIONS = [
   { locationId: '69d6cfa63d2adf93b79d1ae7', locationName: 'Van Kinsbergen' },
@@ -54,13 +60,14 @@ function emptyLaborBlock (): VenueStripCardDto['labor'] {
     gewerkt: { ...row },
     keuken: { ...row },
     bediening: { ...row },
+    other: { ...row },
   }
 }
 
 function withLaborPct (row: VenueStripLaborRowDto, revenue: number): VenueStripLaborRowDto {
   return {
     ...row,
-    laborPctOfRevenue: revenue > 0 ? round2((row.wages / revenue) * 100) : null,
+    laborPctOfRevenue: revenue > 0 ? round2((row.loaded / revenue) * 100) : null,
   }
 }
 
@@ -73,7 +80,29 @@ function enrichLaborWithPct (
     gewerkt: withLaborPct(labor.gewerkt, revenue),
     keuken: withLaborPct(labor.keuken, revenue),
     bediening: withLaborPct(labor.bediening, revenue),
+    other: withLaborPct(labor.other, revenue),
   }
+}
+
+function finalizeLaborOther (
+  labor: VenueStripCardDto['labor'],
+  workers: VenueStripWorkerLineDto[],
+): void {
+  const overigIds = new Set(
+    workers.filter((w) => w.bucket === 'overig' && w.userId).map((w) => w.userId),
+  )
+  labor.other = {
+    hours: round2(Math.max(0, labor.all.hours - labor.gewerkt.hours)),
+    wages: round2(Math.max(0, labor.all.wages - labor.gewerkt.wages)),
+    loaded: round2(Math.max(0, labor.all.loaded - labor.gewerkt.loaded)),
+    workers: overigIds.size,
+    laborPctOfRevenue: null,
+  }
+}
+
+type VenueStripLaborBundle = {
+  labor: VenueStripCardDto['labor']
+  workers: VenueStripWorkerLineDto[]
 }
 
 function resolveVenueHeadlineRevenue (
@@ -140,24 +169,32 @@ async function resolveVenueStripLabor (
   businessDate: string,
   locationId: string,
   snapLabor: DailyOpsSnapshotLaborSection | null
-): Promise<VenueStripCardDto['labor']> {
+): Promise<VenueStripLaborBundle> {
   if (snapshotHasOperationalLabor(snapLabor)) {
-    return laborFromSnapshot(snapLabor)
+    return laborFromSnapshot(db, snapLabor)
   }
   const fromAgg = await laborFromEitjeAgg(db, businessDate, locationId)
-  if (fromAgg.gewerkt.hours > 0) return fromAgg
-  return laborFromSnapshot(snapLabor)
+  if (fromAgg.labor.gewerkt.hours > 0) return fromAgg
+  return laborFromSnapshot(db, snapLabor)
 }
 
-function laborFromSnapshot (doc: DailyOpsSnapshotLaborSection | null): VenueStripCardDto['labor'] {
+async function laborFromSnapshot (
+  db: Db,
+  doc: DailyOpsSnapshotLaborSection | null,
+): Promise<VenueStripLaborBundle> {
+  await enrichSnapshotLaborWorkersFromMembers(db, doc?.workers as Array<Record<string, unknown>> | undefined)
   const workerBuckets: Record<VenueStripTeamBucket, Set<string>> = {
     keuken: new Set(),
     bediening: new Set(),
     other: new Set(),
   }
   const labor = emptyLaborBlock()
+  const workers = workersFromSnapshot(doc)
 
-  if (!doc) return labor
+  if (!doc) {
+    finalizeLaborOther(labor, workers)
+    return { labor, workers }
+  }
 
   for (const w of doc.workers ?? []) {
     const bucket = bucketTeamFromName(String(w.teamName ?? ''))
@@ -177,11 +214,12 @@ function laborFromSnapshot (doc: DailyOpsSnapshotLaborSection | null): VenueStri
     )
     labor.keuken = laborRowFromCostPair(doc.operational.keuken, workerBuckets.keuken.size)
     labor.bediening = laborRowFromCostPair(doc.operational.bediening, workerBuckets.bediening.size)
-    return labor
+    finalizeLaborOther(labor, workers)
+    return { labor, workers }
   }
 
   for (const t of doc.teams ?? []) {
-    const gHours = Number(t.gewerkt?.hours ?? 0)
+    const gHours = Number(t.gewerkt?.hours ?? t.hours ?? 0)
     if (gHours <= 0) continue
     const slice: VenueLaborSlice = {
       hours: gHours,
@@ -218,15 +256,16 @@ function laborFromSnapshot (doc: DailyOpsSnapshotLaborSection | null): VenueStri
   labor.bediening.workers = workerBuckets.bediening.size
   finalizeVenueLaborRow(labor.keuken)
   finalizeVenueLaborRow(labor.bediening)
+  finalizeLaborOther(labor, workers)
 
-  return labor
+  return { labor, workers }
 }
 
 async function laborFromEitjeAgg (
   db: Db,
   businessDate: string,
   locationId: string
-): Promise<VenueStripCardDto['labor']> {
+): Promise<VenueStripLaborBundle> {
   const rows = await db
     .collection('eitje_time_registration_aggregation')
     .find({
@@ -235,6 +274,8 @@ async function laborFromEitjeAgg (
       locationId: eitjeLocationMatch(locationId),
     })
     .toArray()
+
+  await enrichEitjeAggRowsFromMembers(db, rows as Record<string, unknown>[])
 
   const labor = emptyLaborBlock()
   const workerBuckets: Record<VenueStripTeamBucket, Set<string>> = {
@@ -249,6 +290,7 @@ async function laborFromEitjeAgg (
     bediening: new Set(),
   }
   const legacyGewerkt = aggRowsUseLegacyGewerktSchema(rows as Record<string, unknown>[])
+  const workers = workersFromEitjeAggRows(rows as Record<string, unknown>[])
 
   for (const r of rows) {
     const hoursAll = Number(r.total_hours ?? 0)
@@ -292,7 +334,8 @@ async function laborFromEitjeAgg (
     laborPctOfRevenue: null,
   }
 
-  return labor
+  finalizeLaborOther(labor, workers)
+  return { labor, workers }
 }
 
 async function fetchContractsByTeam (
@@ -402,7 +445,7 @@ async function fetchContractsByTeam (
           loaded: { $round: ['$loaded', 2] },
         },
       },
-      { $sort: { teamBucket: 1, wages: -1 } },
+      { $sort: { teamBucket: 1, loaded: -1 } },
     ])
     .toArray()) as {
     teamBucket: VenueStripTeamBucket
@@ -456,12 +499,12 @@ export async function buildVenueStripCard (
 
   const snapshotBuilt = !!snapLabor
 
-  const [contractsByTeam, labor] = await Promise.all([
+  const [contractsByTeam, laborBundle] = await Promise.all([
     fetchContractsByTeam(db, businessDate, venue.locationId),
     resolveVenueStripLabor(db, businessDate, venue.locationId, snapLabor),
   ])
 
-  const laborWithPct = enrichLaborWithPct(labor, totalRevenue)
+  const laborWithPct = enrichLaborWithPct(laborBundle.labor, totalRevenue)
 
   const productivity = {
     totalPerHour: productivityPerHour(totalRevenue, laborWithPct.gewerkt.hours),
@@ -479,6 +522,7 @@ export async function buildVenueStripCard (
     locationName,
     revenue: { total: totalRevenue, food, beverage },
     labor: laborWithPct,
+    workers: laborBundle.workers,
     productivity,
     contractsByTeam,
     coverage: {

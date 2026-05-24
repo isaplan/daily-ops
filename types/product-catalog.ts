@@ -1,0 +1,73 @@
+export type ProductCatalogCategory = 'food' | 'beverage' | 'other'
+
+export type ProductCatalogVatLabel = '21' | '6' | 'unknown'
+
+export type ProductCatalogLocationRow = {
+  location_id: string
+  location_name: string
+  list_price_inc_vat: number | null
+  list_price_ex_vat: number | null
+  vat_percent: 21 | 6 | null
+  vat_label: ProductCatalogVatLabel
+  group_key: string | null
+  group_name: string | null
+  /** Bork Hoofdgroep (GroupLevel 2): Dranken Hoog / Dranken Laag / Keuken / Non-Food */
+  hoofdgroep: string | null
+  /** Bork Productgroep (GroupLevel 3, or L3 when product sits in L4+) */
+  sub_category: string | null
+  category: ProductCatalogCategory
+  /** Last sold unit price in period (when differs from list) */
+  sold_unit_price_inc_vat: number | null
+  sold_quantity: number
+  sold_revenue_inc_vat: number
+  sold_revenue_ex_vat: number
+}
+
+export type ProductCatalogDoc = {
+  product_key: string
+  display_name: string
+  family_name: string
+  size_label: string | null
+  /** Food / Beverage / Other — derived from hoofdgroep */
+  category: ProductCatalogCategory
+  hoofdgroep: string | null
+  sub_category: string | null
+  vat_percent: 21 | 6 | null
+  vat_label: ProductCatalogVatLabel
+  location_ids: string[]
+  locations: ProductCatalogLocationRow[]
+  /** Live Bork SKU vs menu-only (pre–go-live). */
+  catalog_status?: 'live' | 'planned'
+  sources: {
+    api_catalog_at?: string
+    sales_seen_at?: string
+    menu_item_id?: string
+  }
+  updated_at: Date
+}
+
+export type ProductCatalogMenuPriceRow = {
+  menu_id: string
+  menu_name: string
+  menu_item_id: string
+  menu_item_name: string
+  price_inc_vat: number | null
+  cost_per_item: number | null
+  margin_percent: number | null
+  effective_date: string | null
+  source: 'menu' | 'menu_version'
+  version_saved_at?: string
+}
+
+export type ProductCatalogHubRow = ProductCatalogDoc & {
+  sold_quantity: number
+  sold_revenue_inc_vat: number
+  sold_revenue_ex_vat: number
+  price_range_inc_vat: { min: number | null; max: number | null }
+  menu_prices?: ProductCatalogMenuPriceRow[]
+}
+
+export type ProductCatalogDateRange = {
+  range_start: string
+  range_end: string
+}

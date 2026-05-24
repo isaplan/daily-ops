@@ -77,6 +77,9 @@ export type MenuItem = {
   defaultPriceExVat?: number
   defaultPriceIncVat?: number
   documentRefs?: Array<{ id: string; type: 'recipe' | 'menukaart' | 'note'; name?: string }>
+  /** Unified product_catalog.product_key (Bork or planned:mi:…). */
+  catalogProductKey?: string | null
+  catalogLinkSource?: 'auto' | 'manual' | null
   createdAt?: Date
   updatedAt?: Date
 }
@@ -87,6 +90,7 @@ export type MenuImportResult = {
   updated: number
   failed: number
   errors: Array<{ row: number; error: string }>
+  menu_catalog_links?: { linked: number; planned_created: number }
 }
 
 /** Per-product overrides in a menu (row-level display and calculation overrides) */
@@ -139,6 +143,41 @@ export type MenuSections = {
   coursesMenu?: string[]
 }
 
+export type ServingSizeLabelStyle = 'smallMediumLarge' | 'serving1_2_3'
+
+export type MenuProductOverrideV2 = MenuProductOverride & {
+  showOnPrintedMenu?: boolean
+  batchType?: 'crate' | 'box' | 'fust' | 'bottle' | 'bag'
+  menuPrice1?: number
+  menuPrice2?: number
+  menuPrice3?: number
+  priceRatio?: number
+}
+
+export type MenuSubsectionV2 = {
+  id: string
+  name: string
+  productIds: string[]
+  productOverrides?: Record<string, MenuProductOverrideV2>
+  defaultWastePercent?: number
+  defaultMarginMultiplier?: number
+  defaultBatchType?: 'crate' | 'box' | 'fust' | 'bottle' | 'bag'
+  servingSizeLabelStyle?: ServingSizeLabelStyle
+  servingSize1Cl?: number
+  servingSize2Cl?: number
+  servingSize3Cl?: number
+  defaultServeGr?: number
+}
+
+export type MenuSectionV2 = {
+  id: string
+  name: string
+  subsections: MenuSubsectionV2[]
+  defaultWastePercent?: number
+  defaultMarginMultiplier?: number
+  defaultVatRate?: VatRate
+}
+
 export type Menu = {
   _id?: string
   name: string
@@ -146,6 +185,8 @@ export type Menu = {
   location?: string
   /** Custom sections (your own names). Replaces legacy sections object. */
   menuSections?: MenuSection[]
+  menuSectionsV2?: MenuSectionV2[]
+  copiedFromMenuId?: string
   /** @deprecated Use menuSections instead */
   sections?: MenuSections
   /** Global defaults for calculations in builder */

@@ -3,7 +3,7 @@
  * @created: 2026-05-14T00:00:00.000Z
  * @last-modified: 2026-05-14T12:00:00.000Z
  * @description: Nul-uren employer cph override + per-shift loaded_cost for Eitje rebuild pipeline.
- * @last-fix: [2026-05-16] loaded_cost_source prefers members before inbox (ADR-001)
+ * @last-fix: [2026-05-18] loaded_cost_source tag for ZZP hourly_rate
  *
  * @adr-ref: ADR-001
  *
@@ -82,21 +82,32 @@ export const EITJE_LOADED_COST_FIELDS = {
           $cond: [
             {
               $and: [
-                { $regexMatch: { input: '$$contractType', regex: 'nul', options: 'i' } },
+                { $regexMatch: { input: '$$contractType', regex: 'zzp', options: 'i' } },
                 aggIsNumeric('$hourly_rate'),
               ],
             },
-            'nul-uren-employer-1.36',
+            'zzp-hourly-rate',
             {
               $cond: [
-                aggIsNumeric('$$memberCph'),
-                'members',
+                {
+                  $and: [
+                    { $regexMatch: { input: '$$contractType', regex: 'nul', options: 'i' } },
+                    aggIsNumeric('$hourly_rate'),
+                  ],
+                },
+                'nul-uren-employer-1.56',
                 {
                   $cond: [
-                    aggIsNumeric('$$contractCph'),
-                    'inbox-eitje-contracts',
+                    aggIsNumeric('$$memberCph'),
+                    'members',
                     {
-                      $cond: [aggIsNumeric('$hourly_rate'), 'fallback-1.36', 'none'],
+                      $cond: [
+                        aggIsNumeric('$$contractCph'),
+                        'inbox-eitje-contracts',
+                        {
+                          $cond: [aggIsNumeric('$hourly_rate'), 'fallback-1.56', 'none'],
+                        },
+                      ],
                     },
                   ],
                 },

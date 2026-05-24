@@ -1,0 +1,90 @@
+<template>
+  <DailyOpsDashboardShell>
+    <div class="space-y-6">
+      <header>
+        <h1 class="text-2xl font-bold text-gray-900">Revenue</h1>
+        <p class="text-sm text-gray-600">Alle bedragen excl. BTW</p>
+      </header>
+
+      <nav class="flex flex-wrap gap-1 border-b border-gray-200">
+        <button
+          v-for="tab in tabs"
+          :key="tab.id"
+          type="button"
+          class="border-b-2 px-4 py-2 text-sm font-semibold transition-colors"
+          :class="activeTab === tab.id
+            ? 'border-gray-900 text-gray-900'
+            : 'border-transparent text-gray-500 hover:text-gray-800'"
+          @click="activeTab = tab.id"
+        >
+          {{ tab.label }}
+        </button>
+      </nav>
+
+      <DailyOpsRevenueLoadingState v-if="tabPending" />
+
+      <DailyOpsRevenueOverviewTab
+        v-else-if="activeTab === 'overview'"
+        :summary="summary"
+        :pnl="pnl"
+        :locations="locations"
+        :daily-timeseries="dailyTimeseries"
+        :daily-pending="dailyTimeseriesPending"
+      />
+      <DailyOpsRevenueTrendsTab
+        v-else-if="activeTab === 'trends'"
+        :timeseries="timeseries"
+        :rolling-medians="rollingMedians"
+      />
+      <DailyOpsRevenueHourlyMixTab
+        v-else-if="activeTab === 'hourly'"
+        :categories="categories"
+        :products="products"
+        :hourly-matrix="hourlyMatrix"
+        :hourly-category-stack="hourlyCategoryStack"
+        :co-occurrence="coOccurrence"
+      />
+      <DailyOpsRevenueDimensionsTab
+        v-else-if="activeTab === 'dimensions'"
+        :location-spaces="locationSpaces"
+      />
+    </div>
+  </DailyOpsDashboardShell>
+</template>
+
+<script setup lang="ts">
+const {
+  summary,
+  pnl,
+  locations,
+  dailyTimeseries,
+  dailyTimeseriesPending,
+  timeseries,
+  rollingMedians,
+  categories,
+  products,
+  hourlyMatrix,
+  hourlyCategoryStack,
+  coOccurrence,
+  locationSpaces,
+  overviewPending,
+  activateRevenueTab,
+} = useDailyOpsRevenueMetrics()
+
+const tabs = [
+  { id: 'overview', label: 'Overzicht' },
+  { id: 'trends', label: 'Trends' },
+  { id: 'hourly', label: 'Uur & mix' },
+  { id: 'dimensions', label: 'Ruimtes' },
+] as const
+
+type TabId = (typeof tabs)[number]['id']
+const activeTab = ref<TabId>('overview')
+
+watch(activeTab, (tab) => activateRevenueTab(tab), { immediate: true })
+
+const tabPending = computed(() => {
+  if (activeTab.value === 'overview') return overviewPending.value
+  return false
+})
+</script>
