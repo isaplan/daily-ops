@@ -1,15 +1,17 @@
 /**
  * @registry-id: dailyOpsSnapshotResolveSources
  * @created: 2026-05-13T00:00:00.000Z
- * @last-modified: 2026-05-13T09:20:00.000Z
+ * @last-modified: 2026-05-25T12:22:00.000Z
  * @description: Counts source-collection rows + captures lastSyncAt for snapshot provenance.
  *   Reads only — no writes. Aggregated collections only (no raw scans).
- * @last-fix: [2026-05-13] Coerce DEBUG to string before .includes (boolean env).
+ * @last-fix: [2026-05-25] PERMANENT FIX: Use pickBasisReportByCronPriority SSOT instead of sorting by raw cron_hour (prevents intraday cron_hour=23 from overriding morning cron_hour=8)
+ * @adr-ref: ADR-004 (Daily Ops snapshot = authoritative revenue source)
  *
  * @architecture:
  *   - One read per source collection (bork_business_days, eitje_time_registration_aggregation,
  *     inbox-bork-basis-report) scoped to (businessDate, locationId).
  *   - Returns SnapshotSourceFingerprint per source — stored on master.sources for debugging.
+ *   - SSOT: pickBasisReportByCronPriority() sorts by priority (3=morning, 2=23:00, 1=18:00), then received_at DESC.
  *
  * @exports-to:
  *   ✓ server/services/dailyOpsSnapshotService.ts
@@ -18,6 +20,7 @@
 import type { Db } from 'mongodb'
 import { ObjectId } from 'mongodb'
 import type { SnapshotSourceFingerprint } from '../../../types/daily-ops-snapshot'
+import { pickBasisReportByCronPriority } from '../inbox/basis-report-mapper'
 
 export type SourcesFingerprint = {
   bork: SnapshotSourceFingerprint
@@ -59,12 +62,14 @@ export async function resolveSources(
       .collection('inbox-bork-basis-report')
       .find({ business_date: businessDate, location_id: locStr })
       .project({ cron_hour: 1, received_at: 1 })
-      .sort({ cron_hour: -1 })
       .toArray(),
   ])
 
-  const lastInboxCron = inboxDocs[0]?.cron_hour ?? null
-  const lastInboxAt = inboxDocs[0]?.received_at ?? null
+  // SSOT: Use pickBasisReportByCronPriority to find the authoritative morning final report,
+  // not raw cron_hour sorting (which would incorrectly prioritize cron_hour=23 intraday over cron_hour=8 morning).
+  const chosenInbox = pickBasisReportByCronPriority(inboxDocs as any[])
+  const lastInboxCron = chosenInbox?.cron_hour ?? null
+  const lastInboxAt = chosenInbox?.received_at ?? null
 
   if (String(process.env.DEBUG ?? '').includes('snapshot:sources')) {
     console.info(
