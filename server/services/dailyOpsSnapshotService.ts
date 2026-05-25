@@ -1,11 +1,12 @@
 /**
  * @registry-id: dailyOpsSnapshotService
  * @created: 2026-05-13T00:00:00.000Z
- * @last-modified: 2026-05-13T09:20:00.000Z
+ * @last-modified: 2026-05-25T12:25:00.000Z
  * @description: Reads aggregated Bork + Eitje + inbox collections, writes denormalized
  *   daily snapshots (master + revenue section + labor section per location × businessDate).
  *   Idempotent, event-driven, never touches raw data.
- * @last-fix: [2026-05-13] Coerce DEBUG to string before .includes (boolean env).
+ * @last-fix: [2026-05-25] Snapshot sealed on cron_hour 7 OR 8 (morning final); was incorrectly checking === 8 only.
+ * @adr-ref: ADR-004 (Daily Ops snapshot = authoritative revenue source)
  *
  * @architecture:
  *   - No raw data reads — aggregated collections only (bork_business_days, bork_sales_by_hour,
@@ -14,7 +15,7 @@
  *   - Business day = 08:00 Amsterdam → 07:59:59 next ISO day.
  *   - Eitje period == business_date directly (no shifts start 00:00–07:59 per ops pattern).
  *   - Lead revenue source decided in buildRevenueSection (inbox-sealed > inbox-latest > bork).
- *   - status: 'partial' until 08:05 inbox row received, then sealDailyOpsSnapshot() flips to 'final'.
+ *   - status: 'partial' until morning final (cron 7 or 8) inbox row received, then sealDailyOpsSnapshot() flips to 'final'.
  *   - Idempotent: same input → same output modulo lastBuiltAt / sealedAt.
  *
  * @exports-to:
@@ -104,7 +105,9 @@ export async function buildDailyOpsSnapshot(input: BuildSnapshotInput): Promise<
         ])
       const cards = buildCards(revenue, labor)
 
-      const sealed = sources.inbox.cronHour === 8
+      // Snapshot is "sealed" (final) when we have a morning final Basis report (cron 7 or 8).
+      // Both are valid morning-final crons; using === 8 only would miss cron 7 reports.
+      const sealed = sources.inbox.cronHour === 7 || sources.inbox.cronHour === 8
       const master: DailyOpsSnapshotMaster = {
         schema_version: 1,
         businessDate,
