@@ -1,13 +1,15 @@
 /**
  * @created: 2026-05-18T00:00:00.000Z
- * @last-modified: 2026-05-18T00:00:00.000Z
- * @description: Parallel dashboard metrics (summary + revenue + labor); replaces monolithic bundle fetch.
- * @last-fix: [2026-05-18] Split bundle into per-slice APIs for modular cards and faster HMR.
+ * @last-modified: 2026-05-25T00:00:00.000Z
+ * @description: Dashboard metrics via single snapshot bundle (ADR-004). One HTTP round-trip; progressive UI gates on summary only.
+ * @last-fix: [2026-05-25] Replaced 3 parallel live-agg endpoints with /metrics/bundle snapshot read.
+ * @adr-ref: ADR-004
  *
  * @exports-to:
  * ✓ components/daily-ops/DailyOpsHomeDashboard.vue
  * ✓ components/daily-ops/DailyOpsTodayRevenueCard.vue
  * ✓ components/daily-ops/DailyOpsProductivityLaborSection.vue
+ * ✓ components/daily-ops/DailyOpsRevenueMetricsSection.vue (via useDailyOpsRevenueBreakdown)
  */
 import type {
   DailyOpsLaborMetricsDto,
@@ -19,108 +21,68 @@ export type DailyOpsDashboardMetrics = {
   summary: DailyOpsSummaryDto | null
   revenue: DailyOpsRevenueBreakdownDto | null
   labor: DailyOpsLaborMetricsDto | null
+  /** True while bundle request in flight */
   pending: boolean
+  /** True until summary slice is available (KPIs / header can render) */
+  summaryPending: boolean
   error: unknown
   refresh: () => Promise<void>
 }
 
+type DashboardBundleResponse = {
+  summary: DailyOpsSummaryDto
+  revenue: DailyOpsRevenueBreakdownDto
+  labor: DailyOpsLaborMetricsDto
+}
+
 const metricsKey = (q: Record<string, string | undefined>): string =>
-  `daily-ops-metrics-${q.period ?? 'today'}-${q.location ?? 'all'}-${q.anchor ?? ''}`
+  `daily-ops-bundle-${q.period ?? 'today'}-${q.location ?? 'all'}-${q.anchor ?? ''}`
 
 export function useDailyOpsDashboardMetrics(): DailyOpsDashboardMetrics {
   const { dashboardQuery } = useDailyOpsDashboardRoute()
-
   const cacheKey = computed(() => metricsKey(dashboardQuery.value))
 
-  const summaryKey = computed(() => `${cacheKey.value}-summary`)
-  const revenueKey = computed(() => `${cacheKey.value}-revenue`)
-  const laborKey = computed(() => `${cacheKey.value}-labor`)
-
-  const { data: summaryData, pending: summaryPending, error: summaryError, refresh: refreshSummary } =
-    useAsyncData(
-      summaryKey,
-      () =>
-        $fetch<DailyOpsSummaryDto>('/api/daily-ops/metrics/summary', {
-          query: dashboardQuery.value,
-        }),
-      { watch: [cacheKey] }
-    )
-
-  const { data: revenueData, pending: revenuePending, error: revenueError, refresh: refreshRevenue } =
-    useAsyncData(
-      revenueKey,
-      () =>
-        $fetch<DailyOpsRevenueBreakdownDto>('/api/daily-ops/metrics/revenue-breakdown', {
-          query: dashboardQuery.value,
-        }),
-      { watch: [cacheKey] }
-    )
-
-  const { data: laborData, pending: laborPending, error: laborError, refresh: refreshLabor } =
-    useAsyncData(
-      laborKey,
-      () =>
-        $fetch<DailyOpsLaborMetricsDto>('/api/daily-ops/metrics/labor', {
-          query: dashboardQuery.value,
-        }),
-      { watch: [cacheKey] }
-    )
-
-  const summary = computed(() => summaryData.value ?? null)
-  const revenue = computed(() => revenueData.value ?? null)
-  const labor = computed(() => laborData.value ?? null)
-
-  const pending = computed(
-    () => summaryPending.value || revenuePending.value || laborPending.value
-  )
-
-  const error = computed(() => summaryError.value ?? revenueError.value ?? laborError.value)
-
-  const refresh = async (): Promise<void> => {
-    await Promise.all([refreshSummary(), refreshRevenue(), refreshLabor()])
-  }
-
-  return { summary, revenue, labor, pending, error, refresh }
-}
-
-/** Labor-only fetch for productivity section (dedupes with dashboard when same query). */
-export function useDailyOpsLaborMetrics() {
-  const { dashboardQuery } = useDailyOpsDashboardRoute()
-  const cacheKey = computed(() => `${metricsKey(dashboardQuery.value)}-labor`)
-
-  const { data, pending, error, refresh } = useAsyncData(
+  const { data: bundle, pending, error, refresh } = useAsyncData(
     cacheKey,
     () =>
-      $fetch<DailyOpsLaborMetricsDto>('/api/daily-ops/metrics/labor', {
+      $fetch<DashboardBundleResponse>('/api/daily-ops/metrics/bundle', {
         query: dashboardQuery.value,
       }),
     { watch: [cacheKey] }
   )
 
+  const summary = computed(() => bundle.value?.summary ?? null)
+  const revenue = computed(() => bundle.value?.revenue ?? null)
+  const labor = computed(() => bundle.value?.labor ?? null)
+  const summaryPending = computed(() => pending.value || !summary.value)
+
   return {
-    labor: computed(() => data.value ?? null),
+    summary,
+    revenue,
+    labor,
+    pending,
+    summaryPending,
+    error,
+    refresh,
+  }
+}
+
+/** Shares the same bundle cache key as useDailyOpsDashboardMetrics (no extra request). */
+export function useDailyOpsLaborMetrics() {
+  const { labor, pending, error, refresh } = useDailyOpsDashboardMetrics()
+  return {
+    labor,
     pending,
     error,
     refresh,
   }
 }
 
-/** Legacy overview revenue breakdown (bundle slice). */
+/** Shares the same bundle cache key as useDailyOpsDashboardMetrics (no extra request). */
 export function useDailyOpsRevenueBreakdown() {
-  const { dashboardQuery } = useDailyOpsDashboardRoute()
-  const cacheKey = computed(() => `${metricsKey(dashboardQuery.value)}-revenue`)
-
-  const { data, pending, error, refresh } = useAsyncData(
-    cacheKey,
-    () =>
-      $fetch<DailyOpsRevenueBreakdownDto>('/api/daily-ops/metrics/revenue-breakdown', {
-        query: dashboardQuery.value,
-      }),
-    { watch: [cacheKey] }
-  )
-
+  const { revenue, pending, error, refresh } = useDailyOpsDashboardMetrics()
   return {
-    revenue: computed(() => data.value ?? null),
+    revenue,
     pending,
     error,
     refresh,

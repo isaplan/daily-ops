@@ -39,7 +39,7 @@
       <span class="text-gray-400"> · </span>
       Each donut shows <span class="font-medium text-gray-700">profit by time of day</span> (Lunch, Afternoon, Dinner, Late Night) — slice colour is the interval; the
       <span class="font-medium text-gray-700">outer ring</span> is green when that location’s day profit is positive, red when negative.
-      Lunch before 16:00 · Afternoon 16:00–18:00 · Dinner 18:00–22:00 · Late Night 22:00 until close.
+      Lunch 08:00–16:00 · Afternoon 16:00–18:00 · Dinner 18:00–22:00 · Late Night 22:00 until close.
     </p>
 
     <div

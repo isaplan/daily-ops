@@ -1,72 +1,30 @@
+/**
+ * @registry-id: dailyOpsMetricsBundle
+ * @created: 2026-05-18T00:00:00.000Z
+ * @last-modified: 2026-05-25T00:00:00.000Z
+ * @description: Single dashboard metrics bundle — snapshot read only (ADR-004).
+ * @last-fix: [2026-05-25] Replaced live Bork/Eitje aggregation with fetchDailyOpsDashboardBundle.
+ * @adr-ref: ADR-004
+ *
+ * @exports-to:
+ * ✓ composables/useDailyOpsDashboardMetrics.ts
+ */
+
 import { getDb } from '../../../utils/db'
+import { parseDailyOpsMetricsQuery } from '../../../utils/dailyOpsDashboardMetrics'
 import {
-  assembleDailyOpsLaborMetricsDto,
-  buildDailyOpsRevenueBreakdownDto,
-  buildDailyOpsSummaryDto,
-  fetchBorkHourAggregatesBundle,
-  fetchInboxBasisRevenueTotalExVat,
-  fetchLaborMetricsPipelineInput,
-  fetchRevenueByCategoryFromHourAggregates,
-  fetchTodayDashboardRevenueExtras,
-  parseDailyOpsMetricsQuery,
-} from '../../../utils/dailyOpsDashboardMetrics'
-import { fetchLaborCostByBusinessDateHour } from '../../../utils/eitjeLaborByHour'
-import { aggregateLaborForRange } from '../../../utils/dailyOpsSnapshot/aggregateLaborForRange'
-import { buildDailyOpsProfitByIntervalDto } from '../../../utils/dailyOpsProfitIntervals'
-import type {
-  DailyOpsLaborMetricsDto,
-  DailyOpsRevenueBreakdownDto,
-  DailyOpsSummaryDto,
-} from '~/types/daily-ops-dashboard'
+  fetchDailyOpsDashboardBundle,
+  snapshotCacheControl,
+} from '../../../utils/dailyOpsSnapshot/fetchDashboardBundle'
 
-type DailyOpsDashboardBundleDto = {
-  summary: DailyOpsSummaryDto
-  revenue: DailyOpsRevenueBreakdownDto
-  labor: DailyOpsLaborMetricsDto
-}
-
-export default defineEventHandler(async (event): Promise<DailyOpsDashboardBundleDto> => {
-  setResponseHeader(event, 'Cache-Control', 'no-store')
+export default defineEventHandler(async (event) => {
   const ctx = parseDailyOpsMetricsQuery(getQuery(event) as Record<string, unknown>)
+  setResponseHeader(event, 'Cache-Control', snapshotCacheControl(ctx))
   const db = await getDb()
-
-  const [cat, hourBundle, laborInput, laborByDateHour, inboxBasisExVat, laborBreakdown] =
-    await Promise.all([
-    fetchRevenueByCategoryFromHourAggregates(db, ctx),
-    fetchBorkHourAggregatesBundle(db, ctx),
-    fetchLaborMetricsPipelineInput(db, ctx),
-    fetchLaborCostByBusinessDateHour(db, ctx),
-    fetchInboxBasisRevenueTotalExVat(db, ctx),
-    aggregateLaborForRange(db, {
-      startDate: ctx.startDate,
-      endDate: ctx.endDate,
-      locationId: ctx.locationId,
-    }),
-  ])
-
-  const [todayExtras, profitByInterval] = await Promise.all([
-    fetchTodayDashboardRevenueExtras(db, ctx, hourBundle),
-    buildDailyOpsProfitByIntervalDto(db, ctx, cat),
-  ])
-
-  const summary = buildDailyOpsSummaryDto(ctx, laborInput.revMap, laborInput.labMap, {
-    apiBusinessDaysTotal: laborInput.revenueSplit.businessDaysPeriodTotal,
-    inboxBasisExVat,
-  })
-  if (laborBreakdown.coverage.daysFound > 0) {
-    summary.summary.laborBreakdown = laborBreakdown
+  const bundle = await fetchDailyOpsDashboardBundle(db, ctx)
+  return {
+    summary: bundle.summary,
+    revenue: bundle.revenue,
+    labor: bundle.labor,
   }
-  const revenue = buildDailyOpsRevenueBreakdownDto(
-    ctx,
-    cat,
-    hourBundle,
-    laborInput.revMap,
-    laborInput.labMap,
-    laborByDateHour,
-    profitByInterval,
-    todayExtras
-  )
-  const labor = assembleDailyOpsLaborMetricsDto(ctx, laborInput)
-
-  return { summary, revenue, labor }
 })

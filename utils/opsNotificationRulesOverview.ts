@@ -10,14 +10,14 @@ export type OpsNotificationRuleSection = {
 }
 
 export const OPS_NOTIFICATION_RULES_INTRO =
-  'This page scans completed register days for VKB, Bar Bea, and l\'Amour. A high count after the first scan is normal — many rows are the same root cause (e.g. missing morning Basis or Bork vs Inbox gap). Fix with snapshot rebuilds or source/cron fixes; architecture items are tracked until we refactor together.'
+  'This page is a bug-alert inbox for Daily Ops data inconsistencies. It scans completed register days for VKB, Bar Bea, and l\'Amour. A high count after the first scan is normal — many rows are the same root cause (e.g. missing morning Basis, Bork vs Inbox gap, or inconsistent snapshot rollups). Fix with snapshot rebuilds or source/cron fixes; architecture items are tracked until we refactor together.'
 
 export const OPS_NOTIFICATION_RULE_SECTIONS: OpsNotificationRuleSection[] = [
   {
     id: 'scope',
     title: 'Scan scope',
     paragraphs: [
-      'Default window: last 30 completed register days (yesterday and earlier, Amsterdam register day).',
+      'Default window: last 30 register days including the open business day. Final-inbox checks skip the open day to avoid false positives.',
       'Venues: Van Kinsbergen, Bar Bea, l\'Amour Toujours only.',
       'Badge count uses a 14-day window for speed.',
     ],
@@ -66,6 +66,7 @@ export const OPS_NOTIFICATION_RULE_SECTIONS: OpsNotificationRuleSection[] = [
     title: 'Data integrity',
     bullets: [
       'Unmapped Basis location — inbox row has no location_id (add alias on unified_location, re-parse).',
+      'Labor snapshot internally inconsistent — worker rows show Keuken/Bediening hours but operational/gewerkte snapshot totals do not match.',
     ],
     paragraphs: [],
   },

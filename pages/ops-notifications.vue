@@ -1,7 +1,7 @@
 <template>
   <div class="max-w-6xl mx-auto space-y-8">
     <header class="flex w-full items-center justify-between gap-4">
-      <h1 class="text-3xl font-bold text-gray-900">Ops notifications</h1>
+      <h1 class="text-3xl font-bold text-gray-900">Bug alerts</h1>
       <div class="flex shrink-0 items-center gap-1">
         <UTooltip text="Active notification rules">
           <UButton

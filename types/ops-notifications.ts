@@ -26,6 +26,7 @@ export type OpsNotificationKind =
   | 'eitje_hours_inbox_missing'
   // Data integrity
   | 'unmapped_basis_location'
+  | 'labor_snapshot_inconsistent'
   // Architecture / ADR / agent-rules
   | 'adr004_live_bork_on_revenue_get'
   | 'monolithic_module'

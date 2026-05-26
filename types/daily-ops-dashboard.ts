@@ -106,6 +106,22 @@ export type DailyOpsProfitByIntervalDto = {
   cells: DailyOpsProfitIntervalCellDto[]
 }
 
+export type DailyOpsHourlyRevenueLocationDto = {
+  locationId: string
+  locationName: string
+  revenue: number
+  laborHours: number
+  revenuePerLaborHour: number | null
+}
+
+export type DailyOpsHourlyRevenueRowDto = {
+  calendarHour: number
+  revenue: number
+  laborHours: number
+  revenuePerLaborHour: number | null
+  locations: DailyOpsHourlyRevenueLocationDto[]
+}
+
 export type DailyOpsRevenueBreakdownDto = {
   range: DailyOpsRangeDto
   revenueByCategory: { key: string; label: string; amount: number }[]
@@ -114,10 +130,13 @@ export type DailyOpsRevenueBreakdownDto = {
   profitByInterval: DailyOpsProfitByIntervalDto
   /** When period is `today`: hourly API totals by calendar hour + inbox Basis Report rows at 15:00 / 23:00 (cron_hour) */
   todayRevenueDetail?: {
-    apiHourlyByCalendarHour: { calendarHour: number; revenue: number }[]
+    apiHourlyByCalendarHour: DailyOpsHourlyRevenueRowDto[]
+    orderHourlyByCalendarHour?: DailyOpsHourlyRevenueRowDto[]
     inboxBasisCronSnapshots: { cronHour: number; finalRevenueExVat: number; locationLabel: string }[]
   }
 }
+
+export type DailyOpsTodayRevenueDetailDto = NonNullable<DailyOpsRevenueBreakdownDto['todayRevenueDetail']>
 
 export type DailyOpsLaborDayDto = {
   date: string
@@ -325,4 +344,44 @@ export type VenueStripCardDto = {
 export type VenueStripResponseDto = {
   range: DailyOpsRangeDto
   venues: VenueStripCardDto[]
+}
+
+export type DailyOpsAttendanceKpiKind = 'planned' | 'leave' | 'sick'
+
+export type DailyOpsAttendanceStaffRowDto = {
+  userId: string
+  userName: string
+  teamName: string
+  hours: number
+  actualHours?: number
+  loaded: number
+  startLabel?: string
+  endLabel?: string
+  fromLabel?: string
+  toLabel?: string
+  reason?: string
+  status?: string
+}
+
+export type DailyOpsAttendanceVenueDto = {
+  locationId: string
+  locationName: string
+  workers: number
+  hours: number
+  loaded: number
+  rows: DailyOpsAttendanceStaffRowDto[]
+}
+
+export type DailyOpsAttendanceKpiBlockDto = {
+  workers: number
+  hours: number
+  loaded: number
+  venues: DailyOpsAttendanceVenueDto[]
+}
+
+export type DailyOpsAttendanceKpisDto = {
+  range: DailyOpsRangeDto
+  planned: DailyOpsAttendanceKpiBlockDto
+  leave: DailyOpsAttendanceKpiBlockDto
+  sick: DailyOpsAttendanceKpiBlockDto
 }

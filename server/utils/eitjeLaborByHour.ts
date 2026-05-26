@@ -1,6 +1,6 @@
 /**
- * @description: Allocate Eitje shift loaded labor cost to business_date × calendar_hour (Amsterdam).
- * @last-fix: [2026-05-17] Most Profitable Hour — actual shift overlap, not revenue-share proxy
+ * @description: Allocate Eitje shift labor to business_date × calendar_hour (Amsterdam).
+ * @last-fix: [2026-05-25] Match locationId by string inside aggregation so snapshot hourly writes per venue.
  */
 import type { Db } from 'mongodb'
 import { ObjectId } from 'mongodb'
@@ -104,15 +104,20 @@ function amsterdamHourWindowUtc (businessDate: string, hour: number): { startMs:
   return { startMs: fallback.getTime(), endMs: fallback.getTime() + 3600000 }
 }
 
-function allocateShiftLoadedCost (
-  buckets: Map<string, number>,
+export type LaborByBusinessDateHourBucket = {
+  loadedCost: number
+  hours: number
+}
+
+function allocateShiftLabor (
+  buckets: Map<string, LaborByBusinessDateHourBucket>,
   businessDate: string,
   shiftStart: Date,
   shiftEnd: Date,
   loadedCost: number,
   locationId?: string
 ): void {
-  if (loadedCost <= 0 || !Number.isFinite(shiftStart.getTime())) return
+  if (!Number.isFinite(shiftStart.getTime())) return
   const endMs = Number.isFinite(shiftEnd.getTime())
     ? shiftEnd.getTime()
     : shiftStart.getTime() + 3600000
@@ -128,7 +133,11 @@ function allocateShiftLoadedCost (
       const fraction = (overlapEnd - overlapStart) / durationMs
       const base = businessDateHourKey(businessDate, h)
       const key = locationId ? `${locationId}|${base}` : base
-      buckets.set(key, (buckets.get(key) ?? 0) + loadedCost * fraction)
+      const prev = buckets.get(key) ?? { loadedCost: 0, hours: 0 }
+      buckets.set(key, {
+        loadedCost: prev.loadedCost + loadedCost * fraction,
+        hours: prev.hours + (overlapEnd - overlapStart) / 3600000,
+      })
     }
   }
 }
@@ -142,13 +151,13 @@ type ShiftCostRow = {
 }
 
 /**
- * Sum loaded labor per business_date × calendar_hour from Eitje shift start/end (Amsterdam).
+ * Sum loaded labor and labor hours per business_date × calendar_hour from Eitje shift start/end (Amsterdam).
  */
-export async function fetchLaborCostByBusinessDateHour (
+export async function fetchLaborByBusinessDateHour (
   db: Db,
   ctx: LaborHourCtx,
   options?: LaborHourOptions
-): Promise<Map<string, number>> {
+): Promise<Map<string, LaborByBusinessDateHourBucket>> {
   const perLocation = options?.perLocation === true
   const startDate = ctx.startDate
   const endDate = ctx.endDate
@@ -158,7 +167,9 @@ export async function fetchLaborCostByBusinessDateHour (
   const looseEnd = addUtcDays(endD, 2)
 
   const locationFilter: Record<string, unknown> | null =
-    ctx.locationId !== undefined ? { locationId: String(ctx.locationId) } : null
+    ctx.locationId !== undefined
+      ? { $expr: { $eq: [{ $toString: '$locationId' }, String(ctx.locationId)] } }
+      : null
 
   const pipeline: unknown[] = [
     {
@@ -281,11 +292,11 @@ export async function fetchLaborCostByBusinessDateHour (
     .aggregate(pipeline)
     .toArray()) as ShiftCostRow[]
 
-  const buckets = new Map<string, number>()
+  const buckets = new Map<string, LaborByBusinessDateHourBucket>()
   for (const row of rows) {
     const start = row.shiftStart instanceof Date ? row.shiftStart : new Date(row.shiftStart)
     const end = row.shiftEnd instanceof Date ? row.shiftEnd : new Date(row.shiftEnd)
-    allocateShiftLoadedCost(
+    allocateShiftLabor(
       buckets,
       row.period,
       start,
@@ -296,7 +307,24 @@ export async function fetchLaborCostByBusinessDateHour (
   }
 
   for (const [k, v] of buckets) {
-    buckets.set(k, Math.round(v * 100) / 100)
+    buckets.set(k, {
+      loadedCost: Math.round(v.loadedCost * 100) / 100,
+      hours: Math.round(v.hours * 100) / 100,
+    })
   }
   return buckets
+}
+
+/**
+ * Sum loaded labor cost per business_date × calendar_hour from Eitje shift start/end (Amsterdam).
+ */
+export async function fetchLaborCostByBusinessDateHour (
+  db: Db,
+  ctx: LaborHourCtx,
+  options?: LaborHourOptions
+): Promise<Map<string, number>> {
+  const labor = await fetchLaborByBusinessDateHour(db, ctx, options)
+  const cost = new Map<string, number>()
+  for (const [key, row] of labor) cost.set(key, row.loadedCost)
+  return cost
 }

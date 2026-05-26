@@ -1,42 +1,21 @@
+/**
+ * @registry-id: dailyOpsMetricsRevenueBreakdown
+ * @last-modified: 2026-05-25T00:00:00.000Z
+ * @last-fix: [2026-05-25] Delegates to snapshot bundle (ADR-004).
+ * @adr-ref: ADR-004
+ */
+
 import { getDb } from '../../../utils/db'
+import { parseDailyOpsMetricsQuery } from '../../../utils/dailyOpsDashboardMetrics'
 import {
-  buildDailyOpsRevenueBreakdownDto,
-  fetchBorkHourAggregatesBundle,
-  fetchLaborMetricsPipelineInput,
-  fetchRevenueByCategoryFromHourAggregates,
-  fetchTodayDashboardRevenueExtras,
-  parseDailyOpsMetricsQuery,
-} from '../../../utils/dailyOpsDashboardMetrics'
-import { fetchLaborCostByBusinessDateHour } from '../../../utils/eitjeLaborByHour'
-import { buildDailyOpsProfitByIntervalDto } from '../../../utils/dailyOpsProfitIntervals'
-import type { DailyOpsRevenueBreakdownDto } from '~/types/daily-ops-dashboard'
+  fetchDailyOpsDashboardBundle,
+  snapshotCacheControl,
+} from '../../../utils/dailyOpsSnapshot/fetchDashboardBundle'
 
-/** Same revenue breakdown as bundle.get (revenue slice only). */
-export default defineEventHandler(async (event): Promise<DailyOpsRevenueBreakdownDto> => {
-  setResponseHeader(event, 'Cache-Control', 'no-store')
+export default defineEventHandler(async (event) => {
   const ctx = parseDailyOpsMetricsQuery(getQuery(event) as Record<string, unknown>)
+  setResponseHeader(event, 'Cache-Control', snapshotCacheControl(ctx))
   const db = await getDb()
-
-  const [cat, hourBundle, laborInput, laborByDateHour] = await Promise.all([
-    fetchRevenueByCategoryFromHourAggregates(db, ctx),
-    fetchBorkHourAggregatesBundle(db, ctx),
-    fetchLaborMetricsPipelineInput(db, ctx),
-    fetchLaborCostByBusinessDateHour(db, ctx),
-  ])
-
-  const [todayExtras, profitByInterval] = await Promise.all([
-    fetchTodayDashboardRevenueExtras(db, ctx, hourBundle),
-    buildDailyOpsProfitByIntervalDto(db, ctx, cat),
-  ])
-
-  return buildDailyOpsRevenueBreakdownDto(
-    ctx,
-    cat,
-    hourBundle,
-    laborInput.revMap,
-    laborInput.labMap,
-    laborByDateHour,
-    profitByInterval,
-    todayExtras
-  )
+  const { revenue } = await fetchDailyOpsDashboardBundle(db, ctx)
+  return revenue
 })

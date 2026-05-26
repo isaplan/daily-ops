@@ -68,8 +68,8 @@
                         <tr class="border-b border-gray-100 text-xs uppercase text-gray-500">
                           <th class="py-1.5 pr-3 font-medium">Name</th>
                           <th class="py-1.5 pr-3 font-medium">Team</th>
-                          <th class="py-1.5 pr-3 text-right font-medium">Hours</th>
-                          <th class="py-1.5 text-right font-medium">Wages</th>
+                          <th class="py-1.5 pr-3 text-right font-medium">{{ section.staffColumns?.hours ?? 'Hours' }}</th>
+                          <th class="py-1.5 text-right font-medium">{{ section.staffColumns?.wages ?? 'Wages' }}</th>
                         </tr>
                       </thead>
                       <tbody class="divide-y divide-gray-50">
@@ -129,10 +129,12 @@
 export type KpiDrawerSummaryRow = { label: string; value: string }
 export type KpiDrawerVenueRow = { locationName: string; cells: string[] }
 export type KpiDrawerStaffRow = { name: string; team: string; hours: string; wages: string }
+export type KpiDrawerStaffColumns = { hours?: string; wages?: string }
 export type KpiDrawerVenueSection = {
   locationName: string
   cells: string[]
   staff: KpiDrawerStaffRow[]
+  staffColumns?: KpiDrawerStaffColumns
 }
 
 withDefaults(

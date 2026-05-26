@@ -1,31 +1,39 @@
 /**
  * @registry-id: dailyOpsSnapshotBuildLaborSection
  * @created: 2026-05-13T00:00:00.000Z
- * @last-modified: 2026-05-14T12:00:00.000Z
+ * @last-modified: 2026-05-26T00:06:00.000Z
  * @description: Builds DailyOpsSnapshotLaborSection for one (businessDate, locationId)
- *   from eitje_time_registration_aggregation. Reads total_cost (wages) and total_cost_loaded
- *   (loaded labor cost — Eitje-style) directly from the agg, which itself resolves cost_per_hour
- *   from inbox-eitje-contracts → members → fallback 1.56 at aggregation time.
- * @last-fix: [2026-05-20] Enrich zero-wage rows from members (ZZP hourly_rate on support_id).
+ *   from eitje_time_registration_aggregation — full Eitje rollups including operational/gewerkt.
+ * @last-fix: [2026-05-26] Operational/gewerkte rollup falls back to operational total_hours when gewerkt_* is all-zero/incomplete.
  *
  * @architecture:
- *   - Eitje agg rows now carry: total_cost, total_cost_loaded, cost_per_hour, loaded_cost_source,
- *     hourly_rate (post-resolution), plus pre-denormalized location/team/user names.
- *   - Eitje period == business_date (no shift starts in 00:00–07:59 window).
- *   - No $lookup at snapshot build time — pure projection / aggregation in app.
+ *   - Writers: dailyOpsSnapshotService (cron + rebuild after Eitje agg).
+ *   - Readers: venue strip, bundle, metrics — must not re-query eitje_* on GET when section exists.
  *
  * @exports-to:
  *   ✓ server/services/dailyOpsSnapshotService.ts
  */
 
 import type { Db } from 'mongodb'
-import { enrichEitjeAggRowsFromMembers } from '../eitjeAggCompensationEnrich'
+import { ObjectId } from 'mongodb'
+import {
+  aggRowsUseLegacyGewerktSchema,
+  resolveRowGewerktSlice,
+  rollupOperationalLaborForSnapshot,
+  type VenueLaborSlice,
+} from '../eitjeVenueLaborRollup'
+import {
+  enrichEitjeAggRowsFromMembers,
+  loadMemberCompensationByShiftUserIds,
+} from '../eitjeAggCompensationEnrich'
+import { fetchLaborByBusinessDateHour } from '../eitjeLaborByHour'
 import type {
   DailyOpsSnapshotLaborSection,
   LaborCostPair,
 } from '../../../types/daily-ops-snapshot'
 
-const DEBUG = String(process.env.DEBUG ?? '').includes('snapshot:build')
+const env = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env
+const DEBUG = String(env?.DEBUG ?? '').includes('snapshot:build')
 
 export type BuildLaborInput = {
   businessDate: string
@@ -37,21 +45,56 @@ function emptyPair(): LaborCostPair {
   return { hours: 0, wage_cost: 0, loaded_cost: 0, record_count: 0 }
 }
 
+function round2(n: number): number {
+  return Math.round(n * 100) / 100
+}
+
+const LABOR_BUILD_VERSION_WITH_HOURLY = 3
+
+function eitjeAggFilter(businessDate: string, locationId: string): Record<string, unknown> {
+  try {
+    const oid = new ObjectId(locationId)
+    return { period_type: 'day', period: businessDate, locationId: { $in: [oid, locationId] } }
+  } catch {
+    return { period_type: 'day', period: businessDate, locationId }
+  }
+}
+
+function addGewerktToTeam(
+  team: LaborCostPair & { teamId: string; teamName: string; gewerkt?: LaborCostPair },
+  slice: VenueLaborSlice,
+): void {
+  if (!team.gewerkt) team.gewerkt = emptyPair()
+  team.gewerkt.hours += slice.hours
+  team.gewerkt.wage_cost += slice.wages
+  team.gewerkt.loaded_cost += slice.loaded
+  team.gewerkt.record_count += 1
+}
+
 export async function buildLaborSection(
   db: Db,
-  input: BuildLaborInput
+  input: BuildLaborInput,
 ): Promise<DailyOpsSnapshotLaborSection> {
   const { businessDate, locationId, locationName } = input
 
   const rows = await db
     .collection('eitje_time_registration_aggregation')
-    .find({ period: businessDate, locationId })
+    .find(eitjeAggFilter(businessDate, locationId))
     .toArray()
 
   await enrichEitjeAggRowsFromMembers(db, rows as Record<string, unknown>[])
+  const memberComp = await loadMemberCompensationByShiftUserIds(
+    db,
+    rows.map((r) => String(r.userId ?? '')),
+  )
 
+  const legacyGewerkt = aggRowsUseLegacyGewerktSchema(rows as Record<string, unknown>[])
   const totals = emptyPair()
-  const teamsMap = new Map<string, LaborCostPair & { teamId: string; teamName: string }>()
+  const teamsMap = new Map<
+    string,
+    LaborCostPair & { teamId: string; teamName: string; gewerkt?: LaborCostPair }
+  >()
+  const contractsMap = new Map<string, LaborCostPair & { contractType: string }>()
   const workers: DailyOpsSnapshotLaborSection['workers'] = []
 
   for (const r of rows) {
@@ -69,6 +112,9 @@ export async function buildLaborSection(
     const teamId = String(r.teamId ?? '')
     const teamName = String(r.team_name ?? '')
     const userName = String(r.user_name ?? '')
+    const contractType =
+      memberComp.get(userId)?.contractType ||
+      (String((r as { contract_type?: string }).contract_type ?? '').trim() || '—')
 
     totals.hours += hours
     totals.wage_cost += wageCost
@@ -82,6 +128,18 @@ export async function buildLaborSection(
     t.loaded_cost += loadedCost
     t.record_count += 1
 
+    const gewSlice = resolveRowGewerktSlice(r as Record<string, unknown>, legacyGewerkt)
+    if (gewSlice) addGewerktToTeam(t, gewSlice)
+
+    if (!contractsMap.has(contractType)) {
+      contractsMap.set(contractType, { ...emptyPair(), contractType })
+    }
+    const c = contractsMap.get(contractType)!
+    c.hours += hours
+    c.wage_cost += wageCost
+    c.loaded_cost += loadedCost
+    c.record_count += 1
+
     workers.push({
       hours,
       wage_cost: wageCost,
@@ -91,26 +149,64 @@ export async function buildLaborSection(
       userName,
       teamId,
       teamName,
+      contractType,
       hourly_rate: hourlyRate,
       cost_per_hour: cph,
       loaded_cost_fallback: fallback,
     })
   }
 
+  for (const t of teamsMap.values()) {
+    if (t.gewerkt) {
+      t.gewerkt.hours = round2(t.gewerkt.hours)
+      t.gewerkt.wage_cost = round2(t.gewerkt.wage_cost)
+      t.gewerkt.loaded_cost = round2(t.gewerkt.loaded_cost)
+    }
+  }
+
+  const operationalRollup = rollupOperationalLaborForSnapshot(rows as Record<string, unknown>[])
+  const hourlyBuckets = await fetchLaborByBusinessDateHour(db, {
+    startDate: businessDate,
+    endDate: businessDate,
+    locationId,
+  })
+  const hourly: DailyOpsSnapshotLaborSection['hourly'] = [...hourlyBuckets.entries()]
+    .map(([key, bucket]) => {
+      const hour = Number(key.split('|')[1])
+      return {
+        calendar_hour: hour,
+        hours: round2(bucket.hours),
+        loaded_cost: round2(bucket.loadedCost),
+      }
+    })
+    .filter((slot) => Number.isFinite(slot.calendar_hour) && (slot.hours > 0 || slot.loaded_cost > 0))
+    .sort((a, b) => a.calendar_hour - b.calendar_hour)
+
   if (DEBUG) {
     const fb = workers.filter((w) => w.loaded_cost_fallback).length
     console.info(
-      `[snapshot:build] ${businessDate} ${locationName} | labor | rows=${rows.length} hours=${totals.hours.toFixed(2)} wage=${totals.wage_cost.toFixed(2)} loaded=${totals.loaded_cost.toFixed(2)} fallback=${fb}/${workers.length}`
+      `[snapshot:build] ${businessDate} ${locationName} | labor | rows=${rows.length} hours=${totals.hours.toFixed(2)} hourly=${hourly.length} gewerkt=${operationalRollup?.totals_gewerkt.hours ?? 0} fallback=${fb}/${workers.length}`,
     )
+  }
+
+  const emptyOp = {
+    gewerkt: emptyPair(),
+    keuken: emptyPair(),
+    bediening: emptyPair(),
   }
 
   return {
     schema_version: 1,
+    laborBuildVersion: LABOR_BUILD_VERSION_WITH_HOURLY,
     businessDate,
     locationId,
     locationName,
     totals,
+    totals_gewerkt: operationalRollup?.totals_gewerkt ?? emptyPair(),
+    operational: operationalRollup?.operational ?? emptyOp,
     teams: Array.from(teamsMap.values()).sort((a, b) => b.loaded_cost - a.loaded_cost),
+    contracts: Array.from(contractsMap.values()).sort((a, b) => b.loaded_cost - a.loaded_cost),
+    hourly,
     workers: workers.sort((a, b) => b.loaded_cost - a.loaded_cost),
     lastBuiltAt: new Date(),
   }

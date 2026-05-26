@@ -1,11 +1,15 @@
 /**
  * @registry-id: dailyOpsSnapshotApi
  * @created: 2026-05-13T00:00:00.000Z
- * @last-modified: 2026-05-13T00:00:00.000Z
+ * @last-modified: 2026-05-25T00:00:00.000Z
  * @description: Read endpoint for the Daily Ops Snapshot system (Phase A.3).
  *   Returns master + revenue section + labor section for one (businessDate, locationId).
  *   Pure read — never touches Bork/Eitje/inbox raw collections.
- * @last-fix: [2026-05-13] Initial.
+ * @last-fix: [2026-05-25] Dashboard home uses /metrics/bundle (range rollup); this route is single-day debug/inspection.
+ * @adr-ref: ADR-004
+ *
+ * @optimization:
+ *   Prefer GET /api/daily-ops/metrics/bundle for dashboard UI (one request, full period).
  *
  * @architecture:
  *   - Query params: businessDate=YYYY-MM-DD, locationId=<unifiedLocationId> (both required).

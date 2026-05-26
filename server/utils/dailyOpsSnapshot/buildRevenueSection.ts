@@ -1,18 +1,20 @@
 /**
  * @registry-id: dailyOpsSnapshotBuildRevenueSection
  * @created: 2026-05-13T00:00:00.000Z
- * @last-modified: 2026-05-18T12:00:00.000Z
+ * @last-modified: 2026-05-26T00:55:00.000Z
  * @description: Builds DailyOpsSnapshotRevenueSection for one (businessDate, locationId).
  *   Reads only from aggregated collections: bork_business_days, bork_sales_by_hour,
  *   inbox-bork-basis-report. Never touches bork_raw_data.
- * @last-fix: [2026-05-18] Lead inbox = pickBasisReportByCronPriority (morning 7/8 final, not cron 23).
+ * @last-fix: [2026-05-26] Snapshot carries order-time hourly Bork buckets beside paid-time buckets.
+ *   Prior: [2026-05-25] Bork reads use resolveBorkAggReadSuffix (_v2) like products/hourly builders.
  *
  * @architecture:
  *   - Lead-source decision: if any inbox row exists for (businessDate, locationId), inbox wins
  *     for headline `totals`. Otherwise bork V2 wins. borkTotals always populated for cross-check.
  *   - Inbox headline: `pickBasisReportByCronPriority` from basis-report-mapper (cron 7/8 = final yesterday).
- *   - Hourly: pre-fill 24 slots (business_hour 0..23 → calendar_hour 8..7-next). Sourced from
- *     bork_sales_by_hour. No intraday inbox per-hour split (inbox is daily-level).
+ *   - Hourly: pre-fill 24 slots (business_hour 0..23 → calendar_hour 8..7-next). Paid-time
+ *     buckets come from bork_sales_by_hour; order-time buckets come from bork_sales_by_order_hour.
+ *     No intraday inbox per-hour split (inbox is daily-level).
  *   - Intraday: all inbox rows stored in `intraday` for audit; 18/23 are partials only.
  *
  * @exports-to:
@@ -26,14 +28,27 @@ import type {
   LeadRevenueSource,
   RevenueBreakdown,
 } from '../../../types/daily-ops-snapshot'
+import { resolveBorkAggReadSuffix } from '../borkAggVersionSuffix'
 import { pickBasisReportByCronPriority, type BasisReportData } from '../inbox/basis-report-mapper'
 
-const DEBUG = String(process.env.DEBUG ?? '').includes('snapshot:build')
+const runtimeProcess = globalThis as typeof globalThis & {
+  process?: { env?: Record<string, string | undefined> }
+}
+const DEBUG = String(runtimeProcess.process?.env?.DEBUG ?? '').includes('snapshot:build')
 
 export type BuildRevenueInput = {
   businessDate: string
   locationId: string
   locationName: string
+}
+
+function createHourlySlots(): DailyOpsSnapshotRevenueSection['hourly'] {
+  return Array.from({ length: 24 }, (_, business_hour) => ({
+    business_hour,
+    calendar_hour: (business_hour + 8) % 24,
+    revenue: { ex_vat: 0, inc_vat: 0, vat: 0 } as RevenueBreakdown,
+    quantity: 0,
+  }))
 }
 
 export async function buildRevenueSection(
@@ -46,12 +61,20 @@ export async function buildRevenueSection(
   // inbox stores location_id as string. Eitje stores locationId as string.
   const locOid = ObjectId.isValid(locationId) ? new ObjectId(locationId) : null
   const borkFilter = { business_date: businessDate, locationId: locOid }
+  const borkSuffix = resolveBorkAggReadSuffix()
 
-  const [borkDay, borkHours, inboxRows] = await Promise.all([
-    locOid ? db.collection('bork_business_days').findOne(borkFilter) : null,
+  const [borkDay, borkHours, borkOrderHours, inboxRows] = await Promise.all([
+    locOid ? db.collection(`bork_business_days${borkSuffix}`).findOne(borkFilter) : null,
     locOid
       ? db
-          .collection('bork_sales_by_hour')
+          .collection(`bork_sales_by_hour${borkSuffix}`)
+          .find(borkFilter)
+          .sort({ business_hour: 1 })
+          .toArray()
+      : [],
+    locOid
+      ? db
+          .collection(`bork_sales_by_order_hour${borkSuffix}`)
           .find(borkFilter)
           .sort({ business_hour: 1 })
           .toArray()
@@ -71,7 +94,7 @@ export async function buildRevenueSection(
     record_count: Number(borkDay?.record_count ?? 0),
   }
 
-  const leadInbox = pickBasisReportByCronPriority(inboxRows as BasisReportData[]) ?? null
+  const leadInbox = pickBasisReportByCronPriority(inboxRows as unknown as BasisReportData[]) ?? null
 
   let leadSource: LeadRevenueSource = 'none'
   let totals: RevenueBreakdown & { quantity: number; record_count: number } = {
@@ -84,19 +107,19 @@ export async function buildRevenueSection(
   if (leadInbox) {
     leadSource = 'inbox'
     const ex = Number(leadInbox.final_revenue_ex_vat ?? 0)
-    const inc = Number(leadInbox.final_revenue_incl_vat ?? leadInbox.final_revenue_inc_vat ?? 0)
+    const inc = Number(
+      leadInbox.final_revenue_incl_vat ??
+      (leadInbox as { final_revenue_inc_vat?: number }).final_revenue_inc_vat ??
+      0
+    )
     totals = { ex_vat: ex, inc_vat: inc, vat: inc - ex, quantity: 0, record_count: 0 }
   } else if (borkDay) {
     leadSource = 'bork'
     totals = borkTotals
   }
 
-  const hourly = Array.from({ length: 24 }, (_, business_hour) => ({
-    business_hour,
-    calendar_hour: (business_hour + 8) % 24,
-    revenue: { ex_vat: 0, inc_vat: 0, vat: 0 } as RevenueBreakdown,
-    quantity: 0,
-  }))
+  const hourly = createHourlySlots()
+  const orderHourly = createHourlySlots()
   for (const h of borkHours) {
     const idx = Number(h.business_hour)
     if (idx >= 0 && idx < 24) {
@@ -104,6 +127,15 @@ export async function buildRevenueSection(
       hourly[idx]!.revenue.inc_vat = Number(h.total_revenue_inc_vat ?? h.total_revenue ?? 0)
       hourly[idx]!.revenue.vat = Number(h.total_vat ?? 0)
       hourly[idx]!.quantity = Number(h.total_quantity ?? 0)
+    }
+  }
+  for (const h of borkOrderHours) {
+    const idx = Number(h.business_hour)
+    if (idx >= 0 && idx < 24) {
+      orderHourly[idx]!.revenue.ex_vat = Number(h.total_revenue_ex_vat ?? 0)
+      orderHourly[idx]!.revenue.inc_vat = Number(h.total_revenue_inc_vat ?? h.total_revenue ?? 0)
+      orderHourly[idx]!.revenue.vat = Number(h.total_vat ?? 0)
+      orderHourly[idx]!.quantity = Number(h.total_quantity ?? 0)
     }
   }
 
@@ -116,7 +148,7 @@ export async function buildRevenueSection(
 
   if (DEBUG) {
     console.info(
-      `[snapshot:build] ${businessDate} ${locationName} | revenue | leadSource=${leadSource} bork_ex=${borkTotals.ex_vat.toFixed(2)} hours=${borkHours.length} inbox=${inboxRows.length}`
+      `[snapshot:build] ${businessDate} ${locationName} | revenue | leadSource=${leadSource} bork_ex=${borkTotals.ex_vat.toFixed(2)} paidHours=${borkHours.length} orderHours=${borkOrderHours.length} inbox=${inboxRows.length}`
     )
   }
 
@@ -128,6 +160,7 @@ export async function buildRevenueSection(
     leadSource,
     totals,
     hourly,
+    orderHourly,
     intraday,
     borkTotals,
     lastBuiltAt: new Date(),

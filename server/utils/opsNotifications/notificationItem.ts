@@ -18,6 +18,7 @@ const TITLES: Record<OpsNotificationKind, string> = {
   inbox_only_intraday_partial: 'Only intraday Basis (no final)',
   eitje_hours_inbox_missing: 'Eitje hours inbox missing',
   unmapped_basis_location: 'Unmapped Basis location',
+  labor_snapshot_inconsistent: 'Labor snapshot internally inconsistent',
   adr004_live_bork_on_revenue_get: 'ADR-004 violation on GET',
   monolithic_module: 'Monolithic module',
 }
@@ -33,6 +34,7 @@ const SEVERITY: Record<OpsNotificationKind, OpsNotificationSeverity> = {
   inbox_only_intraday_partial: 'warning',
   eitje_hours_inbox_missing: 'warning',
   unmapped_basis_location: 'warning',
+  labor_snapshot_inconsistent: 'critical',
   missing_master_snapshot: 'warning',
   revenue_snapshot_empty: 'warning',
   adr004_live_bork_on_revenue_get: 'critical',
@@ -52,6 +54,7 @@ const CATEGORY: Record<OpsNotificationKind, OpsNotificationCategory> = {
   inbox_only_intraday_partial: 'cron',
   eitje_hours_inbox_missing: 'cron',
   unmapped_basis_location: 'integrity',
+  labor_snapshot_inconsistent: 'integrity',
   adr004_live_bork_on_revenue_get: 'architecture',
   monolithic_module: 'architecture',
 }

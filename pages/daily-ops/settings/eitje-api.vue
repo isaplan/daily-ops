@@ -114,7 +114,7 @@
           <template #header>
             <div class="space-y-1">
               <p class="font-semibold text-gray-900">Daily Data Sync</p>
-              <p class="text-sm text-gray-500">Automated sync for daily labor and revenue data</p>
+              <p class="text-sm text-gray-500">Automated sync for worked hours, planned hours, leave, and events</p>
             </div>
           </template>
 
@@ -140,15 +140,7 @@
                 </div>
                 <div class="flex items-center gap-2">
                   <UIcon name="i-lucide-check-circle" class="h-3 w-3 text-green-600" />
-                  <span class="text-gray-600">revenue_days</span>
-                </div>
-                <div class="flex items-center gap-2">
-                  <UIcon name="i-lucide-check-circle" class="h-3 w-3 text-green-600" />
                   <span class="text-gray-600">planning_shifts</span>
-                </div>
-                <div class="flex items-center gap-2">
-                  <UIcon name="i-lucide-check-circle" class="h-3 w-3 text-green-600" />
-                  <span class="text-gray-600">availability_shifts</span>
                 </div>
                 <div class="flex items-center gap-2">
                   <UIcon name="i-lucide-check-circle" class="h-3 w-3 text-green-600" />
@@ -187,7 +179,7 @@
           <template #header>
             <div class="space-y-1">
               <p class="font-semibold text-gray-900">Master Data Sync</p>
-              <p class="text-sm text-gray-500">Sync environments, teams, users, and shift types</p>
+              <p class="text-sm text-gray-500">Sync environments, teams, and users</p>
             </div>
           </template>
 
@@ -217,10 +209,6 @@
                 <div class="flex items-center gap-2">
                   <UIcon name="i-lucide-check-circle" class="h-3 w-3 text-green-600" />
                   <span class="text-gray-600">users</span>
-                </div>
-                <div class="flex items-center gap-2">
-                  <UIcon name="i-lucide-check-circle" class="h-3 w-3 text-green-600" />
-                  <span class="text-gray-600">shift_types</span>
                 </div>
               </div>
             </div>
@@ -276,15 +264,7 @@
                 </div>
                 <div class="flex items-center gap-2">
                   <UIcon name="i-lucide-check-circle" class="h-3 w-3 text-green-600" />
-                  <span class="text-gray-600">revenue_days</span>
-                </div>
-                <div class="flex items-center gap-2">
-                  <UIcon name="i-lucide-check-circle" class="h-3 w-3 text-green-600" />
                   <span class="text-gray-600">planning_shifts</span>
-                </div>
-                <div class="flex items-center gap-2">
-                  <UIcon name="i-lucide-check-circle" class="h-3 w-3 text-green-600" />
-                  <span class="text-gray-600">availability_shifts</span>
                 </div>
                 <div class="flex items-center gap-2">
                   <UIcon name="i-lucide-check-circle" class="h-3 w-3 text-green-600" />
@@ -333,7 +313,13 @@ type EitjeSyncDetail = {
   ok?: boolean
   message?: string
   timeRegistration?: { upserted?: number; fetched?: number; error?: string }
-  aggregation?: { inserted?: number; deletedPeriods?: number; error?: string }
+  rawEndpoints?: Array<{ name: string; upserted?: number; fetched?: number; error?: string }>
+  aggregation?: {
+    inserted?: number
+    deletedPeriods?: number
+    error?: string
+    planning?: { inserted?: number; deletedPeriods?: number; error?: string }
+  }
   master?: { endpoints?: Array<{ name: string; fetched?: number; upserted?: number; error?: string }> }
 }
 

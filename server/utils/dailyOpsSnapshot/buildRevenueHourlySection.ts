@@ -1,9 +1,9 @@
 /**
  * @registry-id: dailyOpsSnapshotBuildRevenueHourlySection
  * @created: 2026-05-20T00:00:00.000Z
- * @last-modified: 2026-05-20T00:00:00.000Z
- * @description: Hourly revenue snapshot section (24 slots) from bork_sales_by_hour
- * @last-fix: [2026-05-20] Initial
+ * @last-modified: 2026-05-26T00:55:00.000Z
+ * @description: Hourly revenue snapshot section (24 slots) from paid-time and order-time Bork hour aggregates
+ * @last-fix: [2026-05-26] Include order-time hourly buckets beside paid-time buckets.
  *
  * @exports-to:
  * ✓ server/services/dailyOpsSnapshotService.ts
@@ -24,6 +24,7 @@ export async function buildRevenueHourlySection(
     locationId: input.locationId,
     locationName: input.locationName,
     hourly: revenue.hourly,
+    orderHourly: revenue.orderHourly,
     lastBuiltAt: new Date(),
   }
 }

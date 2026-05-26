@@ -1,11 +1,12 @@
 /**
  * @registry-id: dailyOpsSnapshotService
  * @created: 2026-05-13T00:00:00.000Z
- * @last-modified: 2026-05-25T12:25:00.000Z
+ * @last-modified: 2026-05-26T01:12:00.000Z
  * @description: Reads aggregated Bork + Eitje + inbox collections, writes denormalized
  *   daily snapshots (master + revenue section + labor section per location × businessDate).
  *   Idempotent, event-driven, never touches raw data.
- * @last-fix: [2026-05-25] Snapshot sealed on cron_hour 7 OR 8 (morning final); was incorrectly checking === 8 only.
+ * @last-fix: [2026-05-26] Writes dedicated revenue-by-order-time snapshot section.
+ *   Prior: [2026-05-25] Snapshot sealed on cron_hour 7 OR 8 (morning final); was incorrectly checking === 8 only.
  * @adr-ref: ADR-004 (Daily Ops snapshot = authoritative revenue source)
  *
  * @architecture:
@@ -38,12 +39,16 @@ import { buildRevenueHourlySection } from '../utils/dailyOpsSnapshot/buildRevenu
 import { buildRevenueProductsSection } from '../utils/dailyOpsSnapshot/buildRevenueProductsSection'
 import { buildRevenueTablesSection } from '../utils/dailyOpsSnapshot/buildRevenueTablesSection'
 import { buildRevenueWorkersSection } from '../utils/dailyOpsSnapshot/buildRevenueWorkersSection'
+import { buildRevenueByOrderTimeSection } from '../utils/dailyOpsSnapshot/buildRevenueByOrderTimeSection'
 import { buildLaborSection } from '../utils/dailyOpsSnapshot/buildLaborSection'
 import { buildCards } from '../utils/dailyOpsSnapshot/buildCards'
 import { resolveSources } from '../utils/dailyOpsSnapshot/resolveSources'
 import { registerSnapshotRunner } from '../utils/dailyOpsSnapshot/jobCoalescer'
 
-const DEBUG = String(process.env.DEBUG ?? '').includes('snapshot:build')
+const runtimeProcess = globalThis as typeof globalThis & {
+  process?: { env?: Record<string, string | undefined> }
+}
+const DEBUG = String(runtimeProcess.process?.env?.DEBUG ?? '').includes('snapshot:build')
 
 async function resolveLocationName(db: Db, locationId: string): Promise<string> {
   if (!ObjectId.isValid(locationId)) return ''
@@ -93,7 +98,7 @@ export async function buildDailyOpsSnapshot(input: BuildSnapshotInput): Promise<
         console.warn(`[snapshot:build] ${businessDate} ${locationId} | missing locationName`)
       }
       const buildInput = { businessDate, locationId, locationName }
-      const [revenue, labor, sources, revenueHourly, revenueProducts, revenueTables, revenueWorkers] =
+      const [revenue, labor, sources, revenueHourly, revenueProducts, revenueTables, revenueWorkers, revenueByOrderTime] =
         await Promise.all([
           buildRevenueSection(db, buildInput),
           buildLaborSection(db, buildInput),
@@ -102,6 +107,7 @@ export async function buildDailyOpsSnapshot(input: BuildSnapshotInput): Promise<
           buildRevenueProductsSection(db, buildInput),
           buildRevenueTablesSection(db, buildInput),
           buildRevenueWorkersSection(db, buildInput),
+          buildRevenueByOrderTimeSection(db, buildInput),
         ])
       const cards = buildCards(revenue, labor)
 
@@ -124,6 +130,7 @@ export async function buildDailyOpsSnapshot(input: BuildSnapshotInput): Promise<
           revenueProducts: true,
           revenueTables: true,
           revenueWorkers: true,
+          revenueByOrderTime: true,
         },
         lastBuiltAt: new Date(),
         sealedAt: sealed ? new Date() : null,
@@ -146,6 +153,9 @@ export async function buildDailyOpsSnapshot(input: BuildSnapshotInput): Promise<
         db
           .collection(DAILY_OPS_SNAPSHOT_COLLECTIONS.revenueWorkersSection)
           .updateOne(filter, { $set: revenueWorkers }, { upsert: true }),
+        db
+          .collection(DAILY_OPS_SNAPSHOT_COLLECTIONS.revenueByOrderTimeSection)
+          .updateOne(filter, { $set: revenueByOrderTime }, { upsert: true }),
       ])
 
       if (DEBUG) {

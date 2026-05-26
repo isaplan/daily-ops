@@ -1,7 +1,13 @@
 /**
- * Daily Ops dashboard: Bork revenue + Eitje labor aggregations (fast paths on prebuilt collections).
- * @last-modified: 2026-05-18T12:00:00.000Z
- * @last-fix: [2026-05-18] pickBasisReportsPerLocation delegates to basis-report-mapper SSOT
+ * Daily Ops dashboard: DTO builders + legacy Bork/Eitje helpers (write/rebuild paths only).
+ * @last-modified: 2026-05-26T01:48:00.000Z
+ * @last-fix: [2026-05-26] Preserve orderHourlyByCalendarHour when snapshot bundle builds today revenue detail.
+ *   Prior: [2026-05-25] GET /metrics/* now reads snapshots via fetchDashboardBundle (ADR-004); this file is not the read path.
+ * @adr-ref: ADR-004
+ *
+ * @optimization:
+ *   - UI GET: server/utils/dailyOpsSnapshot/fetchDashboardBundle.ts (single bundle, 5 parallel snapshot queries).
+ *   - Do not add new read-time bork_* / eitje_time_registration_aggregation usage on dashboard GET.
  * 
  * @business-day-definition:
  * A "business day" runs 08:00 to 07:59:59 NEXT ISO day (Amsterdam time).
@@ -215,7 +221,7 @@ export const fetchRevenueByCategoryFromRaw = fetchRevenueByCategoryFromHourAggre
 
 export type BorkHourAggregatesBundle = {
   byHourOnly: { _id: number; amount: number }[]
-  byDayHour: { _id: { d: string; h: number }; revenue: number }[]
+  byDayHour: { _id: { d: string; h: number; loc?: string }; revenue: number }[]
 }
 
 /** One pass over `bork_sales_by_hour` for time-period totals and per-day-hour revenue. */
@@ -251,6 +257,52 @@ export async function fetchBorkHourAggregatesBundle(db: Db, ctx: DailyOpsMetrics
   return {
     byHourOnly: row?.byHourOnly ?? [],
     byDayHour: row?.byDayHour ?? [],
+  }
+}
+
+/** Per-venue hourly rows (ex VAT) when snapshot hourly slots are empty — same shape as buildHourBundleFromSnapshots. */
+export async function fetchBorkHourAggregatesBundleWithLocations(
+  db: Db,
+  ctx: DailyOpsMetricsContext,
+): Promise<BorkHourAggregatesBundle> {
+  const sfx = resolveBorkAggReadSuffix()
+  const rows = (await db
+    .collection(`bork_sales_by_hour${sfx}`)
+    .aggregate([
+      { $match: borkV2SalesMatch(ctx) },
+      {
+        $group: {
+          _id: {
+            d: '$business_date',
+            h: '$calendar_hour',
+            loc: { $toString: '$locationId' },
+          },
+          revenue: {
+            $sum: {
+              $ifNull: [
+                '$total_revenue_ex_vat',
+                { $ifNull: ['$total_revenue', 0] },
+              ],
+            },
+          },
+        },
+      },
+    ])
+    .toArray()) as { _id: { d: string; h: number; loc: string }; revenue: number }[]
+
+  const hourOnly = new Map<number, number>()
+  const byDayHour: BorkHourAggregatesBundle['byDayHour'] = []
+  for (const row of rows) {
+    const rev = Number(row.revenue ?? 0)
+    if (rev <= 0) continue
+    const h = Number(row._id.h)
+    hourOnly.set(h, (hourOnly.get(h) ?? 0) + rev)
+    byDayHour.push({ _id: { d: row._id.d, h, loc: row._id.loc }, revenue: rev })
+  }
+
+  return {
+    byHourOnly: [...hourOnly.entries()].map(([_id, amount]) => ({ _id, amount })),
+    byDayHour,
   }
 }
 
@@ -610,10 +662,7 @@ export async function fetchInboxBasisRevenueTotalExVat(db: Db, ctx: DailyOpsMetr
   return Math.round(sum * 100) / 100
 }
 
-export type TodayRevenueExtras = {
-  apiHourlyByCalendarHour: { calendarHour: number; revenue: number }[]
-  inboxBasisCronSnapshots: { cronHour: number; finalRevenueExVat: number; locationLabel: string }[]
-}
+export type TodayRevenueExtras = NonNullable<DailyOpsRevenueBreakdownDto['todayRevenueDetail']>
 
 /** Period must be `today`: hourly rows for the dashboard date + Basis emails tagged 15:00 / 23:00 (cron_hour). */
 export async function fetchTodayDashboardRevenueExtras(
@@ -635,6 +684,9 @@ export async function fetchTodayDashboardRevenueExtras(
     .map(([calendarHour, revenue]) => ({
       calendarHour,
       revenue: Math.round(revenue * 100) / 100,
+      laborHours: 0,
+      revenuePerLaborHour: null,
+      locations: [],
     }))
 
   const raw = await db
@@ -1590,6 +1642,7 @@ export function buildDailyOpsRevenueBreakdownDto(
     todayRevenueDetail: todayExtras
       ? {
           apiHourlyByCalendarHour: todayExtras.apiHourlyByCalendarHour,
+          orderHourlyByCalendarHour: todayExtras.orderHourlyByCalendarHour,
           inboxBasisCronSnapshots: todayExtras.inboxBasisCronSnapshots,
         }
       : undefined,
