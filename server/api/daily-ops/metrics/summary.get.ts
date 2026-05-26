@@ -1,33 +1,21 @@
-import { getDb } from '../../../utils/db'
-import {
-  buildDailyOpsSummaryDto,
-  fetchInboxBasisRevenueTotalExVat,
-  fetchLaborMetricsPipelineInput,
-  parseDailyOpsMetricsQuery,
-} from '../../../utils/dailyOpsDashboardMetrics'
-import { aggregateLaborForRange } from '../../../utils/dailyOpsSnapshot/aggregateLaborForRange'
-import type { DailyOpsSummaryDto } from '~/types/daily-ops-dashboard'
+/**
+ * @registry-id: dailyOpsMetricsSummary
+ * @last-modified: 2026-05-25T00:00:00.000Z
+ * @last-fix: [2026-05-25] Delegates to snapshot bundle (ADR-004) — no live Bork/Eitje on GET.
+ * @adr-ref: ADR-004
+ */
 
-/** Same headline revenue + labor breakdown as bundle.get (summary slice only). */
-export default defineEventHandler(async (event): Promise<DailyOpsSummaryDto> => {
-  setResponseHeader(event, 'Cache-Control', 'no-store')
+import { getDb } from '../../../utils/db'
+import { parseDailyOpsMetricsQuery } from '../../../utils/dailyOpsDashboardMetrics'
+import {
+  fetchDailyOpsDashboardBundle,
+  snapshotCacheControl,
+} from '../../../utils/dailyOpsSnapshot/fetchDashboardBundle'
+
+export default defineEventHandler(async (event) => {
   const ctx = parseDailyOpsMetricsQuery(getQuery(event) as Record<string, unknown>)
+  setResponseHeader(event, 'Cache-Control', snapshotCacheControl(ctx))
   const db = await getDb()
-  const [laborInput, inboxBasisExVat, laborBreakdown] = await Promise.all([
-    fetchLaborMetricsPipelineInput(db, ctx),
-    fetchInboxBasisRevenueTotalExVat(db, ctx),
-    aggregateLaborForRange(db, {
-      startDate: ctx.startDate,
-      endDate: ctx.endDate,
-      locationId: ctx.locationId,
-    }),
-  ])
-  const dto = buildDailyOpsSummaryDto(ctx, laborInput.revMap, laborInput.labMap, {
-    apiBusinessDaysTotal: laborInput.revenueSplit.businessDaysPeriodTotal,
-    inboxBasisExVat,
-  })
-  if (laborBreakdown.coverage.daysFound > 0) {
-    dto.summary.laborBreakdown = laborBreakdown
-  }
-  return dto
+  const { summary } = await fetchDailyOpsDashboardBundle(db, ctx)
+  return summary
 })

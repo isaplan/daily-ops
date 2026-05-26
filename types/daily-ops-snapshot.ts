@@ -1,10 +1,12 @@
 /**
  * @registry-id: dailyOpsSnapshotTypes
  * @created: 2026-05-13T00:00:00.000Z
- * @last-modified: 2026-05-13T00:00:00.000Z
+ * @last-modified: 2026-05-26T00:55:00.000Z
  * @description: Daily Ops Snapshot — master + section document shapes
  *   (revenue, labor). Written by dailyOpsSnapshotService, read by daily-ops API.
- * @last-fix: [2026-05-13] Initial — Phase A.1 (master + revenue + labor sections).
+ * @last-fix: [2026-05-26] Added dedicated revenue-by-order-time snapshot section.
+ *   Prior: [2026-05-26] Revenue sections can carry order-time hourly buckets alongside paid-time hourly buckets.
+ *   Prior: [2026-05-25] Labor section stores Eitje hourly buckets for ADR-004 read paths.
  *
  * @architecture:
  *   - One master doc per (locationId, businessDate). Sections referenced by same key.
@@ -102,6 +104,7 @@ export type DailyOpsSnapshotMaster = {
     revenueProducts?: boolean
     revenueTables?: boolean
     revenueWorkers?: boolean
+    revenueByOrderTime?: boolean
   }
 
   lastBuiltAt: Date
@@ -130,6 +133,14 @@ export type DailyOpsSnapshotRevenueSection = {
     quantity: number
   }>
 
+  /** Same 24-slot shape, but bucketed by Bork order-entry time instead of paid/closed ticket time. */
+  orderHourly?: Array<{
+    business_hour: number
+    calendar_hour: number
+    revenue: RevenueBreakdown
+    quantity: number
+  }>
+
   /** Inbox basis snapshots captured at each poll for the day (intraday validators). */
   intraday: Array<{
     cron_hour: number
@@ -152,15 +163,44 @@ export type DailyOpsSnapshotLaborSection = {
   locationId: string
   locationName: string
 
+  /** 2 = full Eitje labor (operational/gewerkt) written at snapshot build. Readers skip backfill when set. */
+  laborBuildVersion?: number
+
   totals: LaborCostPair
+
+  /** Gewerkte-only totals (Keuken + Bediening operational hours). */
+  totals_gewerkt?: LaborCostPair
+
+  /** Venue KPI / productivity shape — built from Eitje agg at snapshot write. */
+  operational?: {
+    gewerkt: LaborCostPair
+    keuken: LaborCostPair
+    bediening: LaborCostPair
+  }
 
   /** Per-team rollup (e.g. Keuken, Bediening, Management). */
   teams: Array<
     LaborCostPair & {
       teamId: string
       teamName: string
+      /** Gewerkte hours for this team (subset of hours). */
+      gewerkt?: LaborCostPair
     }
   >
+
+  /** Per-contract-type rollup (denormalized at snapshot build). */
+  contracts?: Array<
+    LaborCostPair & {
+      contractType: string
+    }
+  >
+
+  /** Eitje shift overlap by Amsterdam calendar hour; used for hourly productivity and interval P&L. */
+  hourly?: Array<{
+    calendar_hour: number
+    hours: number
+    loaded_cost: number
+  }>
 
   /** Per-worker rollup. */
   workers: Array<
@@ -169,6 +209,7 @@ export type DailyOpsSnapshotLaborSection = {
       userName: string
       teamId: string
       teamName: string
+      contractType?: string
       hourly_rate: number | null
       cost_per_hour: number | null
       /** True when loaded_cost used the 1.36 fallback (cost_per_hour missing). */
@@ -181,6 +222,18 @@ export type DailyOpsSnapshotLaborSection = {
 
 /** Hourly revenue rollup (24 slots) — snapshot-first read for revenue dashboard. */
 export type DailyOpsSnapshotRevenueHourlySection = {
+  _id?: unknown
+  schema_version: 1
+  businessDate: string
+  locationId: string
+  locationName: string
+  hourly: DailyOpsSnapshotRevenueSection['hourly']
+  orderHourly?: DailyOpsSnapshotRevenueSection['hourly']
+  lastBuiltAt: Date
+}
+
+/** Hourly revenue bucketed by Bork order-entry time (`Orders[].Time`). */
+export type DailyOpsSnapshotRevenueByOrderTimeSection = {
   _id?: unknown
   schema_version: 1
   businessDate: string
@@ -244,4 +297,5 @@ export const DAILY_OPS_SNAPSHOT_COLLECTIONS = {
   revenueProductsSection: 'daily_ops_snapshot_section_products',
   revenueTablesSection: 'daily_ops_snapshot_section_tables',
   revenueWorkersSection: 'daily_ops_snapshot_section_workers',
+  revenueByOrderTimeSection: 'daily_ops_snapshot_section_revenue_by_order_time',
 } as const

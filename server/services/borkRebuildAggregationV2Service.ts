@@ -1,9 +1,10 @@
 /**
  * @registry-id: borkRebuildAggregationV2Service
  * @created: 2026-04-14T18:00:00.000Z
- * @last-modified: 2026-05-13T00:00:00.000Z
+ * @last-modified: 2026-05-26T00:55:00.000Z
  * @description: V2 Bork aggregates — writes bork_business_days, bork_sales_by_day, bork_sales_by_hour, bork_sales_by_table, bork_sales_by_worker, bork_sales_by_guest_account, bork_sales_by_product (+ version suffix). Every revenue rollup now emits total_revenue (inc VAT, back-compat), total_revenue_ex_vat, total_revenue_inc_vat, total_vat extracted from raw line TotalEx/TotalInc.
- * @last-fix: [2026-05-13] Phase 0: add ex/inc/vat to every revenue rollup using extractLineRevenue helper. Single-pass design preserved; paymodes intentionally remain inc-only (tender amounts).
+ * @last-fix: [2026-05-26] Added order-time hourly aggregate beside paid-ticket hourly aggregate.
+ *   Prior: [2026-05-13] Phase 0: add ex/inc/vat to every revenue rollup using extractLineRevenue helper. Single-pass design preserved; paymodes intentionally remain inc-only (tender amounts).
  *
  * @CRITICAL: Line revenue uses Lines[].TotalEx + TotalInc (live data confirmed); paymode totals use Order.Paymodes[].Total (tender amounts, no VAT split).
  *
@@ -34,14 +35,22 @@ function borkDateToISO(borkDate: number): string {
   return `${year}-${month}-${day}`
 }
 
-function extractHour(timeStr: string | undefined): number {
-  if (!timeStr) return 0
+function parseHour(timeStr: string | undefined): number | null {
+  if (!timeStr) return null
   const match = timeStr.match(/^(\d{1,2}):/)
-  return match ? parseInt(match[1], 10) : 0
+  if (!match) return null
+  const rawHour = match[1]
+  if (rawHour == null) return null
+  const hour = parseInt(rawHour, 10)
+  return hour >= 0 && hour <= 23 ? hour : null
+}
+
+function extractHour(timeStr: string | undefined): number {
+  return parseHour(timeStr) ?? 0
 }
 
 function addCalendarDaysISO(dateStr: string, deltaDays: number): string {
-  const [y, m, d] = dateStr.split('-').map(Number)
+  const [y = 0, m = 1, d = 1] = dateStr.split('-').map(Number)
   const dt = new Date(Date.UTC(y, m - 1, d + deltaDays))
   const yy = dt.getUTCFullYear()
   const mm = String(dt.getUTCMonth() + 1).padStart(2, '0')
@@ -128,6 +137,7 @@ export type RebuildBorkAggV2Result = {
   businessDays: number
   salesByDay: number
   salesHours: number
+  orderSalesHours: number
   tables: number
   workers: number
   guestAccounts: number
@@ -152,14 +162,15 @@ export async function rebuildBorkSalesAggregationV2(
     businessDays: 0,
     salesByDay: 0,
     salesHours: 0,
+    orderSalesHours: 0,
     tables: 0,
     workers: 0,
     guestAccounts: 0,
     productLines: 0,
   }
 
-  const [startYear, startMonth, startDay] = startDate.split('-').map(Number)
-  const [endYear, endMonth, endDay] = endDate.split('-').map(Number)
+  const [startYear = 0, startMonth = 1, startDay = 1] = startDate.split('-').map(Number)
+  const [endYear = 0, endMonth = 1, endDay = 1] = endDate.split('-').map(Number)
   const startBorkDate = startYear * 10000 + startMonth * 100 + startDay
   const endBorkDate = endYear * 10000 + endMonth * 100 + endDay
 
@@ -174,6 +185,7 @@ export async function rebuildBorkSalesAggregationV2(
   )
 
   const hoursCollection = `bork_sales_by_hour${collectionSuffix}`
+  const orderHoursCollection = `bork_sales_by_order_hour${collectionSuffix}`
   const daysCollection = `bork_business_days${collectionSuffix}`
   const salesByDayCollection = `bork_sales_by_day${collectionSuffix}`
   const tablesCollection = `bork_sales_by_table${collectionSuffix}`
@@ -182,6 +194,7 @@ export async function rebuildBorkSalesAggregationV2(
   const productsCollection = `bork_sales_by_product${collectionSuffix}`
 
   const byHourMap = new Map<string, Document>()
+  const byOrderHourMap = new Map<string, Document>()
   const dayRollupMap = new Map<string, DayRollupInternal>()
   const byTableMap = new Map<string, Document>()
   const byWorkerMap = new Map<string, Document>()
@@ -255,6 +268,9 @@ export async function rebuildBorkSalesAggregationV2(
 
           const isoDate = borkDateToISO(orderBorkDate)
           const { businessDate, businessHour } = calendarToBusinessDay(isoDate, calendarHour)
+          const orderCalendarHour = parseHour((order as { Time?: string }).Time)
+          const orderBusiness =
+            orderCalendarHour == null ? null : calendarToBusinessDay(isoDate, orderCalendarHour)
           const dayKey = `${unifiedLocationId}:${businessDate}`
 
           const tableNumber = String((order as { TableNr?: string }).TableNr || '').trim()
@@ -306,6 +322,47 @@ export async function rebuildBorkSalesAggregationV2(
             hp.revenue_inc_vat += inc
             hp.vat += vat
             hp.quantity += qty
+
+            if (orderBusiness) {
+              const orderHourKey = `${unifiedLocationId}:${orderBusiness.businessDate}:${orderBusiness.businessHour}`
+              if (!byOrderHourMap.has(orderHourKey)) {
+                byOrderHourMap.set(orderHourKey, {
+                  schema_version: 2,
+                  time_basis: 'order',
+                  locationId: unifiedLocationId,
+                  locationName: unifiedLocationName,
+                  business_date: orderBusiness.businessDate,
+                  business_hour: orderBusiness.businessHour,
+                  calendar_date: isoDate,
+                  calendar_hour: orderCalendarHour,
+                  total_revenue: 0,
+                  total_revenue_ex_vat: 0,
+                  total_revenue_inc_vat: 0,
+                  total_vat: 0,
+                  total_quantity: 0,
+                  record_count: 0,
+                  products: new Map<string, ProductRollup>(),
+                })
+              }
+              const oe = byOrderHourMap.get(orderHourKey)!
+              oe.total_revenue = (oe.total_revenue as number) + inc
+              oe.total_revenue_ex_vat = (oe.total_revenue_ex_vat as number) + ex
+              oe.total_revenue_inc_vat = (oe.total_revenue_inc_vat as number) + inc
+              oe.total_vat = (oe.total_vat as number) + vat
+              oe.total_quantity = (oe.total_quantity as number) + qty
+              oe.record_count = (oe.record_count as number) + 1
+
+              const opmap = oe.products as Map<string, ProductRollup>
+              if (!opmap.has(productKey)) {
+                opmap.set(productKey, { productId: productKey, productName, revenue: 0, revenue_ex_vat: 0, revenue_inc_vat: 0, vat: 0, quantity: 0 })
+              }
+              const op = opmap.get(productKey)!
+              op.revenue += inc
+              op.revenue_ex_vat += ex
+              op.revenue_inc_vat += inc
+              op.vat += vat
+              op.quantity += qty
+            }
 
             const dr = ensureDayRollup(dayKey, unifiedLocationId, unifiedLocationName, businessDate)
             dr.total_revenue += inc
@@ -543,7 +600,11 @@ export async function rebuildBorkSalesAggregationV2(
   const clearStartBusiness = addCalendarDaysISO(startDate, -1)
   const clearEndBusiness = endDate
 
-  const hourDocs = Array.from(byHourMap.values()).map((doc) => ({
+  const hourDocs: Document[] = Array.from(byHourMap.values()).map((doc) => ({
+    ...doc,
+    products: Array.from((doc.products as Map<string, ProductRollup>).values()),
+  }))
+  const orderHourDocs: Document[] = Array.from(byOrderHourMap.values()).map((doc) => ({
     ...doc,
     products: Array.from((doc.products as Map<string, ProductRollup>).values()),
   }))
@@ -619,6 +680,7 @@ export async function rebuildBorkSalesAggregationV2(
   )
   await Promise.all([
     db.collection(hoursCollection).deleteMany(clearFilter),
+    db.collection(orderHoursCollection).deleteMany(clearFilter),
     db.collection(daysCollection).deleteMany(clearFilter),
     db.collection(salesByDayCollection).deleteMany(clearFilter),
     db.collection(tablesCollection).deleteMany(clearFilter),
@@ -630,6 +692,10 @@ export async function rebuildBorkSalesAggregationV2(
   if (hourDocs.length > 0) {
     await db.collection(hoursCollection).insertMany(hourDocs as Document[])
     result.salesHours = hourDocs.length
+  }
+  if (orderHourDocs.length > 0) {
+    await db.collection(orderHoursCollection).insertMany(orderHourDocs as Document[])
+    result.orderSalesHours = orderHourDocs.length
   }
   if (slimDayDocs.length > 0) {
     await db.collection(daysCollection).insertMany(slimDayDocs)

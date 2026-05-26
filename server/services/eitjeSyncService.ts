@@ -1,9 +1,10 @@
 /**
  * @registry-id: eitjeSyncService
  * @created: 2026-04-05T12:00:00.000Z
- * @last-modified: 2026-05-19T18:30:00.000Z
+ * @last-modified: 2026-05-25T22:00:00.000Z
  * @description: Fetches Eitje Open API resources and upserts eitje_raw_data; drives cron/sync handlers
- * @last-fix: [2026-05-19] Per-day shift counts in sync messages; Amsterdam calendar windows for all job types.
+ * @last-fix: [2026-05-25] Daily/historical sync now fetches planning_shifts, leave_requests, and events; planning_shifts rebuilds planned-hours aggregation.
+ *   Prior: [2026-05-19] Per-day shift counts in sync messages; Amsterdam calendar windows for all job types.
  *   Prior: [2026-05-19] Daily/historical sync windows use Europe/Amsterdam calendar days (not toISOString UTC).
  *   Prior: [2026-05-16] Dedupe labor agg after every sync window (integrity pass).
  *   Prior: [2026-05-11] Historical ends yesterday / skip labor rebuild when no upserts.
@@ -21,7 +22,12 @@ import type { Db } from 'mongodb'
 import { getMongoDatabaseName } from '../utils/db'
 import { documentToEitjeStoredCredentials, findEitjeCredentialDocument } from '../utils/eitjeApiCredentials'
 import { eitjeFetchJson, legacyEitjeV2Headers, normalizeEitjeBaseUrl, type EitjeStoredCredentials } from './eitjeOpenApiFetch'
-import { rebuildEitjeTimeRegistrationAggregation } from './eitjeRebuildAggregationService'
+import {
+  rebuildEitjeEventsAggregation,
+  rebuildEitjeLeaveRequestsAggregation,
+  rebuildEitjePlanningRegistrationAggregation,
+  rebuildEitjeTimeRegistrationAggregation,
+} from './eitjeRebuildAggregationService'
 import { runEitjeLaborAggIntegrity } from '../utils/eitjeAggIntegrity'
 import { enqueueSnapshotBuild } from '../utils/dailyOpsSnapshot/jobCoalescer'
 import { addCalendarDaysYmd, calendarYmdInAmsterdam } from '~/utils/dailyOpsBusinessDate'
@@ -47,8 +53,45 @@ export type EitjeSyncJobResult = {
     /** Amsterdam labor period (shift start) → shift count from API response */
     fetchedByPeriod?: Record<string, number>
   }
+  rawEndpoints?: EitjeRawDateSyncResult[]
   master?: { endpoints: Array<{ name: string; upserted: number; fetched: number; error?: string }> }
-  aggregation?: { deletedPeriods: number; inserted: number; error?: string }
+  aggregation?: {
+    deletedPeriods: number
+    inserted: number
+    aggDeduped?: number
+    error?: string
+    skippedRebuild?: boolean
+    integrityDeduped?: number
+    planning?: {
+      deletedPeriods: number
+      inserted: number
+      aggDeduped?: number
+      error?: string
+      skippedRebuild?: boolean
+    }
+    leave?: {
+      deletedPeriods: number
+      inserted: number
+      error?: string
+      skippedRebuild?: boolean
+    }
+    events?: {
+      deletedPeriods: number
+      inserted: number
+      error?: string
+      skippedRebuild?: boolean
+    }
+  }
+}
+
+export type EitjeRawDateEndpoint = 'time_registration_shifts' | 'planning_shifts' | 'leave_requests' | 'events'
+
+export type EitjeRawDateSyncResult = {
+  name: EitjeRawDateEndpoint
+  upserted: number
+  fetched: number
+  fetchedByPeriod: Record<string, number>
+  error?: string
 }
 
 export async function loadActiveEitjeCredentials (db: Db): Promise<EitjeStoredCredentials | null> {
@@ -104,8 +147,12 @@ function stableDedupKey (endpoint: string, raw: Record<string, unknown>): string
         raw.date,
         raw.start,
         raw.start_time,
+        raw.start_datetime,
+        raw.starts_at,
         raw.end,
         raw.end_time,
+        raw.end_datetime,
+        raw.ends_at,
         raw.environment_id,
         raw.environmentId,
       ])
@@ -153,70 +200,51 @@ function mergeFetchedByPeriod (
   return out
 }
 
-function daySpanInclusive (startYmd: string, endYmd: string): number {
-  let n = 0
-  let cur = startYmd
-  while (cur <= endYmd) {
-    n++
-    if (cur === endYmd) break
-    cur = addCalendarDaysYmd(cur, 1)
+function formatRawEndpointResult (result: EitjeRawDateSyncResult): string {
+  if (result.error) return `${result.name}: ${result.error}`
+  return `${result.name}: ${result.fetched} fetched (${result.upserted} writes)`
+}
+
+function findRawEndpointResult (
+  results: EitjeRawDateSyncResult[],
+  endpoint: EitjeRawDateEndpoint
+): EitjeRawDateSyncResult {
+  return results.find((result) => result.name === endpoint) ?? {
+    name: endpoint,
+    upserted: 0,
+    fetched: 0,
+    fetchedByPeriod: {},
+    error: `${endpoint} was not synced`,
   }
-  return n
 }
 
-/** e.g. 2026-05-19 → "19 May" */
-function formatOpsDayLabel (ymd: string): string {
-  const parts = ymd.split('-').map((x) => Number(x))
-  const y = parts[0] ?? 0
-  const m = parts[1] ?? 1
-  const d = parts[2] ?? 1
-  return new Intl.DateTimeFormat('en-GB', {
-    day: 'numeric',
-    month: 'short',
-    timeZone: 'UTC',
-  }).format(new Date(Date.UTC(y, m - 1, d, 12, 0, 0)))
-}
-
-function formatPerDayShiftBreakdown (
-  byPeriod: Record<string, number>,
-  startYmd: string,
-  endYmd: string,
-): string {
-  const parts: string[] = []
-  let cur = startYmd
-  while (cur <= endYmd) {
-    const n = byPeriod[cur] ?? 0
-    parts.push(`${n} on ${formatOpsDayLabel(cur)}`)
-    if (cur === endYmd) break
-    cur = addCalendarDaysYmd(cur, 1)
-  }
-  return parts.join(', ')
-}
-
-const PER_DAY_BREAKDOWN_MAX_DAYS = 7
-
-function formatTimeRegistrationSyncMessage (input: {
-  tr: { fetched: number; upserted: number; fetchedByPeriod?: Record<string, number> }
+function formatRawEndpointSyncMessage (input: {
+  results: EitjeRawDateSyncResult[]
   startYmd: string
   endYmd: string
-  aggInserted?: number
-  jobType?: string
-  skippedRebuild?: boolean
+  futureEndYmd?: string | undefined
+  laborAggInserted?: number | undefined
+  planningAggInserted?: number | undefined
+  leaveAggInserted?: number | undefined
+  eventsAggInserted?: number | undefined
+  skippedLaborRebuild?: boolean | undefined
+  skippedPlanningRebuild?: boolean | undefined
+  skippedLeaveRebuild?: boolean | undefined
+  skippedEventsRebuild?: boolean | undefined
 }): string {
-  const { tr, startYmd, endYmd, aggInserted, jobType, skippedRebuild } = input
-  const span = daySpanInclusive(startYmd, endYmd)
-  let msg = `Synced ${tr.fetched} shifts (${tr.upserted} writes)`
-  if (tr.fetchedByPeriod && span <= PER_DAY_BREAKDOWN_MAX_DAYS) {
-    msg += `: ${formatPerDayShiftBreakdown(tr.fetchedByPeriod, startYmd, endYmd)}`
-  } else if (span > PER_DAY_BREAKDOWN_MAX_DAYS) {
-    msg += ` (${startYmd}…${endYmd})`
-  }
-  if (skippedRebuild) {
-    msg += `, no raw changes — skipped labor aggregation rebuild for ${startYmd}…${endYmd}`
-  } else if (aggInserted != null) {
-    const suffix = jobType ? ` (${jobType}, ${startYmd}…${endYmd})` : ''
-    msg += `; aggregation +${aggInserted} rows${suffix}`
-  }
+  const parts = input.results.map(formatRawEndpointResult)
+  let msg = `Synced ${parts.join(', ')} (${input.startYmd}…${input.endYmd})`
+  if (input.futureEndYmd) msg += `; forward endpoints through ${input.futureEndYmd}`
+  const aggParts: string[] = []
+  if (input.skippedLaborRebuild) aggParts.push('labor skipped')
+  else if (input.laborAggInserted != null) aggParts.push(`labor +${input.laborAggInserted}`)
+  if (input.skippedPlanningRebuild) aggParts.push('planning skipped')
+  else if (input.planningAggInserted != null) aggParts.push(`planning +${input.planningAggInserted}`)
+  if (input.skippedLeaveRebuild) aggParts.push('leave skipped')
+  else if (input.leaveAggInserted != null) aggParts.push(`leave +${input.leaveAggInserted}`)
+  if (input.skippedEventsRebuild) aggParts.push('events skipped')
+  else if (input.eventsAggInserted != null) aggParts.push(`events +${input.eventsAggInserted}`)
+  if (aggParts.length > 0) msg += `; aggregation ${aggParts.join(', ')}`
   return msg
 }
 
@@ -232,9 +260,12 @@ type RawUpsertBody = {
 }
 
 function buildRawShiftDoc (raw: Record<string, unknown>, endpoint: string): RawUpsertBody {
-  const start = raw.start ?? raw.start_time ?? raw.started_at ?? raw.from
+  const start =
+    raw.start ?? raw.start_time ?? raw.started_at ?? raw.from ??
+    raw.start_datetime ?? raw.starts_at
   const dateRaw =
     raw.date ?? raw.work_date ?? raw.day ?? raw.worked_on ??
+    raw.start_datetime ?? raw.starts_at ??
     (typeof start === 'string' ? start.slice(0, 10) : null)
   let date = toDate(dateRaw)
   if (!date && start != null) date = toDate(start)
@@ -320,6 +351,53 @@ async function fetchAllList (
 }
 
 const TR_PATH = process.env.EITJE_PATH_TIME_REGISTRATION_SHIFTS ?? 'time_registration_shifts'
+const PLANNING_PATH = process.env.EITJE_PATH_PLANNING_SHIFTS ?? 'planning_shifts'
+const LEAVE_REQUESTS_PATH = process.env.EITJE_PATH_LEAVE_REQUESTS ?? 'leave_requests'
+const EVENTS_PATH = process.env.EITJE_PATH_EVENTS ?? 'events'
+
+const DAILY_RAW_DATE_ENDPOINTS = [
+  'time_registration_shifts',
+  'planning_shifts',
+  'leave_requests',
+  'events',
+] as const satisfies readonly EitjeRawDateEndpoint[]
+
+const FUTURE_RAW_DATE_ENDPOINTS = [
+  'planning_shifts',
+  'leave_requests',
+  'events',
+] as const satisfies readonly EitjeRawDateEndpoint[]
+
+const RAW_DATE_ENDPOINT_CONFIG: Record<EitjeRawDateEndpoint, {
+  path: string
+  pathCandidates: string[]
+  maxDaysEnv: string
+}> = {
+  time_registration_shifts: {
+    path: TR_PATH,
+    pathCandidates: [TR_PATH, `v1/${TR_PATH}`, 'time-registrations', 'time_registrations'],
+    maxDaysEnv: 'EITJE_TIME_REGISTRATION_MAX_DAYS',
+  },
+  planning_shifts: {
+    path: PLANNING_PATH,
+    pathCandidates: [PLANNING_PATH, `v1/${PLANNING_PATH}`, 'planning-shifts'],
+    maxDaysEnv: 'EITJE_PLANNING_SHIFTS_MAX_DAYS',
+  },
+  leave_requests: {
+    path: LEAVE_REQUESTS_PATH,
+    pathCandidates: [LEAVE_REQUESTS_PATH, `v1/${LEAVE_REQUESTS_PATH}`, 'leave-requests'],
+    maxDaysEnv: 'EITJE_LEAVE_REQUESTS_MAX_DAYS',
+  },
+  events: {
+    path: EVENTS_PATH,
+    pathCandidates: [EVENTS_PATH, `v1/${EVENTS_PATH}`],
+    maxDaysEnv: 'EITJE_EVENTS_MAX_DAYS',
+  },
+}
+
+function isRawDateEndpoint (endpoint: string): endpoint is EitjeRawDateEndpoint {
+  return (DAILY_RAW_DATE_ENDPOINTS as readonly string[]).includes(endpoint)
+}
 
 /** Same chunking as legacy `legacy/app/lib/cron/v2-cron-manager.ts` + `EITJE_DATE_LIMITS.time_registration_shifts` (7). */
 function splitDateRangeForEitje (startDate: string, endDate: string, maxDays: number): Array<{ startDate: string; endDate: string }> {
@@ -347,7 +425,11 @@ function splitDateRangeForEitje (startDate: string, endDate: string, maxDays: nu
   return chunks
 }
 
-async function persistRawTimeRegistrationShifts (db: Db, records: Record<string, unknown>[]): Promise<number> {
+async function persistRawDateEndpointRecords (
+  db: Db,
+  endpoint: EitjeRawDateEndpoint,
+  records: Record<string, unknown>[]
+): Promise<number> {
   if (records.length === 0) return 0
   const coll = db.collection('eitje_raw_data')
   let upserted = 0
@@ -355,10 +437,10 @@ async function persistRawTimeRegistrationShifts (db: Db, records: Record<string,
   for (let i = 0; i < records.length; i += chunk) {
     const slice = records.slice(i, i + chunk)
     const ops = slice.map((raw) => {
-      const doc = buildRawShiftDoc(raw, 'time_registration_shifts')
+      const doc = buildRawShiftDoc(raw, endpoint)
       return {
         updateOne: {
-          filter: { endpoint: 'time_registration_shifts', syncDedupKey: doc.syncDedupKey },
+          filter: { endpoint, syncDedupKey: doc.syncDedupKey },
           update: {
             $set: {
               endpoint: doc.endpoint,
@@ -381,16 +463,18 @@ async function persistRawTimeRegistrationShifts (db: Db, records: Record<string,
 }
 
 /** One API window only (max `maxDaysPerRequest` enforced by caller). Legacy GET+JSON body first. */
-async function syncTimeRegistrationShiftsWindow (
+async function syncRawDateEndpointWindow (
   db: Db,
   creds: EitjeStoredCredentials,
+  endpoint: EitjeRawDateEndpoint,
   startDate: string,
   endDate: string
 ): Promise<{ upserted: number; fetched: number; fetchedByPeriod: Record<string, number>; error?: string }> {
+  const config = RAW_DATE_ENDPOINT_CONFIG[endpoint]
   // Legacy Next.js integration used GET with JSON body filters for this endpoint.
   const tryLegacyGetWithBody = async (): Promise<{ records: Record<string, unknown>[]; lastError?: string; lastStatus: number }> => {
     const base = normalizeEitjeBaseUrl(creds.baseUrl).replace(/\/$/, '')
-    const rawUrl = `${base}/time_registration_shifts`
+    const rawUrl = `${base}/${config.path.replace(/^\//, '')}`
     const body = JSON.stringify({
       filters: {
         start_date: startDate,
@@ -444,7 +528,7 @@ async function syncTimeRegistrationShiftsWindow (
   const legacyBodyResult = await tryLegacyGetWithBody()
   if (legacyBodyResult.records.length > 0) {
     const fetchedByPeriod = countFetchedByLaborPeriod(legacyBodyResult.records)
-    const upserted = await persistRawTimeRegistrationShifts(db, legacyBodyResult.records)
+    const upserted = await persistRawDateEndpointRecords(db, endpoint, legacyBodyResult.records)
     return { upserted, fetched: legacyBodyResult.records.length, fetchedByPeriod }
   }
 
@@ -458,14 +542,7 @@ async function syncTimeRegistrationShiftsWindow (
   let err = ''
   let status = 0
 
-  const pathCandidates = [
-    TR_PATH,
-    `v1/${TR_PATH}`,
-    'time-registrations',
-    'time_registrations',
-  ]
-
-  outer: for (const path of pathCandidates) {
+  outer: for (const path of config.pathCandidates) {
     for (const q of queryAttempts) {
       const r = await fetchAllList(creds, path, q)
       status = r.lastStatus
@@ -484,19 +561,22 @@ async function syncTimeRegistrationShiftsWindow (
   }
 
   const fetchedByPeriod = countFetchedByLaborPeriod(records)
-  const upserted = await persistRawTimeRegistrationShifts(db, records)
+  const upserted = await persistRawDateEndpointRecords(db, endpoint, records)
   return { upserted, fetched: records.length, fetchedByPeriod }
 }
 
 const sleepMs = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
 
-async function syncTimeRegistrationShifts (
+async function syncRawDateEndpoint (
   db: Db,
   creds: EitjeStoredCredentials,
+  endpoint: EitjeRawDateEndpoint,
   startDate: string,
-  endDate: string
-): Promise<{ upserted: number; fetched: number; fetchedByPeriod: Record<string, number>; error?: string }> {
-  const maxDays = envInt('EITJE_TIME_REGISTRATION_MAX_DAYS', 7)
+  endDate: string,
+  options: { tolerateEmptyWindow404?: boolean } = {}
+): Promise<EitjeRawDateSyncResult> {
+  const config = RAW_DATE_ENDPOINT_CONFIG[endpoint]
+  const maxDays = envInt(config.maxDaysEnv, envInt('EITJE_RAW_DATE_ENDPOINT_MAX_DAYS', 7))
   const chunkDelayMs = envInt('EITJE_BACKFILL_CHUNK_DELAY_MS', 0)
   const chunks = splitDateRangeForEitje(startDate, endDate, maxDays)
   let upserted = 0
@@ -505,9 +585,14 @@ async function syncTimeRegistrationShifts (
   let i = 0
   for (const ch of chunks) {
     i++
-    const r = await syncTimeRegistrationShiftsWindow(db, creds, ch.startDate, ch.endDate)
+    const r = await syncRawDateEndpointWindow(db, creds, endpoint, ch.startDate, ch.endDate)
     if (r.error) {
+      if (options.tolerateEmptyWindow404 && r.error.startsWith('HTTP 404: null')) {
+        if (chunkDelayMs > 0 && i < chunks.length) await sleepMs(chunkDelayMs)
+        continue
+      }
       return {
+        name: endpoint,
         upserted,
         fetched,
         fetchedByPeriod,
@@ -519,7 +604,22 @@ async function syncTimeRegistrationShifts (
     fetchedByPeriod = mergeFetchedByPeriod(fetchedByPeriod, r.fetchedByPeriod)
     if (chunkDelayMs > 0 && i < chunks.length) await sleepMs(chunkDelayMs)
   }
-  return { upserted, fetched, fetchedByPeriod }
+  return { name: endpoint, upserted, fetched, fetchedByPeriod }
+}
+
+async function syncRawDateEndpoints (
+  db: Db,
+  creds: EitjeStoredCredentials,
+  endpoints: readonly EitjeRawDateEndpoint[],
+  startDate: string,
+  endDate: string,
+  options: { tolerateEmptyWindow404?: boolean } = {}
+): Promise<EitjeRawDateSyncResult[]> {
+  const results: EitjeRawDateSyncResult[] = []
+  for (const endpoint of endpoints) {
+    results.push(await syncRawDateEndpoint(db, creds, endpoint, startDate, endDate, options))
+  }
+  return results
 }
 
 async function syncListEndpoint (
@@ -656,46 +756,127 @@ export async function executeEitjeJob (db: Db, jobType: string): Promise<EitjeSy
     const todayYmd = calendarYmdInAmsterdam(now)
     const yesterdayYmd = addCalendarDaysYmd(todayYmd, -1)
 
-    const tr = await syncTimeRegistrationShifts(db, creds, yesterdayYmd, todayYmd)
-    let agg: { deletedPeriods: number; inserted: number; aggDeduped?: number; error?: string } | undefined
+    const futureSyncDays = envInt('EITJE_FUTURE_SYNC_DAYS', 90)
+    const futureEndYmd = addCalendarDaysYmd(todayYmd, futureSyncDays)
+    const timeRegistrationResult = await syncRawDateEndpoint(
+      db,
+      creds,
+      'time_registration_shifts',
+      yesterdayYmd,
+      todayYmd
+    )
+    const futureEndpoints = await syncRawDateEndpoints(
+      db,
+      creds,
+      FUTURE_RAW_DATE_ENDPOINTS,
+      yesterdayYmd,
+      futureEndYmd,
+      { tolerateEmptyWindow404: true }
+    )
+    const rawEndpoints = [timeRegistrationResult, ...futureEndpoints]
+    const tr = findRawEndpointResult(rawEndpoints, 'time_registration_shifts')
+    const planning = findRawEndpointResult(rawEndpoints, 'planning_shifts')
+    const leave = findRawEndpointResult(rawEndpoints, 'leave_requests')
+    const events = findRawEndpointResult(rawEndpoints, 'events')
+    const agg: NonNullable<EitjeSyncJobResult['aggregation']> = { deletedPeriods: 0, inserted: 0 }
     let integrityDeduped = 0
 
-    try {
-      // Rebuild aggregation for both days
-      agg = await rebuildEitjeTimeRegistrationAggregation(db, yesterdayYmd, todayYmd)
+    if (!tr.error) {
+      try {
+        const laborAgg = await rebuildEitjeTimeRegistrationAggregation(db, yesterdayYmd, todayYmd)
+        Object.assign(agg, laborAgg)
+      } catch (e) {
+        agg.error = e instanceof Error ? e.message : String(e)
+      }
+    } else {
+      agg.error = tr.error
+    }
 
-      // Map Eitje IDs to unified collections after aggregation
+    if (!planning.error) {
+      try {
+        agg.planning = await rebuildEitjePlanningRegistrationAggregation(db, yesterdayYmd, futureEndYmd)
+      } catch (e) {
+        agg.planning = {
+          deletedPeriods: 0,
+          inserted: 0,
+          error: e instanceof Error ? e.message : String(e),
+        }
+      }
+    } else {
+      agg.planning = { deletedPeriods: 0, inserted: 0, error: planning.error }
+    }
+
+    if (!leave.error) {
+      try {
+        agg.leave = await rebuildEitjeLeaveRequestsAggregation(db, yesterdayYmd, futureEndYmd)
+      } catch (e) {
+        agg.leave = {
+          deletedPeriods: 0,
+          inserted: 0,
+          error: e instanceof Error ? e.message : String(e),
+        }
+      }
+    } else {
+      agg.leave = { deletedPeriods: 0, inserted: 0, error: leave.error }
+    }
+
+    if (!events.error) {
+      try {
+        agg.events = await rebuildEitjeEventsAggregation(db, yesterdayYmd, futureEndYmd)
+      } catch (e) {
+        agg.events = {
+          deletedPeriods: 0,
+          inserted: 0,
+          error: e instanceof Error ? e.message : String(e),
+        }
+      }
+    } else {
+      agg.events = { deletedPeriods: 0, inserted: 0, error: events.error }
+    }
+
+    try {
       await syncUnifiedCollectionsFromRawData(db)
-      // Snapshot rebuilds (debounced) — one per (period, locationId) touched.
       for (const period of [yesterdayYmd, todayYmd]) {
         const locs = await db.collection('eitje_time_registration_aggregation').distinct('locationId', { period })
         for (const loc of locs) enqueueSnapshotBuild({ businessDate: period, locationId: String(loc) })
       }
     } catch (e) {
-      agg = {
-        deletedPeriods: 0,
-        inserted: 0,
-        error: e instanceof Error ? e.message : String(e),
-      }
+      agg.error = e instanceof Error ? e.message : String(e)
     } finally {
       integrityDeduped = await runEitjeLaborAggIntegrity(db, yesterdayYmd, todayYmd)
+      agg.integrityDeduped = integrityDeduped
     }
 
-    const ok = !tr.error && (tr.fetched > 0 || tr.upserted > 0 || (agg?.inserted ?? 0) > 0)
+    const hasErrors =
+      rawEndpoints.some((result) => result.error) ||
+      Boolean(agg.error) ||
+      Boolean(agg.planning?.error) ||
+      Boolean(agg.leave?.error) ||
+      Boolean(agg.events?.error)
+    const hasWork =
+      rawEndpoints.some((result) => result.fetched > 0 || result.upserted > 0) ||
+      agg.inserted > 0 ||
+      (agg.planning?.inserted ?? 0) > 0 ||
+      (agg.leave?.inserted ?? 0) > 0 ||
+      (agg.events?.inserted ?? 0) > 0
+    const ok = !hasErrors && hasWork
     
     return {
       ok,
       jobType,
-      message: tr.error
-        ? `Time registration: ${tr.error}`
-        : formatTimeRegistrationSyncMessage({
-            tr,
-            startYmd: yesterdayYmd,
-            endYmd: todayYmd,
-            aggInserted: agg?.inserted,
-          }),
+      message: formatRawEndpointSyncMessage({
+        results: rawEndpoints,
+        startYmd: yesterdayYmd,
+        endYmd: todayYmd,
+        futureEndYmd,
+        laborAggInserted: agg.inserted,
+        planningAggInserted: agg.planning?.inserted,
+        leaveAggInserted: agg.leave?.inserted,
+        eventsAggInserted: agg.events?.inserted,
+      }),
       timeRegistration: tr,
-      aggregation: agg ? { ...agg, integrityDeduped } : { integrityDeduped },
+      rawEndpoints,
+      aggregation: agg,
     }
   }
 
@@ -703,46 +884,83 @@ export async function executeEitjeJob (db: Db, jobType: string): Promise<EitjeSy
   const histDays = envInt('EITJE_HISTORICAL_SYNC_DAYS', 30)
   const { start, end } = dateRangeDaysEndingYesterday(histDays)
 
-  const tr = await syncTimeRegistrationShifts(db, creds, start, end)
-  let agg: { deletedPeriods: number; inserted: number; aggDeduped?: number; error?: string; skippedRebuild?: boolean; integrityDeduped?: number } | undefined
+  const rawEndpoints = await syncRawDateEndpoints(db, creds, DAILY_RAW_DATE_ENDPOINTS, start, end)
+  const tr = findRawEndpointResult(rawEndpoints, 'time_registration_shifts')
+  const planning = findRawEndpointResult(rawEndpoints, 'planning_shifts')
+  const leave = findRawEndpointResult(rawEndpoints, 'leave_requests')
+  const events = findRawEndpointResult(rawEndpoints, 'events')
+  const agg: NonNullable<EitjeSyncJobResult['aggregation']> = { deletedPeriods: 0, inserted: 0 }
   let integrityDeduped = 0
 
   try {
-    const rawChanged = (tr.upserted ?? 0) > 0
-    if (!tr.error && rawChanged) {
-      agg = await rebuildEitjeTimeRegistrationAggregation(db, start, end)
-      await syncUnifiedCollectionsFromRawData(db)
+    const timeRawChanged = (tr.upserted ?? 0) > 0
+    const planningRawChanged = (planning.upserted ?? 0) > 0
+    if (!tr.error && timeRawChanged) {
+      Object.assign(agg, await rebuildEitjeTimeRegistrationAggregation(db, start, end))
     } else if (!tr.error) {
-      agg = { deletedPeriods: 0, inserted: 0, skippedRebuild: true }
-      await syncUnifiedCollectionsFromRawData(db)
+      agg.skippedRebuild = true
+    } else {
+      agg.error = tr.error
     }
+
+    if (!planning.error && planningRawChanged) {
+      agg.planning = await rebuildEitjePlanningRegistrationAggregation(db, start, end)
+    } else if (!planning.error) {
+      agg.planning = { deletedPeriods: 0, inserted: 0, skippedRebuild: true }
+    } else {
+      agg.planning = { deletedPeriods: 0, inserted: 0, error: planning.error }
+    }
+
+    if (!leave.error && (leave.upserted ?? 0) > 0) {
+      agg.leave = await rebuildEitjeLeaveRequestsAggregation(db, start, end)
+    } else if (!leave.error) {
+      agg.leave = { deletedPeriods: 0, inserted: 0, skippedRebuild: true }
+    } else {
+      agg.leave = { deletedPeriods: 0, inserted: 0, error: leave.error }
+    }
+
+    if (!events.error && (events.upserted ?? 0) > 0) {
+      agg.events = await rebuildEitjeEventsAggregation(db, start, end)
+    } else if (!events.error) {
+      agg.events = { deletedPeriods: 0, inserted: 0, skippedRebuild: true }
+    } else {
+      agg.events = { deletedPeriods: 0, inserted: 0, error: events.error }
+    }
+
+    await syncUnifiedCollectionsFromRawData(db)
   } catch (e) {
-    agg = {
-      deletedPeriods: 0,
-      inserted: 0,
-      error: e instanceof Error ? e.message : String(e),
-    }
+    agg.error = e instanceof Error ? e.message : String(e)
   } finally {
     integrityDeduped = await runEitjeLaborAggIntegrity(db, start, end)
+    agg.integrityDeduped = integrityDeduped
   }
 
-  const ok = !tr.error
+  const ok =
+    !rawEndpoints.some((result) => result.error) &&
+    !agg.error &&
+    !Boolean(agg.planning?.error) &&
+    !Boolean(agg.leave?.error) &&
+    !Boolean(agg.events?.error)
 
   return {
     ok,
     jobType,
-    message: tr.error
-      ? `Time registration: ${tr.error}`
-      : formatTimeRegistrationSyncMessage({
-          tr,
-          startYmd: start,
-          endYmd: end,
-          aggInserted: agg?.skippedRebuild ? undefined : agg?.inserted,
-          jobType,
-          skippedRebuild: agg?.skippedRebuild,
-        }),
+    message: formatRawEndpointSyncMessage({
+      results: rawEndpoints,
+      startYmd: start,
+      endYmd: end,
+      laborAggInserted: agg.skippedRebuild ? undefined : agg.inserted,
+      planningAggInserted: agg.planning?.skippedRebuild ? undefined : agg.planning?.inserted,
+      leaveAggInserted: agg.leave?.skippedRebuild ? undefined : agg.leave?.inserted,
+      eventsAggInserted: agg.events?.skippedRebuild ? undefined : agg.events?.inserted,
+      skippedLaborRebuild: agg.skippedRebuild,
+      skippedPlanningRebuild: agg.planning?.skippedRebuild,
+      skippedLeaveRebuild: agg.leave?.skippedRebuild,
+      skippedEventsRebuild: agg.events?.skippedRebuild,
+    }),
     timeRegistration: tr,
-    aggregation: agg ? { ...agg, integrityDeduped } : { integrityDeduped },
+    rawEndpoints,
+    aggregation: agg,
   }
 }
 
@@ -760,7 +978,7 @@ async function syncUnifiedMasterDataFromRaw (db: Db): Promise<{ locationsUpdated
       const extracted = doc.extracted as Record<string, unknown>
       const id = extracted?.id
       const name = extracted?.name
-      if (id && name) uniqueEnvs.set(id, String(name))
+      if ((typeof id === 'string' || typeof id === 'number') && name) uniqueEnvs.set(id, String(name))
     })
 
     for (const [id, name] of uniqueEnvs) {
@@ -788,7 +1006,7 @@ async function syncUnifiedMasterDataFromRaw (db: Db): Promise<{ locationsUpdated
       const extracted = doc.extracted as Record<string, unknown>
       const id = extracted?.id
       const name = extracted?.name
-      if (id && name) uniqueTeams.set(id, String(name))
+      if ((typeof id === 'string' || typeof id === 'number') && name) uniqueTeams.set(id, String(name))
     })
 
     for (const [id, name] of uniqueTeams) {
@@ -820,7 +1038,7 @@ async function syncUnifiedMasterDataFromRaw (db: Db): Promise<{ locationsUpdated
       const lastName = raw?.last_name ? String(raw.last_name) : ''
       const email = raw?.email ? String(raw.email) : ''
       const name = (firstName && lastName) ? `${firstName} ${lastName}` : email || String(id)
-      if (id) uniqueUsers.set(id, name)
+      if (typeof id === 'string' || typeof id === 'number') uniqueUsers.set(id, name)
     })
 
     for (const [id, name] of uniqueUsers) {
@@ -853,14 +1071,19 @@ async function syncUnifiedMasterDataFromRaw (db: Db): Promise<{ locationsUpdated
 }
 
 /** Map Eitje IDs (from eitje_raw_data) to unified_user and unified_team documents. */
-async function syncUnifiedCollectionsFromRawData (db: Db): Promise<{ usersUpdated: number; teamsUpdated: number; error?: string }> {
+async function syncUnifiedCollectionsFromRawData (db: Db): Promise<{
+  usersUpdated: number
+  teamsUpdated: number
+  membersLinked: number
+  error?: string
+}> {
   try {
     let usersUpdated = 0
     let teamsUpdated = 0
 
-    // Extract all unique user IDs from raw data
+    // Extract all unique user IDs from worked and planned raw shifts.
     const userAgg = await db.collection('eitje_raw_data').aggregate([
-      { $match: { endpoint: 'time_registration_shifts' } },
+      { $match: { endpoint: { $in: ['time_registration_shifts', 'planning_shifts'] } } },
       { $addFields: { userId: { $ifNull: ['$extracted.userId', '$rawApiResponse.user_id'] } } },
       { $group: { _id: '$userId', userName: { $first: '$rawApiResponse.user.name' } } },
       { $match: { _id: { $nin: [null, ''] } } },
@@ -887,9 +1110,9 @@ async function syncUnifiedCollectionsFromRawData (db: Db): Promise<{ usersUpdate
       usersUpdated += result.upsertedCount + result.modifiedCount
     }
 
-    // Extract all unique team IDs from raw data
+    // Extract all unique team IDs from worked and planned raw shifts.
     const teamAgg = await db.collection('eitje_raw_data').aggregate([
-      { $match: { endpoint: 'time_registration_shifts' } },
+      { $match: { endpoint: { $in: ['time_registration_shifts', 'planning_shifts'] } } },
       { $addFields: { teamId: { $ifNull: ['$extracted.teamId', '$rawApiResponse.team_id'] } } },
       { $group: { _id: '$teamId', teamName: { $first: '$rawApiResponse.team.name' } } },
       { $match: { _id: { $nin: [null, ''] } } },
@@ -961,34 +1184,77 @@ export async function syncEitjeByRequest (db: Db, body: {
     const ping = await pingEitjeApi(creds)
     return { ok: ping.ok, jobType: 'manual', message: ping.message }
   }
-  if (ep === 'time_registration_shifts') {
+  if (isRawDateEndpoint(ep)) {
     const dr = dateRangeDays(envInt('EITJE_DAILY_SYNC_DAYS', 14))
     const end = body.endDate ?? dr.end
     const start = body.startDate ?? dr.start
-    const tr = await syncTimeRegistrationShifts(db, creds, start, end)
-    let agg: { deletedPeriods: number; inserted: number; aggDeduped?: number; error?: string; integrityDeduped?: number } | undefined
+    const raw = await syncRawDateEndpoint(db, creds, ep, start, end, {
+      tolerateEmptyWindow404: ep !== 'time_registration_shifts',
+    })
+    const agg: NonNullable<EitjeSyncJobResult['aggregation']> = { deletedPeriods: 0, inserted: 0 }
     let integrityDeduped = 0
-    try {
-      agg = await rebuildEitjeTimeRegistrationAggregation(db, start, end)
-      await syncUnifiedCollectionsFromRawData(db)
-    } catch (e) {
-      agg = { deletedPeriods: 0, inserted: 0, error: e instanceof Error ? e.message : String(e) }
-    } finally {
-      integrityDeduped = await runEitjeLaborAggIntegrity(db, start, end)
+    if (!raw.error && ep === 'time_registration_shifts') {
+      try {
+        Object.assign(agg, await rebuildEitjeTimeRegistrationAggregation(db, start, end))
+        await syncUnifiedCollectionsFromRawData(db)
+      } catch (e) {
+        agg.error = e instanceof Error ? e.message : String(e)
+      } finally {
+        integrityDeduped = await runEitjeLaborAggIntegrity(db, start, end)
+        agg.integrityDeduped = integrityDeduped
+      }
+    } else if (!raw.error && ep === 'planning_shifts') {
+      try {
+        agg.planning = await rebuildEitjePlanningRegistrationAggregation(db, start, end)
+        await syncUnifiedCollectionsFromRawData(db)
+      } catch (e) {
+        agg.planning = {
+          deletedPeriods: 0,
+          inserted: 0,
+          error: e instanceof Error ? e.message : String(e),
+        }
+      }
+    } else if (!raw.error && ep === 'leave_requests') {
+      try {
+        agg.leave = await rebuildEitjeLeaveRequestsAggregation(db, start, end)
+      } catch (e) {
+        agg.leave = {
+          deletedPeriods: 0,
+          inserted: 0,
+          error: e instanceof Error ? e.message : String(e),
+        }
+      }
+    } else if (!raw.error && ep === 'events') {
+      try {
+        agg.events = await rebuildEitjeEventsAggregation(db, start, end)
+      } catch (e) {
+        agg.events = {
+          deletedPeriods: 0,
+          inserted: 0,
+          error: e instanceof Error ? e.message : String(e),
+        }
+      }
     }
     return {
-      ok: !tr.error,
+      ok:
+        !raw.error &&
+        !agg.error &&
+        !Boolean(agg.planning?.error) &&
+        !Boolean(agg.leave?.error) &&
+        !Boolean(agg.events?.error),
       jobType: 'manual',
-      message: tr.error
-        ? `Time registration: ${tr.error}`
-        : formatTimeRegistrationSyncMessage({
-            tr,
-            startYmd: start,
-            endYmd: end,
-            aggInserted: agg?.inserted,
-          }),
-      timeRegistration: tr,
-      aggregation: agg ? { ...agg, integrityDeduped } : { integrityDeduped },
+      message: formatRawEndpointSyncMessage({
+        results: [raw],
+        startYmd: start,
+        endYmd: end,
+        laborAggInserted: ep === 'time_registration_shifts' ? agg.inserted : undefined,
+        planningAggInserted: ep === 'planning_shifts' ? agg.planning?.inserted : undefined,
+        leaveAggInserted: ep === 'leave_requests' ? agg.leave?.inserted : undefined,
+        eventsAggInserted: ep === 'events' ? agg.events?.inserted : undefined,
+      }),
+      rawEndpoints: [raw],
+      ...(ep === 'time_registration_shifts' ? { timeRegistration: raw } : {}),
+      aggregation: agg,
     }
   }
   const r = await syncListEndpoint(db, creds, ep, [ep, `v1/${ep}`])

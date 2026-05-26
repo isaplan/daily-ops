@@ -338,6 +338,32 @@
             </div>
           </div>
 
+          <!-- PillTabs (compact venue/context switcher) -->
+          <div>
+            <h3 class="text-lg font-medium text-gray-900 mb-4">PillTabs</h3>
+            <p class="text-sm text-gray-600 mb-3">
+              Shared component <code class="text-xs">components/ui/PillTabs.vue</code> — compact rounded tabs for carousel/section context switching.
+            </p>
+            <div class="bg-white rounded-lg p-6 border border-gray-200 space-y-6">
+              <div>
+                <p class="text-xs font-semibold text-gray-500 mb-2">Venue carousel selector</p>
+                <UiPillTabs
+                  v-model="dsPillVenue"
+                  :options="dsPillVenueOpts"
+                  aria-label="Select venue"
+                />
+              </div>
+              <div>
+                <p class="text-xs font-semibold text-gray-500 mb-2">Compact status selector</p>
+                <UiPillTabs
+                  v-model="dsPillStatus"
+                  :options="dsPillStatusOpts"
+                  aria-label="Select status"
+                />
+              </div>
+            </div>
+          </div>
+
           <!-- Menu / Marketing Tiles -->
           <div>
             <h3 class="text-lg font-medium text-gray-900 mb-4">Marketing Tiles (Menu)</h3>
@@ -595,6 +621,20 @@ const dsTabRailNoteOpts: { value: 'details' | 'todos' | 'agreed'; label: string 
   { value: 'details', label: 'Details' },
   { value: 'todos', label: 'Todo' },
   { value: 'agreed', label: 'Agreed' },
+]
+
+const dsPillVenue = ref<'vkb' | 'bea' | 'lat'>('vkb')
+const dsPillVenueOpts: { value: 'vkb' | 'bea' | 'lat'; label: string }[] = [
+  { value: 'vkb', label: 'VKB' },
+  { value: 'bea', label: 'BEA' },
+  { value: 'lat', label: 'LAT' },
+]
+
+const dsPillStatus = ref<'open' | 'ready' | 'done'>('open')
+const dsPillStatusOpts: { value: 'open' | 'ready' | 'done'; label: string }[] = [
+  { value: 'open', label: 'Open' },
+  { value: 'ready', label: 'Ready' },
+  { value: 'done', label: 'Done' },
 ]
 
 const primaryShades = [

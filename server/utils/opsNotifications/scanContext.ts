@@ -4,7 +4,10 @@
 
 import type { Db } from 'mongodb'
 import { ObjectId } from 'mongodb'
-import { DAILY_OPS_SNAPSHOT_COLLECTIONS } from '~/types/daily-ops-snapshot'
+import {
+  DAILY_OPS_SNAPSHOT_COLLECTIONS,
+  type DailyOpsSnapshotLaborSection,
+} from '~/types/daily-ops-snapshot'
 import { VENUE_STRIP_LOCATIONS } from '../dailyOpsVenueStrip'
 import {
   calculateBasisCronPriority,
@@ -27,10 +30,12 @@ export function snapKey(businessDate: string, locationId: string): string {
 export type OpsScanContext = {
   startDate: string
   endDate: string
+  openBusinessDate: string
   locIds: string[]
   locName: Map<string, string>
   revenueByKey: Map<string, { ex: number; inc: number }>
   laborKeys: Set<string>
+  laborByKey: Map<string, DailyOpsSnapshotLaborSection>
   masterKeys: Set<string>
   borkExByKey: Map<string, number>
   eitjeHoursByKey: Map<string, number>
@@ -47,7 +52,7 @@ export type OpsScanWindow = {
 
 export function resolveScanWindow(opts?: { lookbackDays?: number; endDate?: string }): OpsScanWindow {
   const lookbackDays = opts?.lookbackDays ?? 30
-  const endDate = opts?.endDate ?? addCalendarDaysYmd(amsterdamOpenRegisterBusinessDateYmd(), -1)
+  const endDate = opts?.endDate ?? amsterdamOpenRegisterBusinessDateYmd()
   const startDate = addCalendarDaysYmd(endDate, -(lookbackDays - 1))
   return { lookbackDays, endDate, startDate }
 }
@@ -81,7 +86,16 @@ export async function loadOpsScanContext(
     db
       .collection(DAILY_OPS_SNAPSHOT_COLLECTIONS.laborSection)
       .find({ businessDate: dateFilter, locationId: { $in: locIds } })
-      .project({ businessDate: 1, locationId: 1, totals: 1 })
+      .project({
+        businessDate: 1,
+        locationId: 1,
+        locationName: 1,
+        totals: 1,
+        totals_gewerkt: 1,
+        operational: 1,
+        teams: 1,
+        workers: 1,
+      })
       .toArray(),
     db
       .collection(DAILY_OPS_SNAPSHOT_COLLECTIONS.master)
@@ -144,6 +158,12 @@ export async function loadOpsScanContext(
   const laborKeys = new Set(
     laborRows.map((r) => snapKey(String(r.businessDate), String(r.locationId))),
   )
+  const laborByKey = new Map(
+    laborRows.map((r) => [
+      snapKey(String(r.businessDate), String(r.locationId)),
+      r as DailyOpsSnapshotLaborSection,
+    ]),
+  )
   const masterKeys = new Set(
     masterRows.map((r) => snapKey(String(r.businessDate), String(r.locationId))),
   )
@@ -179,10 +199,12 @@ export async function loadOpsScanContext(
   return {
     startDate,
     endDate,
+    openBusinessDate: amsterdamOpenRegisterBusinessDateYmd(),
     locIds,
     locName,
     revenueByKey,
     laborKeys,
+    laborByKey,
     masterKeys,
     borkExByKey,
     eitjeHoursByKey,

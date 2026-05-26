@@ -12,12 +12,13 @@
 import { getDb } from '../../../utils/db'
 import { parseDailyOpsMetricsQuery } from '../../../utils/dailyOpsDashboardMetrics'
 import { buildVenueStripResponse } from '../../../utils/dailyOpsVenueStrip'
+import { snapshotCacheControl } from '../../../utils/dailyOpsSnapshot/fetchDashboardBundle'
 import type { VenueStripResponseDto } from '~/types/daily-ops-dashboard'
 
 export default defineEventHandler(async (event): Promise<VenueStripResponseDto> => {
-  setResponseHeader(event, 'Cache-Control', 'no-store')
   const q = getQuery(event) as Record<string, unknown>
   const ctx = parseDailyOpsMetricsQuery(q)
+  setResponseHeader(event, 'Cache-Control', snapshotCacheControl(ctx))
   if (ctx.startDate !== ctx.endDate) {
     throw createError({
       statusCode: 400,

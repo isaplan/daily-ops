@@ -1,12 +1,12 @@
 <template>
   <section class="min-w-0">
-    <div v-if="pending" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8">
-      <USkeleton v-for="i in 8" :key="i" class="h-24 w-full rounded-lg" />
+    <div v-if="pending" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-8">
+      <USkeleton v-for="i in 11" :key="i" class="h-24 w-full rounded-lg" />
     </div>
 
     <div
       v-else-if="totals"
-      class="grid min-w-0 gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8"
+      class="grid min-w-0 gap-4 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-8"
     >
       <template v-for="tile in tiles">
         <button
@@ -44,7 +44,16 @@
 </template>
 
 <script setup lang="ts">
-import type { DailyOpsSummaryDto, VenueStripCardDto, VenueStripResponseDto } from '~/types/daily-ops-dashboard'
+import type {
+  DailyOpsAttendanceKpiBlockDto,
+  DailyOpsAttendanceKpiKind,
+  DailyOpsAttendanceKpisDto,
+  DailyOpsAttendanceStaffRowDto,
+  DailyOpsAttendanceVenueDto,
+  DailyOpsSummaryDto,
+  VenueStripCardDto,
+  VenueStripResponseDto,
+} from '~/types/daily-ops-dashboard'
 import { resolveDailyOpsPeriod } from '~/utils/dailyOpsPeriod'
 import type { KpiDrawerVenueSection } from '~/components/daily-ops/DailyOpsKpiDrawer.vue'
 
@@ -62,6 +71,9 @@ type KpiTileId =
   | 'gewerktKeuken'
   | 'gewerktBediening'
   | 'gewerktOverig'
+  | 'planned'
+  | 'leave'
+  | 'sick'
 
 const props = defineProps<{
   period: string
@@ -91,14 +103,62 @@ const { data: stripData, pending } = await useAsyncData(
   cacheKey,
   async (): Promise<VenueStripResponseDto | null> => {
     if (!isSingleDayPeriod.value) return null
-    return await $fetch<VenueStripResponseDto>('/api/daily-ops/metrics/venue-strip', {
-      query: stripQuery.value,
-    })
+    const params = new URLSearchParams(stripQuery.value).toString()
+    return await $fetch<VenueStripResponseDto>(`/api/daily-ops/metrics/venue-strip?${params}`)
   },
   { watch: [cacheKey, isSingleDayPeriod] }
 )
 
 const venues = computed(() => stripData.value?.venues ?? [])
+const attendanceData = ref<DailyOpsAttendanceKpisDto | null>(null)
+const attendancePending = ref(false)
+const attendanceError = ref<string | null>(null)
+const attendanceLoadedForKey = ref<string | null>(null)
+const activeDrawer = ref<KpiTileId | null>(null)
+
+const attendanceDrawerIds = new Set<KpiTileId>(['planned', 'leave', 'sick'])
+
+function isAttendanceDrawerId (id: KpiTileId | null): id is DailyOpsAttendanceKpiKind {
+  return id === 'planned' || id === 'leave' || id === 'sick'
+}
+
+async function loadAttendanceKpis (): Promise<void> {
+  if (!isSingleDayPeriod.value) return
+  if (attendancePending.value) return
+  if (attendanceData.value && attendanceLoadedForKey.value === cacheKey.value) return
+
+  attendancePending.value = true
+  attendanceError.value = null
+  try {
+    const params = new URLSearchParams(stripQuery.value).toString()
+    attendanceData.value = await $fetch<DailyOpsAttendanceKpisDto>(
+      `/api/daily-ops/metrics/attendance-kpis?${params}`,
+    )
+    attendanceLoadedForKey.value = cacheKey.value
+  } catch (e) {
+    attendanceError.value = e instanceof Error ? e.message : 'Could not retrieve attendance data.'
+  } finally {
+    attendancePending.value = false
+  }
+}
+
+watch(cacheKey, () => {
+  attendanceData.value = null
+  attendanceError.value = null
+  attendanceLoadedForKey.value = null
+})
+
+watch(
+  [isSingleDayPeriod, cacheKey],
+  () => {
+    if (isSingleDayPeriod.value) void loadAttendanceKpis()
+  },
+  { immediate: true },
+)
+
+watch(activeDrawer, (id: KpiTileId | null) => {
+  if (isAttendanceDrawerId(id)) void loadAttendanceKpis()
+})
 
 const totals = computed(() => {
   const list = venues.value
@@ -128,6 +188,8 @@ const totals = computed(() => {
     revenue,
     laborAllLoaded,
     laborGewerktLoaded,
+    laborAllWages: laborAllLoaded,
+    laborGewerktWages: laborGewerktLoaded,
     laborGewerktPct,
     laborAllPct,
     laborPct: laborGewerktPct,
@@ -152,22 +214,67 @@ const tiles = computed(() => {
       id: 'gewerkt' as const,
       label: 'All uren',
       display: formatHoursWhole(t.allHours),
-      opensDrawer: false,
+      opensDrawer: true,
     },
     { id: 'gewerktKeuken' as const, label: 'Gewerkte uren · Keuken', display: formatHoursWhole(t.keukenHours), opensDrawer: true },
     { id: 'gewerktBediening' as const, label: 'Gewerkte uren · Bediening', display: formatHoursWhole(t.bedieningHours), opensDrawer: true },
     { id: 'gewerktOverig' as const, label: 'Gewerkte uren · Overig', display: formatHoursWhole(t.otherHours), opensDrawer: true },
+    { id: 'planned' as const, label: 'Plannend → Actual', display: formatPlannedToActualTile(), opensDrawer: true },
+    { id: 'leave' as const, label: 'Verlof', display: formatAttendanceTileHours('leave'), opensDrawer: true },
+    { id: 'sick' as const, label: 'Ziek', display: formatAttendanceTileHours('sick'), opensDrawer: true },
   ]
 })
 
-const activeDrawer = ref<KpiTileId | null>(null)
+function attendanceRowsTotalHours (kind: DailyOpsAttendanceKpiKind): number | null {
+  const block = attendanceData.value?.[kind]
+  if (!block) return null
+  return block.venues.reduce(
+    (venueSum: number, venue: DailyOpsAttendanceVenueDto) =>
+      venueSum + venue.rows.reduce(
+        (rowSum: number, row: DailyOpsAttendanceStaffRowDto) => rowSum + row.hours,
+        0,
+      ),
+    0,
+  )
+}
+
+function formatAttendanceTileHours (kind: DailyOpsAttendanceKpiKind): string {
+  const total = attendanceRowsTotalHours(kind)
+  if (total != null) return formatHoursWhole(total)
+  if (attendancePending.value) return '…'
+  return '0 h'
+}
+
+function plannedActualRowsTotalHours (): number | null {
+  const block = attendanceData.value?.planned
+  if (!block) return null
+  return block.venues.reduce(
+    (venueSum: number, venue: DailyOpsAttendanceVenueDto) =>
+      venueSum + venue.rows.reduce(
+        (rowSum: number, row: DailyOpsAttendanceStaffRowDto) => rowSum + (row.actualHours ?? 0),
+        0,
+      ),
+    0,
+  )
+}
+
+function formatPlannedToActualTile (): string {
+  const planned = attendanceRowsTotalHours('planned')
+  const actual = plannedActualRowsTotalHours()
+  if (planned != null && actual != null) {
+    return `${formatHoursWhole(planned)} → ${formatHoursWhole(actual)}`
+  }
+  if (attendancePending.value) return '…'
+  return '0 h → 0 h'
+}
 
 function openTile (id: KpiTileId): void {
   activeDrawer.value = id
+  if (attendanceDrawerIds.has(id)) void loadAttendanceKpis()
 }
 
 function venueRevenueRows (): KpiDrawerVenueRow[] {
-  return venues.value.map((v) => ({
+  return venues.value.map((v: VenueStripCardDto) => ({
     locationName: v.locationName,
     cells: [
       formatEurWhole(v.revenue.total),
@@ -178,7 +285,7 @@ function venueRevenueRows (): KpiDrawerVenueRow[] {
 }
 
 function venueLaborRows (): KpiDrawerVenueRow[] {
-  return venues.value.map((v) => ({
+  return venues.value.map((v: VenueStripCardDto) => ({
     locationName: v.locationName,
     cells: [
       formatEurWhole(v.labor.gewerkt.loaded),
@@ -190,7 +297,7 @@ function venueLaborRows (): KpiDrawerVenueRow[] {
 }
 
 function venueGewerktRows (): KpiDrawerVenueRow[] {
-  return venues.value.map((v) => ({
+  return venues.value.map((v: VenueStripCardDto) => ({
     locationName: v.locationName,
     cells: [
       formatHoursWhole(v.labor.gewerkt.hours),
@@ -201,7 +308,7 @@ function venueGewerktRows (): KpiDrawerVenueRow[] {
 }
 
 function venueKeukenRows (): KpiDrawerVenueRow[] {
-  return venues.value.map((v) => ({
+  return venues.value.map((v: VenueStripCardDto) => ({
     locationName: v.locationName,
     cells: [
       formatHoursWhole(v.labor.keuken.hours),
@@ -212,7 +319,7 @@ function venueKeukenRows (): KpiDrawerVenueRow[] {
 }
 
 function venueBedieningRows (): KpiDrawerVenueRow[] {
-  return venues.value.map((v) => ({
+  return venues.value.map((v: VenueStripCardDto) => ({
     locationName: v.locationName,
     cells: [
       formatHoursWhole(v.labor.bediening.hours),
@@ -222,10 +329,11 @@ function venueBedieningRows (): KpiDrawerVenueRow[] {
   }))
 }
 
-function staffForVenue (venue: VenueStripCardDto, filter: GewerktStaffFilter) {
+function staffForVenue (venue: VenueStripCardDto, filter: GewerktStaffFilter | 'all') {
   const workers = venue.workers ?? []
   return workers
     .filter((w) => {
+      if (filter === 'all') return true
       if (filter === 'gewerkt') return w.bucket === 'keuken' || w.bucket === 'bediening'
       return w.bucket === filter
     })
@@ -238,14 +346,88 @@ function staffForVenue (venue: VenueStripCardDto, filter: GewerktStaffFilter) {
 }
 
 function venueSectionsForGewerkt (
-  filter: GewerktStaffFilter,
+  filter: GewerktStaffFilter | 'all',
   cellsForVenue: (v: VenueStripCardDto) => string[],
 ): KpiDrawerVenueSection[] {
-  return venues.value.map((v) => ({
+  return venues.value.map((v: VenueStripCardDto) => ({
     locationName: v.locationName,
     cells: cellsForVenue(v),
     staff: staffForVenue(v, filter),
   }))
+}
+
+function attendanceStaffValue (row: DailyOpsAttendanceStaffRowDto, kind: DailyOpsAttendanceKpiKind): string {
+  if (kind === 'planned') return `${row.startLabel ?? '—'} - ${row.endLabel ?? '—'}`
+  if (kind === 'leave') return `${row.fromLabel ?? '—'} - ${row.toLabel ?? '—'}`
+  return formatEurWhole(row.loaded)
+}
+
+function attendanceStaffRows (
+  rows: DailyOpsAttendanceStaffRowDto[],
+  kind: DailyOpsAttendanceKpiKind,
+) {
+  return rows.map((row) => ({
+    name: row.userName,
+    team: kind === 'leave' ? row.reason || row.teamName : row.teamName,
+    hours: kind === 'planned'
+      ? `${formatHoursWhole(row.hours)} → ${formatHoursWhole(row.actualHours ?? 0)}`
+      : formatHoursWhole(row.hours),
+    wages: attendanceStaffValue(row, kind),
+  }))
+}
+
+function attendanceSections (
+  block: DailyOpsAttendanceKpiBlockDto,
+  kind: DailyOpsAttendanceKpiKind,
+): KpiDrawerVenueSection[] {
+  return block.venues.map((venue) => ({
+    locationName: venue.locationName,
+    cells: [
+      `${venue.workers} workers`,
+      formatHoursWhole(venue.hours),
+      kind === 'planned'
+        ? formatHoursWhole(venue.rows.reduce((sum, row) => sum + (row.actualHours ?? 0), 0))
+        : kind === 'sick' ? formatEurWhole(venue.loaded) : '—',
+    ],
+    staff: attendanceStaffRows(venue.rows, kind),
+    staffColumns: {
+      hours: kind === 'planned' ? 'Planned → actual' : kind === 'leave' ? 'Hours used' : 'Hours',
+      wages: kind === 'planned' ? 'Start - end' : kind === 'leave' ? 'From - to' : 'Cost',
+    },
+  }))
+}
+
+function attendanceDrawerContent (
+  kind: DailyOpsAttendanceKpiKind,
+  title: string,
+  intro: string,
+) {
+  if (attendancePending.value || !attendanceData.value) {
+    return {
+      title,
+      intro: attendanceError.value ?? 'One moment, we are retrieving the data...',
+      summaryRows: [] as KpiDrawerSummaryRow[],
+      venueColumns: [] as string[],
+      venueRows: [] as KpiDrawerVenueRow[],
+      venueSections: [] as KpiDrawerVenueSection[],
+    }
+  }
+
+  const block = attendanceData.value[kind]
+  const plannedActualHours = kind === 'planned' ? plannedActualRowsTotalHours() : null
+  return {
+    title,
+    intro,
+    summaryRows: [
+      { label: 'Combined workers', value: String(block.workers) },
+      { label: 'Combined hours', value: formatHoursWhole(block.hours) },
+      ...(kind === 'planned' ? [{ label: 'Actual worked', value: formatHoursWhole(plannedActualHours ?? 0) }] : []),
+      ...(kind === 'sick' ? [{ label: 'Sick cost', value: formatEurWhole(block.loaded) }] : []),
+    ],
+    venueColumns: ['Workers', kind === 'planned' ? 'Planned' : 'Hours', kind === 'planned' ? 'Actual' : 'Cost'],
+    venueRows: [] as KpiDrawerVenueRow[],
+    venueSections: attendanceSections(block, kind),
+  }
 }
 
 const drawerContent = computed(() => {
@@ -323,7 +505,7 @@ const drawerContent = computed(() => {
           { label: 'Gewerkte hours', value: formatHoursWhole(t.gewerktHours) },
         ],
         venueColumns: ['Hours', 'Wages', '€/h (team)'],
-        venueRows: venues.value.map((v) => ({
+        venueRows: venues.value.map((v: VenueStripCardDto) => ({
           locationName: v.locationName,
           cells: [
             formatHoursWhole(v.labor.gewerkt.hours),
@@ -331,6 +513,22 @@ const drawerContent = computed(() => {
             formatEurPerHourWhole(v.productivity.totalPerHour),
           ],
         })),
+      }
+    case 'gewerkt':
+      return {
+        title: 'All uren',
+        intro: 'All Eitje hours per venue, including gewerkte uren and overig buckets such as Ziek, Management, Algemeen, HR, stock teams, etc.',
+        summaryRows: [
+          { label: 'Combined all hours', value: formatHoursWhole(t.allHours) },
+          { label: 'Combined all-hours wages', value: formatEurWhole(t.laborAllWages) },
+        ],
+        venueColumns: ['All hours', 'Wages', '% rev'],
+        venueRows: [],
+        venueSections: venueSectionsForGewerkt('all', (v) => [
+          formatHoursWhole(v.labor.all.hours),
+          formatEurWhole(v.labor.all.loaded),
+          formatPctWhole(v.labor.all.laborPctOfRevenue),
+        ]),
       }
     case 'gewerktKeuken':
       return {
@@ -378,6 +576,24 @@ const drawerContent = computed(() => {
           formatPctWhole(v.labor.other?.laborPctOfRevenue ?? null),
         ]),
       }
+    case 'planned':
+      return attendanceDrawerContent(
+        'planned',
+        'Plannend',
+        'Planned Eitje shifts for this selected business date. Rows show planned hours and actual worked hours for the same staff/location/day.',
+      )
+    case 'leave':
+      return attendanceDrawerContent(
+        'leave',
+        'Verlof',
+        'Leave requests overlapping this selected date. Rows show staff, reason, hours used on the selected date, and the planned from/to dates.',
+      )
+    case 'sick':
+      return attendanceDrawerContent(
+        'sick',
+        'Ziek',
+        'Sick hours from Eitje worked aggregation where team is Ziek.',
+      )
     default:
       return empty
   }

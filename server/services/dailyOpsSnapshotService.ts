@@ -1,11 +1,13 @@
 /**
  * @registry-id: dailyOpsSnapshotService
  * @created: 2026-05-13T00:00:00.000Z
- * @last-modified: 2026-05-13T09:20:00.000Z
+ * @last-modified: 2026-05-26T01:12:00.000Z
  * @description: Reads aggregated Bork + Eitje + inbox collections, writes denormalized
  *   daily snapshots (master + revenue section + labor section per location × businessDate).
  *   Idempotent, event-driven, never touches raw data.
- * @last-fix: [2026-05-13] Coerce DEBUG to string before .includes (boolean env).
+ * @last-fix: [2026-05-26] Writes dedicated revenue-by-order-time snapshot section.
+ *   Prior: [2026-05-25] Snapshot sealed on cron_hour 7 OR 8 (morning final); was incorrectly checking === 8 only.
+ * @adr-ref: ADR-004 (Daily Ops snapshot = authoritative revenue source)
  *
  * @architecture:
  *   - No raw data reads — aggregated collections only (bork_business_days, bork_sales_by_hour,
@@ -14,7 +16,7 @@
  *   - Business day = 08:00 Amsterdam → 07:59:59 next ISO day.
  *   - Eitje period == business_date directly (no shifts start 00:00–07:59 per ops pattern).
  *   - Lead revenue source decided in buildRevenueSection (inbox-sealed > inbox-latest > bork).
- *   - status: 'partial' until 08:05 inbox row received, then sealDailyOpsSnapshot() flips to 'final'.
+ *   - status: 'partial' until morning final (cron 7 or 8) inbox row received, then sealDailyOpsSnapshot() flips to 'final'.
  *   - Idempotent: same input → same output modulo lastBuiltAt / sealedAt.
  *
  * @exports-to:
@@ -37,12 +39,16 @@ import { buildRevenueHourlySection } from '../utils/dailyOpsSnapshot/buildRevenu
 import { buildRevenueProductsSection } from '../utils/dailyOpsSnapshot/buildRevenueProductsSection'
 import { buildRevenueTablesSection } from '../utils/dailyOpsSnapshot/buildRevenueTablesSection'
 import { buildRevenueWorkersSection } from '../utils/dailyOpsSnapshot/buildRevenueWorkersSection'
+import { buildRevenueByOrderTimeSection } from '../utils/dailyOpsSnapshot/buildRevenueByOrderTimeSection'
 import { buildLaborSection } from '../utils/dailyOpsSnapshot/buildLaborSection'
 import { buildCards } from '../utils/dailyOpsSnapshot/buildCards'
 import { resolveSources } from '../utils/dailyOpsSnapshot/resolveSources'
 import { registerSnapshotRunner } from '../utils/dailyOpsSnapshot/jobCoalescer'
 
-const DEBUG = String(process.env.DEBUG ?? '').includes('snapshot:build')
+const runtimeProcess = globalThis as typeof globalThis & {
+  process?: { env?: Record<string, string | undefined> }
+}
+const DEBUG = String(runtimeProcess.process?.env?.DEBUG ?? '').includes('snapshot:build')
 
 async function resolveLocationName(db: Db, locationId: string): Promise<string> {
   if (!ObjectId.isValid(locationId)) return ''
@@ -92,7 +98,7 @@ export async function buildDailyOpsSnapshot(input: BuildSnapshotInput): Promise<
         console.warn(`[snapshot:build] ${businessDate} ${locationId} | missing locationName`)
       }
       const buildInput = { businessDate, locationId, locationName }
-      const [revenue, labor, sources, revenueHourly, revenueProducts, revenueTables, revenueWorkers] =
+      const [revenue, labor, sources, revenueHourly, revenueProducts, revenueTables, revenueWorkers, revenueByOrderTime] =
         await Promise.all([
           buildRevenueSection(db, buildInput),
           buildLaborSection(db, buildInput),
@@ -101,10 +107,13 @@ export async function buildDailyOpsSnapshot(input: BuildSnapshotInput): Promise<
           buildRevenueProductsSection(db, buildInput),
           buildRevenueTablesSection(db, buildInput),
           buildRevenueWorkersSection(db, buildInput),
+          buildRevenueByOrderTimeSection(db, buildInput),
         ])
       const cards = buildCards(revenue, labor)
 
-      const sealed = sources.inbox.cronHour === 8
+      // Snapshot is "sealed" (final) when we have a morning final Basis report (cron 7 or 8).
+      // Both are valid morning-final crons; using === 8 only would miss cron 7 reports.
+      const sealed = sources.inbox.cronHour === 7 || sources.inbox.cronHour === 8
       const master: DailyOpsSnapshotMaster = {
         schema_version: 1,
         businessDate,
@@ -121,6 +130,7 @@ export async function buildDailyOpsSnapshot(input: BuildSnapshotInput): Promise<
           revenueProducts: true,
           revenueTables: true,
           revenueWorkers: true,
+          revenueByOrderTime: true,
         },
         lastBuiltAt: new Date(),
         sealedAt: sealed ? new Date() : null,
@@ -143,6 +153,9 @@ export async function buildDailyOpsSnapshot(input: BuildSnapshotInput): Promise<
         db
           .collection(DAILY_OPS_SNAPSHOT_COLLECTIONS.revenueWorkersSection)
           .updateOne(filter, { $set: revenueWorkers }, { upsert: true }),
+        db
+          .collection(DAILY_OPS_SNAPSHOT_COLLECTIONS.revenueByOrderTimeSection)
+          .updateOne(filter, { $set: revenueByOrderTime }, { upsert: true }),
       ])
 
       if (DEBUG) {

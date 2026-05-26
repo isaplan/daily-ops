@@ -1,11 +1,15 @@
 /**
  * @registry-id: basisReportMapper
  * @created: 2026-04-01T00:00:00.000Z
- * @last-modified: 2026-05-18T12:00:00.000Z
+ * @last-modified: 2026-05-25T12:20:00.000Z
  * @description: Parse Trivec Basis inbox XLSX → inbox-bork-basis-report rows.
- * @last-fix: [2026-05-18] SSOT cron_priority + pickByCronPriority; cron 7/8 = final yesterday
+ * @last-fix: [2026-05-25] PERMANENT FIX: Email "Yesterday" is SSOT for business_date assignment; overrides generic calendarToBusinessDay
+ * @adr-ref: ADR-004 (Daily Ops GET = snapshot only)
  *
  * ## Basis inbox pick rule (SSOT — all revenue headline reads)
+ * **NEW:** Email subject "Yesterday" is authoritative signal for previous-day business_date.
+ * This overrides generic calendarToBusinessDay logic and prevents recurring "wrong cron_hour" bugs.
+ *
  * First **morning** poll (~07/08, cron_hour **7 or 8**) delivers the **final yesterday**
  * revenue for `business_date`. Subject/attachment say "Yesterday" / report date = next ISO day.
  * Cron **18/23** are **intraday partials** for the same calendar batch day — never headline totals.
@@ -17,6 +21,7 @@
  * ✓ server/utils/dailyOpsSnapshot/buildRevenueSection.ts
  * ✓ server/utils/dailyOpsDashboardMetrics.ts
  * ✓ server/services/inboxProcessService.ts
+ * ✓ server/utils/dailyOpsSnapshot/resolveSources.ts (source fingerprint)
  */
 
 import type { ParseResult } from '~/types/inbox'
@@ -255,9 +260,15 @@ export async function mapBasisReportXLSX(
   const amsterdamWallHour =
     receivedDate && !Number.isNaN(receivedDate.getTime()) ? getAmsterdamWallHour(receivedDate) : undefined
   const cronHour = batchHourFromSubject ?? amsterdamWallHour
+  
+  // SSOT: Email subject "Yesterday" is authoritative signal for "previous day" business_date
+  // regardless of cron_hour. This overrides generic calendarToBusinessDay logic.
+  const hasYesterdayInSubject = subject?.includes('Yesterday') ?? false
   const { businessDate, businessHour } =
     cronHour !== undefined && dateStr
-      ? calendarToBusinessDay(dateStr, cronHour)
+      ? hasYesterdayInSubject
+        ? { businessDate: addCalendarDaysISO(dateStr, -1), businessHour: cronHour }
+        : calendarToBusinessDay(dateStr, cronHour)
       : { businessDate: undefined, businessHour: undefined }
 
   // Parse sections from rows

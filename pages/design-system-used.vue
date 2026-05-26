@@ -132,6 +132,34 @@
         </div>
       </section>
 
+      <!-- PillTabs (compact carousel/context selector) -->
+      <section class="mb-16">
+        <div class="bg-white rounded-lg p-6 border border-gray-200 space-y-6">
+          <div>
+            <p class="text-xs uppercase font-semibold text-gray-500 mb-2">PillTabs</p>
+            <p class="text-sm text-gray-600">
+              Compact rounded tab component (<code class="rounded bg-gray-100 px-1 py-0.5 text-xs">components/ui/PillTabs.vue</code>) used for small context switches like Daily Ops venue carousel controls.
+            </p>
+          </div>
+          <div>
+            <p class="text-xs font-semibold text-gray-500 mb-3">Daily Ops venues</p>
+            <UiPillTabs
+              v-model="dsPillVenue"
+              :options="dsPillVenueOptions"
+              aria-label="Select venue"
+            />
+          </div>
+          <div>
+            <p class="text-xs font-semibold text-gray-500 mb-3">Compact status</p>
+            <UiPillTabs
+              v-model="dsPillStatus"
+              :options="dsPillStatusOptions"
+              aria-label="Select status"
+            />
+          </div>
+        </div>
+      </section>
+
       <!-- UButton Styles -->
       <section class="mb-16">
         <p class="text-xs uppercase font-semibold text-gray-500 mb-4">All Pages: UButton Component (All Variants)</p>
@@ -300,5 +328,19 @@ const dsRailNoteOptions: { value: 'details' | 'todos' | 'agreed'; label: string 
   { value: 'details', label: 'Details' },
   { value: 'todos', label: 'Todo' },
   { value: 'agreed', label: 'Agreed' },
+]
+
+const dsPillVenue = ref<'vkb' | 'bea' | 'lat'>('vkb')
+const dsPillVenueOptions: { value: 'vkb' | 'bea' | 'lat'; label: string }[] = [
+  { value: 'vkb', label: 'VKB' },
+  { value: 'bea', label: 'BEA' },
+  { value: 'lat', label: 'LAT' },
+]
+
+const dsPillStatus = ref<'open' | 'ready' | 'done'>('open')
+const dsPillStatusOptions: { value: 'open' | 'ready' | 'done'; label: string }[] = [
+  { value: 'open', label: 'Open' },
+  { value: 'ready', label: 'Ready' },
+  { value: 'done', label: 'Done' },
 ]
 </script>

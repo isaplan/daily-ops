@@ -260,9 +260,9 @@
         <span>System Used</span>
       </NuxtLink>
 
-      <UTooltip v-if="collapsed" text="Ops notifications" :popper="{ placement: 'right' }">
+      <UTooltip v-if="collapsed" text="Bug alerts" :popper="{ placement: 'right' }">
         <NuxtLink to="/ops-notifications" :class="navLinkClass(isOpsNotifications)" class="flex items-center relative">
-          <UIcon name="i-lucide-bell-ring" class="size-5 shrink-0" />
+          <UIcon name="i-lucide-bug" class="size-5 shrink-0" />
           <span
             v-if="opsNotifCount > 0"
             class="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-bold text-white"
@@ -277,8 +277,8 @@
         :class="navLinkClass(isOpsNotifications)"
         class="flex items-center gap-3 relative"
       >
-        <UIcon name="i-lucide-bell-ring" class="size-4 shrink-0" />
-        <span class="flex-1">Ops notifications</span>
+        <UIcon name="i-lucide-bug" class="size-4 shrink-0" />
+        <span class="flex-1">Bug alerts</span>
         <UBadge v-if="opsNotifCount > 0" color="error" variant="solid" size="sm">
           {{ opsNotifCount > 99 ? '99+' : opsNotifCount }}
         </UBadge>

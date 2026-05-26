@@ -74,13 +74,14 @@ export function detectSnapshotGapNotifications(ctx: OpsScanContext): OpsNotifica
   }
 
   for (const [key, rows] of ctx.inboxByKey) {
+    const [businessDate, locationId] = key.split(':::') as [string, string]
+    if (businessDate === ctx.openBusinessDate) continue
     const correct = pickBasisReportByCronPriority(rows)
     if (!correct || Number(correct.final_revenue_ex_vat ?? 0) <= REV_EPS) continue
     const snap = ctx.revenueByKey.get(key)
     if (!snap) continue
     const correctEx = Number(correct.final_revenue_ex_vat ?? 0)
     if (Math.abs(snap.ex - correctEx) <= REV_EPS) continue
-    const [businessDate, locationId] = key.split(':::') as [string, string]
     items.push(
       buildNotificationItem({
         kind: 'revenue_snapshot_stale_basis',

@@ -1,15 +1,21 @@
-import { getDb } from '../../../utils/db'
-import {
-  assembleDailyOpsLaborMetricsDto,
-  fetchLaborMetricsPipelineInput,
-  parseDailyOpsMetricsQuery,
-} from '../../../utils/dailyOpsDashboardMetrics'
-import type { DailyOpsLaborMetricsDto } from '~/types/daily-ops-dashboard'
+/**
+ * @registry-id: dailyOpsMetricsLabor
+ * @last-modified: 2026-05-25T00:00:00.000Z
+ * @last-fix: [2026-05-25] Delegates to snapshot bundle (ADR-004).
+ * @adr-ref: ADR-004
+ */
 
-export default defineEventHandler(async (event): Promise<DailyOpsLaborMetricsDto> => {
-  setResponseHeader(event, 'Cache-Control', 'no-store')
+import { getDb } from '../../../utils/db'
+import { parseDailyOpsMetricsQuery } from '../../../utils/dailyOpsDashboardMetrics'
+import {
+  fetchDailyOpsDashboardBundle,
+  snapshotCacheControl,
+} from '../../../utils/dailyOpsSnapshot/fetchDashboardBundle'
+
+export default defineEventHandler(async (event) => {
   const ctx = parseDailyOpsMetricsQuery(getQuery(event) as Record<string, unknown>)
+  setResponseHeader(event, 'Cache-Control', snapshotCacheControl(ctx))
   const db = await getDb()
-  const input = await fetchLaborMetricsPipelineInput(db, ctx)
-  return assembleDailyOpsLaborMetricsDto(ctx, input)
+  const { labor } = await fetchDailyOpsDashboardBundle(db, ctx)
+  return labor
 })

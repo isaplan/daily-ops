@@ -2,6 +2,10 @@
  * Migrate inbox/test basis report collections:
  * Populate business_date field for all documents where it's null or missing.
  *
+ * IMPORTANT: Uses "Yesterday" subject semantic as SSOT for business_date assignment.
+ * If email subject contains "Yesterday", business_date = report date - 1, regardless of cron_hour.
+ * Otherwise, uses generic calendarToBusinessDay logic (cron_hour >= 8 → same day, <8 → previous day).
+ *
  * Usage: node --experimental-strip-types scripts/migrate-basis-reports-add-business-date.ts
  */
 
@@ -49,13 +53,18 @@ async function migrateCollection(db: Db, collectionName: string): Promise<void> 
     try {
       const date = doc.date as string | undefined
       const cronHour = doc.cron_hour as number | undefined
+      const emailSubject = doc.metadata?.email_subject as string | undefined
 
       if (!date || typeof cronHour !== 'number') {
         failed++
         continue
       }
 
-      const { businessDate, businessHour } = calendarToBusinessDay(date, cronHour)
+      // SSOT: Email subject "Yesterday" is authoritative signal for previous-day business_date
+      const hasYesterdayInSubject = emailSubject?.includes('Yesterday') ?? false
+      const { businessDate, businessHour } = hasYesterdayInSubject
+        ? { businessDate: addCalendarDaysISO(date, -1), businessHour: cronHour }
+        : calendarToBusinessDay(date, cronHour)
 
       await collection.updateOne(
         { _id: doc._id },

@@ -1,5 +1,5 @@
 /**
- * Backfill daily_ops snapshots (master + revenue/labor sections incl. hourly/products/tables/workers).
+ * Backfill daily_ops snapshots (master + ALL sections: revenue, labor/Eitje operational, hourly, products, tables, workers).
  *
  * Default: discover oldest → newest business_date in Mongo, then build newest-first.
  *
