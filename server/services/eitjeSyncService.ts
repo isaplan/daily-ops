@@ -1,9 +1,10 @@
 /**
  * @registry-id: eitjeSyncService
  * @created: 2026-04-05T12:00:00.000Z
- * @last-modified: 2026-05-25T22:00:00.000Z
+ * @last-modified: 2026-05-27T12:00:00.000Z
  * @description: Fetches Eitje Open API resources and upserts eitje_raw_data; drives cron/sync handlers
- * @last-fix: [2026-05-25] Daily/historical sync now fetches planning_shifts, leave_requests, and events; planning_shifts rebuilds planned-hours aggregation.
+ * @last-fix: [2026-05-27] Enqueue snapshot rebuilds after historical sync; daily uses Bork+Eitje location union.
+ *   Prior: [2026-05-25] Daily/historical sync now fetches planning_shifts, leave_requests, and events; planning_shifts rebuilds planned-hours aggregation.
  *   Prior: [2026-05-19] Per-day shift counts in sync messages; Amsterdam calendar windows for all job types.
  *   Prior: [2026-05-19] Daily/historical sync windows use Europe/Amsterdam calendar days (not toISOString UTC).
  *   Prior: [2026-05-16] Dedupe labor agg after every sync window (integrity pass).
@@ -29,7 +30,7 @@ import {
   rebuildEitjeTimeRegistrationAggregation,
 } from './eitjeRebuildAggregationService'
 import { runEitjeLaborAggIntegrity } from '../utils/eitjeAggIntegrity'
-import { enqueueSnapshotBuild } from '../utils/dailyOpsSnapshot/jobCoalescer'
+import { enqueueSnapshotsForBusinessDateRange } from '../utils/dailyOpsSnapshot/triggerSnapshotRebuilds'
 import { addCalendarDaysYmd, calendarYmdInAmsterdam } from '~/utils/dailyOpsBusinessDate'
 import { linkMemberUnifiedUserId } from '../utils/memberEitjeContext'
 import { ObjectId } from 'mongodb'
@@ -836,10 +837,7 @@ export async function executeEitjeJob (db: Db, jobType: string): Promise<EitjeSy
 
     try {
       await syncUnifiedCollectionsFromRawData(db)
-      for (const period of [yesterdayYmd, todayYmd]) {
-        const locs = await db.collection('eitje_time_registration_aggregation').distinct('locationId', { period })
-        for (const loc of locs) enqueueSnapshotBuild({ businessDate: period, locationId: String(loc) })
-      }
+      await enqueueSnapshotsForBusinessDateRange(db, yesterdayYmd, todayYmd)
     } catch (e) {
       agg.error = e instanceof Error ? e.message : String(e)
     } finally {
@@ -933,6 +931,10 @@ export async function executeEitjeJob (db: Db, jobType: string): Promise<EitjeSy
   } finally {
     integrityDeduped = await runEitjeLaborAggIntegrity(db, start, end)
     agg.integrityDeduped = integrityDeduped
+  }
+
+  if (!agg.error) {
+    await enqueueSnapshotsForBusinessDateRange(db, start, end)
   }
 
   const ok =

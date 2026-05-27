@@ -1,9 +1,10 @@
 /**
  * @registry-id: borkRebuildAggregationV2Service
  * @created: 2026-04-14T18:00:00.000Z
- * @last-modified: 2026-05-26T00:55:00.000Z
+ * @last-modified: 2026-05-27T12:00:00.000Z
  * @description: V2 Bork aggregates — writes bork_business_days, bork_sales_by_day, bork_sales_by_hour, bork_sales_by_table, bork_sales_by_worker, bork_sales_by_guest_account, bork_sales_by_product (+ version suffix). Every revenue rollup now emits total_revenue (inc VAT, back-compat), total_revenue_ex_vat, total_revenue_inc_vat, total_vat extracted from raw line TotalEx/TotalInc.
- * @last-fix: [2026-05-26] Added order-time hourly aggregate beside paid-ticket hourly aggregate.
+ * @last-fix: [2026-05-27] Enqueue daily_ops_snapshot rebuild after V2 aggregation write.
+ *   Prior: [2026-05-26] Added order-time hourly aggregate beside paid-ticket hourly aggregate.
  *   Prior: [2026-05-13] Phase 0: add ex/inc/vat to every revenue rollup using extractLineRevenue helper. Single-pass design preserved; paymodes intentionally remain inc-only (tender amounts).
  *
  * @CRITICAL: Line revenue uses Lines[].TotalEx + TotalInc (live data confirmed); paymode totals use Order.Paymodes[].Total (tender amounts, no VAT split).
@@ -26,6 +27,7 @@
 
 import type { Db, Document } from 'mongodb'
 import { extractLineRevenue, resetBorkVatDebugSampler } from '../utils/borkVatCalculation'
+import { enqueueSnapshotsForBusinessDateRange } from '../utils/dailyOpsSnapshot/triggerSnapshotRebuilds'
 
 function borkDateToISO(borkDate: number): string {
   const s = String(borkDate).padStart(8, '0')
@@ -721,6 +723,8 @@ export async function rebuildBorkSalesAggregationV2(
     await db.collection(productsCollection).insertMany(productDocs as Document[])
     result.productLines = productDocs.length
   }
+
+  await enqueueSnapshotsForBusinessDateRange(db, clearStartBusiness, clearEndBusiness)
 
   return result
 }
