@@ -1,9 +1,9 @@
 /**
  * @registry-id: emailProcessorService
  * @created: 2026-01-26T00:00:00.000Z
- * @last-modified: 2026-04-18T00:00:00.000Z
+ * @last-modified: 2026-05-28T00:00:00.000Z
  * @description: Maps Gmail messages to CreateInboxEmailDto + attachment DTOs (Nuxt port)
- * @last-fix: [2026-04-18] Ported from next-js-old
+ * @last-fix: [2026-05-28] Extend attachment parser to extract Dranken hoog, Dranken laag, Keuken from all venues.
  *
  * @exports-to:
  * ✓ server/api/inbox/sync.post.ts

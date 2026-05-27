@@ -1,9 +1,10 @@
 /**
  * @registry-id: gmailOAuthService
  * @created: 2026-05-02T15:00:00.000Z
- * @last-modified: 2026-05-14T14:00:00.000Z
+ * @last-modified: 2026-05-27T20:00:00.000Z
  * @description: Store/retrieve Gmail OAuth refresh tokens from MongoDB (encrypted)
- * @last-fix: [2026-05-14] Persist oauthRedirectUri on connect; resolveGmailOAuthRedirectUriForServer for Nitro/cron without request
+ * @last-fix: [2026-05-27] Persist connected=false on invalid_grant so UI + ops alerts show reconnect.
+ *   Prior: [2026-05-14] Persist oauthRedirectUri on connect; resolveGmailOAuthRedirectUriForServer for Nitro/cron without request
  *
  * @exports-to:
  * ✓ server/services/gmailApiService.ts
@@ -21,12 +22,27 @@ export type GmailOAuthToken = {
   _id?: string
   accountId: string
   refreshToken: string
+  /** False after invalid_grant until user reconnects via Connect Gmail. */
+  connected?: boolean
+  lastOAuthError?: string | null
+  lastSyncFailedAt?: Date | null
+  lastSyncOkAt?: Date | null
   /** Redirect URI used when this refresh token was issued (for server-side refresh when env has no public URL). */
   oauthRedirectUri?: string
   accessToken?: string
   expiresAt?: number
   createdAt: Date
   updatedAt: Date
+}
+
+export type GmailConnectionStatus = {
+  /** Token present and last OAuth refresh succeeded (usable for sync). */
+  connected: boolean
+  needsReconnect: boolean
+  hasRefreshToken: boolean
+  lastOAuthError: string | null
+  lastSyncFailedAt: string | null
+  lastSyncOkAt: string | null
 }
 
 export async function saveGmailRefreshToken(
@@ -38,6 +54,9 @@ export async function saveGmailRefreshToken(
 
   const $set: Record<string, unknown> = {
     refreshToken,
+    connected: true,
+    lastOAuthError: null,
+    lastSyncFailedAt: null,
     updatedAt: new Date(),
   }
   const trimmedRedirect = opts?.oauthRedirectUri?.trim()
@@ -97,7 +116,63 @@ export async function resolveGmailOAuthRedirectUriForServer(): Promise<string> {
   return canonical
 }
 
+export async function getGmailConnectionStatus(): Promise<GmailConnectionStatus> {
+  const db = await getDb()
+  const col = db.collection(INBOX_COLLECTIONS.gmailOAuthToken)
+  const doc = (await col.findOne({ accountId: ACCOUNT_ID })) as GmailOAuthToken | null
+  const hasRefreshToken = Boolean(doc?.refreshToken?.length)
+  const lastError =
+    typeof doc?.lastOAuthError === 'string' && doc.lastOAuthError.length > 0
+      ? doc.lastOAuthError
+      : null
+  const explicitlyDisconnected = doc?.connected === false
+  const needsReconnect = explicitlyDisconnected || (hasRefreshToken && lastError != null)
+  const connected = hasRefreshToken && !needsReconnect
+
+  return {
+    connected,
+    needsReconnect,
+    hasRefreshToken,
+    lastOAuthError: lastError,
+    lastSyncFailedAt: doc?.lastSyncFailedAt ? new Date(doc.lastSyncFailedAt).toISOString() : null,
+    lastSyncOkAt: doc?.lastSyncOkAt ? new Date(doc.lastSyncOkAt).toISOString() : null,
+  }
+}
+
+export async function markGmailOAuthFailure(error: unknown): Promise<void> {
+  const message = error instanceof Error ? error.message : String(error)
+  const db = await getDb()
+  const col = db.collection(INBOX_COLLECTIONS.gmailOAuthToken)
+  await col.updateOne(
+    { accountId: ACCOUNT_ID },
+    {
+      $set: {
+        connected: false,
+        lastOAuthError: message.slice(0, 500),
+        lastSyncFailedAt: new Date(),
+        updatedAt: new Date(),
+      },
+    },
+  )
+}
+
+export async function markGmailOAuthSuccess(): Promise<void> {
+  const db = await getDb()
+  const col = db.collection(INBOX_COLLECTIONS.gmailOAuthToken)
+  await col.updateOne(
+    { accountId: ACCOUNT_ID },
+    {
+      $set: {
+        connected: true,
+        lastOAuthError: null,
+        lastSyncOkAt: new Date(),
+        updatedAt: new Date(),
+      },
+    },
+  )
+}
+
 export async function isGmailConnected(): Promise<boolean> {
-  const token = await getGmailRefreshToken()
-  return token !== null && token.length > 0
+  const status = await getGmailConnectionStatus()
+  return status.connected
 }

@@ -1,17 +1,21 @@
 /**
  * @registry-id: gmailConnectionStatusAPI
  * @created: 2026-05-03T16:45:00.000Z
- * @last-modified: 2026-05-03T16:45:00.000Z
- * @description: GET /api/inbox/gmail-status — check if Gmail is connected (token exists in DB)
- * @last-fix: [2026-05-03] Initial implementation
+ * @last-modified: 2026-05-27T20:00:00.000Z
+ * @description: GET /api/inbox/gmail-status — Gmail OAuth health (token + invalid_grant disconnect).
+ * @last-fix: [2026-05-27] Expose needsReconnect when cron invalidates refresh token.
  *
  * @exports-to:
  * ✓ pages/daily-ops/inbox/index.vue
+ * ✓ components/daily-ops/DailyOpsKpiTiles.vue
  */
 
-import { isGmailConnected } from '../../services/gmailOAuthService'
+import { getGmailConnectionStatus } from '../../services/gmailOAuthService'
 
 export default defineEventHandler(async () => {
-  const connected = await isGmailConnected()
-  return { success: true, data: { connected } }
+  const status = await getGmailConnectionStatus()
+  return {
+    success: true,
+    data: status,
+  }
 })

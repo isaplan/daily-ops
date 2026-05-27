@@ -20,14 +20,7 @@
 import type { Db } from 'mongodb'
 import { ObjectId } from 'mongodb'
 import type { SnapshotSourceFingerprint } from '../../../types/daily-ops-snapshot'
-
-/** Mirror of calculateBasisCronPriority from basis-report-mapper (SSOT elsewhere). */
-function calculateCronPriority(cronHour: number | undefined): number {
-  if (cronHour === 7 || cronHour === 8) return 3
-  if (cronHour === 23) return 2
-  if (cronHour === 18) return 1
-  return 0
-}
+import { pickMorningFinalBasisReport, type BasisReportData } from '../inbox/basis-report-mapper'
 
 export type SourcesFingerprint = {
   bork: SnapshotSourceFingerprint
@@ -72,16 +65,8 @@ export async function resolveSources(
       .toArray(),
   ])
 
-  // SSOT: Pick by cron priority (3=morning 7/8, 2=23:00, 1=18:00), then received_at DESC.
-  // This ensures morning final reports (7|8) are prioritized over intraday partials (23|18).
-  const chosenInbox = inboxDocs
-    .sort((a, b) => {
-      const priorityDiff = calculateCronPriority(b.cron_hour) - calculateCronPriority(a.cron_hour)
-      if (priorityDiff !== 0) return priorityDiff
-      const aTime = a.received_at ? new Date(a.received_at).getTime() : 0
-      const bTime = b.received_at ? new Date(b.received_at).getTime() : 0
-      return bTime - aTime
-    })[0] ?? null
+  const chosenInbox =
+    pickMorningFinalBasisReport(inboxDocs as unknown as BasisReportData[]) ?? null
   const lastInboxCron = chosenInbox?.cron_hour ?? null
   const lastInboxAt = chosenInbox?.received_at ?? null
 

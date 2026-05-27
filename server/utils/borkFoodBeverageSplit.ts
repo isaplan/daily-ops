@@ -174,6 +174,27 @@ export function splitLineRevenueByCatalog(
   return { food: revenueEx, drinks: 0 }
 }
 
+function round2(n: number): number {
+  return Math.round(n * 100) / 100
+}
+
+/** Scale category food/bev to match headline when product rollup ≠ revenue section total. */
+export function proportionalFoodBeverageToHeadline(
+  headlineExVat: number,
+  food: number,
+  beverage: number,
+): { food: number; beverage: number } {
+  const catTotal = food + beverage
+  if (headlineExVat <= 0 || catTotal <= 0) {
+    return { food: round2(food), beverage: round2(beverage) }
+  }
+  if (Math.abs(catTotal - headlineExVat) < 0.02) {
+    return { food: round2(food), beverage: round2(beverage) }
+  }
+  const ratio = headlineExVat / catTotal
+  return { food: round2(food * ratio), beverage: round2(beverage * ratio) }
+}
+
 export function rollupFoodBeverageFromCategories(
   categories: Array<{ name: string; revenue_ex_vat: number }>,
 ): { food: number; beverage: number } {

@@ -36,6 +36,8 @@
     "snapshots:backfill:daily-ops:all": "npx --yes tsx scripts/backfill-daily-ops-full-snapshots.ts -- --all-locations",
     "snapshots:backfill:daily-ops:dry-run": "npx --yes tsx scripts/backfill-daily-ops-full-snapshots.ts -- --dry-run",
     "snapshots:backfill:daily-ops:force": "npx --yes tsx scripts/backfill-daily-ops-full-snapshots.ts -- --force",
+    "inbox:purge-intraday": "npx --yes tsx scripts/purge-intraday-basis-inbox.ts",
+    "inbox:mark-gmail-disconnected": "npx --yes tsx scripts/mark-gmail-disconnected.ts",
     "start": "node .output/server/index.mjs"
   },
   "dependencies": {

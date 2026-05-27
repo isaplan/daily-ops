@@ -12,6 +12,8 @@
  */
 
 import { ensureInboxCollections, ensureInboxIndexes } from '../utils/inbox/collections'
+import { isInvalidGrantError } from '../utils/gmailOAuthError'
+import { markGmailOAuthFailure, markGmailOAuthSuccess } from './gmailOAuthService'
 import { emailProcessorService } from './emailProcessorService'
 import { processEmailAttachments } from './inboxProcessService'
 import * as inboxRepo from './inboxRepository'
@@ -35,10 +37,18 @@ export async function runInboxGmailSync(options: {
   const maxResults = options.maxResults ?? 50
   const query = options.query
 
-  const processedEmails = await emailProcessorService.processEmails({
-    maxResults,
-    query,
-  })
+  let processedEmails
+  try {
+    processedEmails = await emailProcessorService.processEmails({
+      maxResults,
+      query,
+    })
+  } catch (err) {
+    if (isInvalidGrantError(err)) {
+      await markGmailOAuthFailure(err)
+    }
+    throw err
+  }
 
   let emailsCreated = 0
   let emailsFailed = 0
@@ -94,6 +104,8 @@ export async function runInboxGmailSync(options: {
       })
     }
   }
+
+  await markGmailOAuthSuccess()
 
   return {
     success: true,

@@ -18,10 +18,13 @@ import { dataMappingService } from './dataMappingService'
 import { storeRawData, isTestDataType, updateSourceFileName } from './rawDataStorageService'
 import { gmailApiService } from './gmailApiService'
 import { aggregateDailySalesForEmail } from './borkSalesDailyAggregation'
-import { mapBasisReportXLSX, calculateBasisCronPriority } from '../utils/inbox/basis-report-mapper'
+import {
+  mapBasisReportXLSX,
+  shouldPersistBasisInboxRow,
+  isIntradayBasisCron,
+} from '../utils/inbox/basis-report-mapper'
 import { matchVenueLocationFromText } from '../utils/inbox/basis-report-location'
 import { getDb } from '../utils/db'
-import { enqueueSnapshotBuild } from '../utils/dailyOpsSnapshot/jobCoalescer'
 import { sealDailyOpsSnapshot } from './dailyOpsSnapshotService'
 import * as inboxRepo from './inboxRepository'
 import type { CreateParsedDataDto, DocumentType, EmailAttachmentDoc, FileFormat } from '~/types/inbox'
@@ -101,36 +104,56 @@ async function handleParsedMapping(
       )
 
       if (basisReport) {
-        const attKey = emailData?.attachmentId
-        const filter = attKey
-          ? { 'metadata.source_attachment_id': attKey }
-          : { date: basisReport.date, location: basisReport.location }
-        await db.collection('inbox-bork-basis-report').updateOne(
-          filter,
-          { $set: { ...basisReport, updated_at: new Date() } },
-          { upsert: true },
-        )
+        const locId = basisReport.location_id ? String(basisReport.location_id) : null
+        const businessDate = basisReport.business_date
 
-        // Snapshot hook: morning final (cron 7/8) seals; intraday 18/23 → partial rebuild.
-        if (basisReport.business_date && basisReport.location_id) {
-          const key = { businessDate: basisReport.business_date, locationId: String(basisReport.location_id) }
-          if (calculateBasisCronPriority(basisReport.cron_hour) === 3) {
-            void sealDailyOpsSnapshot(key)
-          } else {
-            enqueueSnapshotBuild(key)
+        if (!shouldPersistBasisInboxRow(basisReport.cron_hour)) {
+          if (businessDate && locId && isIntradayBasisCron(basisReport.cron_hour)) {
+            await db.collection('inbox-bork-basis-report').deleteMany({
+              business_date: businessDate,
+              location_id: locId,
+              cron_hour: basisReport.cron_hour,
+            })
           }
-        }
+          await inboxRepo.updateParsedData(String(parsedDataId), {
+            mapping: {
+              mappedToCollection: 'inbox-bork-basis-report',
+              matchedRecords: 0,
+              createdRecords: 0,
+              updatedRecords: 0,
+            },
+            rowsValid: 0,
+            rowsFailed: 0,
+          })
+        } else {
+          const attKey = emailData?.attachmentId
+          const filter = attKey
+            ? { 'metadata.source_attachment_id': attKey }
+            : { date: basisReport.date, location: basisReport.location, cron_hour: basisReport.cron_hour }
+          await db.collection('inbox-bork-basis-report').updateOne(
+            filter,
+            { $set: { ...basisReport, updated_at: new Date() } },
+            { upsert: true },
+          )
 
-        await inboxRepo.updateParsedData(String(parsedDataId), {
-          mapping: {
-            mappedToCollection: 'inbox-bork-basis-report',
-            matchedRecords: 1,
-            createdRecords: 1,
-            updatedRecords: 0,
-          },
-          rowsValid: 1,
-          rowsFailed: 0,
-        })
+          if (businessDate && locId) {
+            void sealDailyOpsSnapshot({
+              businessDate,
+              locationId: locId,
+            })
+          }
+
+          await inboxRepo.updateParsedData(String(parsedDataId), {
+            mapping: {
+              mappedToCollection: 'inbox-bork-basis-report',
+              matchedRecords: 1,
+              createdRecords: 1,
+              updatedRecords: 0,
+            },
+            rowsValid: 1,
+            rowsFailed: 0,
+          })
+        }
       }
     } else {
       const mappingResult = await dataMappingService.mapToCollection(
@@ -356,6 +379,50 @@ export async function processEmailAttachments(emailId: string): Promise<{
     success: attachmentsFailed === 0,
     attachmentsProcessed,
     attachmentsFailed,
+  }
+}
+
+/** Reset attachment parse state and run `processEmailAttachments` once (ops auto-fix). */
+export async function retryProcessEmailAttachments(
+  emailId: string,
+  opts?: { attachmentId?: string },
+): Promise<{
+  success: boolean
+  attachmentsProcessed: number
+  attachmentsFailed: number
+  error?: string
+}> {
+  const email = await inboxRepo.getEmailDocById(emailId)
+  if (!email) {
+    return {
+      success: false,
+      attachmentsProcessed: 0,
+      attachmentsFailed: 0,
+      error: 'Email not found',
+    }
+  }
+
+  const eid = email._id as ObjectId
+  const attachments = await inboxRepo.findAttachmentsByEmail(eid, {})
+  for (const attachment of attachments) {
+    const attId = String(attachment._id)
+    if (opts?.attachmentId && attId !== opts.attachmentId) continue
+    await inboxRepo.updateAttachment(attId, {
+      parseStatus: 'pending',
+      parseError: null,
+    })
+  }
+
+  try {
+    const result = await processEmailAttachments(emailId)
+    return { ...result, error: result.success ? undefined : 'One or more attachments failed to parse' }
+  } catch (e) {
+    return {
+      success: false,
+      attachmentsProcessed: 0,
+      attachmentsFailed: 0,
+      error: e instanceof Error ? e.message : String(e),
+    }
   }
 }
 

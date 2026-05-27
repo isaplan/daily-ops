@@ -98,6 +98,7 @@
               <th class="px-4 py-3">Area</th>
               <th class="px-4 py-3">Date</th>
               <th class="px-4 py-3">Venue</th>
+              <th class="px-4 py-3">Status</th>
               <th class="px-4 py-3">Issue</th>
               <th class="px-4 py-3 text-right">Action</th>
             </tr>
@@ -117,13 +118,36 @@
               </td>
               <td class="px-4 py-3 align-top">{{ item.locationName }}</td>
               <td class="px-4 py-3 align-top">
+                <UBadge
+                  :color="displayStatus(item) === 'fixed' ? 'success' : 'warning'"
+                  variant="subtle"
+                  size="sm"
+                >
+                  {{ displayStatus(item) }}
+                </UBadge>
+                <p v-if="fixOverlay(item)?.message" class="text-xs text-gray-600 mt-1 max-w-[14rem]">
+                  {{ fixOverlay(item)?.message }}
+                </p>
+              </td>
+              <td class="px-4 py-3 align-top">
                 <p class="font-semibold text-gray-900">{{ item.title }}</p>
                 <p class="text-gray-600 text-sm mt-1">{{ item.message }}</p>
                 <p class="text-gray-500 text-sm mt-1.5 font-mono break-all">{{ item.fixHint }}</p>
               </td>
-              <td class="px-4 py-3 align-top text-right">
+              <td class="px-4 py-3 align-top text-right space-y-1">
                 <UButton
-                  v-if="canRebuild(item)"
+                  v-if="canTryFix(item)"
+                  size="xs"
+                  variant="soft"
+                  color="primary"
+                  :loading="fixingId === item.id"
+                  :disabled="displayStatus(item) === 'fixed'"
+                  @click="tryFixOne(item)"
+                >
+                  Try fix
+                </UButton>
+                <UButton
+                  v-else-if="canRebuild(item)"
                   size="xs"
                   variant="soft"
                   :loading="rebuildingId === item.id"
@@ -145,7 +169,9 @@
 import type {
   OpsNotificationCategory,
   OpsNotificationDto,
+  OpsNotificationKind,
   OpsNotificationSeverity,
+  OpsNotificationStatus,
 } from '~/types/ops-notifications'
 
 const { report, pending, error, refresh } = useOpsNotificationsList(30)
@@ -182,7 +208,22 @@ const filteredItems = computed(() => {
 })
 
 const rebuildingId = ref<string | null>(null)
+const fixingId = ref<string | null>(null)
+const fixOverlays = ref<Record<string, { status: OpsNotificationStatus; message: string }>>({})
 const toast = useToast()
+
+const TRY_FIX_KINDS: OpsNotificationKind[] = [
+  'bork_revenue_aggregation_stale',
+  'bork_inbox_revenue_gap',
+  'missing_revenue_snapshot',
+  'missing_labor_snapshot',
+  'missing_master_snapshot',
+  'revenue_snapshot_empty',
+  'revenue_snapshot_stale_basis',
+  'eitje_labor_aggregation_stale',
+  'labor_snapshot_inconsistent',
+  'unparsed_basis_attachment',
+]
 
 function severityColor(sev: OpsNotificationSeverity): 'error' | 'warning' | 'neutral' {
   if (sev === 'critical') return 'error'
@@ -205,11 +246,72 @@ function canRebuild(item: OpsNotificationDto): boolean {
   return item.category === 'snapshot' && item.businessDate !== 'system' && item.locationId !== 'platform'
 }
 
+function canTryFix(item: OpsNotificationDto): boolean {
+  return (
+    TRY_FIX_KINDS.includes(item.kind) &&
+    item.businessDate !== 'system' &&
+    item.locationId !== 'platform'
+  )
+}
+
+function fixOverlay(item: OpsNotificationDto) {
+  return fixOverlays.value[item.id]
+}
+
+function displayStatus(item: OpsNotificationDto): OpsNotificationStatus {
+  return fixOverlay(item)?.status ?? item.status ?? 'open'
+}
+
 function formatTime(iso: string): string {
   try {
     return new Date(iso).toLocaleString('nl-NL', { timeZone: 'Europe/Amsterdam' })
   } catch {
     return iso
+  }
+}
+
+async function tryFixOne(item: OpsNotificationDto) {
+  fixingId.value = item.id
+  try {
+    const res = await $fetch<{
+      ok: boolean
+      fixed: boolean
+      status: OpsNotificationStatus
+      message: string
+    }>('/api/ops-notifications/try-fix', {
+      method: 'POST',
+      body: {
+        kind: item.kind,
+        businessDate: item.businessDate,
+        locationId: item.locationId,
+        meta: item.meta,
+      },
+    })
+    fixOverlays.value = {
+      ...fixOverlays.value,
+      [item.id]: { status: res.status, message: res.message },
+    }
+    toast.add({
+      title: res.fixed ? 'Fixed' : 'Try fix failed',
+      description: res.message,
+      color: res.fixed ? 'success' : 'warning',
+    })
+    await refresh()
+  } catch (e) {
+    fixOverlays.value = {
+      ...fixOverlays.value,
+      [item.id]: {
+        status: 'open',
+        message: `Tried fix, failed: ${e instanceof Error ? e.message : 'Request failed'}`,
+      },
+    }
+    toast.add({
+      title: 'Try fix failed',
+      description: e instanceof Error ? e.message : 'Request failed',
+      color: 'error',
+    })
+  } finally {
+    fixingId.value = null
   }
 }
 

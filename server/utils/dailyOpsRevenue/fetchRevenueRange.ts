@@ -16,9 +16,17 @@
 
 import type { Db } from 'mongodb'
 import { DAILY_OPS_SNAPSHOT_COLLECTIONS } from '~/types/daily-ops-snapshot'
+import type { DailyOpsSnapshotRevenueSection } from '~/types/daily-ops-snapshot'
 import type { DailyOpsRevenueQueryContext } from '~/types/daily-ops-revenue'
 import { eachBusinessDate } from './dateRange'
 import { rollupFoodBeverageFromCategories } from '../borkFoodBeverageSplit'
+import {
+  headlineExVatFromSnapshotRevenue,
+  morningInboxMapKey,
+  pickMorningFinalBasisReport,
+} from '../inbox/basis-report-mapper'
+import { loadMorningBasisInboxByLocDate } from '../inbox/loadMorningBasisInbox'
+import { getGmailConnectionStatus } from '../../services/gmailOAuthService'
 
 export type RevenueRangeTotals = {
   /** Lead-source headline (ex VAT). */
@@ -82,9 +90,14 @@ export async function fetchRevenueRange(
   }
   if (ctx.locationId) filter.locationId = ctx.locationId
 
-  const rows = await db.collection(DAILY_OPS_SNAPSHOT_COLLECTIONS.revenueSection).find(filter).toArray()
+  const [rows, morningInboxByLocDate, gmailStatus] = await Promise.all([
+    db.collection(DAILY_OPS_SNAPSHOT_COLLECTIONS.revenueSection).find(filter).toArray(),
+    loadMorningBasisInboxByLocDate(db, ctx.startDate, ctx.endDate),
+    getGmailConnectionStatus(),
+  ])
   if (rows.length === 0) return { ...EMPTY_TOTALS }
 
+  const forceBorkHeadline = gmailStatus.needsReconnect
   let revenue = 0
   let revenueIncVat = 0
   let borkRevenueIncVat = 0
@@ -92,15 +105,24 @@ export async function fetchRevenueRange(
   let itemsCount = 0
   let inboxDays = 0
   for (const r of rows) {
-    const doc = r as Record<string, unknown>
-    const totals = doc.totals as { ex_vat?: number; inc_vat?: number; quantity?: number } | undefined
-    const borkTotals = doc.borkTotals as { ex_vat?: number; inc_vat?: number } | undefined
-    revenue += Number(totals?.ex_vat ?? 0)
-    revenueIncVat += Number(totals?.inc_vat ?? 0)
-    borkRevenueExVat += Number(borkTotals?.ex_vat ?? 0)
-    borkRevenueIncVat += Number(borkTotals?.inc_vat ?? 0)
-    itemsCount += Number(totals?.quantity ?? 0)
-    if (doc.leadSource === 'inbox') inboxDays++
+    const doc = r as DailyOpsSnapshotRevenueSection
+    const morning =
+      morningInboxByLocDate.get(morningInboxMapKey(doc.businessDate, doc.locationId)) ?? []
+    const ex = headlineExVatFromSnapshotRevenue(doc, morning, { forceBorkHeadline })
+    const morningPick = forceBorkHeadline ? null : pickMorningFinalBasisReport(morning)
+    const useInbox = morningPick != null && Number(morningPick.final_revenue_ex_vat ?? 0) > 0
+    revenue += ex
+    revenueIncVat += useInbox
+      ? Number(
+          morningPick!.final_revenue_incl_vat ??
+            (morningPick as { final_revenue_inc_vat?: number }).final_revenue_inc_vat ??
+            0,
+        )
+      : Number(doc.borkTotals?.inc_vat ?? 0)
+    borkRevenueExVat += Number(doc.borkTotals?.ex_vat ?? 0)
+    borkRevenueIncVat += Number(doc.borkTotals?.inc_vat ?? 0)
+    itemsCount += Number(doc.totals?.quantity ?? doc.borkTotals?.quantity ?? 0)
+    if (useInbox) inboxDays++
   }
 
   const foodBev = await sumFoodBevFromProductSnapshots(db, {

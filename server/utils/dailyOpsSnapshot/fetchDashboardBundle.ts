@@ -56,7 +56,14 @@ import {
   type LaborByBusinessDateHourBucket,
 } from '../eitjeLaborByHour'
 import { VENUE_STRIP_LOCATIONS } from '../dailyOpsVenueStrip'
-import { resolveDailyOpsHeadlineRevenue } from '../dailyOpsHeadlineRevenue'
+import {
+  headlineExVatFromSnapshotRevenue,
+  morningInboxMapKey,
+  pickMorningFinalBasisReport,
+  type BasisReportData,
+} from '../inbox/basis-report-mapper'
+import { loadMorningBasisInboxByLocDate } from '../inbox/loadMorningBasisInbox'
+import { getGmailConnectionStatus } from '../../services/gmailOAuthService'
 import { aggregateLaborForRange } from './aggregateLaborForRange'
 import { buildProfitByIntervalFromSnapshotHourly } from './buildProfitByIntervalFromSnapshot'
 import { buildRevenueDrilldownSection } from './buildRevenueDrilldownSection'
@@ -129,6 +136,8 @@ function buildRevLabMaps(
   masters: DailyOpsSnapshotMaster[],
   revenue: DailyOpsSnapshotRevenueSection[],
   labor: DailyOpsSnapshotLaborSection[],
+  morningInboxByLocDate: Map<string, BasisReportData[]>,
+  forceBorkHeadline: boolean,
 ): {
   revMap: Map<string, number>
   labMap: Map<string, { laborCost: number; hours: number; distinctWorkerCount: number }>
@@ -138,7 +147,9 @@ function buildRevLabMaps(
   const labByLocDay = new Map<string, { laborCost: number; hours: number; workerIds: Set<string> }>()
 
   for (const r of revenue) {
-    const ex = Number(r.totals?.ex_vat ?? 0)
+    const morning =
+      morningInboxByLocDate.get(morningInboxMapKey(r.businessDate, r.locationId)) ?? []
+    const ex = headlineExVatFromSnapshotRevenue(r, morning, { forceBorkHeadline })
     revByDateLocation.set(locDayKey(r.businessDate, r.locationId), ex)
   }
   for (const m of masters) {
@@ -264,32 +275,17 @@ function categoryTotalsFromProducts(products: DailyOpsSnapshotRevenueProductsSec
 }
 
 function buildHeadlineRevenueByLocDay(
-  ctx: DailyOpsMetricsContext,
   revenue: DailyOpsSnapshotRevenueSection[],
-  products: DailyOpsSnapshotRevenueProductsSection[],
+  morningInboxByLocDate: Map<string, BasisReportData[]>,
+  forceBorkHeadline: boolean,
 ): Map<string, number> {
-  const productByLocDay = new Map(products.map((p) => [locDayKey(p.businessDate, p.locationId), p]))
   const out = new Map<string, number>()
 
   for (const rev of revenue) {
     const key = locDayKey(rev.businessDate, rev.locationId)
-    const productDoc = productByLocDay.get(key)
-    const split = rollupFoodBeverageFromCategories(
-      (productDoc?.categories ?? []).map((c) => ({ name: c.name, revenue_ex_vat: c.revenue_ex_vat })),
-    )
-    const inboxExVat =
-      rev.leadSource === 'inbox' && Number(rev.totals?.ex_vat ?? 0) > 0
-        ? Number(rev.totals.ex_vat)
-        : null
-    out.set(
-      key,
-      resolveDailyOpsHeadlineRevenue(ctx, {
-        snapshotExVat: Number(rev.totals?.ex_vat ?? 0),
-        apiDayTotal: Number(rev.borkTotals?.ex_vat ?? 0),
-        inboxExVat,
-        categoryTotal: split.food + split.beverage,
-      }),
-    )
+    const morning =
+      morningInboxByLocDate.get(morningInboxMapKey(rev.businessDate, rev.locationId)) ?? []
+    out.set(key, headlineExVatFromSnapshotRevenue(rev, morning, { forceBorkHeadline }))
   }
 
   return out
@@ -783,7 +779,12 @@ export async function fetchDailyOpsDashboardBundle(
   db: Db,
   ctx: DailyOpsMetricsContext,
 ): Promise<DailyOpsDashboardBundleDto> {
-  const rows = await loadSnapshotDashboardRows(db, ctx)
+  const [rows, morningInboxByLocDate, gmailStatus] = await Promise.all([
+    loadSnapshotDashboardRows(db, ctx),
+    loadMorningBasisInboxByLocDate(db, ctx.startDate, ctx.endDate),
+    getGmailConnectionStatus(),
+  ])
+  const forceBorkHeadline = gmailStatus.needsReconnect
   const snapshotContracts = contractRollupsFromSnapshotLabor(rows.labor)
 
   let hoursCostByContractType = snapshotContracts.hoursCostByContractType
@@ -801,19 +802,29 @@ export async function fetchDailyOpsDashboardBundle(
     if (contractTypeByDay.length === 0) contractTypeByDay = warmDay
   }
 
-  const { revMap, labMap, revByDateLocation } = buildRevLabMaps(rows.masters, rows.revenue, rows.labor)
+  const { revMap, labMap, revByDateLocation } = buildRevLabMaps(
+    rows.masters,
+    rows.revenue,
+    rows.labor,
+    morningInboxByLocDate,
+    forceBorkHeadline,
+  )
   const cat = categoryTotalsFromProducts(rows.products)
   const hourBundle = await resolveHourBundleForDashboard(db, ctx, rows)
-  const headlineRevenueByLocDay = buildHeadlineRevenueByLocDay(ctx, rows.revenue, rows.products)
+  const headlineRevenueByLocDay = buildHeadlineRevenueByLocDay(
+    rows.revenue,
+    morningInboxByLocDate,
+    forceBorkHeadline,
+  )
 
   let apiMergedTotal = 0
-  let inboxBasisExVat: number | null = null
+  let inboxBasisExVat = 0
+  for (const list of morningInboxByLocDate.values()) {
+    const pick = pickMorningFinalBasisReport(list)
+    if (pick) inboxBasisExVat += Number(pick.final_revenue_ex_vat ?? 0)
+  }
   for (const r of rows.revenue) {
     apiMergedTotal += Number(r.borkTotals?.ex_vat ?? 0)
-    if (r.leadSource === 'inbox') {
-      const ex = Number(r.totals?.ex_vat ?? 0)
-      if (ex > 0) inboxBasisExVat = (inboxBasisExVat ?? 0) + ex
-    }
   }
 
   const laborByLocHour = await resolveLaborByLocHourForDashboard(db, ctx, rows.labor)
@@ -845,7 +856,8 @@ export async function fetchDailyOpsDashboardBundle(
 
   const summary = buildDailyOpsSummaryDto(ctx, revMap, labMap, {
     apiBusinessDaysTotal: round2(apiMergedTotal),
-    inboxBasisExVat: inboxBasisExVat != null ? round2(inboxBasisExVat) : null,
+    inboxBasisExVat:
+      forceBorkHeadline || inboxBasisExVat <= 0 ? null : round2(inboxBasisExVat),
   })
   if (laborBreakdown.coverage.daysFound > 0) {
     summary.summary.laborBreakdown = laborBreakdown

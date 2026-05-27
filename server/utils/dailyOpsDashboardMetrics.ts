@@ -32,7 +32,11 @@
  */
 import type { Db } from 'mongodb'
 import { ObjectId } from 'mongodb'
-import { pickBasisReportByCronPriority, type BasisReportData } from './inbox/basis-report-mapper'
+import {
+  pickMorningFinalBasisReport,
+  resolveVenueDayHeadlineRevenue,
+  type BasisReportData,
+} from './inbox/basis-report-mapper'
 import { resolveBorkAggReadSuffix } from './borkAggVersionSuffix'
 import { sumFoodBeverageFromHourAggregates } from './borkFoodBeverageSplit'
 import { resolveDailyOpsPeriod } from '~/utils/dailyOpsPeriod'
@@ -597,7 +601,7 @@ function normalizeBasisLocationLabel(s: string): string {
 
 /**
  * Per-location deduplication: pick FINAL Bork basis report per business_date per location.
- * Delegates to pickBasisReportByCronPriority (see basis-report-mapper metadata).
+ * Morning final (cron 7|8) only — see resolveVenueDayHeadlineRevenue SSOT.
  */
 function pickBasisReportsPerLocation(reports: BasisReportData[]): Map<string, BasisReportData> {
   const byLocDate = new Map<string, BasisReportData[]>()
@@ -618,7 +622,7 @@ function pickBasisReportsPerLocation(reports: BasisReportData[]): Map<string, Ba
   const result = new Map<string, BasisReportData>()
   
   for (const [key, list] of byLocDate) {
-    const best = pickBasisReportByCronPriority(list)
+    const best = pickMorningFinalBasisReport(list)
     if (best) result.set(key, best)
   }
   
@@ -689,25 +693,7 @@ export async function fetchTodayDashboardRevenueExtras(
       locations: [],
     }))
 
-  const raw = await db
-    .collection('inbox-bork-basis-report')
-    .find({
-      date: dateStr,
-      cron_hour: { $in: [15, 23] },
-    })
-    .sort({ location: 1, cron_hour: 1 })
-    .toArray()
-
-  const inboxBasisCronSnapshots = raw.map((doc) => {
-    const b = doc as unknown as BasisReportData
-    return {
-      cronHour: Number(doc.cron_hour ?? 0),
-      finalRevenueExVat: Math.round(Number(b.final_revenue_ex_vat ?? 0) * 100) / 100,
-      locationLabel: String(b.location ?? ''),
-    }
-  })
-
-  return { apiHourlyByCalendarHour, inboxBasisCronSnapshots }
+  return { apiHourlyByCalendarHour, inboxBasisCronSnapshots: [] }
 }
 
 const LOC_DAY_KEY_SEP = '\x1f'
@@ -1516,27 +1502,24 @@ export function assembleDailyOpsLaborMetricsDto(
  * In-progress `today` stays API-led (hourly sync). Multi-day ranges stay API-sum until we aggregate inbox per day.
  */
 function resolveHeadlineRevenue(
-  ctx: DailyOpsMetricsContext,
+  _ctx: DailyOpsMetricsContext,
   apiMergedTotal: number,
   revenueSourcesDetail?: {
     inboxBasisExVat: number | null
-  }
+  },
 ): { headline: number; leadSource: 'inbox_basis_ex_vat' | 'bork_api_merged' } {
-  const inbox = revenueSourcesDetail?.inboxBasisExVat
-  const singleCompletedDay =
-    ctx.startDate === ctx.endDate && ctx.period !== 'today'
-  const useInboxLead =
-    singleCompletedDay && inbox != null && inbox > 0
-
-  if (useInboxLead) {
-    return {
-      headline: Math.round(inbox * 100) / 100,
-      leadSource: 'inbox_basis_ex_vat',
-    }
-  }
+  const inboxEx = revenueSourcesDetail?.inboxBasisExVat ?? 0
+  const resolved = resolveVenueDayHeadlineRevenue({
+    inboxReports:
+      inboxEx > 0
+        ? [{ final_revenue_ex_vat: inboxEx, cron_hour: 8 } as BasisReportData]
+        : [],
+    bork: { ex_vat: apiMergedTotal, inc_vat: 0, vat: 0, quantity: 0, record_count: 0 },
+    hasBorkDay: apiMergedTotal > 0,
+  })
   return {
-    headline: Math.round(apiMergedTotal * 100) / 100,
-    leadSource: 'bork_api_merged',
+    headline: Math.round(resolved.totals.ex_vat * 100) / 100,
+    leadSource: resolved.leadSource === 'inbox' ? 'inbox_basis_ex_vat' : 'bork_api_merged',
   }
 }
 

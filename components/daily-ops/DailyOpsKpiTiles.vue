@@ -18,6 +18,14 @@
         >
           <p class="text-sm font-medium text-gray-500">{{ tile.label }}</p>
           <p class="mt-2 text-2xl font-semibold tabular-nums text-gray-900">{{ tile.display }}</p>
+          <button
+            v-if="tile.id === 'revenue' && gmailNeedsReconnect"
+            type="button"
+            class="mt-2 text-left text-xs font-medium text-amber-800 underline decoration-amber-600/60 underline-offset-2 hover:text-amber-950"
+            @click.stop="goReconnectGmail"
+          >
+            Reconnect Gmail for latest revenue info
+          </button>
         </button>
         <div
           v-else
@@ -98,6 +106,22 @@ const stripQuery = computed(() => {
 })
 
 const cacheKey = computed(() => `daily-ops-venue-strip-${props.period}-${props.anchor ?? ''}`)
+
+type GmailStatusPayload = {
+  connected: boolean
+  needsReconnect: boolean
+}
+
+const { data: gmailStatus } = useFetch<{ success: boolean; data: GmailStatusPayload }>(
+  '/api/inbox/gmail-status',
+  { default: () => ({ success: true, data: { connected: true, needsReconnect: false } }) },
+)
+
+const gmailNeedsReconnect = computed(() => gmailStatus.value?.data?.needsReconnect === true)
+
+function goReconnectGmail(): void {
+  window.location.href = '/api/auth/gmail/authorize'
+}
 
 const { data: stripData, pending } = await useAsyncData(
   cacheKey,

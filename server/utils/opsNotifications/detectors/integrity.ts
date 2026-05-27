@@ -60,6 +60,16 @@ function staleBorkAggregationReasons(
   if (agg.latestBorkAt && snapshot?.lastBuiltAt && agg.latestBorkAt.getTime() > snapshot.lastBuiltAt.getTime() + 60_000) {
     reasons.push('revenue snapshot older than latest Bork aggregate')
   }
+  if (
+    snapshot &&
+    snapshot.ex > 0 &&
+    agg.dayEx > 0 &&
+    Math.abs(snapshot.ex - agg.dayEx) > Math.max(1, snapshot.ex * 0.02)
+  ) {
+    reasons.push(
+      `revenue snapshot €${snapshot.ex.toFixed(0)} ex ≠ Bork day €${agg.dayEx.toFixed(0)} ex`,
+    )
+  }
   return reasons
 }
 

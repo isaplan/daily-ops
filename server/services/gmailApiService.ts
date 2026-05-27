@@ -12,7 +12,12 @@
 
 import { google } from 'googleapis'
 import type { gmail_v1 } from 'googleapis'
-import { getGmailRefreshToken, resolveGmailOAuthRedirectUriForServer } from './gmailOAuthService'
+import {
+  getGmailRefreshToken,
+  markGmailOAuthFailure,
+  resolveGmailOAuthRedirectUriForServer,
+} from './gmailOAuthService'
+import { isInvalidGrantError } from '../utils/gmailOAuthError'
 
 export type GmailMessage = {
   id: string
@@ -141,6 +146,9 @@ class GmailApiService {
       }
     } catch (err) {
       console.error('[gmailApiService] fetchEmails error:', err)
+      if (isInvalidGrantError(err)) {
+        await markGmailOAuthFailure(err)
+      }
       throw err
     }
   }

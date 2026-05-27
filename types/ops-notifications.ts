@@ -2,6 +2,8 @@
 
 export type OpsNotificationSeverity = 'critical' | 'warning' | 'info'
 
+export type OpsNotificationStatus = 'open' | 'fixed'
+
 export type OpsNotificationCategory =
   | 'snapshot'
   | 'source'
@@ -24,6 +26,8 @@ export type OpsNotificationKind =
   | 'inbox_morning_final_missing'
   | 'inbox_only_intraday_partial'
   | 'eitje_hours_inbox_missing'
+  | 'gmail_oauth_invalid_grant'
+  | 'unparsed_basis_attachment'
   // Data integrity
   | 'unmapped_basis_location'
   | 'bork_revenue_aggregation_stale'
@@ -38,13 +42,22 @@ export type OpsNotificationDto = {
   category: OpsNotificationCategory
   kind: OpsNotificationKind
   severity: OpsNotificationSeverity
+  status?: OpsNotificationStatus
+  /** Set after manual Try fix (one attempt; no auto-retry on scan). */
+  fixResultMessage?: string
   /** `system` for platform-wide issues */
   businessDate: string
   locationId: string
   locationName: string
   title: string
   message: string
-  fixHint: string
+  fixHint?: string
+  solution?: string
+  suggestedAction?: {
+    action: string
+    endpoint: string
+    description: string
+  }
   detectedAt: string
   meta?: Record<string, unknown>
 }

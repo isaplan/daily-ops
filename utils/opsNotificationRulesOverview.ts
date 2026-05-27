@@ -95,9 +95,11 @@ export const OPS_NOTIFICATION_RULE_SECTIONS: OpsNotificationRuleSection[] = [
     id: 'actions',
     title: 'Actions on this page',
     bullets: [
-      'Rebuild snapshot — runs buildDailyOpsSnapshot for one venue-day (snapshot category only).',
+      'Status open — alert is active; fixed — manual Try fix cleared it on rescan.',
+      'Try fix — one attempt (Bork V2 rebuild + snapshot, or inbox reprocess); no auto-retry on scan. Failure stays open with “Tried fix, failed”.',
+      'Rebuild snapshot — snapshot-category rows only (legacy button).',
       'Fix hint — CLI or ops step shown per row.',
-      'Architecture / source / cron rows — fix in code or ops pipeline, not via rebuild button.',
+      'Architecture rows — code refactor only, no Try fix.',
     ],
     paragraphs: [],
   },

@@ -18,6 +18,7 @@ import {
   addCalendarDaysYmd,
   amsterdamOpenRegisterBusinessDateYmd,
 } from '~/utils/dailyOpsBusinessDate'
+import { eachBusinessDate } from '../dailyOpsRevenue/dateRange'
 import { resolveBorkAggReadSuffix } from '../borkAggVersionSuffix'
 
 export const REV_EPS = 0.02
@@ -31,6 +32,8 @@ export function snapKey(businessDate: string, locationId: string): string {
 export type OpsScanContext = {
   startDate: string
   endDate: string
+  /** Calendar days in scan window (inclusive). */
+  businessDates: string[]
   openBusinessDate: string
   locIds: string[]
   locName: Map<string, string>
@@ -300,9 +303,12 @@ export async function loadOpsScanContext(
     eitjeInboxRows.map((r) => snapKey(String(r.date ?? ''), String(r.location_id ?? ''))),
   )
 
+  const businessDates = [...eachBusinessDate(startDate, endDate)]
+
   return {
     startDate,
     endDate,
+    businessDates,
     openBusinessDate: amsterdamOpenRegisterBusinessDateYmd(),
     locIds,
     locName,

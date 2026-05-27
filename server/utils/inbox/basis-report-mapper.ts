@@ -1,9 +1,10 @@
 /**
  * @registry-id: basisReportMapper
  * @created: 2026-04-01T00:00:00.000Z
- * @last-modified: 2026-05-25T12:20:00.000Z
+ * @last-modified: 2026-05-27T15:00:00.000Z
  * @description: Parse Trivec Basis inbox XLSX → inbox-bork-basis-report rows.
- * @last-fix: [2026-05-25] PERMANENT FIX: Email "Yesterday" is SSOT for business_date assignment; overrides generic calendarToBusinessDay
+ * @last-fix: [2026-05-27] Gmail disconnect → Bork headline; morning inbox only when ex_vat>0; date field load.
+ *   Prior: [2026-05-25] PERMANENT FIX: Email "Yesterday" is SSOT for business_date assignment; overrides generic calendarToBusinessDay
  * @adr-ref: ADR-004 (Daily Ops GET = snapshot only)
  *
  * ## Basis inbox pick rule (SSOT — all revenue headline reads)
@@ -12,10 +13,11 @@
  *
  * First **morning** poll (~07/08, cron_hour **7 or 8**) delivers the **final yesterday**
  * revenue for `business_date`. Subject/attachment say "Yesterday" / report date = next ISO day.
- * Cron **18/23** are **intraday partials** for the same calendar batch day — never headline totals.
+ * Cron **18/23** (and 12/15) are **not stored** — intraday inbox rows are dropped on ingest.
+ * Headline revenue uses **only** morning final (cron **7|8**) or Bork V2 when no morning inbox.
  *
- * `calculateBasisCronPriority(cron_hour)` → 3 = morning final (7|8), 2 = 23, 1 = 18.
- * `pickBasisReportByCronPriority(rows)` — sort by that priority DESC, then received_at DESC.
+ * `resolveVenueDayHeadlineRevenue` — **single SSOT** for inbox vs Bork headline (snapshot + metrics).
+ * `pickMorningFinalBasisReport` — only cron 7|8 rows.
  *
  * @exports-to:
  * ✓ server/utils/dailyOpsSnapshot/buildRevenueSection.ts
@@ -664,24 +666,161 @@ function extractBatchHourFromSubject(subject?: string): number | undefined {
   return undefined
 }
 
+/** Cron hours we never persist (intraday partials). */
+export const INTRADAY_BASIS_CRON_HOURS = [12, 15, 18, 23] as const
+
+export function isMorningFinalBasisCron(cronHour: number | undefined): boolean {
+  return cronHour === 7 || cronHour === 8
+}
+
+export function isIntradayBasisCron(cronHour: number | undefined): boolean {
+  if (cronHour == null) return false
+  return (INTRADAY_BASIS_CRON_HOURS as readonly number[]).includes(cronHour)
+}
+
+/** Only morning final (7|8) rows are written to inbox-bork-basis-report. */
+export function shouldPersistBasisInboxRow(cronHour: number | undefined): boolean {
+  return isMorningFinalBasisCron(cronHour)
+}
+
 /** Morning final yesterday (7|8) > night partial (23) > evening partial (18). */
 export function calculateBasisCronPriority(cronHour: number | undefined): number {
-  if (cronHour === 7 || cronHour === 8) return 3
+  if (isMorningFinalBasisCron(cronHour)) return 3
   if (cronHour === 23) return 2
   if (cronHour === 18) return 1
   return 0
 }
 
-/** Pick one Basis row per venue-day — same rule as dailyOpsDashboardMetrics.pickBasisReportsPerLocation. */
-export function pickBasisReportByCronPriority(reports: BasisReportData[]): BasisReportData | undefined {
-  if (reports.length === 0) return undefined
-  return [...reports].sort((a, b) => {
-    const priorityDiff = calculateBasisCronPriority(b.cron_hour) - calculateBasisCronPriority(a.cron_hour)
-    if (priorityDiff !== 0) return priorityDiff
+export function filterMorningFinalBasisReports(reports: BasisReportData[]): BasisReportData[] {
+  return reports.filter((r) => isMorningFinalBasisCron(r.cron_hour))
+}
+
+/** Pick morning final (7|8) only — use for all headline revenue reads/writes. */
+export function pickMorningFinalBasisReport(reports: BasisReportData[]): BasisReportData | undefined {
+  const morning = filterMorningFinalBasisReports(reports)
+  if (morning.length === 0) return undefined
+  return [...morning].sort((a, b) => {
     const aTime = a.received_at ? new Date(a.received_at).getTime() : 0
     const bTime = b.received_at ? new Date(b.received_at).getTime() : 0
     return bTime - aTime
   })[0]
+}
+
+/** @deprecated Use pickMorningFinalBasisReport for headline; kept for ops/debug sorting. */
+export function pickBasisReportByCronPriority(reports: BasisReportData[]): BasisReportData | undefined {
+  return pickMorningFinalBasisReport(reports) ?? undefined
+}
+
+export type VenueDayBorkTotals = {
+  ex_vat: number
+  inc_vat: number
+  vat: number
+  quantity: number
+  record_count: number
+}
+
+export type VenueDayHeadlineRevenue = {
+  leadSource: 'inbox' | 'bork' | 'none'
+  totals: VenueDayBorkTotals
+  morningInbox: BasisReportData | null
+}
+
+function inboxRowToTotals(row: BasisReportData): VenueDayBorkTotals {
+  const ex = Number(row.final_revenue_ex_vat ?? 0)
+  const inc = Number(
+    row.final_revenue_incl_vat ??
+    (row as { final_revenue_inc_vat?: number }).final_revenue_inc_vat ??
+    0,
+  )
+  return { ex_vat: ex, inc_vat: inc, vat: inc - ex, quantity: 0, record_count: 0 }
+}
+
+const EMPTY_TOTALS: VenueDayBorkTotals = {
+  ex_vat: 0,
+  inc_vat: 0,
+  vat: 0,
+  quantity: 0,
+  record_count: 0,
+}
+
+/**
+ * Single SSOT: headline revenue for one venue × business_date.
+ * Morning inbox (cron 7|8) wins; else Bork V2 when a business-day row exists.
+ */
+/** Map key: `${business_date}|${location_id}` */
+export function morningInboxMapKey(businessDate: string, locationId: string): string {
+  return `${businessDate}|${locationId}`
+}
+
+export function headlineExVatFromSnapshotRevenue(
+  rev: {
+    borkTotals?: {
+      ex_vat?: number
+      inc_vat?: number
+      vat?: number
+      quantity?: number
+      record_count?: number
+    } | null
+  } | null,
+  morningInbox: BasisReportData[],
+  opts?: { forceBorkHeadline?: boolean },
+): number {
+  if (!rev) return 0
+  const bork = rev.borkTotals
+    ? {
+        ex_vat: Number(rev.borkTotals.ex_vat ?? 0),
+        inc_vat: Number(rev.borkTotals.inc_vat ?? 0),
+        vat: Number(rev.borkTotals.vat ?? 0),
+        quantity: Number(rev.borkTotals.quantity ?? 0),
+        record_count: Number(rev.borkTotals.record_count ?? 0),
+      }
+    : null
+  return resolveVenueDayHeadlineRevenue({
+    inboxReports: morningInbox,
+    bork,
+    hasBorkDay: bork != null && (bork.record_count > 0 || bork.ex_vat > 0 || bork.inc_vat > 0),
+    forceBorkHeadline: opts?.forceBorkHeadline,
+  }).totals.ex_vat
+}
+
+function morningInboxHasFinalRevenue(row: BasisReportData): boolean {
+  const ex = Number(row.final_revenue_ex_vat ?? 0)
+  const inc = Number(
+    row.final_revenue_incl_vat ?? (row as { final_revenue_inc_vat?: number }).final_revenue_inc_vat ?? 0,
+  )
+  return ex > 0 || inc > 0
+}
+
+export function resolveVenueDayHeadlineRevenue(input: {
+  inboxReports: BasisReportData[]
+  bork: VenueDayBorkTotals | null
+  hasBorkDay?: boolean
+  /** When Gmail OAuth is broken, ignore inbox rows and use Bork API totals only. */
+  forceBorkHeadline?: boolean
+}): VenueDayHeadlineRevenue {
+  const morningInbox = input.forceBorkHeadline
+    ? null
+    : pickMorningFinalBasisReport(input.inboxReports) ?? null
+  const hasBork =
+    input.hasBorkDay ??
+    (input.bork != null &&
+      (input.bork.record_count > 0 || input.bork.ex_vat > 0 || input.bork.inc_vat > 0))
+
+  if (morningInbox && morningInboxHasFinalRevenue(morningInbox)) {
+    return {
+      leadSource: 'inbox',
+      morningInbox,
+      totals: inboxRowToTotals(morningInbox),
+    }
+  }
+  if (hasBork && input.bork) {
+    return {
+      leadSource: 'bork',
+      morningInbox: null,
+      totals: input.bork,
+    }
+  }
+  return { leadSource: 'none', morningInbox: null, totals: EMPTY_TOTALS }
 }
 
 /** Hour 0–23 on the Europe/Amsterdam civil clock (CEST/CET). */

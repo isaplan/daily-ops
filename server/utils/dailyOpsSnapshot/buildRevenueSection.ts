@@ -1,21 +1,20 @@
 /**
  * @registry-id: dailyOpsSnapshotBuildRevenueSection
  * @created: 2026-05-13T00:00:00.000Z
- * @last-modified: 2026-05-26T00:55:00.000Z
+ * @last-modified: 2026-05-27T14:30:00.000Z
  * @description: Builds DailyOpsSnapshotRevenueSection for one (businessDate, locationId).
  *   Reads only from aggregated collections: bork_business_days, bork_sales_by_hour,
  *   inbox-bork-basis-report. Never touches bork_raw_data.
- * @last-fix: [2026-05-26] Snapshot carries order-time hourly Bork buckets beside paid-time buckets.
+ * @last-fix: [2026-05-27] Inbox headline only when cron 7|8 (morning final); intraday 18/23 never lead totals.
+ *   Prior: [2026-05-26] Snapshot carries order-time hourly Bork buckets beside paid-time buckets.
  *   Prior: [2026-05-25] Bork reads use resolveBorkAggReadSuffix (_v2) like products/hourly builders.
  *
  * @architecture:
- *   - Lead-source decision: if any inbox row exists for (businessDate, locationId), inbox wins
- *     for headline `totals`. Otherwise bork V2 wins. borkTotals always populated for cross-check.
- *   - Inbox headline: `pickBasisReportByCronPriority` from basis-report-mapper (cron 7/8 = final yesterday).
+ *   - Headline: `resolveVenueDayHeadlineRevenue` (basis-report-mapper SSOT). Morning inbox 7|8 or Bork.
  *   - Hourly: pre-fill 24 slots (business_hour 0..23 → calendar_hour 8..7-next). Paid-time
  *     buckets come from bork_sales_by_hour; order-time buckets come from bork_sales_by_order_hour.
  *     No intraday inbox per-hour split (inbox is daily-level).
- *   - Intraday: all inbox rows stored in `intraday` for audit; 18/23 are partials only.
+ *   - Intraday inbox rows are not stored in Mongo (dropped on ingest).
  *
  * @exports-to:
  *   ✓ server/services/dailyOpsSnapshotService.ts
@@ -29,7 +28,10 @@ import type {
   RevenueBreakdown,
 } from '../../../types/daily-ops-snapshot'
 import { resolveBorkAggReadSuffix } from '../borkAggVersionSuffix'
-import { pickBasisReportByCronPriority, type BasisReportData } from '../inbox/basis-report-mapper'
+import {
+  resolveVenueDayHeadlineRevenue,
+  type BasisReportData,
+} from '../inbox/basis-report-mapper'
 
 const runtimeProcess = globalThis as typeof globalThis & {
   process?: { env?: Record<string, string | undefined> }
@@ -94,29 +96,13 @@ export async function buildRevenueSection(
     record_count: Number(borkDay?.record_count ?? 0),
   }
 
-  const leadInbox = pickBasisReportByCronPriority(inboxRows as unknown as BasisReportData[]) ?? null
-
-  let leadSource: LeadRevenueSource = 'none'
-  let totals: RevenueBreakdown & { quantity: number; record_count: number } = {
-    ex_vat: 0,
-    inc_vat: 0,
-    vat: 0,
-    quantity: 0,
-    record_count: 0,
-  }
-  if (leadInbox) {
-    leadSource = 'inbox'
-    const ex = Number(leadInbox.final_revenue_ex_vat ?? 0)
-    const inc = Number(
-      leadInbox.final_revenue_incl_vat ??
-      (leadInbox as { final_revenue_inc_vat?: number }).final_revenue_inc_vat ??
-      0
-    )
-    totals = { ex_vat: ex, inc_vat: inc, vat: inc - ex, quantity: 0, record_count: 0 }
-  } else if (borkDay) {
-    leadSource = 'bork'
-    totals = borkTotals
-  }
+  const headline = resolveVenueDayHeadlineRevenue({
+    inboxReports: inboxRows as unknown as BasisReportData[],
+    bork: borkTotals,
+    hasBorkDay: borkDay != null,
+  })
+  const leadSource = headline.leadSource as LeadRevenueSource
+  const totals = headline.totals
 
   const hourly = createHourlySlots()
   const orderHourly = createHourlySlots()
@@ -139,12 +125,7 @@ export async function buildRevenueSection(
     }
   }
 
-  const intraday = inboxRows.map((r) => ({
-    cron_hour: Number(r.cron_hour ?? 0),
-    received_at: r.received_at instanceof Date ? r.received_at : new Date(r.received_at ?? Date.now()),
-    revenue_ex_vat: Number(r.final_revenue_ex_vat ?? 0),
-    revenue_inc_vat: Number(r.final_revenue_incl_vat ?? r.final_revenue_inc_vat ?? 0),
-  }))
+  const intraday: DailyOpsSnapshotRevenueSection['intraday'] = []
 
   if (DEBUG) {
     console.info(

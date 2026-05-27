@@ -9,12 +9,12 @@
         <UButton
           variant="solid"
           size="sm"
-          :color="gmailConnected ? 'success' : 'neutral'"
-          :icon="gmailConnected ? 'i-lucide-check' : 'i-lucide-lock-open'"
+          :color="gmailNeedsReconnect ? 'warning' : gmailConnected ? 'success' : 'neutral'"
+          :icon="gmailNeedsReconnect ? 'i-lucide-alert-triangle' : gmailConnected ? 'i-lucide-check' : 'i-lucide-lock-open'"
           class="gap-1.5 font-semibold"
           @click="onConnectGmail"
         >
-          {{ gmailConnected ? 'Connected Gmail' : 'Connect Gmail' }}
+          {{ gmailNeedsReconnect ? 'Reconnect Gmail' : gmailConnected ? 'Connected Gmail' : 'Connect Gmail' }}
         </UButton>
         <UButton
           variant="solid"
@@ -212,6 +212,7 @@ const unprocessed = ref<number | null>(null)
 const syncing = ref(false)
 const processingAll = ref(false)
 const gmailConnected = ref(false)
+const gmailNeedsReconnect = ref(false)
 const isAdmin = ref(false)
 
 const { data: list, pending: listPending, error: listError, refresh: refreshList } = await useAsyncData(
@@ -230,12 +231,17 @@ onMounted(async () => {
   }
 
   try {
-    const status = await $fetch<{ success: boolean; data: { connected: boolean } }>(
-      '/api/inbox/gmail-status',
-    )
-    if (status.success) gmailConnected.value = status.data.connected
+    const status = await $fetch<{
+      success: boolean
+      data: { connected: boolean; needsReconnect: boolean }
+    }>('/api/inbox/gmail-status')
+    if (status.success) {
+      gmailConnected.value = status.data.connected
+      gmailNeedsReconnect.value = status.data.needsReconnect
+    }
   } catch {
     gmailConnected.value = false
+    gmailNeedsReconnect.value = true
   }
 
   const q = useRoute().query

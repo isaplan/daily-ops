@@ -25,8 +25,17 @@ import {
   type DailyOpsSnapshotRevenueSection,
 } from '../../types/daily-ops-snapshot'
 import type { DailyOpsMetricsContext } from './dailyOpsDashboardMetrics'
-import { rollupFoodBeverageFromCategories } from './borkFoodBeverageSplit'
-import { resolveDailyOpsHeadlineRevenue } from './dailyOpsHeadlineRevenue'
+import {
+  proportionalFoodBeverageToHeadline,
+  rollupFoodBeverageFromCategories,
+} from './borkFoodBeverageSplit'
+import {
+  headlineExVatFromSnapshotRevenue,
+  morningInboxMapKey,
+  type BasisReportData,
+} from './inbox/basis-report-mapper'
+import { loadMorningBasisInboxByLocDate } from './inbox/loadMorningBasisInbox'
+import { getGmailConnectionStatus } from '../services/gmailOAuthService'
 import { bucketTeamFromName } from './dailyOpsTeamBucket'
 import {
   aggRowsUseLegacyGewerktSchema,
@@ -557,35 +566,27 @@ function contractsByTeamFromSnapshot (
 }
 
 function revenueFromSnapshotSections (
-  ctx: DailyOpsMetricsContext,
   rev: DailyOpsSnapshotRevenueSection | null,
   products: DailyOpsSnapshotRevenueProductsSection | null,
+  morningInbox: BasisReportData[],
+  forceBorkHeadline: boolean,
 ): { totalRevenue: number; food: number; beverage: number } {
-  const snapshotExVat = round2(Number(rev?.totals?.ex_vat ?? 0))
-  const apiDayTotal = round2(Number(rev?.borkTotals?.ex_vat ?? 0))
-  const inboxExVat =
-    rev?.leadSource === 'inbox' && Number(rev.totals?.ex_vat ?? 0) > 0
-      ? round2(Number(rev.totals.ex_vat))
-      : null
+  const totalRevenue = round2(
+    headlineExVatFromSnapshotRevenue(rev, morningInbox, { forceBorkHeadline }),
+  )
   const split = rollupFoodBeverageFromCategories(
     (products?.categories ?? []).map((c) => ({ name: c.name, revenue_ex_vat: c.revenue_ex_vat })),
   )
-  const food = round2(split.food)
-  const beverage = round2(split.beverage)
-  const categoryTotal = round2(food + beverage)
-  const totalRevenue = resolveDailyOpsHeadlineRevenue(ctx, {
-    snapshotExVat,
-    apiDayTotal,
-    inboxExVat,
-    categoryTotal,
-  })
-  return { totalRevenue, food, beverage }
+  const scaled = proportionalFoodBeverageToHeadline(totalRevenue, split.food, split.beverage)
+  return { totalRevenue, food: scaled.food, beverage: scaled.beverage }
 }
 
 type VenueStripSnapshotBatch = {
   revenueByLoc: Map<string, DailyOpsSnapshotRevenueSection>
   laborByLoc: Map<string, DailyOpsSnapshotLaborSection>
   productsByLoc: Map<string, DailyOpsSnapshotRevenueProductsSection>
+  morningInboxByLocDate: Map<string, BasisReportData[]>
+  forceBorkHeadline: boolean
 }
 
 async function loadVenueStripSnapshotBatch (
@@ -594,7 +595,7 @@ async function loadVenueStripSnapshotBatch (
 ): Promise<VenueStripSnapshotBatch> {
   const locationIds = VENUE_STRIP_LOCATIONS.map((v) => v.locationId)
   const filter = { businessDate, locationId: { $in: locationIds } }
-  const [revenueDocs, laborDocs, productDocs] = await Promise.all([
+  const [revenueDocs, laborDocs, productDocs, morningInboxByLocDate, gmailStatus] = await Promise.all([
     db
       .collection<DailyOpsSnapshotRevenueSection>(DAILY_OPS_SNAPSHOT_COLLECTIONS.revenueSection)
       .find(filter)
@@ -607,11 +608,15 @@ async function loadVenueStripSnapshotBatch (
       .collection<DailyOpsSnapshotRevenueProductsSection>(DAILY_OPS_SNAPSHOT_COLLECTIONS.revenueProductsSection)
       .find(filter)
       .toArray(),
+    loadMorningBasisInboxByLocDate(db, businessDate, businessDate),
+    getGmailConnectionStatus(),
   ])
   return {
     revenueByLoc: new Map(revenueDocs.map((d) => [d.locationId, d])),
     laborByLoc: new Map(laborDocs.map((d) => [d.locationId, d])),
     productsByLoc: new Map(productDocs.map((d) => [d.locationId, d])),
+    morningInboxByLocDate,
+    forceBorkHeadline: gmailStatus.needsReconnect,
   }
 }
 
@@ -627,7 +632,14 @@ async function buildVenueStripCardFromSnapshots (
   const snapLabor = batch.laborByLoc.get(venue.locationId) ?? null
   const snapProducts = batch.productsByLoc.get(venue.locationId) ?? null
 
-  const { totalRevenue, food, beverage } = revenueFromSnapshotSections(locCtx, snapRev, snapProducts)
+  const morningInbox =
+    batch.morningInboxByLocDate.get(morningInboxMapKey(businessDate, venue.locationId)) ?? []
+  const { totalRevenue, food, beverage } = revenueFromSnapshotSections(
+    snapRev,
+    snapProducts,
+    morningInbox,
+    batch.forceBorkHeadline,
+  )
 
   const [laborBundle, contractsFromSnap] = await Promise.all([
     resolveVenueStripLabor(db, businessDate, venue.locationId, snapLabor),
