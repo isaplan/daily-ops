@@ -122,12 +122,67 @@ export type DailyOpsHourlyRevenueRowDto = {
   locations: DailyOpsHourlyRevenueLocationDto[]
 }
 
+export type DailyOpsRevenueDrilldownStatus = 'above' | 'below' | 'neutral'
+
+export type DailyOpsRevenueDrilldownLocationHourDto = {
+  locationId: string
+  locationName: string
+  revenue: number
+  laborCost: number
+  profit: number
+}
+
+export type DailyOpsRevenueDrilldownHourlyRowDto = {
+  calendarHour: number
+  hourLabel: string
+  revenue: number
+  laborCost: number
+  cogsCost: number
+  fixedCost: number
+  profit: number
+  benchmarkRevenue: number | null
+  benchmarkDelta: number | null
+  benchmarkStatus: DailyOpsRevenueDrilldownStatus
+  locations: DailyOpsRevenueDrilldownLocationHourDto[]
+}
+
+export type DailyOpsRevenueDrilldownSpaceRowDto = {
+  locationId: string
+  locationName: string
+  spaceName: string
+  revenue: number
+  quantity: number
+  pctOfVenueRevenue: number | null
+}
+
+export type DailyOpsRevenueDrilldownTopRowDto = {
+  label: string
+  subLabel?: string
+  revenue: number
+  quantity: number
+  count?: number
+}
+
+export type DailyOpsRevenueDrilldownDto = {
+  estimatesNote: string
+  coverageNotes: string[]
+  hourlyRows: DailyOpsRevenueDrilldownHourlyRowDto[]
+  spaces: DailyOpsRevenueDrilldownSpaceRowDto[]
+  top10: {
+    workers: DailyOpsRevenueDrilldownTopRowDto[]
+    tables: DailyOpsRevenueDrilldownTopRowDto[]
+    foodProducts: DailyOpsRevenueDrilldownTopRowDto[]
+    beverageProductsOrCategories: DailyOpsRevenueDrilldownTopRowDto[]
+  }
+}
+
 export type DailyOpsRevenueBreakdownDto = {
   range: DailyOpsRangeDto
   revenueByCategory: { key: string; label: string; amount: number }[]
   revenueByTimePeriod: { key: string; label: string; amount: number }[]
   mostProfitableHour: DailyOpsProfitHourDto
   profitByInterval: DailyOpsProfitByIntervalDto
+  drilldown?: DailyOpsRevenueDrilldownDto
   /** When period is `today`: hourly API totals by calendar hour + inbox Basis Report rows at 15:00 / 23:00 (cron_hour) */
   todayRevenueDetail?: {
     apiHourlyByCalendarHour: DailyOpsHourlyRevenueRowDto[]

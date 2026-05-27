@@ -7,6 +7,10 @@
     <DailyOpsTodayRevenueCard :detail="revenue.todayRevenueDetail" />
     <DailyOpsProfitByIntervalCard :data="revenue.profitByInterval" :period="period" />
     <DailyOpsProfitHourCard title="Most Profitable Hour" :data="revenue.mostProfitableHour" />
+    <DailyOpsRevenueDrilldownSection
+      v-if="revenue.drilldown"
+      :data="revenue.drilldown"
+    />
   </div>
 </template>
 
