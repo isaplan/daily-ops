@@ -1,0 +1,14 @@
+---
+description: Daily Ops revenue drilldown architecture guardrails
+globs: "{components/daily-ops/**/*.vue,server/api/daily-ops/**/*.ts,server/utils/dailyOps*/**/*.ts,server/utils/dailyOps*.ts,types/daily-ops*.ts}"
+alwaysApply: false
+---
+
+# Daily Ops Revenue Drilldown
+
+- Keep the Daily Ops dashboard snapshot-first. Dashboard metric GET paths should read `daily_ops_snapshot*` or precomputed Daily Ops revenue helpers, not live Bork/Eitje raw aggregation.
+- Add revenue drilldown data through small builder modules under `server/utils/dailyOpsSnapshot/`; avoid growing `fetchDashboardBundle.ts` with feature-specific aggregation details.
+- Render this feature below `DailyOpsProfitHourCard` in `components/daily-ops/DailyOpsRevenueMetricsSection.vue`.
+- Keep UI modular: one parent drilldown section plus focused table/chart/top-list components.
+- Missing snapshot data must render empty states or coverage notes; do not hide gaps with unexpected live fallbacks.
+- Preserve existing dashboard totals: venue strip revenue, summary total, and P&L interval revenue must continue to match.

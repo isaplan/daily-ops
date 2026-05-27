@@ -750,7 +750,7 @@ export async function executeEitjeJob (db: Db, jobType: string): Promise<EitjeSy
 
   if (jobType === 'daily-data') {
     // Daily incremental sync: fetch TODAY + YESTERDAY (catches missed updates from previous day)
-    // Cron: 01:00, 08:00, 15:00, 18:00–21:00, 23:00 Europe/Amsterdam (see nuxt.config)
+    // Cron: 01:00, 08:00, 15:00, 17:00–23:00, 24:00 Europe/Amsterdam (see nuxt.config)
     // Aggregate TODAY + YESTERDAY - ensures no backfill gaps
     const now = new Date()
     const todayYmd = calendarYmdInAmsterdam(now)

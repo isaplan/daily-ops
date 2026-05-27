@@ -1,9 +1,10 @@
 /**
  * @registry-id: dailyOpsSnapshotFetchDashboardBundle
  * @created: 2026-05-25T00:00:00.000Z
- * @last-modified: 2026-05-26T00:55:00.000Z
+ * @last-modified: 2026-05-26T02:36:00.000Z
  * @description: Snapshot-first Daily Ops dashboard bundle (ADR-004). One parallel read per section collection; no bork_* on GET.
- * @last-fix: [2026-05-26] Today hourly detail reads dedicated revenue-by-order-time snapshot section.
+ * @last-fix: [2026-05-26] Add snapshot-backed revenue drilldown section below Most Profitable Hour.
+ *   Prior: [2026-05-26] Today hourly detail reads dedicated revenue-by-order-time snapshot section.
  *   Prior: [2026-05-26] Today hourly detail includes order-time buckets when snapshots provide them.
  *   Prior: [2026-05-26] Today headline/interval revenue uses snapshot selected total when borkTotals is zero.
  * @adr-ref: ADR-004
@@ -29,6 +30,8 @@ import {
   type DailyOpsSnapshotRevenueHourlySection,
   type DailyOpsSnapshotRevenueProductsSection,
   type DailyOpsSnapshotRevenueSection,
+  type DailyOpsSnapshotRevenueTablesSection,
+  type DailyOpsSnapshotRevenueWorkersSection,
 } from '~/types/daily-ops-snapshot'
 import type {
   DailyOpsHourlyRevenueRowDto,
@@ -56,6 +59,7 @@ import { VENUE_STRIP_LOCATIONS } from '../dailyOpsVenueStrip'
 import { resolveDailyOpsHeadlineRevenue } from '../dailyOpsHeadlineRevenue'
 import { aggregateLaborForRange } from './aggregateLaborForRange'
 import { buildProfitByIntervalFromSnapshotHourly } from './buildProfitByIntervalFromSnapshot'
+import { buildRevenueDrilldownSection } from './buildRevenueDrilldownSection'
 
 export type DailyOpsDashboardBundleDto = {
   summary: DailyOpsSummaryDto
@@ -70,6 +74,8 @@ type SnapshotDashboardRows = {
   hourly: DailyOpsSnapshotRevenueHourlySection[]
   orderTime: DailyOpsSnapshotRevenueByOrderTimeSection[]
   products: DailyOpsSnapshotRevenueProductsSection[]
+  tables: DailyOpsSnapshotRevenueTablesSection[]
+  workers: DailyOpsSnapshotRevenueWorkersSection[]
 }
 
 function round2(n: number): number {
@@ -86,7 +92,7 @@ function rangeFilter(ctx: DailyOpsMetricsContext): Record<string, unknown> {
 
 async function loadSnapshotDashboardRows(db: Db, ctx: DailyOpsMetricsContext): Promise<SnapshotDashboardRows> {
   const filter = rangeFilter(ctx)
-  const [masters, revenue, labor, hourly, orderTime, products] = await Promise.all([
+  const [masters, revenue, labor, hourly, orderTime, products, tables, workers] = await Promise.all([
     db.collection<DailyOpsSnapshotMaster>(DAILY_OPS_SNAPSHOT_COLLECTIONS.master).find(filter).toArray(),
     db.collection<DailyOpsSnapshotRevenueSection>(DAILY_OPS_SNAPSHOT_COLLECTIONS.revenueSection).find(filter).toArray(),
     db.collection<DailyOpsSnapshotLaborSection>(DAILY_OPS_SNAPSHOT_COLLECTIONS.laborSection).find(filter).toArray(),
@@ -102,8 +108,16 @@ async function loadSnapshotDashboardRows(db: Db, ctx: DailyOpsMetricsContext): P
       .collection<DailyOpsSnapshotRevenueProductsSection>(DAILY_OPS_SNAPSHOT_COLLECTIONS.revenueProductsSection)
       .find(filter)
       .toArray(),
+    db
+      .collection<DailyOpsSnapshotRevenueTablesSection>(DAILY_OPS_SNAPSHOT_COLLECTIONS.revenueTablesSection)
+      .find(filter)
+      .toArray(),
+    db
+      .collection<DailyOpsSnapshotRevenueWorkersSection>(DAILY_OPS_SNAPSHOT_COLLECTIONS.revenueWorkersSection)
+      .find(filter)
+      .toArray(),
   ])
-  return { masters, revenue, labor, hourly, orderTime, products }
+  return { masters, revenue, labor, hourly, orderTime, products, tables, workers }
 }
 
 function locDayKey(date: string, locationId: string): string {
@@ -804,7 +818,7 @@ export async function fetchDailyOpsDashboardBundle(
 
   const laborByLocHour = await resolveLaborByLocHourForDashboard(db, ctx, rows.labor)
 
-  const [laborBreakdown, profitByInterval] = await Promise.all([
+  const [laborBreakdown, profitByInterval, drilldown] = await Promise.all([
     aggregateLaborForRange(db, {
       startDate: ctx.startDate,
       endDate: ctx.endDate,
@@ -817,6 +831,16 @@ export async function fetchDailyOpsDashboardBundle(
       laborCostMapFromHourly(laborByLocHour),
       headlineRevenueByLocDay,
     ),
+    buildRevenueDrilldownSection(db, ctx, {
+      revenue: rows.revenue,
+      hourly: rows.hourly,
+      products: rows.products,
+      tables: rows.tables,
+      workers: rows.workers,
+      laborByLocHour,
+      headlineRevenueByLocDay,
+      categoryTotals: cat,
+    }),
   ])
 
   const summary = buildDailyOpsSummaryDto(ctx, revMap, labMap, {
@@ -840,6 +864,7 @@ export async function fetchDailyOpsDashboardBundle(
       ? buildTodayExtrasFromHourBundle(ctx, hourBundle, rows.revenue, rows.orderTime, laborByLocHour)
       : undefined,
   )
+  revenue.drilldown = drilldown
 
   const labor = assembleLaborFromSnapshots(ctx, rows, revMap, labMap, revByDateLocation, {
     hoursCostByContractType,

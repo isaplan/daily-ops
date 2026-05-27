@@ -66,6 +66,8 @@ export const OPS_NOTIFICATION_RULE_SECTIONS: OpsNotificationRuleSection[] = [
     title: 'Data integrity',
     bullets: [
       'Unmapped Basis location — inbox row has no location_id (add alias on unified_location, re-parse).',
+      'Bork revenue aggregation stale — Bork day totals have revenue but hourly rows are missing/mismatched, or snapshots are older than the latest Bork aggregate.',
+      'Eitje labor aggregation stale — Eitje aggregation has hours but is missing current enriched fields (`team_name`, `total_cost_loaded`) or snapshots are older than aggregation.',
       'Labor snapshot internally inconsistent — worker rows show Keuken/Bediening hours but operational/gewerkte snapshot totals do not match.',
     ],
     paragraphs: [],
