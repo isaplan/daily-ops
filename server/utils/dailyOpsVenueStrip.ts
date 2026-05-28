@@ -11,7 +11,6 @@
  */
 
 import type { Db } from 'mongodb'
-import { ObjectId } from 'mongodb'
 import type {
   VenueStripCardDto,
   VenueStripLaborRowDto,
@@ -33,16 +32,11 @@ import {
 import { headlineExVatFromSnapshotSection } from './dailyOpsSnapshot/snapshotHeadlineRevenue'
 import { bucketTeamFromName } from './dailyOpsTeamBucket'
 import {
-  aggRowsUseLegacyGewerktSchema,
   allocateOperationalTeamLabor,
-  resolveRowGewerktSlice,
   type VenueLaborSlice,
 } from './eitjeVenueLaborRollup'
-import {
-  enrichEitjeAggRowsFromMembers,
-  enrichSnapshotLaborWorkersFromMembers,
-} from './eitjeAggCompensationEnrich'
-import { workersFromEitjeAggRows, workersFromSnapshot } from './dailyOpsVenueStripWorkers'
+import { enrichSnapshotLaborWorkersFromMembers } from './eitjeAggCompensationEnrich'
+import { workersFromSnapshot } from './dailyOpsVenueStripWorkers'
 
 export const VENUE_STRIP_LOCATIONS = [
   { locationId: '69d6cfa63d2adf93b79d1ae7', locationName: 'Van Kinsbergen' },
@@ -113,34 +107,6 @@ type VenueStripLaborBundle = {
 function productivityPerHour (revenue: number, hours: number): number | null {
   if (hours <= 0 || revenue <= 0) return null
   return round2(revenue / hours)
-}
-
-function eitjeLocationMatch (locationId: string): unknown {
-  try {
-    const oid = new ObjectId(locationId)
-    return { $in: [oid, locationId] }
-  } catch {
-    return locationId
-  }
-}
-
-function snapshotHasOperationalLabor (doc: DailyOpsSnapshotLaborSection | null): boolean {
-  if (!doc) return false
-  const g =
-    doc.operational?.gewerkt?.hours ??
-    doc.totals_gewerkt?.hours ??
-    0
-  if (g > 0) return true
-  if (Number(doc.totals?.hours ?? 0) > 0) {
-    for (const t of doc.teams ?? []) {
-      if (Number(t.gewerkt?.hours ?? t.hours ?? 0) > 0) return true
-    }
-  }
-  return false
-}
-
-function contractsByTeamHasRows (c: VenueStripCardDto['contractsByTeam']): boolean {
-  return c.keuken.length + c.bediening.length + c.other.length > 0
 }
 
 function addVenueLaborSlice (target: VenueStripLaborRowDto, source: VenueLaborSlice): void {
@@ -310,205 +276,6 @@ async function laborFromSnapshot (
   finalizeLaborOther(labor, workers)
 
   return { labor, workers }
-}
-
-async function laborFromEitjeAgg (
-  db: Db,
-  businessDate: string,
-  locationId: string,
-): Promise<VenueStripLaborBundle> {
-  const rows = await db
-    .collection('eitje_time_registration_aggregation')
-    .find({
-      period_type: 'day',
-      period: businessDate,
-      locationId: eitjeLocationMatch(locationId),
-    })
-    .toArray()
-
-  await enrichEitjeAggRowsFromMembers(db, rows as Record<string, unknown>[])
-
-  const labor = emptyLaborBlock()
-  const allWorkers = new Set<string>()
-  const gewerktWorkers: Record<'keuken' | 'bediening', Set<string>> = {
-    keuken: new Set(),
-    bediening: new Set(),
-  }
-  const legacyGewerkt = aggRowsUseLegacyGewerktSchema(rows as Record<string, unknown>[])
-  const workers = workersFromEitjeAggRows(rows as Record<string, unknown>[])
-
-  for (const r of rows) {
-    const hoursAll = Number(r.total_hours ?? 0)
-    const wagesAll = Number(r.total_cost ?? 0)
-    const loadedAll = Number(r.total_cost_loaded ?? 0)
-    labor.all.hours += hoursAll
-    labor.all.wages += wagesAll
-    labor.all.loaded += loadedAll
-
-    const gewSlice = resolveRowGewerktSlice(r as Record<string, unknown>, legacyGewerkt)
-    if (gewSlice) {
-      const alloc = allocateOperationalTeamLabor(String(r.team_name ?? ''), gewSlice)
-      addVenueLaborSlice(labor.keuken, alloc.keuken)
-      addVenueLaborSlice(labor.bediening, alloc.bediening)
-      const uid = String(r.userId ?? '')
-      if (uid) {
-        if (alloc.keuken.hours > 0) gewerktWorkers.keuken.add(uid)
-        if (alloc.bediening.hours > 0) gewerktWorkers.bediening.add(uid)
-      }
-    }
-
-    const uid = String(r.userId ?? '')
-    if (uid) allWorkers.add(uid)
-  }
-
-  labor.all.workers = allWorkers.size
-  finalizeVenueLaborRow(labor.all)
-  labor.keuken.workers = gewerktWorkers.keuken.size
-  labor.bediening.workers = gewerktWorkers.bediening.size
-  finalizeVenueLaborRow(labor.keuken)
-  finalizeVenueLaborRow(labor.bediening)
-  labor.gewerkt = {
-    hours: round2(labor.keuken.hours + labor.bediening.hours),
-    wages: round2(labor.keuken.wages + labor.bediening.wages),
-    loaded: round2(labor.keuken.loaded + labor.bediening.loaded),
-    workers: new Set([...gewerktWorkers.keuken, ...gewerktWorkers.bediening]).size,
-    laborPctOfRevenue: null,
-  }
-
-  finalizeLaborOther(labor, workers)
-  return { labor, workers }
-}
-
-async function fetchContractsByTeam (
-  db: Db,
-  businessDate: string,
-  locationId: string,
-): Promise<VenueStripCardDto['contractsByTeam']> {
-  const rows = (await db
-    .collection('eitje_time_registration_aggregation')
-    .aggregate([
-      {
-        $match: {
-          period_type: 'day',
-          period: businessDate,
-          locationId: eitjeLocationMatch(locationId),
-        },
-      },
-      {
-        $lookup: {
-          from: 'members',
-          let: { uid: { $toString: '$userId' } },
-          pipeline: [
-            {
-              $match: {
-                $expr: {
-                  $or: [
-                    { $eq: [{ $toString: '$eitje_id' }, '$$uid'] },
-                    {
-                      $gt: [
-                        {
-                          $size: {
-                            $filter: {
-                              input: { $ifNull: ['$eitje_ids', []] },
-                              as: 'x',
-                              cond: { $eq: [{ $toString: '$$x' }, '$$uid'] },
-                            },
-                          },
-                        },
-                        0,
-                      ],
-                    },
-                  ],
-                },
-              },
-            },
-            { $limit: 1 },
-            { $project: { contract_type: 1 } },
-          ],
-          as: '_m',
-        },
-      },
-      {
-        $addFields: {
-          contractType: { $ifNull: [{ $arrayElemAt: ['$_m.contract_type', 0] }, '-'] },
-          teamBucket: {
-            $switch: {
-              branches: [
-                {
-                  case: {
-                    $eq: [
-                      { $toLower: { $trim: { input: { $ifNull: ['$team_name', ''] } } } },
-                      'keuken',
-                    ],
-                  },
-                  then: 'keuken',
-                },
-                {
-                  case: {
-                    $eq: [
-                      { $toLower: { $trim: { input: { $ifNull: ['$team_name', ''] } } } },
-                      'bediening',
-                    ],
-                  },
-                  then: 'bediening',
-                },
-              ],
-              default: 'other',
-            },
-          },
-        },
-      },
-      {
-        $group: {
-          _id: { teamBucket: '$teamBucket', contractType: '$contractType' },
-          staffIds: { $addToSet: { $toString: '$userId' } },
-          hours: { $sum: { $ifNull: ['$total_hours', 0] } },
-          wages: { $sum: { $ifNull: ['$total_cost', 0] } },
-          loaded: { $sum: { $ifNull: ['$total_cost_loaded', 0] } },
-        },
-      },
-      {
-        $project: {
-          _id: 0,
-          teamBucket: '$_id.teamBucket',
-          contractType: '$_id.contractType',
-          workers: {
-            $size: {
-              $filter: {
-                input: '$staffIds',
-                as: 'id',
-                cond: { $and: [{ $ne: ['$$id', ''] }, { $ne: ['$$id', null] }] },
-              },
-            },
-          },
-          hours: { $round: ['$hours', 2] },
-          wages: { $round: ['$wages', 2] },
-          loaded: { $round: ['$loaded', 2] },
-        },
-      },
-      { $sort: { teamBucket: 1, loaded: -1 } },
-    ])
-    .toArray()) as {
-    teamBucket: VenueStripTeamBucket
-    contractType: string
-    workers: number
-    hours: number
-    wages: number
-    loaded: number
-  }[]
-
-  const out: VenueStripCardDto['contractsByTeam'] = { keuken: [], bediening: [], other: [] }
-  for (const r of rows) {
-    const bucket = r.teamBucket === 'keuken' || r.teamBucket === 'bediening' ? r.teamBucket : 'other'
-    out[bucket].push({
-      contractType: String(r.contractType ?? '-'),
-      workers: Number(r.workers ?? 0),
-      hours: Number(r.hours ?? 0),
-      wages: Number(r.wages ?? 0),
-      loaded: Number(r.loaded ?? 0),
-    })
-  }
-  return out
 }
 
 function contractsByTeamFromSnapshot (
