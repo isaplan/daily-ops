@@ -2,7 +2,7 @@
  * @registry-id: dailyOpsSnapshotService
  * @created: 2026-05-13T00:00:00.000Z
  * @last-modified: 2026-05-28T00:00:00.000Z
- * @last-fix: [2026-05-28] Precompute daily_ops_revenue_benchmark on snapshot seal (ADR-006)
+ * @last-fix: [2026-05-28] Post-seal retention hook (blob archive + fat bork purge, ADR-006)
  * @adr-ref: ADR-004, ADR-006
  *
  * @architecture:
@@ -44,6 +44,7 @@ import {
   writeRevenueBenchmarkAllLocations,
   writeRevenueBenchmarkForLocation,
 } from '../utils/dailyOpsRevenue/revenueBenchmark'
+import { runPostSealRetention } from '../utils/dailyOpsBlob/runPostSealRetention'
 
 const runtimeProcess = globalThis as typeof globalThis & {
   process?: { env?: Record<string, string | undefined> }
@@ -210,6 +211,7 @@ export async function sealDailyOpsSnapshot(input: { businessDate: string; locati
     await db
       .collection(DAILY_OPS_SNAPSHOT_COLLECTIONS.master)
       .updateOne({ businessDate: input.businessDate, locationId: input.locationId }, { $set: { status: 'final', sealedAt: new Date() } })
+    await runPostSealRetention(db, input.businessDate, input.locationId)
     if (DEBUG) console.info(`[snapshot:seal] ${input.businessDate} ${input.locationId} sealed`)
     return { sealed: true }
   } catch (e) {
