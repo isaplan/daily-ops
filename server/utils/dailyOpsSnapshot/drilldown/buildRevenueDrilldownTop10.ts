@@ -1,12 +1,14 @@
 /**
  * @registry-id: dailyOpsRevenueDrilldownTop10
  * @created: 2026-05-28T00:00:00.000Z
- * @last-modified: 2026-05-28T00:00:00.000Z
+ * @last-modified: 2026-05-28T14:00:00.000Z
  * @description: Top-10 workers/tables/products for revenue drilldown
+ * @last-fix: [2026-05-28] Workers top-10 by payment time and order-entry time
  * @adr-ref: ADR-004
  */
 
 import type { DailyOpsRevenueDrilldownDto, DailyOpsRevenueDrilldownTopRowDto } from '~/types/daily-ops-dashboard'
+import type { DailyOpsSnapshotRevenueWorkersSection } from '~/types/daily-ops-snapshot'
 import type { BuildRevenueDrilldownInput } from './drilldownShared'
 import { round2 } from './drilldownShared'
 
@@ -35,16 +37,13 @@ function topRows(map: Map<string, DailyOpsRevenueDrilldownTopRowDto>, limit = 10
     .slice(0, limit)
 }
 
-export function buildRevenueDrilldownTop10(
-  input: BuildRevenueDrilldownInput,
-): DailyOpsRevenueDrilldownDto['top10'] {
+function buildWorkerTopRows(
+  docs: DailyOpsSnapshotRevenueWorkersSection[],
+  field: 'workers' | 'orderTimeWorkers',
+): DailyOpsRevenueDrilldownTopRowDto[] {
   const workers = new Map<string, DailyOpsRevenueDrilldownTopRowDto>()
-  const tables = new Map<string, DailyOpsRevenueDrilldownTopRowDto>()
-  const foodProducts = new Map<string, DailyOpsRevenueDrilldownTopRowDto>()
-  const beverages = new Map<string, DailyOpsRevenueDrilldownTopRowDto>()
-
-  for (const doc of input.workers) {
-    for (const worker of doc.workers ?? []) {
+  for (const doc of docs) {
+    for (const worker of doc[field] ?? []) {
       const label = String(worker.workerName ?? '').trim() || 'Unknown'
       pushTopRow(workers, String(worker.workerId ?? label), {
         label,
@@ -55,6 +54,16 @@ export function buildRevenueDrilldownTop10(
       })
     }
   }
+  return topRows(workers)
+}
+
+export function buildRevenueDrilldownTop10(
+  input: BuildRevenueDrilldownInput,
+): DailyOpsRevenueDrilldownDto['top10'] {
+  const tables = new Map<string, DailyOpsRevenueDrilldownTopRowDto>()
+  const foodProducts = new Map<string, DailyOpsRevenueDrilldownTopRowDto>()
+  const beverages = new Map<string, DailyOpsRevenueDrilldownTopRowDto>()
+
   for (const doc of input.tables) {
     for (const table of doc.tables ?? []) {
       const label = String(table.tableNum ?? '').trim() || 'Unknown table'
@@ -91,7 +100,10 @@ export function buildRevenueDrilldownTop10(
   }
 
   return {
-    workers: topRows(workers),
+    workers: {
+      paymentTime: buildWorkerTopRows(input.workers, 'workers'),
+      orderTime: buildWorkerTopRows(input.workers, 'orderTimeWorkers'),
+    },
     tables: topRows(tables),
     foodProducts: topRows(foodProducts),
     beverageProductsOrCategories: topRows(beverages),

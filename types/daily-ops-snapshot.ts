@@ -278,7 +278,16 @@ export type DailyOpsSnapshotRevenueWorkersSection = {
   businessDate: string
   locationId: string
   locationName: string
+  /** Revenue attributed by paid/closed ticket time. */
   workers: Array<{
+    workerId: string
+    workerName: string
+    revenue_ex_vat: number
+    quantity: number
+    order_count: number
+  }>
+  /** Revenue attributed by Bork order-entry time. */
+  orderTimeWorkers?: Array<{
     workerId: string
     workerName: string
     revenue_ex_vat: number

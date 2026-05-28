@@ -1,9 +1,9 @@
 /**
  * @registry-id: dailyOpsSnapshotBuildRevenueDrilldownSection
  * @created: 2026-05-26T02:36:00.000Z
- * @last-modified: 2026-05-28T00:00:00.000Z
+ * @last-modified: 2026-05-28T14:00:00.000Z
  * @description: Orchestrates snapshot-backed Daily Ops revenue drilldown DTO
- * @last-fix: [2026-05-28] Split hourly/spaces/top10 into drilldown/* modules
+ * @last-fix: [2026-05-28] Coverage note when order-time worker snapshots are missing
  * @adr-ref: ADR-004
  *
  * @exports-to:
@@ -50,6 +50,9 @@ export async function buildRevenueDrilldownSection(
   }
   if (input.tables.length === 0) coverageNotes.push('No table/space revenue snapshot rows for this range.')
   if (input.workers.length === 0) coverageNotes.push('No worker revenue snapshot rows for this range.')
+  else if (input.workers.every((doc) => (doc.orderTimeWorkers?.length ?? 0) === 0)) {
+    coverageNotes.push('Order-time worker rankings unavailable — rebuild snapshots after Bork order-worker aggregation.')
+  }
   if (input.products.length === 0) coverageNotes.push('No product/category revenue snapshot rows for this range.')
 
   return {

@@ -17,6 +17,7 @@ const FAT_BORK_BASES = [
   'bork_sales_by_day',
   'bork_sales_by_table',
   'bork_sales_by_worker',
+  'bork_sales_by_order_worker',
   'bork_sales_by_guest_account',
   'bork_sales_by_product',
 ] as const
