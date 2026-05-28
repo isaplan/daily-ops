@@ -3,79 +3,21 @@
  * @created: 2026-05-28T00:00:00.000Z
  * @last-modified: 2026-05-28T00:00:00.000Z
  * @description: Assemble DailyOpsLaborMetricsDto from snapshot labor/revenue rows
+ * @last-fix: [2026-05-28] Extract contract + productivity rollups to focused modules
  * @adr-ref: ADR-004
+ *
+ * @exports-to:
+ * ✓ server/utils/dailyOpsSnapshot/fetchDashboardBundle.ts
  */
 
 import type { DailyOpsLaborDayDto, DailyOpsLaborMetricsDto } from '~/types/daily-ops-dashboard'
-import type { DailyOpsSnapshotLaborSection } from '~/types/daily-ops-snapshot'
 import { enumerateUtcDatesInclusive, type DailyOpsMetricsContext } from '../../dailyOpsDashboardMetrics'
+import { contractRollupsFromSnapshotLabor } from './laborContractRollups'
+import { productivityByLocationFromSnapshots } from './laborProductivityRollups'
 import type { SnapshotDashboardRows } from './loadSnapshotRows'
 import { round2 } from './shared'
 
-export function contractRollupsFromSnapshotLabor(labor: DailyOpsSnapshotLaborSection[]): {
-  hoursCostByContractType: DailyOpsLaborMetricsDto['hoursCostByContractType']
-  contractTypeByDay: DailyOpsLaborMetricsDto['contractTypeByDay']
-} {
-  const periodMap = new Map<string, { hours: number; cost: number; workerIds: Set<string> }>()
-  const dayMap = new Map<
-    string,
-    { date: string; contractType: string; hours: number; cost: number; workerIds: Set<string> }
-  >()
-
-  for (const doc of labor) {
-    const ingest = (contractType: string, hours: number, loaded: number, userId?: string) => {
-      const ct = contractType || '—'
-      let p = periodMap.get(ct)
-      if (!p) {
-        p = { hours: 0, cost: 0, workerIds: new Set() }
-        periodMap.set(ct, p)
-      }
-      p.hours += hours
-      p.cost += loaded
-      if (userId) p.workerIds.add(userId)
-
-      const dayKey = `${doc.businessDate}|${ct}`
-      let d = dayMap.get(dayKey)
-      if (!d) {
-        d = { date: doc.businessDate, contractType: ct, hours: 0, cost: 0, workerIds: new Set() }
-        dayMap.set(dayKey, d)
-      }
-      d.hours += hours
-      d.cost += loaded
-      if (userId) d.workerIds.add(userId)
-    }
-
-    if (doc.contracts?.length) {
-      for (const c of doc.contracts) {
-        ingest(c.contractType, Number(c.hours ?? 0), Number(c.loaded_cost ?? 0))
-      }
-      continue
-    }
-    for (const w of doc.workers ?? []) {
-      ingest(w.contractType ?? '—', Number(w.hours ?? 0), Number(w.loaded_cost ?? 0), w.userId)
-    }
-  }
-
-  const hoursCostByContractType = [...periodMap.entries()]
-    .map(([contractType, v]) => ({
-      contractType,
-      totalHours: round2(v.hours),
-      totalCost: round2(v.cost),
-    }))
-    .sort((a, b) => a.contractType.localeCompare(b.contractType))
-
-  const contractTypeByDay = [...dayMap.values()]
-    .map((d) => ({
-      date: d.date,
-      contractType: d.contractType,
-      workerCount: d.workerIds.size,
-      totalHours: round2(d.hours),
-      totalCost: round2(d.cost),
-    }))
-    .sort((a, b) => a.contractType.localeCompare(b.contractType) || a.date.localeCompare(b.date))
-
-  return { hoursCostByContractType, contractTypeByDay }
-}
+export { contractRollupsFromSnapshotLabor } from './laborContractRollups'
 
 export function assembleLaborFromSnapshots(
   ctx: DailyOpsMetricsContext,
@@ -213,51 +155,6 @@ export function assembleLaborFromSnapshots(
     }
   })
 
-  const productivityByLocationDay: DailyOpsLaborMetricsDto['productivityByLocationDay'] = []
-  const byLoc = new Map<string, { locationName: string; rows: { date: string; rev: number; hours: number }[] }>()
-  for (const doc of rows.labor) {
-    const rev = revByDateLocation.get(`${doc.businessDate}|${doc.locationId}`) ?? 0
-    const hours = Number(doc.totals?.hours ?? 0)
-    let loc = byLoc.get(doc.locationId)
-    if (!loc) {
-      loc = { locationName: doc.locationName, rows: [] }
-      byLoc.set(doc.locationId, loc)
-    }
-    loc.rows.push({ date: doc.businessDate, rev, hours })
-  }
-  for (const [locationId, loc] of byLoc) {
-    const scored = loc.rows
-      .filter((r) => r.hours > 0)
-      .map((r) => ({
-        date: r.date,
-        revenue: round2(r.rev),
-        hours: round2(r.hours),
-        revenuePerLaborHour: round2(r.rev / r.hours),
-      }))
-    scored.sort((a, b) => b.revenuePerLaborHour - a.revenuePerLaborHour)
-    productivityByLocationDay.push({
-      locationId,
-      locationName: loc.locationName,
-      highest: scored[0]
-        ? {
-            date: scored[0].date,
-            revenuePerLaborHour: scored[0].revenuePerLaborHour,
-            revenue: scored[0].revenue,
-            hours: scored[0].hours,
-          }
-        : null,
-      lowest:
-        scored.length > 1
-          ? {
-              date: scored[scored.length - 1]!.date,
-              revenuePerLaborHour: scored[scored.length - 1]!.revenuePerLaborHour,
-              revenue: scored[scored.length - 1]!.revenue,
-              hours: scored[scored.length - 1]!.hours,
-            }
-          : null,
-    })
-  }
-
   const snapshotContracts = contractRollupsFromSnapshotLabor(rows.labor)
   const hoursCostByContractType =
     snapshotContracts.hoursCostByContractType.length > 0
@@ -290,6 +187,6 @@ export function assembleLaborFromSnapshots(
       laborCostPctOfRevenue: sumRev > 0 ? Math.round((sumLab / sumRev) * 100 * 10) / 10 : null,
       revenuePerLaborHour: sumHours > 0 ? round2(sumRev / sumHours) : null,
     },
-    productivityByLocationDay,
+    productivityByLocationDay: productivityByLocationFromSnapshots(rows.labor, revByDateLocation),
   }
 }

@@ -26,6 +26,9 @@ todos:
   - id: verify-rebuild
     content: "Test rebuild for last 60 days, verify snapshot rows update with new space names"
     status: pending
+  - id: monolith-split
+    content: "Split assembleLaborDto + buildRevenueDrilldownHourly; extend MONOLITH_WATCH detector"
+    status: completed
 isProject: false
 ---
 
