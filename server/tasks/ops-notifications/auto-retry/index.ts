@@ -8,8 +8,8 @@
  * ✓ nuxt.config.ts -> nitro.scheduledTasks (ops-notifications:auto-retry)
  */
 
-import { getDb } from '../../utils/db'
-import { runOpsNotificationAutoRetry } from '../../utils/opsNotifications/autoRetry'
+import { getDb } from '../../../utils/db'
+import { runOpsNotificationAutoRetry } from '../../../utils/opsNotifications/autoRetry'
 
 export default defineTask({
   meta: {
