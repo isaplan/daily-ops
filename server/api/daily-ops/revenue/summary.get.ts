@@ -1,10 +1,8 @@
 import { getDb } from '../../../utils/db'
 import { parseRevenueQuery } from '../../../utils/dailyOpsRevenue/parseRevenueQuery'
 import { fetchRevenueRange, listDatesInRange } from '../../../utils/dailyOpsRevenue/fetchRevenueRange'
-import {
-  buildKpiVsBenchmark,
-  computeBenchmark60d,
-} from '../../../utils/dailyOpsRevenue/computeBenchmark60d'
+import { buildKpiVsBenchmark } from '../../../utils/dailyOpsRevenue/computeBenchmark60d'
+import { readRevenueBenchmark60d } from '../../../utils/dailyOpsRevenue/revenueBenchmark'
 import type { DailyOpsRevenueKpiDto } from '~/types/daily-ops-revenue'
 
 export default defineEventHandler(async (event): Promise<DailyOpsRevenueKpiDto> => {
@@ -30,7 +28,7 @@ export default defineEventHandler(async (event): Promise<DailyOpsRevenueKpiDto> 
     compareLabel: ctx.compareLabel,
   }
 
-  const bench = await computeBenchmark60d(db, ctx.endDate, ctx.locationId)
+  const bench = await readRevenueBenchmark60d(db, ctx.endDate, ctx.locationId)
   dto.vs60d = {
     label: '60d gem.',
     revenue: buildKpiVsBenchmark(dto.revenue, bench.avgDailyRevenue * businessDays),

@@ -76,7 +76,7 @@ export const EITJE_CONTRACT_CPH_LOOKUP = {
   },
 }
 
-/** ZZP: hourly_rate only. Else memberDoc.cost_per_hour → contractDoc.cost_per_hour (ADR-001). */
+/** ZZP: hourly_rate only. Else memberDoc.cost_per_hour only (ADR-001 — no inbox fallback). */
 export const EITJE_RESOLVE_COST_PER_HOUR_FIELDS = {
   $addFields: {
     cost_per_hour: {
@@ -84,27 +84,16 @@ export const EITJE_RESOLVE_COST_PER_HOUR_FIELDS = {
         vars: {
           contractType: {
             $toString: {
-              $ifNull: [
-                { $arrayElemAt: ['$memberDoc.contract_type', 0] },
-                { $arrayElemAt: ['$contractDoc.contract_type', 0] },
-                '',
-              ],
+              $ifNull: [{ $arrayElemAt: ['$memberDoc.contract_type', 0] }, ''],
             },
           },
-          contractCph: { $arrayElemAt: ['$contractDoc.cost_per_hour', 0] },
           memberCph: { $arrayElemAt: ['$memberDoc.cost_per_hour', 0] },
         },
         in: {
           $cond: [
             { $regexMatch: { input: '$$contractType', regex: 'zzp', options: 'i' } },
             { $cond: [aggIsNumeric('$hourly_rate'), '$hourly_rate', null] },
-            {
-              $cond: [
-                aggIsNumeric('$$memberCph'),
-                '$$memberCph',
-                { $cond: [aggIsNumeric('$$contractCph'), '$$contractCph', null] },
-              ],
-            },
+            { $cond: [aggIsNumeric('$$memberCph'), '$$memberCph', null] },
           ],
         },
       },

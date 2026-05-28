@@ -1,18 +1,15 @@
 /**
  * @registry-id: dailyOpsSnapshotFetchDashboardBundle
  * @created: 2026-05-25T00:00:00.000Z
- * @last-modified: 2026-05-26T02:36:00.000Z
+ * @last-modified: 2026-05-28T00:00:00.000Z
  * @description: Snapshot-first Daily Ops dashboard bundle (ADR-004). One parallel read per section collection; no bork_* on GET.
- * @last-fix: [2026-05-26] Add snapshot-backed revenue drilldown section below Most Profitable Hour.
- *   Prior: [2026-05-26] Today hourly detail reads dedicated revenue-by-order-time snapshot section.
- *   Prior: [2026-05-26] Today hourly detail includes order-time buckets when snapshots provide them.
- *   Prior: [2026-05-26] Today headline/interval revenue uses snapshot selected total when borkTotals is zero.
- * @adr-ref: ADR-004
+ * @last-fix: [2026-05-28] Removed Bork/Eitje/raw/inbox fallbacks on GET; snapshot totals SSOT
+ * @adr-ref: ADR-004, ADR-006
  *
  * @architecture:
  *   - Writers: dailyOpsSnapshotService (cron + rebuild).
  *   - Readers: GET /api/daily-ops/metrics/bundle (+ slice routes delegate here).
- *   - Missing sealed rows → dataGap flags + zeros; today hourly labor may use local Eitje shift rows while snapshots catch up.
+ *   - Missing sealed rows → dataGap flags + zeros; no live warm/raw fallback on GET.
  *
  * @exports-to:
  * ✓ server/api/daily-ops/metrics/bundle.get.ts
@@ -45,25 +42,13 @@ import {
   buildDailyOpsRevenueBreakdownDto,
   buildDailyOpsSummaryDto,
   enumerateUtcDatesInclusive,
-  fetchBorkHourAggregatesBundleWithLocations,
-  fetchHoursCostByContractType,
-  fetchHoursCostByContractTypeByDay,
   type BorkHourAggregatesBundle,
   type DailyOpsMetricsContext,
 } from '../dailyOpsDashboardMetrics'
-import {
-  fetchLaborByBusinessDateHour,
-  type LaborByBusinessDateHourBucket,
-} from '../eitjeLaborByHour'
 import { VENUE_STRIP_LOCATIONS } from '../dailyOpsVenueStrip'
-import {
-  headlineExVatFromSnapshotRevenue,
-  morningInboxMapKey,
-  pickMorningFinalBasisReport,
-  type BasisReportData,
-} from '../inbox/basis-report-mapper'
-import { loadMorningBasisInboxByLocDate } from '../inbox/loadMorningBasisInbox'
-import { getGmailConnectionStatus } from '../../services/gmailOAuthService'
+import { headlineExVatFromSnapshotSection } from './snapshotHeadlineRevenue'
+
+type LaborByBusinessDateHourBucket = { loadedCost: number; hours: number }
 import { aggregateLaborForRange } from './aggregateLaborForRange'
 import { buildProfitByIntervalFromSnapshotHourly } from './buildProfitByIntervalFromSnapshot'
 import { buildRevenueDrilldownSection } from './buildRevenueDrilldownSection'
@@ -136,8 +121,6 @@ function buildRevLabMaps(
   masters: DailyOpsSnapshotMaster[],
   revenue: DailyOpsSnapshotRevenueSection[],
   labor: DailyOpsSnapshotLaborSection[],
-  morningInboxByLocDate: Map<string, BasisReportData[]>,
-  forceBorkHeadline: boolean,
 ): {
   revMap: Map<string, number>
   labMap: Map<string, { laborCost: number; hours: number; distinctWorkerCount: number }>
@@ -147,9 +130,7 @@ function buildRevLabMaps(
   const labByLocDay = new Map<string, { laborCost: number; hours: number; workerIds: Set<string> }>()
 
   for (const r of revenue) {
-    const morning =
-      morningInboxByLocDate.get(morningInboxMapKey(r.businessDate, r.locationId)) ?? []
-    const ex = headlineExVatFromSnapshotRevenue(r, morning, { forceBorkHeadline })
+    const ex = headlineExVatFromSnapshotSection(r)
     revByDateLocation.set(locDayKey(r.businessDate, r.locationId), ex)
   }
   for (const m of masters) {
@@ -243,19 +224,11 @@ function buildHourBundleFromSnapshots(
   }
 }
 
-function snapshotHourBundleHasRevenue(bundle: BorkHourAggregatesBundle): boolean {
-  return bundle.byDayHour.some((r) => r.revenue > 0)
-}
-
-/** Fill profit-by-interval / time-period when revenue sections were built without Bork suffix hourly. */
-async function resolveHourBundleForDashboard(
-  db: Db,
-  ctx: DailyOpsMetricsContext,
+/** Snapshot hourly bundle only — no Bork fallback on GET (ADR-004). */
+function resolveHourBundleForDashboard(
   rows: SnapshotDashboardRows,
-): Promise<BorkHourAggregatesBundle> {
-  const fromSnapshot = buildHourBundleFromSnapshots(rows.hourly, rows.revenue)
-  if (snapshotHourBundleHasRevenue(fromSnapshot)) return fromSnapshot
-  return fetchBorkHourAggregatesBundleWithLocations(db, ctx)
+): BorkHourAggregatesBundle {
+  return buildHourBundleFromSnapshots(rows.hourly, rows.revenue)
 }
 
 function categoryTotalsFromProducts(products: DailyOpsSnapshotRevenueProductsSection[]): {
@@ -276,16 +249,12 @@ function categoryTotalsFromProducts(products: DailyOpsSnapshotRevenueProductsSec
 
 function buildHeadlineRevenueByLocDay(
   revenue: DailyOpsSnapshotRevenueSection[],
-  morningInboxByLocDate: Map<string, BasisReportData[]>,
-  forceBorkHeadline: boolean,
 ): Map<string, number> {
   const out = new Map<string, number>()
 
   for (const rev of revenue) {
     const key = locDayKey(rev.businessDate, rev.locationId)
-    const morning =
-      morningInboxByLocDate.get(morningInboxMapKey(rev.businessDate, rev.locationId)) ?? []
-    out.set(key, headlineExVatFromSnapshotRevenue(rev, morning, { forceBorkHeadline }))
+    out.set(key, headlineExVatFromSnapshotSection(rev))
   }
 
   return out
@@ -330,34 +299,10 @@ function laborByLocHourFromSnapshots(
   return out
 }
 
-function laborMapHours(map: Map<string, LaborByBusinessDateHourBucket>): number {
-  let hours = 0
-  for (const row of map.values()) hours += Number(row.hours ?? 0)
-  return round2(hours)
-}
-
-function snapshotLaborTotalHours(labor: DailyOpsSnapshotLaborSection[]): number {
-  return round2(labor.reduce((sum, doc) => sum + Number(doc.totals?.hours ?? 0), 0))
-}
-
-async function resolveLaborByLocHourForDashboard(
-  db: Db,
-  ctx: DailyOpsMetricsContext,
+function resolveLaborByLocHourForDashboard(
   labor: DailyOpsSnapshotLaborSection[],
-): Promise<Map<string, LaborByBusinessDateHourBucket>> {
-  const fromSnapshot = laborByLocHourFromSnapshots(labor)
-  if (ctx.period !== 'today' || ctx.startDate !== ctx.endDate) return fromSnapshot
-
-  const hourlyHours = laborMapHours(fromSnapshot)
-  const totalHours = snapshotLaborTotalHours(labor)
-  if (hourlyHours > 0 && (totalHours <= 0 || hourlyHours >= totalHours * 0.95)) return fromSnapshot
-
-  const live = await fetchLaborByBusinessDateHour(
-    db,
-    { startDate: ctx.startDate, endDate: ctx.endDate, locationId: ctx.locationId },
-    { perLocation: true },
-  )
-  return live.size > 0 ? live : fromSnapshot
+): Map<string, LaborByBusinessDateHourBucket> {
+  return laborByLocHourFromSnapshots(labor)
 }
 
 function laborBucketForLocationHour(
@@ -779,55 +724,26 @@ export async function fetchDailyOpsDashboardBundle(
   db: Db,
   ctx: DailyOpsMetricsContext,
 ): Promise<DailyOpsDashboardBundleDto> {
-  const [rows, morningInboxByLocDate, gmailStatus] = await Promise.all([
-    loadSnapshotDashboardRows(db, ctx),
-    loadMorningBasisInboxByLocDate(db, ctx.startDate, ctx.endDate),
-    getGmailConnectionStatus(),
-  ])
-  const forceBorkHeadline = gmailStatus.needsReconnect
+  const rows = await loadSnapshotDashboardRows(db, ctx)
   const snapshotContracts = contractRollupsFromSnapshotLabor(rows.labor)
-
-  let hoursCostByContractType = snapshotContracts.hoursCostByContractType
-  let contractTypeByDay = snapshotContracts.contractTypeByDay
-  if (hoursCostByContractType.length === 0 || contractTypeByDay.length === 0) {
-    const [warmPeriod, warmDay] = await Promise.all([
-      hoursCostByContractType.length === 0
-        ? fetchHoursCostByContractType(db, ctx)
-        : Promise.resolve([] as DailyOpsLaborMetricsDto['hoursCostByContractType']),
-      contractTypeByDay.length === 0
-        ? fetchHoursCostByContractTypeByDay(db, ctx)
-        : Promise.resolve([] as DailyOpsLaborMetricsDto['contractTypeByDay']),
-    ])
-    if (hoursCostByContractType.length === 0) hoursCostByContractType = warmPeriod
-    if (contractTypeByDay.length === 0) contractTypeByDay = warmDay
-  }
+  const hoursCostByContractType = snapshotContracts.hoursCostByContractType
+  const contractTypeByDay = snapshotContracts.contractTypeByDay
 
   const { revMap, labMap, revByDateLocation } = buildRevLabMaps(
     rows.masters,
     rows.revenue,
     rows.labor,
-    morningInboxByLocDate,
-    forceBorkHeadline,
   )
   const cat = categoryTotalsFromProducts(rows.products)
-  const hourBundle = await resolveHourBundleForDashboard(db, ctx, rows)
-  const headlineRevenueByLocDay = buildHeadlineRevenueByLocDay(
-    rows.revenue,
-    morningInboxByLocDate,
-    forceBorkHeadline,
-  )
+  const hourBundle = resolveHourBundleForDashboard(rows)
+  const headlineRevenueByLocDay = buildHeadlineRevenueByLocDay(rows.revenue)
 
   let apiMergedTotal = 0
-  let inboxBasisExVat = 0
-  for (const list of morningInboxByLocDate.values()) {
-    const pick = pickMorningFinalBasisReport(list)
-    if (pick) inboxBasisExVat += Number(pick.final_revenue_ex_vat ?? 0)
-  }
   for (const r of rows.revenue) {
     apiMergedTotal += Number(r.borkTotals?.ex_vat ?? 0)
   }
 
-  const laborByLocHour = await resolveLaborByLocHourForDashboard(db, ctx, rows.labor)
+  const laborByLocHour = resolveLaborByLocHourForDashboard(rows.labor)
 
   const [laborBreakdown, profitByInterval, drilldown] = await Promise.all([
     aggregateLaborForRange(db, {
@@ -856,8 +772,7 @@ export async function fetchDailyOpsDashboardBundle(
 
   const summary = buildDailyOpsSummaryDto(ctx, revMap, labMap, {
     apiBusinessDaysTotal: round2(apiMergedTotal),
-    inboxBasisExVat:
-      forceBorkHeadline || inboxBasisExVat <= 0 ? null : round2(inboxBasisExVat),
+    inboxBasisExVat: null,
   })
   if (laborBreakdown.coverage.daysFound > 0) {
     summary.summary.laborBreakdown = laborBreakdown

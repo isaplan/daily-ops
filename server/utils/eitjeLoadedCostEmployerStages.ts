@@ -68,14 +68,9 @@ export const EITJE_LOADED_COST_FIELDS = {
         vars: {
           contractType: {
             $toString: {
-              $ifNull: [
-                { $arrayElemAt: ['$memberDoc.contract_type', 0] },
-                { $arrayElemAt: ['$contractDoc.contract_type', 0] },
-                '',
-              ],
+              $ifNull: [{ $arrayElemAt: ['$memberDoc.contract_type', 0] }, ''],
             },
           },
-          contractCph: { $arrayElemAt: ['$contractDoc.cost_per_hour', 0] },
           memberCph: { $arrayElemAt: ['$memberDoc.cost_per_hour', 0] },
         },
         in: {
@@ -100,15 +95,7 @@ export const EITJE_LOADED_COST_FIELDS = {
                   $cond: [
                     aggIsNumeric('$$memberCph'),
                     'members',
-                    {
-                      $cond: [
-                        aggIsNumeric('$$contractCph'),
-                        'inbox-eitje-contracts',
-                        {
-                          $cond: [aggIsNumeric('$hourly_rate'), 'fallback-1.56', 'none'],
-                        },
-                      ],
-                    },
+                    { $cond: [aggIsNumeric('$hourly_rate'), 'fallback-1.56', 'none'] },
                   ],
                 },
               ],

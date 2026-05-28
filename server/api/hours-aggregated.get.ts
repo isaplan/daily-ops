@@ -93,69 +93,11 @@ export default defineEventHandler(async (event) => {
     })
 
     if (groupBy === 'worker' && source === 'contracts') {
-      const contractDocs = await db.collection('inbox-eitje-contracts').find({}).toArray()
-      const allRows = contractDocs
-        .filter((d: { total_worked_hours?: number }) => (d.total_worked_hours ?? 0) > 0)
-        .map(
-          (d: {
-            employee_name?: string
-            support_id?: string
-            total_worked_hours?: number
-            hourly_rate?: number
-            total_worked_days?: number
-            contract_location?: string
-            contract_type?: string
-          }) => ({
-            worker_id: d.support_id ?? '',
-            worker_name: d.employee_name ?? 'Unknown',
-            total_hours: d.total_worked_hours ?? 0,
-            total_cost: Math.round((d.total_worked_hours ?? 0) * (d.hourly_rate ?? 0) * 100) / 100,
-            record_count: d.total_worked_days ?? 0,
-            location_count: d.contract_location ? 1 : 0,
-            hourly_rate: d.hourly_rate ?? 0,
-            contract_type: d.contract_type ?? '-',
-            team_name: '-',
-          })
-        )
-      const sortField = sortBy === 'total_cost' ? 'total_cost' : sortBy === 'worker_name' ? 'worker_name' : 'total_hours'
-      const dir = sortOrder === 'asc' ? 1 : -1
-      allRows.sort(
-        (
-          a: { total_hours: number; total_cost: number; worker_name: string },
-          b: { total_hours: number; total_cost: number; worker_name: string }
-        ) => {
-          const va = sortField === 'worker_name' ? a.worker_name : sortField === 'total_cost' ? a.total_cost : a.total_hours
-          const vb = sortField === 'worker_name' ? b.worker_name : sortField === 'total_cost' ? b.total_cost : b.total_hours
-          return dir * (va < vb ? -1 : va > vb ? 1 : 0)
-        }
-      )
-      const totalCount = allRows.length
-      const totals = allRows.reduce(
-        (acc, r: { total_hours: number; total_cost: number; record_count: number }) => ({
-          total_hours: acc.total_hours + r.total_hours,
-          total_cost: acc.total_cost + r.total_cost,
-          record_count: acc.record_count + r.record_count,
-        }),
-        { total_hours: 0, total_cost: 0, record_count: 0 }
-      )
-      const data = allRows.slice(skip, skip + pageSize)
-      let locations: { _id: string; name: string }[] = []
-      if (includeLocations) {
-        const locs = await db
-          .collection('locations')
-          .find({}, { projection: { name: 1 } })
-          .sort({ name: 1 })
-          .toArray()
-        locations = locs.map((l: { _id: unknown; name: string }) => ({ _id: String(l._id), name: l.name }))
-      }
-      return {
-        success: true,
-        data,
-        pagination: { page, pageSize, totalCount },
-        totals,
-        summary: { total_records: totalCount, group_by: 'worker', source: 'contracts' },
-        locations,
-      }
+      throw createError({
+        statusCode: 400,
+        statusMessage:
+          'source=contracts is deprecated (ADR-001). Use eitje_time_registration_aggregation or snapshot labor.',
+      })
     }
 
     const q: Record<string, unknown> = {

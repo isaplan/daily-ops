@@ -298,4 +298,6 @@ export const DAILY_OPS_SNAPSHOT_COLLECTIONS = {
   revenueTablesSection: 'daily_ops_snapshot_section_tables',
   revenueWorkersSection: 'daily_ops_snapshot_section_workers',
   revenueByOrderTimeSection: 'daily_ops_snapshot_section_revenue_by_order_time',
+  /** ADR-006 hot tier — precomputed 60d rolling KPI benchmarks. */
+  revenueBenchmark: 'daily_ops_revenue_benchmark',
 } as const

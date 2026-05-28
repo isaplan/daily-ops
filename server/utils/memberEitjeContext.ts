@@ -113,7 +113,7 @@ export async function resolveEitjeAggregationUserCandidates (
   db: Db,
   supportId: string | undefined,
   userName: string,
-  opts?: { skipMemberFk?: boolean }
+  opts?: { skipMemberFk?: boolean; allowFuzzyNameMatch?: boolean }
 ): Promise<unknown[]> {
   const out = new Set<unknown>()
   for (const x of eitjeUserIdCandidates(supportId)) addId(out, x)
@@ -150,7 +150,7 @@ export async function resolveEitjeAggregationUserCandidates (
     }
   }
   const name = userName.trim()
-  if (name) {
+  if (name && opts?.allowFuzzyNameMatch) {
     orClause.push({ canonicalName: name })
     orClause.push({ primaryName: name })
     orClause.push({ name: name })
@@ -522,20 +522,9 @@ export async function fetchMemberEitjePlaces (
     baseOpts
   )
 
-  let merged = mergeWorkedAndPlanned(worked, planned)
-  let source: 'aggregation' | 'raw_fallback' | 'none' =
+  const merged = mergeWorkedAndPlanned(worked, planned)
+  const source: 'aggregation' | 'raw_fallback' | 'none' =
     merged.length > 0 ? 'aggregation' : 'none'
-
-  if (merged.length === 0) {
-    const [rw, rp] = await Promise.all([
-      fetchRawPlacesByEndpoint(db, 'time_registration_shifts', range, options.supportId, userIdCandidates, options.userName),
-      fetchRawPlacesByEndpoint(db, 'planning_shifts', range, options.supportId, userIdCandidates, options.userName),
-    ])
-    worked = rw
-    planned = rp
-    merged = mergeWorkedAndPlanned(worked, planned)
-    if (merged.length > 0) source = 'raw_fallback'
-  }
 
   return {
     months_back: monthsBack,

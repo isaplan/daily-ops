@@ -1,10 +1,10 @@
 /**
  * @registry-id: dailyOpsRevenueFetchRange
  * @created: 2026-05-20T00:00:00.000Z
- * @last-modified: 2026-05-24T14:00:00.000Z
- * @description: Revenue + items for a date range — **snapshot read only** (ADR-004)
- * @last-fix: [2026-05-24] Removed Bork aggregate fallback on GET; missing snapshot → zeros + unknown
- * @adr-ref: ADR-004
+ * @last-modified: 2026-05-28T00:00:00.000Z
+ * @description: Revenue + items for a date range — **snapshot read only** (ADR-004/006)
+ * @last-fix: [2026-05-28] Headline from snapshot totals; removed inbox-on-GET
+ * @adr-ref: ADR-004, ADR-006
  *
  * @architecture:
  *   Daily Ops revenue APIs must NOT read bork_* or inbox on GET.
@@ -21,12 +21,9 @@ import type { DailyOpsRevenueQueryContext } from '~/types/daily-ops-revenue'
 import { eachBusinessDate } from './dateRange'
 import { rollupFoodBeverageFromCategories } from '../borkFoodBeverageSplit'
 import {
-  headlineExVatFromSnapshotRevenue,
-  morningInboxMapKey,
-  pickMorningFinalBasisReport,
-} from '../inbox/basis-report-mapper'
-import { loadMorningBasisInboxByLocDate } from '../inbox/loadMorningBasisInbox'
-import { getGmailConnectionStatus } from '../../services/gmailOAuthService'
+  headlineExVatFromSnapshotSection,
+  headlineIncVatFromSnapshotSection,
+} from '../dailyOpsSnapshot/snapshotHeadlineRevenue'
 
 export type RevenueRangeTotals = {
   /** Lead-source headline (ex VAT). */
@@ -90,14 +87,9 @@ export async function fetchRevenueRange(
   }
   if (ctx.locationId) filter.locationId = ctx.locationId
 
-  const [rows, morningInboxByLocDate, gmailStatus] = await Promise.all([
-    db.collection(DAILY_OPS_SNAPSHOT_COLLECTIONS.revenueSection).find(filter).toArray(),
-    loadMorningBasisInboxByLocDate(db, ctx.startDate, ctx.endDate),
-    getGmailConnectionStatus(),
-  ])
+  const rows = await db.collection(DAILY_OPS_SNAPSHOT_COLLECTIONS.revenueSection).find(filter).toArray()
   if (rows.length === 0) return { ...EMPTY_TOTALS }
 
-  const forceBorkHeadline = gmailStatus.needsReconnect
   let revenue = 0
   let revenueIncVat = 0
   let borkRevenueIncVat = 0
@@ -106,23 +98,12 @@ export async function fetchRevenueRange(
   let inboxDays = 0
   for (const r of rows) {
     const doc = r as DailyOpsSnapshotRevenueSection
-    const morning =
-      morningInboxByLocDate.get(morningInboxMapKey(doc.businessDate, doc.locationId)) ?? []
-    const ex = headlineExVatFromSnapshotRevenue(doc, morning, { forceBorkHeadline })
-    const morningPick = forceBorkHeadline ? null : pickMorningFinalBasisReport(morning)
-    const useInbox = morningPick != null && Number(morningPick.final_revenue_ex_vat ?? 0) > 0
-    revenue += ex
-    revenueIncVat += useInbox
-      ? Number(
-          morningPick!.final_revenue_incl_vat ??
-            (morningPick as { final_revenue_inc_vat?: number }).final_revenue_inc_vat ??
-            0,
-        )
-      : Number(doc.borkTotals?.inc_vat ?? 0)
+    revenue += headlineExVatFromSnapshotSection(doc)
+    revenueIncVat += headlineIncVatFromSnapshotSection(doc)
     borkRevenueExVat += Number(doc.borkTotals?.ex_vat ?? 0)
     borkRevenueIncVat += Number(doc.borkTotals?.inc_vat ?? 0)
     itemsCount += Number(doc.totals?.quantity ?? doc.borkTotals?.quantity ?? 0)
-    if (useInbox) inboxDays++
+    if (doc.leadSource === 'inbox') inboxDays++
   }
 
   const foodBev = await sumFoodBevFromProductSnapshots(db, {

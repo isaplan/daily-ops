@@ -1286,16 +1286,11 @@ export async function fetchWorkerStaffDetailMetrics (
   db: Db,
   ctx: DailyOpsMetricsContext
 ): Promise<DailyOpsWorkerStaffDetailDto[]> {
-  const [workerStaffDetailRaw, revByDateLocationDays, revByDateLocationHours] =
-    await Promise.all([
-      fetchWorkerStaffDetailRows(db, ctx),
-      fetchRevenueByDateAndLocation(db, ctx),
-      fetchRevenueByDateAndLocationFromHourly(db, ctx),
-    ])
-  const revByDateLocation = mergeLocationRevenueMaps(
-    revByDateLocationDays,
-    revByDateLocationHours
-  )
+  const { fetchSnapshotRevenueByDateAndLocation } = await import('./dailyOpsRevenue/revenueBenchmark')
+  const [workerStaffDetailRaw, revByDateLocation] = await Promise.all([
+    fetchWorkerStaffDetailRows(db, ctx),
+    fetchSnapshotRevenueByDateAndLocation(db, ctx.startDate, ctx.endDate, ctx.locationId),
+  ])
   return buildWorkerStaffDetailDto(workerStaffDetailRaw, revByDateLocation)
 }
 
