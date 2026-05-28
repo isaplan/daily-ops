@@ -3,14 +3,14 @@
     <template #header>
       <div class="flex items-center justify-between gap-2">
         <h3 class="text-sm font-semibold uppercase tracking-wide text-gray-600">Revenue Per Space</h3>
-        <UButton
-          size="xs"
-          variant="ghost"
-          icon="i-lucide-info"
+        <button
+          type="button"
+          class="inline-flex size-8 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-900"
           aria-label="Configure revenue spaces"
-          class="text-gray-500"
-          @click="configOpen = true"
-        />
+          @click.stop="configOpen = true"
+        >
+          <UIcon name="i-lucide-info" class="size-4" />
+        </button>
       </div>
     </template>
 
@@ -52,12 +52,13 @@
       </table>
     </div>
 
-    <DailyOpsRevenueSpaceConfigModal
-      v-model:open="configOpen"
-      :initial-location-id="initialLocationId"
-      @saved="$emit('configSaved')"
-    />
   </UCard>
+
+  <DailyOpsRevenueSpaceConfigModal
+    v-model:open="configOpen"
+    :initial-location-id="initialLocationId"
+    @saved="$emit('configSaved')"
+  />
 </template>
 
 <script setup lang="ts">

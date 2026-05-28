@@ -1,8 +1,9 @@
 /**
  * @registry-id: dailyOpsRevenueDrilldownHourlyBenchmarks
  * @created: 2026-05-28T00:00:00.000Z
- * @last-modified: 2026-05-28T00:00:00.000Z
+ * @last-modified: 2026-05-28T12:00:00.000Z
  * @description: Last-5 same-weekday hourly revenue benchmarks for drilldown
+ * @last-fix: [2026-05-28] Multi-day ranges: sum per-weekday medians to match aggregated hourly totals
  * @adr-ref: ADR-004
  *
  * @exports-to:
@@ -18,8 +19,11 @@ import {
   type DailyOpsSnapshotRevenueSection,
 } from '~/types/daily-ops-snapshot'
 import { addCalendarDaysYmd } from '~/utils/dailyOpsBusinessDate'
+import { eachBusinessDate } from '../../dailyOpsRevenue/dateRange'
 import type { DailyOpsMetricsContext } from '../../dailyOpsDashboardMetrics'
 import { locDayKey, round2 } from './drilldownShared'
+
+const LOOKBACK_WEEKDAYS = 5
 
 function dateWeekday(date: string): number {
   const [y, m, d] = date.split('-').map(Number)
@@ -51,15 +55,25 @@ export function benchmarkStatus(revenue: number, benchmark: number | null): Dail
   return revenue >= benchmark ? 'above' : 'below'
 }
 
-export async function loadHourlyBenchmarks(
+function collectLookbackDates(rangeDays: string[]): string[] {
+  const set = new Set<string>(rangeDays)
+  for (const d of rangeDays) {
+    for (const lb of sameWeekdayLookbackDates(d, LOOKBACK_WEEKDAYS)) {
+      set.add(lb)
+    }
+  }
+  return [...set]
+}
+
+async function loadRevenueByDateHour(
   db: Db,
-  ctx: DailyOpsMetricsContext,
-): Promise<Map<number, number>> {
-  if (ctx.startDate !== ctx.endDate) return new Map()
-  const lookbackDates = sameWeekdayLookbackDates(ctx.startDate, 5)
-  const expectedWeekday = dateWeekday(ctx.startDate)
-  const filter: Record<string, unknown> = { businessDate: { $in: lookbackDates } }
-  if (ctx.locationId) filter.locationId = ctx.locationId
+  dates: string[],
+  locationId: string | undefined,
+): Promise<Map<string, number>> {
+  if (dates.length === 0) return new Map()
+  const filter: Record<string, unknown> = { businessDate: { $in: dates } }
+  if (locationId) filter.locationId = locationId
+
   const [hourlyDocs, revenueDocs] = await Promise.all([
     db
       .collection<DailyOpsSnapshotRevenueHourlySection>(DAILY_OPS_SNAPSHOT_COLLECTIONS.revenueHourlySection)
@@ -71,7 +85,6 @@ export async function loadHourlyBenchmarks(
       .toArray(),
   ])
 
-  const valuesByHour = new Map<number, number[]>()
   const dayHourTotals = new Map<string, number>()
   const coveredLocDays = new Set(hourlyDocs.map((doc) => locDayKey(doc.businessDate, doc.locationId)))
   const benchmarkDocs = [
@@ -90,7 +103,6 @@ export async function loadHourlyBenchmarks(
   ]
 
   for (const doc of benchmarkDocs) {
-    if (dateWeekday(doc.businessDate) !== expectedWeekday) continue
     for (const slot of doc.hourly ?? []) {
       const hour = Number(slot.calendar_hour)
       const revenue = Number(slot.revenue?.ex_vat ?? 0)
@@ -99,19 +111,32 @@ export async function loadHourlyBenchmarks(
       dayHourTotals.set(key, (dayHourTotals.get(key) ?? 0) + revenue)
     }
   }
-  for (const [key, revenue] of dayHourTotals) {
-    const [, hourRaw = ''] = key.split('|')
-    const hour = Number(hourRaw)
-    if (!Number.isFinite(hour)) continue
-    const values = valuesByHour.get(hour) ?? []
-    values.push(revenue)
-    valuesByHour.set(hour, values)
-  }
+  return dayHourTotals
+}
+
+export async function loadHourlyBenchmarks(
+  db: Db,
+  ctx: DailyOpsMetricsContext,
+): Promise<Map<number, number>> {
+  const rangeDays = [...eachBusinessDate(ctx.startDate, ctx.endDate)]
+  if (rangeDays.length === 0) return new Map()
+
+  const lookbackDates = collectLookbackDates(rangeDays)
+  const revenueByDateHour = await loadRevenueByDateHour(db, lookbackDates, ctx.locationId)
 
   const out = new Map<number, number>()
-  for (const [hour, values] of valuesByHour) {
-    const m = median(values)
-    if (m != null) out.set(hour, round2(m))
+  for (let hour = 0; hour < 24; hour += 1) {
+    let benchmarkTotal = 0
+    for (const businessDate of rangeDays) {
+      const values: number[] = []
+      for (const lookbackDate of sameWeekdayLookbackDates(businessDate, LOOKBACK_WEEKDAYS)) {
+        const revenue = revenueByDateHour.get(`${lookbackDate}|${hour}`) ?? 0
+        if (revenue > 0) values.push(revenue)
+      }
+      const m = median(values)
+      if (m != null) benchmarkTotal += m
+    }
+    if (benchmarkTotal > 0) out.set(hour, round2(benchmarkTotal))
   }
   return out
 }

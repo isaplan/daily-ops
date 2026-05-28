@@ -95,6 +95,8 @@ import type { DailyOpsRevenueDrilldownHourlyRowDto } from '~/types/daily-ops-das
 
 const props = defineProps<{
   rows: DailyOpsRevenueDrilldownHourlyRowDto[]
+  /** When true, revenue per hour is summed across multiple days in the period. */
+  multiDay?: boolean
 }>()
 
 type ChartDot = {
@@ -135,11 +137,16 @@ const hasRevenueRows = computed(() => props.rows.some((row: DailyOpsRevenueDrill
 const hasActiveBenchmark = computed(() =>
   props.rows.some((row: DailyOpsRevenueDrilldownHourlyRowDto) => row.revenue > 0 && row.benchmarkRevenue != null),
 )
-const subtitle = computed(() =>
-  hasActiveBenchmark.value
-    ? 'Current revenue against last 5 same-weekday median, shown for service hours 11:00 → 03:00.'
-    : 'No median benchmark is available for the active revenue hours yet.',
-)
+const subtitle = computed(() => {
+  if (hasActiveBenchmark.value) {
+    return props.multiDay
+      ? 'Period total per hour vs sum of last-5 same-weekday medians (one per day in range). Service hours 11:00 → 03:00.'
+      : 'Current revenue against last 5 same-weekday median, shown for service hours 11:00 → 03:00.'
+  }
+  return props.multiDay
+    ? 'No median benchmark for this week yet — need hourly snapshot history for each weekday in the range.'
+    : 'No median benchmark is available for the active revenue hours yet.'
+})
 const maxValue = computed(() => {
   const values = chartRows.value.flatMap((row: DailyOpsRevenueDrilldownHourlyRowDto) => [
     row.revenue,

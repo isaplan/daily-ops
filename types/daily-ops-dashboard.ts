@@ -165,6 +165,8 @@ export type DailyOpsRevenueDrilldownTopRowDto = {
 
 export type DailyOpsRevenueDrilldownDto = {
   estimatesNote: string
+  /** True when period spans more than one calendar day (hourly totals are summed). */
+  multiDayRange?: boolean
   coverageNotes: string[]
   hourlyRows: DailyOpsRevenueDrilldownHourlyRowDto[]
   spaces: DailyOpsRevenueDrilldownSpaceRowDto[]

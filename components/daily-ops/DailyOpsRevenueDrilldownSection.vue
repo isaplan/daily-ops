@@ -9,7 +9,7 @@
 
     <DailyOpsRevenueBenchmarkLegend :notes="data.coverageNotes" />
 
-    <DailyOpsRevenueHourlyLineChart :rows="data.hourlyRows" />
+    <DailyOpsRevenueHourlyLineChart :rows="data.hourlyRows" :multi-day="data.multiDayRange" />
     <DailyOpsRevenueHourlyTable :rows="data.hourlyRows" />
 
     <div class="grid gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">

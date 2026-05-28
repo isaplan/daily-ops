@@ -36,7 +36,13 @@ export async function buildRevenueDrilldownSection(
   ).length
 
   if (input.hourly.length === 0) coverageNotes.push('No hourly revenue snapshot rows for this range.')
-  if (hourlyBenchmarks.size === 0) coverageNotes.push('No last-5 same-weekday hourly benchmark available yet.')
+  if (hourlyBenchmarks.size === 0) {
+    coverageNotes.push(
+      ctx.startDate !== ctx.endDate
+        ? 'No hourly benchmark for this period — need revenue_hourly snapshots for prior same weekdays.'
+        : 'No last-5 same-weekday hourly benchmark available yet.',
+    )
+  }
   else if (benchmarkedActiveHourCount < activeRevenueHourCount) {
     coverageNotes.push(
       `Hourly benchmark covers ${benchmarkedActiveHourCount} of ${activeRevenueHourCount} active revenue hours.`,
@@ -48,6 +54,7 @@ export async function buildRevenueDrilldownSection(
 
   return {
     estimatesNote: MOST_PROFITABLE_HOUR_ESTIMATES_NOTE,
+    multiDayRange: ctx.startDate !== ctx.endDate,
     coverageNotes,
     hourlyRows,
     spaces,

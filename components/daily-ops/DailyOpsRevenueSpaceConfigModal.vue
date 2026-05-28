@@ -1,11 +1,10 @@
 <template>
   <UModal
-    :open="open"
+    v-model="open"
     :ui="{
       overlay: 'bg-black/60',
       content: 'w-[calc(100vw-2rem)] max-w-2xl',
     }"
-    @update:open="$emit('update:open', $event)"
   >
     <template #content>
       <div class="max-h-[85vh] overflow-y-auto rounded-lg bg-white p-6">
@@ -21,7 +20,7 @@
             icon="i-lucide-x"
             aria-label="Close"
             class="shrink-0 bg-gray-900! text-white!"
-            @click="$emit('update:open', false)"
+            @click="open = false"
           />
         </div>
 
@@ -112,17 +111,18 @@ type DraftSpace = LocationRevenueSpace & { tablesInput: string }
 type LocationOption = { label: string; value: string }
 
 const props = defineProps<{
-  open: boolean
   initialLocationId?: string | null
 }>()
 
+const open = defineModel<boolean>('open', { default: false })
+
 const emit = defineEmits<{
-  'update:open': [value: boolean]
   saved: []
 }>()
 
-const { data: locationsData } = await useFetch<{ success: boolean; data: Array<{ _id: string; name: string }> }>(
+const { data: locationsData } = useFetch<{ success: boolean; data: Array<{ _id: string; name: string }> }>(
   '/api/locations',
+  { server: false, lazy: true },
 )
 
 const locationOptions = computed<LocationOption[]>(() =>
@@ -139,7 +139,7 @@ const saveError = ref('')
 const saveMessage = ref('')
 
 watch(
-  () => props.open,
+  open,
   (isOpen) => {
     if (isOpen) {
       if (props.initialLocationId) {
@@ -157,7 +157,7 @@ watch(locationOptions, (opts) => {
 })
 
 watch(selectedLocationId, () => {
-  if (props.open) void loadSpaces()
+  if (open.value) void loadSpaces()
 })
 
 function toDraft(spaces: LocationRevenueSpace[]): DraftSpace[] {
