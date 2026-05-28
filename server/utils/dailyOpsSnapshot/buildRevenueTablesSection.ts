@@ -1,9 +1,9 @@
 /**
  * @registry-id: dailyOpsSnapshotBuildRevenueTablesSection
  * @created: 2026-05-20T00:00:00.000Z
- * @last-modified: 2026-05-20T00:00:00.000Z
+ * @last-modified: 2026-05-28T00:00:00.000Z
  * @description: Per-table revenue snapshot from bork_sales_by_table (aggregated per table per day)
- * @last-fix: [2026-05-20] Initial
+ * @last-fix: [2026-05-28] Location-scoped table→space mapping from locations.revenue_spaces
  *
  * @exports-to:
  * ✓ server/services/dailyOpsSnapshotService.ts
@@ -12,7 +12,11 @@
 import type { Db } from 'mongodb'
 import { ObjectId } from 'mongodb'
 import { resolveBorkAggReadSuffix } from '../borkAggVersionSuffix'
-import { getLocationSpaceForTable } from '../dailyOpsRevenue/locationSpaces'
+import {
+  fallbackSpaceNameForTable,
+  loadLocationRevenueSpaces,
+  resolveSpaceNameForTable,
+} from '../locationSpaceResolver'
 import type { DailyOpsSnapshotRevenueTablesSection } from '../../../types/daily-ops-snapshot'
 import type { BuildRevenueInput } from './buildRevenueSection'
 
@@ -38,6 +42,10 @@ export async function buildRevenueTablesSection(
         .toArray()
     : []
 
+  const { spaces } = await loadLocationRevenueSpaces(db, locationId, { seedIfEmpty: true })
+  const spaceForTable = (tableNum: string) =>
+    spaces.length > 0 ? resolveSpaceNameForTable(tableNum, spaces) : fallbackSpaceNameForTable(tableNum)
+
   const byTable = new Map<string, { revenue_ex_vat: number; quantity: number; locationSpace: string }>()
 
   for (const r of rows) {
@@ -46,7 +54,7 @@ export async function buildRevenueTablesSection(
     if (!tableNum) continue
     const rev = docRevenueEx(doc)
     const qty = Number(doc.total_quantity ?? 0)
-    const space = getLocationSpaceForTable(tableNum)
+    const space = spaceForTable(tableNum)
     const cur = byTable.get(tableNum) ?? { revenue_ex_vat: 0, quantity: 0, locationSpace: space }
     cur.revenue_ex_vat += rev
     cur.quantity += qty

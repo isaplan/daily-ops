@@ -5,10 +5,11 @@ import type { OpsScanContext } from '../scanContext'
 
 const HOUR_EPS = 0.05
 
-function teamBucket(teamName: string): 'keuken' | 'bediening' | 'other' {
+function teamBucket(teamName: string): 'keuken' | 'bediening' | 'afwas' | 'other' {
   const n = teamName.trim().toLowerCase()
-  if (n === 'keuken' || n === 'afwas') return 'keuken'
+  if (n === 'keuken') return 'keuken'
   if (n === 'bediening') return 'bediening'
+  if (n === 'afwas') return 'afwas'
   return 'other'
 }
 
@@ -25,6 +26,11 @@ function workerOperationalHours(doc: DailyOpsSnapshotLaborSection): {
     const bucket = teamBucket(String(worker.teamName ?? ''))
     if (bucket === 'keuken') keuken += hours
     if (bucket === 'bediening') bediening += hours
+    if (bucket === 'afwas') {
+      // Keep parity with labor snapshot writer: Afwas contributes 50/50.
+      keuken += hours / 2
+      bediening += hours / 2
+    }
   }
   return { keuken, bediening, gewerkt: keuken + bediening }
 }
@@ -59,16 +65,6 @@ function staleBorkAggregationReasons(
   }
   if (agg.latestBorkAt && snapshot?.lastBuiltAt && agg.latestBorkAt.getTime() > snapshot.lastBuiltAt.getTime() + 60_000) {
     reasons.push('revenue snapshot older than latest Bork aggregate')
-  }
-  if (
-    snapshot &&
-    snapshot.ex > 0 &&
-    agg.dayEx > 0 &&
-    Math.abs(snapshot.ex - agg.dayEx) > Math.max(1, snapshot.ex * 0.02)
-  ) {
-    reasons.push(
-      `revenue snapshot €${snapshot.ex.toFixed(0)} ex ≠ Bork day €${agg.dayEx.toFixed(0)} ex`,
-    )
   }
   return reasons
 }

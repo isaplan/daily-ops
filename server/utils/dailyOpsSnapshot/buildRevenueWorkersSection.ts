@@ -1,9 +1,9 @@
 /**
  * @registry-id: dailyOpsSnapshotBuildRevenueWorkersSection
  * @created: 2026-05-20T00:00:00.000Z
- * @last-modified: 2026-05-20T00:00:00.000Z
- * @description: Per-worker revenue snapshot from bork_sales_by_worker
- * @last-fix: [2026-05-20] Initial
+ * @last-modified: 2026-05-28T14:00:00.000Z
+ * @description: Per-worker revenue snapshot from bork_sales_by_worker (+ order-time rollups)
+ * @last-fix: [2026-05-28] Include order-time worker rollups from bork_sales_by_order_worker
  *
  * @exports-to:
  * ✓ server/services/dailyOpsSnapshotService.ts
@@ -21,18 +21,23 @@ function docRevenueEx(doc: Record<string, unknown>): number {
   return Number(doc.total_revenue ?? 0)
 }
 
-export async function buildRevenueWorkersSection(
-  db: Db,
-  input: BuildRevenueInput,
-): Promise<DailyOpsSnapshotRevenueWorkersSection> {
-  const { businessDate, locationId, locationName } = input
-  const suffix = resolveBorkAggReadSuffix()
-  const locOid = ObjectId.isValid(locationId) ? new ObjectId(locationId) : null
-  const coll = `bork_sales_by_worker${suffix}`
+type WorkerRollup = {
+  workerId: string
+  workerName: string
+  revenue_ex_vat: number
+  quantity: number
+  order_count: number
+}
 
+async function aggregateWorkersFromCollection(
+  db: Db,
+  collectionName: string,
+  businessDate: string,
+  locOid: ObjectId | null,
+): Promise<WorkerRollup[]> {
   const rows = locOid
     ? await db
-        .collection(coll)
+        .collection(collectionName)
         .find({ business_date: businessDate, locationId: locOid })
         .toArray()
     : []
@@ -57,7 +62,7 @@ export async function buildRevenueWorkersSection(
     byWorker.set(key, cur)
   }
 
-  const workers = Array.from(byWorker.entries())
+  return Array.from(byWorker.entries())
     .map(([workerId, v]) => ({
       workerId,
       workerName: v.workerName,
@@ -66,6 +71,20 @@ export async function buildRevenueWorkersSection(
       order_count: v.order_count,
     }))
     .sort((a, b) => b.revenue_ex_vat - a.revenue_ex_vat)
+}
+
+export async function buildRevenueWorkersSection(
+  db: Db,
+  input: BuildRevenueInput,
+): Promise<DailyOpsSnapshotRevenueWorkersSection> {
+  const { businessDate, locationId, locationName } = input
+  const suffix = resolveBorkAggReadSuffix()
+  const locOid = ObjectId.isValid(locationId) ? new ObjectId(locationId) : null
+
+  const [workers, orderTimeWorkers] = await Promise.all([
+    aggregateWorkersFromCollection(db, `bork_sales_by_worker${suffix}`, businessDate, locOid),
+    aggregateWorkersFromCollection(db, `bork_sales_by_order_worker${suffix}`, businessDate, locOid),
+  ])
 
   return {
     schema_version: 1,
@@ -73,6 +92,7 @@ export async function buildRevenueWorkersSection(
     locationId,
     locationName,
     workers,
+    orderTimeWorkers: orderTimeWorkers.length > 0 ? orderTimeWorkers : undefined,
     lastBuiltAt: new Date(),
   }
 }

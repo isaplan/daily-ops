@@ -9,6 +9,8 @@ const enableNitroScheduled =
 const disableInboxSchedule = process.env.DISABLE_INBOX_SCHEDULED === '1'
 /** Set `DISABLE_INTEGRATIONS_SCHEDULED=1` to skip Bork/Eitje Nitro cron on production. */
 const disableIntegrationsSchedule = process.env.DISABLE_INTEGRATIONS_SCHEDULED === '1'
+/** Optional: auto-retry selected ops notifications (disabled by default). */
+const enableOpsAutoRetry = process.env.ENABLE_OPS_NOTIFICATION_AUTO_RETRY === '1'
 
 /**
  * CANONICAL TIMEZONE: Europe/Amsterdam (CEST/CET)
@@ -68,6 +70,10 @@ if (enableNitroScheduled && !disableIntegrationsSchedule) {
   scheduledTasks['0 6 * * *'] = ['integrations:bork-eitje-morning-maintenance']
   scheduledTasks['0 1,8,15,18,19,20,21,23 * * *'] = ['integrations:bork-eitje-daily']
 }
+if (enableNitroScheduled && enableOpsAutoRetry) {
+  // Staggered away from :00/:05 integration/inbox windows.
+  scheduledTasks['17,47 * * * *'] = ['ops-notifications:auto-retry']
+}
 
 export default defineNuxtConfig({
   ssr: false,
@@ -114,5 +120,24 @@ export default defineNuxtConfig({
       tasks: true,
     },
     scheduledTasks,
+  },
+  hooks: {
+    'nitro:config': (nitroConfig) => {
+      const registrations = nitroConfig.imports?.imports
+      if (!Array.isArray(registrations) || registrations.length === 0) return
+
+      // During ongoing modularization we can temporarily have the same symbol exported
+      // from a legacy barrel and the new module. Keep one registration per symbol to
+      // prevent noisy "Duplicated imports ... ignored" warnings in dev.
+      const deduped = new Map<string, unknown>()
+      for (const entry of registrations) {
+        if (!entry || typeof entry !== 'object') continue
+        const name = (entry as { name?: unknown }).name
+        if (typeof name !== 'string' || name.length === 0) continue
+        deduped.set(name, entry)
+      }
+
+      nitroConfig.imports!.imports = [...deduped.values()] as typeof registrations
+    },
   },
 })

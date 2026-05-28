@@ -16,8 +16,8 @@ import type {
   DailyOpsAttendanceStaffRowDto,
   DailyOpsAttendanceVenueDto,
 } from '../../types/daily-ops-dashboard'
-import type { DailyOpsMetricsContext } from './dailyOpsDashboardMetrics'
-import { VENUE_STRIP_LOCATIONS } from './dailyOpsVenueStrip'
+import type { DailyOpsMetricsContext } from './dailyOpsMetrics/context'
+import { VENUE_STRIP_LOCATIONS } from './venueStrip/constants'
 import { EITJE_HOURS_ADD_FIELDS } from './eitjeHours'
 import { addCalendarDaysYmd } from '~/utils/dailyOpsBusinessDate'
 

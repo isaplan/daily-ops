@@ -142,6 +142,7 @@ export type RebuildBorkAggV2Result = {
   orderSalesHours: number
   tables: number
   workers: number
+  orderWorkers: number
   guestAccounts: number
   productLines: number
 }
@@ -167,6 +168,7 @@ export async function rebuildBorkSalesAggregationV2(
     orderSalesHours: 0,
     tables: 0,
     workers: 0,
+    orderWorkers: 0,
     guestAccounts: 0,
     productLines: 0,
   }
@@ -192,6 +194,7 @@ export async function rebuildBorkSalesAggregationV2(
   const salesByDayCollection = `bork_sales_by_day${collectionSuffix}`
   const tablesCollection = `bork_sales_by_table${collectionSuffix}`
   const workersCollection = `bork_sales_by_worker${collectionSuffix}`
+  const orderWorkersCollection = `bork_sales_by_order_worker${collectionSuffix}`
   const guestsCollection = `bork_sales_by_guest_account${collectionSuffix}`
   const productsCollection = `bork_sales_by_product${collectionSuffix}`
 
@@ -200,6 +203,7 @@ export async function rebuildBorkSalesAggregationV2(
   const dayRollupMap = new Map<string, DayRollupInternal>()
   const byTableMap = new Map<string, Document>()
   const byWorkerMap = new Map<string, Document>()
+  const byOrderWorkerMap = new Map<string, Document>()
   const byGuestMap = new Map<string, Document>()
   const byProductMap = new Map<string, Document>()
 
@@ -364,6 +368,48 @@ export async function rebuildBorkSalesAggregationV2(
               op.revenue_inc_vat += inc
               op.vat += vat
               op.quantity += qty
+
+              const orderWorkerKey = `${unifiedLocationId}:${orderBusiness.businessDate}:${orderBusiness.businessHour}:${unifiedWorkerId}`
+              if (!byOrderWorkerMap.has(orderWorkerKey)) {
+                byOrderWorkerMap.set(orderWorkerKey, {
+                  schema_version: 2,
+                  time_basis: 'order',
+                  date: isoDate,
+                  hour: orderCalendarHour,
+                  business_date: orderBusiness.businessDate,
+                  business_hour: orderBusiness.businessHour,
+                  calendar_date: isoDate,
+                  calendar_hour: orderCalendarHour,
+                  locationId: unifiedLocationId,
+                  locationName: unifiedLocationName,
+                  workerId: unifiedWorkerId,
+                  workerName: unifiedWorkerName,
+                  total_revenue: 0,
+                  total_revenue_ex_vat: 0,
+                  total_revenue_inc_vat: 0,
+                  total_vat: 0,
+                  total_quantity: 0,
+                  record_count: 0,
+                  products: new Map<string, ProductRollup>(),
+                })
+              }
+              const owe = byOrderWorkerMap.get(orderWorkerKey)!
+              owe.total_revenue = (owe.total_revenue as number) + inc
+              owe.total_revenue_ex_vat = (owe.total_revenue_ex_vat as number) + ex
+              owe.total_revenue_inc_vat = (owe.total_revenue_inc_vat as number) + inc
+              owe.total_vat = (owe.total_vat as number) + vat
+              owe.total_quantity = (owe.total_quantity as number) + qty
+              owe.record_count = (owe.record_count as number) + 1
+              const owm = owe.products as Map<string, ProductRollup>
+              if (!owm.has(productKey)) {
+                owm.set(productKey, { productId: productKey, productName, revenue: 0, revenue_ex_vat: 0, revenue_inc_vat: 0, vat: 0, quantity: 0 })
+              }
+              const owp = owm.get(productKey)!
+              owp.revenue += inc
+              owp.revenue_ex_vat += ex
+              owp.revenue_inc_vat += inc
+              owp.vat += vat
+              owp.quantity += qty
             }
 
             const dr = ensureDayRollup(dayKey, unifiedLocationId, unifiedLocationName, businessDate)
@@ -669,6 +715,10 @@ export async function rebuildBorkSalesAggregationV2(
     ...doc,
     products: Array.from((doc.products as Map<string, ProductRollup>).values()),
   }))
+  const orderWorkerDocs = Array.from(byOrderWorkerMap.values()).map((doc) => ({
+    ...doc,
+    products: Array.from((doc.products as Map<string, ProductRollup>).values()),
+  }))
   const guestDocs = Array.from(byGuestMap.values()).map((doc) => ({
     ...doc,
     products: Array.from((doc.products as Map<string, ProductRollup>).values()),
@@ -687,6 +737,7 @@ export async function rebuildBorkSalesAggregationV2(
     db.collection(salesByDayCollection).deleteMany(clearFilter),
     db.collection(tablesCollection).deleteMany(clearFilter),
     db.collection(workersCollection).deleteMany(clearFilter),
+    db.collection(orderWorkersCollection).deleteMany(clearFilter),
     db.collection(guestsCollection).deleteMany(clearFilter),
     db.collection(productsCollection).deleteMany(clearFilter),
   ])
@@ -714,6 +765,10 @@ export async function rebuildBorkSalesAggregationV2(
   if (workerDocs.length > 0) {
     await db.collection(workersCollection).insertMany(workerDocs as Document[])
     result.workers = workerDocs.length
+  }
+  if (orderWorkerDocs.length > 0) {
+    await db.collection(orderWorkersCollection).insertMany(orderWorkerDocs as Document[])
+    result.orderWorkers = orderWorkerDocs.length
   }
   if (guestDocs.length > 0) {
     await db.collection(guestsCollection).insertMany(guestDocs as Document[])

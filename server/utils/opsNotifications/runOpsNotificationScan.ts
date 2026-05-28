@@ -30,6 +30,16 @@ export type RunOpsNotificationScanOpts = {
   endDate?: string
   /** Skip filesystem ADR/monolith checks (faster count endpoint) */
   skipArchitecture?: boolean
+  includeHidden?: boolean
+}
+
+function shouldAutoHide(item: { businessDate: string; severity: string }, now: Date): boolean {
+  if (item.severity === 'critical') return false
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(item.businessDate)) return false
+  const dayTs = Date.parse(`${item.businessDate}T00:00:00.000Z`)
+  if (!Number.isFinite(dayTs)) return false
+  const ageMs = now.getTime() - dayTs
+  return ageMs > 7 * 24 * 60 * 60 * 1000
 }
 
 export async function runOpsNotificationScan(
@@ -60,7 +70,17 @@ export async function runOpsNotificationScan(
     ...(opts?.skipArchitecture ? [] : detectArchitectureNotifications()),
   ]
 
-  const sorted = sortNotifications(items)
+  const now = new Date()
+  const decorated = sortNotifications(items).map((item) => {
+    if (!shouldAutoHide(item, now)) return item
+    return {
+      ...item,
+      hidden: true,
+      hiddenReason: 'Auto-hidden: non-critical alert older than 7 days',
+    }
+  })
+  const hiddenCount = decorated.filter((i) => i.hidden).length
+  const sorted = opts?.includeHidden ? decorated : decorated.filter((i) => !i.hidden)
   const criticalCount = sorted.filter((i) => i.severity === 'critical').length
   const warningCount = sorted.filter((i) => i.severity === 'warning').length
 
@@ -71,6 +91,7 @@ export async function runOpsNotificationScan(
     total: sorted.length,
     criticalCount,
     warningCount,
+    hiddenCount,
     byCategory: countByCategory(sorted),
     items: sorted,
   }

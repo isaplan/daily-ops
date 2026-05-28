@@ -58,7 +58,7 @@ export function detectSnapshotGapNotifications(ctx: OpsScanContext): OpsNotifica
     )
   }
 
-  for (const [key] of ctx.revenueByKey.keys()) {
+  for (const key of ctx.revenueByKey.keys()) {
     if (ctx.masterKeys.has(key)) continue
     const [businessDate, locationId] = key.split(':::') as [string, string]
     items.push(

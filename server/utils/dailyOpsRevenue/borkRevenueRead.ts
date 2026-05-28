@@ -8,7 +8,7 @@
 import type { Db } from 'mongodb'
 import { ObjectId } from 'mongodb'
 import { listBorkAggReadSuffixCandidates, resolveBorkAggReadSuffix } from '../borkAggVersionSuffix'
-import { BORK_DOC_REVENUE_EXPR, BORK_DOC_REVENUE_INC_EXPR } from '../dailyOpsDashboardMetrics'
+import { BORK_DOC_REVENUE_EXPR, BORK_DOC_REVENUE_INC_EXPR } from '../dailyOpsMetrics/borkAggregationExprs'
 import {
   loadProductCatalogCategoryMap,
   splitLineRevenueByCatalog,

@@ -55,7 +55,8 @@
       <UCard
         v-for="venue in data.venues"
         :key="venue.locationId"
-        class="border-2 border-gray-900 !bg-white ring-0 shadow-none"
+        class="border-2 !bg-white ring-0 shadow-none"
+        :style="venueCardBorderStyle(venue.locationId)"
       >
         <h3 class="text-lg font-semibold text-gray-900">{{ venue.locationName }}</h3>
 
@@ -163,7 +164,8 @@
           <UCard
             v-for="venue in data.venues"
             :key="venue.locationId"
-            class="basis-[calc((100%-1rem)/2)] flex-shrink-0 border-2 border-gray-900 !bg-white ring-0 shadow-none"
+            class="basis-[calc((100%-1rem)/2)] flex-shrink-0 border-2 !bg-white ring-0 shadow-none"
+            :style="venueCardBorderStyle(venue.locationId)"
           >
             <h3 class="text-lg font-semibold text-gray-900">{{ venue.locationName }}</h3>
 
@@ -275,7 +277,8 @@
           <UCard
             v-for="venue in data.venues"
             :key="venue.locationId"
-            class="w-full flex-shrink-0 border-2 border-gray-900 !bg-white ring-0 shadow-none"
+            class="w-full flex-shrink-0 border-2 !bg-white ring-0 shadow-none"
+            :style="venueCardBorderStyle(venue.locationId)"
           >
             <h3 class="text-lg font-semibold text-gray-900">{{ venue.locationName }}</h3>
 
@@ -387,6 +390,12 @@ const props = defineProps<{
   period: DailyOpsPeriodId
   anchor?: string | null
 }>()
+
+const { chartColorFor } = useDailyOpsLocationChartColors()
+
+function venueCardBorderStyle(locationId: string) {
+  return { borderColor: chartColorFor(locationId) }
+}
 
 type VenuePillOption = { value: number; label: string; key: string }
 type PillTabValue = string | number

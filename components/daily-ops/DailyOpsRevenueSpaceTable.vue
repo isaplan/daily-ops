@@ -1,7 +1,17 @@
 <template>
   <UCard class="border-2 border-gray-900 bg-white! ring-0 shadow-none">
     <template #header>
-      <h3 class="text-sm font-semibold uppercase tracking-wide text-gray-600">Revenue Per Space</h3>
+      <div class="flex items-center justify-between gap-2">
+        <h3 class="text-sm font-semibold uppercase tracking-wide text-gray-600">Revenue Per Space</h3>
+        <button
+          type="button"
+          class="inline-flex size-8 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-900"
+          aria-label="Configure revenue spaces"
+          @click.stop="configOpen = true"
+        >
+          <UIcon name="i-lucide-info" class="size-4" />
+        </button>
+      </div>
     </template>
 
     <div class="overflow-x-auto">
@@ -29,12 +39,27 @@
           <tr v-if="rows.length === 0">
             <td colspan="5" class="px-3 py-8 text-center text-sm text-gray-500">
               No per-space snapshot rows available yet.
+              <button
+                type="button"
+                class="mt-1 block w-full text-xs font-medium text-gray-700 underline"
+                @click="configOpen = true"
+              >
+                Configure table → space mapping
+              </button>
             </td>
           </tr>
         </tbody>
       </table>
     </div>
+
   </UCard>
+
+  <DailyOpsRevenueSpaceConfigModal
+    :open="configOpen"
+    :initial-location-id="initialLocationId"
+    @update:open="configOpen = $event"
+    @saved="$emit('configSaved')"
+  />
 </template>
 
 <script setup lang="ts">
@@ -42,8 +67,14 @@ import type { DailyOpsRevenueDrilldownSpaceRowDto } from '~/types/daily-ops-dash
 
 defineProps<{
   rows: DailyOpsRevenueDrilldownSpaceRowDto[]
+  initialLocationId?: string | null
 }>()
 
+defineEmits<{
+  configSaved: []
+}>()
+
+const configOpen = ref(false)
 const { formatEur } = useDashboardEurFormat()
 
 function formatNumber(value: number): string {

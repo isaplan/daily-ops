@@ -6,7 +6,15 @@
       class="border-2 border-gray-900 bg-white! ring-0 shadow-none"
     >
       <template #header>
-        <h3 class="text-sm font-semibold uppercase tracking-wide text-gray-600">{{ list.title }}</h3>
+        <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <h3 class="text-sm font-semibold uppercase tracking-wide text-gray-600">{{ list.title }}</h3>
+          <UiPillTabs
+            v-if="list.key === 'workers'"
+            v-model="workerTimeBasis"
+            :options="workerTimeBasisOptions"
+            aria-label="Worker ranking time basis"
+          />
+        </div>
       </template>
 
       <ol
@@ -39,7 +47,7 @@
         v-else
         class="py-8 text-center text-sm text-gray-500"
       >
-        No snapshot rows available yet.
+        {{ list.emptyMessage }}
       </p>
     </UCard>
   </div>
@@ -54,11 +62,39 @@ const props = defineProps<{
 
 const { formatEur } = useDashboardEurFormat()
 
+type WorkerTimeBasis = 'paymentTime' | 'orderTime'
+
+const workerTimeBasis = ref<WorkerTimeBasis>('paymentTime')
+
+const workerTimeBasisOptions: { value: WorkerTimeBasis; label: string }[] = [
+  { value: 'paymentTime', label: 'Payment time' },
+  { value: 'orderTime', label: 'Ordered time' },
+]
+
+const activeWorkerRows = computed(() =>
+  workerTimeBasis.value === 'orderTime'
+    ? props.top10.workers.orderTime
+    : props.top10.workers.paymentTime,
+)
+
 const lists = computed(() => [
-  { key: 'workers', title: 'Top 10 Workers', rows: props.top10.workers },
-  { key: 'tables', title: 'Top 10 Tables', rows: props.top10.tables },
-  { key: 'food', title: 'Top 10 Food Products', rows: props.top10.foodProducts },
-  { key: 'beverage', title: 'Top 10 Beverage Products / Categories', rows: props.top10.beverageProductsOrCategories },
+  {
+    key: 'workers',
+    title: 'Top 10 Workers',
+    rows: activeWorkerRows.value,
+    emptyMessage:
+      workerTimeBasis.value === 'orderTime'
+        ? 'No order-time worker snapshot rows yet. Rebuild Bork aggregates and snapshots for this range.'
+        : 'No snapshot rows available yet.',
+  },
+  { key: 'tables', title: 'Top 10 Tables', rows: props.top10.tables, emptyMessage: 'No snapshot rows available yet.' },
+  { key: 'food', title: 'Top 10 Food Products', rows: props.top10.foodProducts, emptyMessage: 'No snapshot rows available yet.' },
+  {
+    key: 'beverage',
+    title: 'Top 10 Beverage Products / Categories',
+    rows: props.top10.beverageProductsOrCategories,
+    emptyMessage: 'No snapshot rows available yet.',
+  },
 ])
 
 function formatQty(value: number): string {
