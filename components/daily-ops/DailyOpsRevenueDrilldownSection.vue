@@ -13,7 +13,11 @@
     <DailyOpsRevenueHourlyTable :rows="data.hourlyRows" />
 
     <div class="grid gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
-      <DailyOpsRevenueSpaceTable :rows="data.spaces" />
+      <DailyOpsRevenueSpaceTable
+        :rows="data.spaces"
+        :initial-location-id="primaryLocationId"
+        @config-saved="$emit('configSaved')"
+      />
       <UCard class="border-2 border-gray-900 bg-white! ring-0 shadow-none">
         <template #header>
           <h3 class="text-sm font-semibold uppercase tracking-wide text-gray-600">Calculation Notes</h3>
@@ -33,5 +37,10 @@ import type { DailyOpsRevenueDrilldownDto } from '~/types/daily-ops-dashboard'
 
 defineProps<{
   data: DailyOpsRevenueDrilldownDto
+  primaryLocationId?: string | null
+}>()
+
+defineEmits<{
+  configSaved: []
 }>()
 </script>

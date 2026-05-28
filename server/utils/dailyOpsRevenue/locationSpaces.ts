@@ -1,9 +1,9 @@
 /**
  * @registry-id: dailyOpsRevenueLocationSpaces
  * @created: 2026-05-20T00:00:00.000Z
- * @last-modified: 2026-05-20T00:00:00.000Z
- * @description: Hardcoded table → location space (bar / restaurant / terras) for VKB-style layouts
- * @last-fix: [2026-05-20] Initial mapping
+ * @last-modified: 2026-05-28T00:00:00.000Z
+ * @description: Legacy fallback table → space mapping when location has no revenue_spaces config
+ * @last-fix: [2026-05-28] Superseded by locations.revenue_spaces via locationSpaceResolver
  *
  * @exports-to:
  * ✓ server/utils/dailyOpsSnapshot/buildRevenueTablesSection.ts
