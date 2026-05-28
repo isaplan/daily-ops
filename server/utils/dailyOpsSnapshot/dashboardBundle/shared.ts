@@ -6,10 +6,10 @@
  * @adr-ref: ADR-004
  */
 
-export function round2(n: number): number {
+export function snapshotRound2(n: number): number {
   return Math.round(n * 100) / 100
 }
 
-export function locDayKey(date: string, locationId: string): string {
+export function snapshotLocDayKey(date: string, locationId: string): string {
   return `${date}|${locationId}`
 }

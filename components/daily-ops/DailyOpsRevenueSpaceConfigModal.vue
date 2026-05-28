@@ -81,6 +81,9 @@
 
           <div v-if="saveError" class="text-sm text-red-600">{{ saveError }}</div>
           <div v-if="saveMessage" class="text-sm text-green-700">{{ saveMessage }}</div>
+          <div v-if="rebuilding" class="text-sm text-gray-600">
+            Rebuilding 60 days of snapshots — this usually takes 1–2 minutes. Keep this modal open.
+          </div>
 
           <div class="flex flex-wrap gap-2 border-t border-gray-200 pt-4">
             <UButton
@@ -200,6 +203,20 @@ function slugify(name: string): string {
   return name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'space'
 }
 
+function fetchErrorMessage(e: unknown): string {
+  if (e && typeof e === 'object') {
+    const err = e as {
+      statusMessage?: string
+      message?: string
+      data?: { statusMessage?: string; message?: string }
+    }
+    return err.data?.statusMessage ?? err.data?.message ?? err.statusMessage ?? err.message ?? 'Request failed'
+  }
+  return 'Request failed'
+}
+
+const REBUILD_TIMEOUT_MS = 300_000
+
 async function loadSpaces() {
   if (!selectedLocationId.value) return
   pending.value = true
@@ -212,7 +229,7 @@ async function loadSpaces() {
     draftSpaces.value = toDraft(res.data.spaces)
     if (res.data.seeded) saveMessage.value = 'Default spaces seeded for this location.'
   } catch (e) {
-    loadError.value = e instanceof Error ? e.message : 'Failed to load spaces'
+    loadError.value = fetchErrorMessage(e)
     draftSpaces.value = []
   } finally {
     pending.value = false
@@ -264,7 +281,7 @@ async function saveOnly() {
     emit('saved')
     await loadSpaces()
   } catch (e) {
-    saveError.value = e instanceof Error ? e.message : 'Failed to save spaces'
+    saveError.value = fetchErrorMessage(e)
   } finally {
     saving.value = false
   }
@@ -274,21 +291,32 @@ async function saveAndRebuild() {
   if (!selectedLocationId.value) return
   rebuilding.value = true
   saveError.value = ''
-  saveMessage.value = ''
+  saveMessage.value = 'Saving spaces…'
   try {
     await $fetch(`/api/locations/${selectedLocationId.value}/revenue-spaces`, {
       method: 'PUT',
       body: { spaces: buildPayload() },
     })
-    const rebuild = await $fetch<{ built: number; errors: number; startDate: string; endDate: string }>(
+    saveMessage.value = 'Spaces saved. Rebuilding 60 days of snapshots…'
+    const rebuild = await $fetch<{ built: number; errors: number; startDate: string; endDate: string; success: boolean }>(
       '/api/daily-ops/snapshot/rebuild-spaces',
-      { method: 'POST', body: { locationId: selectedLocationId.value, days: 60 } },
+      {
+        method: 'POST',
+        body: { locationId: selectedLocationId.value, days: 60 },
+        timeout: REBUILD_TIMEOUT_MS,
+      },
     )
-    saveMessage.value = `Saved. Rebuilt ${rebuild.built} snapshot(s) for ${rebuild.startDate}–${rebuild.endDate}.`
+    if (!rebuild.success || rebuild.errors > 0) {
+      saveError.value = `Rebuild finished with ${rebuild.errors} error(s). Built ${rebuild.built} snapshot(s).`
+      saveMessage.value = ''
+    } else {
+      saveMessage.value = `Saved. Rebuilt ${rebuild.built} snapshot(s) for ${rebuild.startDate}–${rebuild.endDate}. Refresh the dashboard to see updated spaces.`
+    }
     emit('saved')
     await loadSpaces()
   } catch (e) {
-    saveError.value = e instanceof Error ? e.message : 'Failed to save and rebuild'
+    saveError.value = fetchErrorMessage(e)
+    saveMessage.value = ''
   } finally {
     rebuilding.value = false
   }

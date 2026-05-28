@@ -6,7 +6,7 @@
  */
 
 import { getDb } from '../../../utils/db'
-import { parseDailyOpsMetricsQuery } from '../../../utils/dailyOpsDashboardMetrics'
+import { parseDailyOpsMetricsQuery } from '../../../utils/dailyOpsMetrics/context'
 import {
   fetchDailyOpsDashboardBundle,
   snapshotCacheControl,

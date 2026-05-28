@@ -12,13 +12,13 @@
 
 import type { Db } from 'mongodb'
 import type { DailyOpsRevenueDrilldownDto } from '~/types/daily-ops-dashboard'
-import { MOST_PROFITABLE_HOUR_ESTIMATES_NOTE, type DailyOpsMetricsContext } from '../dailyOpsDashboardMetrics'
-import { buildHourlyRows, loadHourlyBenchmarks } from './drilldown/buildRevenueDrilldownHourly'
+import type { DailyOpsMetricsContext } from '../dailyOpsMetrics/context'
+import { MOST_PROFITABLE_HOUR_ESTIMATES_NOTE } from '../dailyOpsMetrics/profitHour'
+import { buildHourlyRows } from './drilldown/buildRevenueDrilldownHourly'
+import { loadHourlyBenchmarks } from './drilldown/hourlyBenchmarks'
 import { buildRevenueDrilldownSpaces } from './drilldown/buildRevenueDrilldownSpaces'
 import { buildRevenueDrilldownTop10 } from './drilldown/buildRevenueDrilldownTop10'
 import type { BuildRevenueDrilldownInput } from './drilldown/drilldownShared'
-
-export type { BuildRevenueDrilldownInput } from './drilldown/drilldownShared'
 
 export async function buildRevenueDrilldownSection(
   db: Db,

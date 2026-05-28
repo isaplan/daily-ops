@@ -15,26 +15,6 @@
  * ✓ server/utils/dailyOpsSnapshot/fetchDashboardBundle.ts
  * ✓ server/utils/dailyOpsRevenue/borkRevenueRead.ts
  */
-
-export {
-  parseDailyOpsMetricsQuery,
-  enumerateUtcDatesInclusive,
-  type DailyOpsMetricsContext,
-} from './dailyOpsMetrics/context'
-
-export { BORK_DOC_REVENUE_EXPR, BORK_DOC_REVENUE_INC_EXPR } from './dailyOpsMetrics/borkAggregationExprs'
-
-export { type BorkHourAggregatesBundle, type TodayRevenueExtras } from './dailyOpsMetrics/types'
-
-export {
-  MOST_PROFITABLE_HOUR_DEFAULTS,
-  MOST_PROFITABLE_HOUR_ESTIMATES_NOTE,
-} from './dailyOpsMetrics/profitHour'
-
-export {
-  buildDailyOpsSummaryDto,
-  buildDailyOpsRevenueBreakdownDto,
-  VAT_DISCLAIMER,
-} from './dailyOpsMetrics/dtoBuilders'
-
-export { fetchWorkerStaffDetailMetrics } from './dailyOpsMetrics/workerStaffDetail'
+// Deprecated compatibility module.
+// Keep file for path stability while runtime imports use dailyOpsMetrics/* directly.
+export {}

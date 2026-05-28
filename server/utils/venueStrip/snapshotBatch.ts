@@ -14,7 +14,7 @@ import {
   type DailyOpsSnapshotRevenueProductsSection,
   type DailyOpsSnapshotRevenueSection,
 } from '~/types/daily-ops-snapshot'
-import type { DailyOpsMetricsContext } from '../dailyOpsDashboardMetrics'
+import type { DailyOpsMetricsContext } from '../dailyOpsMetrics/context'
 import { VENUE_STRIP_LOCATIONS } from './constants'
 import { enrichLaborWithPct, productivityPerHour, resolveVenueStripLabor } from './labor'
 import { contractsByTeamFromSnapshot, revenueFromSnapshotSections } from './revenue'

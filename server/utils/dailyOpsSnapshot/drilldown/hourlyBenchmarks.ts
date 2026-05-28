@@ -20,7 +20,7 @@ import {
 } from '~/types/daily-ops-snapshot'
 import { addCalendarDaysYmd } from '~/utils/dailyOpsBusinessDate'
 import { eachBusinessDate } from '../../dailyOpsRevenue/dateRange'
-import type { DailyOpsMetricsContext } from '../../dailyOpsDashboardMetrics'
+import type { DailyOpsMetricsContext } from '../../dailyOpsMetrics/context'
 import { locDayKey, round2 } from './drilldownShared'
 
 const LOOKBACK_WEEKDAYS = 5

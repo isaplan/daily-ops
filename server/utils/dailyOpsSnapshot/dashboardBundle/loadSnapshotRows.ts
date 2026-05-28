@@ -18,7 +18,7 @@ import {
   type DailyOpsSnapshotRevenueTablesSection,
   type DailyOpsSnapshotRevenueWorkersSection,
 } from '~/types/daily-ops-snapshot'
-import type { DailyOpsMetricsContext } from '../../dailyOpsDashboardMetrics'
+import type { DailyOpsMetricsContext } from '../../dailyOpsMetrics/context'
 
 export type SnapshotDashboardRows = {
   masters: DailyOpsSnapshotMaster[]

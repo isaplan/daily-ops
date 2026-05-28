@@ -7,11 +7,13 @@ export default defineEventHandler(async (event): Promise<OpsNotificationsRespons
   const q = getQuery(event)
   const lookbackDays = q.lookbackDays ? Number(q.lookbackDays) : undefined
   const endDate = typeof q.endDate === 'string' ? q.endDate : undefined
+  const includeHidden = String(q.includeHidden ?? '0') === '1'
   try {
     const db = await getDb()
     return await runOpsNotificationScan(db, {
       lookbackDays: Number.isFinite(lookbackDays) ? lookbackDays : undefined,
       endDate,
+      includeHidden,
     })
   } catch (e) {
     const message = e instanceof Error ? e.message : 'Ops notification scan failed'

@@ -24,12 +24,8 @@ import type {
 } from '~/types/product-catalog'
 import {
   applyCatalogFamilyFields,
-  parseProductVariantLabel,
-  resolveProductFamilyName,
 } from './productCatalogBrandFamily'
 import { adoptPlannedCatalogForBorkProduct, loadMenuPricesForCatalogKeys } from './menuCatalogLink'
-
-export { applyCatalogFamilyFields, parseProductVariantLabel, resolveProductFamilyName }
 
 const COLLECTION = 'product_catalog'
 

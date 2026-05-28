@@ -11,17 +11,18 @@ import type {
   DailyOpsSnapshotRevenueSection,
 } from '~/types/daily-ops-snapshot'
 import type { DailyOpsHourlyRevenueRowDto, DailyOpsRevenueBreakdownDto } from '~/types/daily-ops-dashboard'
-import type { BorkHourAggregatesBundle, DailyOpsMetricsContext } from '../../dailyOpsDashboardMetrics'
-import { VENUE_STRIP_LOCATIONS } from '../../dailyOpsVenueStrip'
-import type { LaborByBusinessDateHourBucket } from './laborHourMaps'
+import type { DailyOpsMetricsContext } from '../../dailyOpsMetrics/context'
+import type { BorkHourAggregatesBundle } from '../../dailyOpsMetrics/types'
+import { VENUE_STRIP_LOCATIONS } from '../../venueStrip/constants'
+import type { SnapshotLaborByBusinessDateHourBucket } from './laborHourMaps'
 import { laborBucketForLocationHour } from './laborHourMaps'
-import { round2 } from './shared'
+import { snapshotRound2 } from './shared'
 
 function buildHourlyRevenueRows(
   dateStr: string,
   revenueByHour: Map<number, number>,
   revenueByLocationHour: Map<string, number>,
-  laborByLocHour: Map<string, LaborByBusinessDateHourBucket>,
+  laborByLocHour: Map<string, SnapshotLaborByBusinessDateHourBucket>,
 ): DailyOpsHourlyRevenueRowDto[] {
   const laborHoursByHour = new Map<number, number>()
   for (const [key, row] of laborByLocHour) {
@@ -29,32 +30,34 @@ function buildHourlyRevenueRows(
     const date = parts.length >= 3 ? parts[1] : parts[0]
     const hour = Number(parts.length >= 3 ? parts[2] : parts[1])
     if (date !== dateStr || !Number.isFinite(hour) || row.hours <= 0) continue
-    laborHoursByHour.set(hour, round2((laborHoursByHour.get(hour) ?? 0) + row.hours))
+    laborHoursByHour.set(hour, snapshotRound2((laborHoursByHour.get(hour) ?? 0) + row.hours))
   }
 
   return [...revenueByHour.entries()]
     .map(([calendarHour, revenue]) => {
-      const laborHours = round2(laborHoursByHour.get(calendarHour) ?? 0)
+      const laborHours = snapshotRound2(laborHoursByHour.get(calendarHour) ?? 0)
       return {
         calendarHour,
-        revenue: round2(revenue),
+        revenue: snapshotRound2(revenue),
         laborHours,
-        revenuePerLaborHour: laborHours > 0 ? round2(revenue / laborHours) : null,
+        revenuePerLaborHour: laborHours > 0 ? snapshotRound2(revenue / laborHours) : null,
         locations: VENUE_STRIP_LOCATIONS.map((location) => {
-          const locationRevenue = round2(revenueByLocationHour.get(`${location.locationId}|${calendarHour}`) ?? 0)
+          const locationRevenue = snapshotRound2(
+            revenueByLocationHour.get(`${location.locationId}|${calendarHour}`) ?? 0,
+          )
           const locationLabor = laborBucketForLocationHour(
             laborByLocHour,
             location.locationId,
             dateStr,
             calendarHour,
           )
-          const locLaborHours = round2(locationLabor.hours)
+          const locLaborHours = snapshotRound2(locationLabor.hours)
           return {
             locationId: location.locationId,
             locationName: location.locationName,
             revenue: locationRevenue,
             laborHours: locLaborHours,
-            revenuePerLaborHour: locLaborHours > 0 ? round2(locationRevenue / locLaborHours) : null,
+            revenuePerLaborHour: locLaborHours > 0 ? snapshotRound2(locationRevenue / locLaborHours) : null,
           }
         }),
       }
@@ -67,7 +70,7 @@ export function buildTodayExtrasFromHourBundle(
   hourBundle: BorkHourAggregatesBundle,
   revenue: DailyOpsSnapshotRevenueSection[],
   orderTime: DailyOpsSnapshotRevenueByOrderTimeSection[],
-  laborByLocHour: Map<string, LaborByBusinessDateHourBucket>,
+  laborByLocHour: Map<string, SnapshotLaborByBusinessDateHourBucket>,
 ): DailyOpsRevenueBreakdownDto['todayRevenueDetail'] {
   const apiHourly = new Map<number, number>()
   const apiHourlyByLocation = new Map<string, number>()
@@ -121,7 +124,7 @@ export function buildTodayExtrasFromHourBundle(
       if (cronHour !== 15 && cronHour !== 23) continue
       inboxSnaps.push({
         cronHour,
-        finalRevenueExVat: round2(Number(intr.revenue_ex_vat ?? 0)),
+        finalRevenueExVat: snapshotRound2(Number(intr.revenue_ex_vat ?? 0)),
         locationLabel: doc.locationName ?? doc.locationId,
       })
     }

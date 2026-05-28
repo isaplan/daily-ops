@@ -33,6 +33,34 @@
     <UAlert v-else-if="error" color="error" title="Scan failed" :description="error.message" />
 
     <template v-else-if="report">
+      <div class="flex items-center gap-2">
+        <span class="text-xs font-semibold uppercase text-gray-500">View</span>
+        <UButton
+          size="xs"
+          variant="soft"
+          :color="viewMode === 'grouped' ? 'primary' : 'neutral'"
+          @click="viewMode = 'grouped'"
+        >
+          Grouped
+        </UButton>
+        <UButton
+          size="xs"
+          variant="soft"
+          :color="viewMode === 'rows' ? 'primary' : 'neutral'"
+          @click="viewMode = 'rows'"
+        >
+          Raw rows
+        </UButton>
+        <UButton
+          size="xs"
+          variant="soft"
+          :color="showHidden ? 'primary' : 'neutral'"
+          @click="showHidden = !showHidden"
+        >
+          {{ showHidden ? 'Hide hidden' : 'Show hidden' }}
+        </UButton>
+      </div>
+
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-xl">
         <button
           type="button"
@@ -65,6 +93,9 @@
 
       <p class="text-xs text-gray-500">
         Window {{ report.rangeStart }} → {{ report.rangeEnd }} · scanned {{ formatTime(report.scannedAt) }}
+        <span v-if="typeof report.hiddenCount === 'number' && report.hiddenCount > 0">
+          · hidden {{ report.hiddenCount }}
+        </span>
       </p>
 
       <nav
@@ -84,7 +115,7 @@
       </nav>
 
       <UAlert
-        v-if="filteredItems.length === 0"
+        v-if="displayItems.length === 0"
         color="success"
         title="Nothing in this filter"
         description="Try another category or widen the scan window."
@@ -96,62 +127,67 @@
             <tr>
               <th class="px-4 py-3">Severity</th>
               <th class="px-4 py-3">Area</th>
-              <th class="px-4 py-3">Date</th>
+              <th class="px-4 py-3">{{ viewMode === 'grouped' ? 'Date range' : 'Date' }}</th>
               <th class="px-4 py-3">Venue</th>
+              <th v-if="viewMode === 'grouped'" class="px-4 py-3">Rows</th>
               <th class="px-4 py-3">Status</th>
               <th class="px-4 py-3">Issue</th>
               <th class="px-4 py-3 text-right">Action</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-gray-100">
-            <tr v-for="item in filteredItems" :key="item.id" class="hover:bg-gray-50">
+            <tr v-for="entry in displayItems" :key="entry.id" class="hover:bg-gray-50">
               <td class="px-4 py-3 align-top">
-                <UBadge :color="severityColor(item.severity)" variant="subtle" size="sm">
-                  {{ item.severity }}
+                <UBadge :color="severityColor(entry.severity)" variant="subtle" size="sm">
+                  {{ entry.severity }}
                 </UBadge>
               </td>
               <td class="px-4 py-3 align-top">
-                <span class="text-sm font-medium text-gray-600">{{ categoryLabel(item.category) }}</span>
+                <span class="text-sm font-medium text-gray-600">{{ categoryLabel(entry.category) }}</span>
               </td>
               <td class="px-4 py-3 align-top font-mono text-gray-800 whitespace-nowrap">
-                {{ item.businessDate === 'system' ? '—' : item.businessDate }}
+                {{ entry.businessDateLabel }}
               </td>
-              <td class="px-4 py-3 align-top">{{ item.locationName }}</td>
+              <td class="px-4 py-3 align-top">{{ entry.locationName }}</td>
+              <td v-if="viewMode === 'grouped'" class="px-4 py-3 align-top">{{ entry.count }}</td>
               <td class="px-4 py-3 align-top">
                 <UBadge
-                  :color="displayStatus(item) === 'fixed' ? 'success' : 'warning'"
+                  :color="displayStatus(entry.item) === 'fixed' ? 'success' : 'warning'"
                   variant="subtle"
                   size="sm"
                 >
-                  {{ displayStatus(item) }}
+                  {{ displayStatus(entry.item) }}
                 </UBadge>
-                <p v-if="fixOverlay(item)?.message" class="text-xs text-gray-600 mt-1 max-w-[14rem]">
-                  {{ fixOverlay(item)?.message }}
+                <p v-if="fixOverlay(entry.item)?.message" class="text-xs text-gray-600 mt-1 max-w-56">
+                  {{ fixOverlay(entry.item)?.message }}
                 </p>
               </td>
               <td class="px-4 py-3 align-top">
-                <p class="font-semibold text-gray-900">{{ item.title }}</p>
-                <p class="text-gray-600 text-sm mt-1">{{ item.message }}</p>
-                <p class="text-gray-500 text-sm mt-1.5 font-mono break-all">{{ item.fixHint }}</p>
+                <p class="font-semibold text-gray-900">{{ entry.item.title }}</p>
+                <p class="text-gray-600 text-sm mt-1">{{ entry.item.message }}</p>
+                <p v-if="viewMode === 'grouped' && entry.count > 1" class="text-gray-500 text-xs mt-1">
+                  Grouped {{ entry.count }} similar alerts from same origin.
+                </p>
+                <p class="text-gray-500 text-sm mt-1.5 font-mono break-all">{{ entry.item.fixHint }}</p>
               </td>
               <td class="px-4 py-3 align-top text-right space-y-1">
                 <UButton
-                  v-if="canTryFix(item)"
+                  v-if="canTryFix(entry.item)"
                   size="xs"
                   variant="soft"
                   color="primary"
-                  :loading="fixingId === item.id"
-                  :disabled="displayStatus(item) === 'fixed'"
-                  @click="tryFixOne(item)"
+                  :loading="fixingId === entry.item.id"
+                  :disabled="displayStatus(entry.item) === 'fixed'"
+                  @click="tryFixOne(entry.item)"
                 >
                   Try fix
                 </UButton>
                 <UButton
-                  v-else-if="canRebuild(item)"
+                  v-else-if="canRebuild(entry.item)"
                   size="xs"
                   variant="soft"
-                  :loading="rebuildingId === item.id"
-                  @click="rebuildOne(item)"
+                  :loading="rebuildingId === entry.item.id"
+                  @click="rebuildOne(entry.item)"
                 >
                   Rebuild snapshot
                 </UButton>
@@ -174,21 +210,31 @@ import type {
   OpsNotificationStatus,
 } from '~/types/ops-notifications'
 
-const { report, pending, error, refresh } = useOpsNotificationsList(30)
+const showHidden = ref(false)
+const visibleQuery = useOpsNotificationsList(30, false)
+const hiddenQuery = useOpsNotificationsList(30, true)
+const report = computed(() => (showHidden.value ? hiddenQuery.report.value : visibleQuery.report.value))
+const pending = computed(() => (showHidden.value ? hiddenQuery.pending.value : visibleQuery.pending.value))
+const error = computed(() => (showHidden.value ? hiddenQuery.error.value : visibleQuery.error.value))
+const refresh = async () => {
+  if (showHidden.value) await hiddenQuery.refresh()
+  else await visibleQuery.refresh()
+}
 const showRulesModal = ref(false)
 const activeCategory = ref<OpsNotificationCategory | 'all'>('all')
 const activeSeverity = ref<'all' | OpsNotificationSeverity>('all')
+const viewMode = ref<'grouped' | 'rows'>('grouped')
 
 const severityFilteredItems = computed(() => {
   const items = report.value?.items ?? []
   if (activeSeverity.value === 'all') return items
-  return items.filter((i) => i.severity === activeSeverity.value)
+  return items.filter((i: OpsNotificationDto) => i.severity === activeSeverity.value)
 })
 
 const categoryFilters = computed(() => {
   const items = severityFilteredItems.value
   const countByCat = (cat: OpsNotificationCategory) =>
-    items.filter((i) => i.category === cat).length
+    items.filter((i: OpsNotificationDto) => i.category === cat).length
   return [
     { id: 'all' as const, label: 'All', count: items.length },
     { id: 'snapshot' as const, label: 'Snapshot', count: countByCat('snapshot') },
@@ -202,9 +248,58 @@ const categoryFilters = computed(() => {
 const filteredItems = computed(() => {
   let items = severityFilteredItems.value
   if (activeCategory.value !== 'all') {
-    items = items.filter((i) => i.category === activeCategory.value)
+    items = items.filter((i: OpsNotificationDto) => i.category === activeCategory.value)
   }
   return items
+})
+
+type DisplayEntry = {
+  id: string
+  item: OpsNotificationDto
+  severity: OpsNotificationSeverity
+  category: OpsNotificationCategory
+  locationName: string
+  count: number
+  businessDateLabel: string
+}
+
+const displayItems = computed<DisplayEntry[]>(() => {
+  if (viewMode.value === 'rows') {
+    return filteredItems.value.map((item: OpsNotificationDto) => ({
+      id: item.id,
+      item,
+      severity: item.severity,
+      category: item.category,
+      locationName: item.locationName,
+      count: 1,
+      businessDateLabel: item.businessDate === 'system' ? '—' : item.businessDate,
+    }))
+  }
+  const byOrigin = new Map<string, OpsNotificationDto[]>()
+  for (const item of filteredItems.value) {
+    const key = `${item.kind}|${item.locationId}`
+    const bucket = byOrigin.get(key) ?? []
+    bucket.push(item)
+    byOrigin.set(key, bucket)
+  }
+  return [...byOrigin.values()].map((bucket) => {
+    const first = bucket[0]!
+    const dates = bucket
+      .map((i) => i.businessDate)
+      .filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d))
+      .sort()
+    let businessDateLabel = first.businessDate === 'system' ? '—' : first.businessDate
+    if (dates.length > 1) businessDateLabel = `${dates[0]} → ${dates[dates.length - 1]}`
+    return {
+      id: `group:${first.kind}:${first.locationId}`,
+      item: first,
+      severity: first.severity,
+      category: first.category,
+      locationName: first.locationName,
+      count: bucket.length,
+      businessDateLabel,
+    }
+  })
 })
 
 const rebuildingId = ref<string | null>(null)
@@ -243,13 +338,18 @@ function categoryLabel(cat: OpsNotificationCategory): string {
 }
 
 function canRebuild(item: OpsNotificationDto): boolean {
-  return item.category === 'snapshot' && item.businessDate !== 'system' && item.locationId !== 'platform'
+  return (
+    item.category === 'snapshot' &&
+    /^\d{4}-\d{2}-\d{2}$/.test(item.businessDate) &&
+    item.locationId !== 'platform'
+  )
 }
 
 function canTryFix(item: OpsNotificationDto): boolean {
+  const hasValidBusinessDate = /^\d{4}-\d{2}-\d{2}$/.test(item.businessDate)
   return (
     TRY_FIX_KINDS.includes(item.kind) &&
-    item.businessDate !== 'system' &&
+    hasValidBusinessDate &&
     item.locationId !== 'platform'
   )
 }
@@ -286,7 +386,7 @@ async function tryFixOne(item: OpsNotificationDto) {
         locationId: item.locationId,
         meta: item.meta,
       },
-    })
+    } as any)
     fixOverlays.value = {
       ...fixOverlays.value,
       [item.id]: { status: res.status, message: res.message },
@@ -320,10 +420,10 @@ async function rebuildOne(item: OpsNotificationDto) {
   try {
     const res = await $fetch<{ ok: boolean; errors: Array<{ error: string }> }>(
       '/api/ops-notifications/rebuild',
-      {
+      ({
         method: 'POST',
         body: { businessDate: item.businessDate, locationId: item.locationId },
-      },
+      } as any),
     )
     if (res.ok) {
       toast.add({ title: 'Snapshot rebuilt', description: `${item.locationName} ${item.businessDate}`, color: 'success' })
@@ -336,9 +436,13 @@ async function rebuildOne(item: OpsNotificationDto) {
       })
     }
   } catch (e) {
+    const msg = (() => {
+      const maybe = e as { data?: { message?: string }; message?: string }
+      return maybe?.data?.message ?? maybe?.message ?? 'Request failed'
+    })()
     toast.add({
       title: 'Rebuild failed',
-      description: e instanceof Error ? e.message : 'Request failed',
+      description: msg,
       color: 'error',
     })
   } finally {

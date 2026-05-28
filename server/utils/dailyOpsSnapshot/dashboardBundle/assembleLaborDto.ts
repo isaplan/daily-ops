@@ -11,13 +11,11 @@
  */
 
 import type { DailyOpsLaborDayDto, DailyOpsLaborMetricsDto } from '~/types/daily-ops-dashboard'
-import { enumerateUtcDatesInclusive, type DailyOpsMetricsContext } from '../../dailyOpsDashboardMetrics'
+import { enumerateUtcDatesInclusive, type DailyOpsMetricsContext } from '../../dailyOpsMetrics/context'
 import { contractRollupsFromSnapshotLabor } from './laborContractRollups'
 import { productivityByLocationFromSnapshots } from './laborProductivityRollups'
 import type { SnapshotDashboardRows } from './loadSnapshotRows'
-import { round2 } from './shared'
-
-export { contractRollupsFromSnapshotLabor } from './laborContractRollups'
+import { snapshotRound2 } from './shared'
 
 export function assembleLaborFromSnapshots(
   ctx: DailyOpsMetricsContext,
@@ -76,8 +74,8 @@ export function assembleLaborFromSnapshots(
         teamId: t.teamId,
         teamName: t.teamName,
         workerCount: (doc.workers ?? []).filter((w) => w.teamId === t.teamId).length,
-        totalHours: round2(Number(t.hours ?? 0)),
-        totalCost: round2(Number(t.loaded_cost ?? 0)),
+        totalHours: snapshotRound2(Number(t.hours ?? 0)),
+        totalCost: snapshotRound2(Number(t.loaded_cost ?? 0)),
         laborCostPctOfRevenue: null,
       })
     }
@@ -89,8 +87,8 @@ export function assembleLaborFromSnapshots(
     teamId: a.teamId,
     teamName: a.teamName,
     workerCount: a.workerIds.size,
-    totalHours: round2(a.totalHours),
-    totalCost: round2(a.totalCost),
+    totalHours: snapshotRound2(a.totalHours),
+    totalCost: snapshotRound2(a.totalCost),
   }))
 
   const locationDayKey = (date: string, locationId: string) => `${date}|${locationId}`
@@ -117,7 +115,7 @@ export function assembleLaborFromSnapshots(
   const revenueByLocationDay: DailyOpsLaborMetricsDto['revenueByLocationDay'] = []
   for (const [k, revenue] of revByDateLocation) {
     const [date = '', locationId = ''] = k.split('|')
-    revenueByLocationDay.push({ date, locationId, revenue: round2(revenue) })
+    revenueByLocationDay.push({ date, locationId, revenue: snapshotRound2(revenue) })
   }
   revenueByLocationDay.sort((a, b) => a.locationId.localeCompare(b.locationId) || a.date.localeCompare(b.date))
 
@@ -146,12 +144,12 @@ export function assembleLaborFromSnapshots(
     sumHours += hours
     return {
       date,
-      revenue: round2(revenue),
-      laborCost: round2(laborCost),
-      hours: round2(hours),
+      revenue: snapshotRound2(revenue),
+      laborCost: snapshotRound2(laborCost),
+      hours: snapshotRound2(hours),
       distinctWorkerCount,
       laborCostPctOfRevenue: revenue > 0 ? Math.round((laborCost / revenue) * 100 * 10) / 10 : null,
-      revenuePerLaborHour: hours > 0 ? round2(revenue / hours) : null,
+      revenuePerLaborHour: hours > 0 ? snapshotRound2(revenue / hours) : null,
     }
   })
 
@@ -181,11 +179,11 @@ export function assembleLaborFromSnapshots(
     contractTypeByDay,
     daily,
     periodRollup: {
-      revenue: round2(sumRev),
-      laborCost: round2(sumLab),
-      hours: round2(sumHours),
+      revenue: snapshotRound2(sumRev),
+      laborCost: snapshotRound2(sumLab),
+      hours: snapshotRound2(sumHours),
       laborCostPctOfRevenue: sumRev > 0 ? Math.round((sumLab / sumRev) * 100 * 10) / 10 : null,
-      revenuePerLaborHour: sumHours > 0 ? round2(sumRev / sumHours) : null,
+      revenuePerLaborHour: sumHours > 0 ? snapshotRound2(sumRev / sumHours) : null,
     },
     productivityByLocationDay: productivityByLocationFromSnapshots(rows.labor, revByDateLocation),
   }

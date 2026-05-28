@@ -11,7 +11,7 @@
 
 import type { DailyOpsLaborMetricsDto } from '~/types/daily-ops-dashboard'
 import type { DailyOpsSnapshotLaborSection } from '~/types/daily-ops-snapshot'
-import { round2 } from './shared'
+import { snapshotRound2 } from './shared'
 
 export function productivityByLocationFromSnapshots(
   labor: DailyOpsSnapshotLaborSection[],
@@ -35,9 +35,9 @@ export function productivityByLocationFromSnapshots(
       .filter((r) => r.hours > 0)
       .map((r) => ({
         date: r.date,
-        revenue: round2(r.rev),
-        hours: round2(r.hours),
-        revenuePerLaborHour: round2(r.rev / r.hours),
+        revenue: snapshotRound2(r.rev),
+        hours: snapshotRound2(r.hours),
+        revenuePerLaborHour: snapshotRound2(r.rev / r.hours),
       }))
     scored.sort((a, b) => b.revenuePerLaborHour - a.revenuePerLaborHour)
     productivityByLocationDay.push({

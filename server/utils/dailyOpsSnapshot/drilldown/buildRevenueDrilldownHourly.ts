@@ -11,16 +11,12 @@
  */
 
 import type { DailyOpsRevenueDrilldownHourlyRowDto } from '~/types/daily-ops-dashboard'
-import {
-  MOST_PROFITABLE_HOUR_DEFAULTS,
-  type DailyOpsMetricsContext,
-} from '../../dailyOpsDashboardMetrics'
-import { VENUE_STRIP_LOCATIONS } from '../../dailyOpsVenueStrip'
+import { MOST_PROFITABLE_HOUR_DEFAULTS } from '../../dailyOpsMetrics/profitHour'
+import type { DailyOpsMetricsContext } from '../../dailyOpsMetrics/context'
+import { VENUE_STRIP_LOCATIONS } from '../../venueStrip/constants'
 import type { BuildRevenueDrilldownInput } from './drilldownShared'
 import { benchmarkStatus } from './hourlyBenchmarks'
 import { hourLabel, locDayKey, locHourKey, revenueScale, round2 } from './drilldownShared'
-
-export { loadHourlyBenchmarks } from './hourlyBenchmarks'
 
 export function buildHourlyRows(
   ctx: DailyOpsMetricsContext,

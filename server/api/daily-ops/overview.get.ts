@@ -1,8 +1,6 @@
 import { getDb } from '../../utils/db'
-import {
-  VAT_DISCLAIMER,
-  parseDailyOpsMetricsQuery,
-} from '../../utils/dailyOpsDashboardMetrics'
+import { parseDailyOpsMetricsQuery } from '../../utils/dailyOpsMetrics/context'
+import { VAT_DISCLAIMER } from '../../utils/dailyOpsMetrics/dtoBuilders'
 import { fetchDailyOpsDashboardBundle } from '../../utils/dailyOpsSnapshot/fetchDashboardBundle'
 import type { DailyOpsOverviewDto } from '~/types/daily-ops-dashboard'
 

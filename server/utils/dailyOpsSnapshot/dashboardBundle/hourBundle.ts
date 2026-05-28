@@ -10,10 +10,10 @@ import type {
   DailyOpsSnapshotRevenueHourlySection,
   DailyOpsSnapshotRevenueSection,
 } from '~/types/daily-ops-snapshot'
-import type { BorkHourAggregatesBundle } from '../../dailyOpsDashboardMetrics'
+import type { BorkHourAggregatesBundle } from '../../dailyOpsMetrics/types'
 import { rollupFoodBeverageFromCategories } from '../../borkFoodBeverageSplit'
 import type { DailyOpsSnapshotRevenueProductsSection } from '~/types/daily-ops-snapshot'
-import { round2 } from './shared'
+import { snapshotRound2 } from './shared'
 
 export function buildHourBundleFromSnapshots(
   hourly: DailyOpsSnapshotRevenueHourlySection[],
@@ -60,5 +60,5 @@ export function categoryTotalsFromProducts(
     food += split.food
     drinks += split.beverage
   }
-  return { food: round2(food), drinks: round2(drinks) }
+  return { food: snapshotRound2(food), drinks: snapshotRound2(drinks) }
 }

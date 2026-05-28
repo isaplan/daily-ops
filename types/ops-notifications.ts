@@ -59,6 +59,9 @@ export type OpsNotificationDto = {
     description: string
   }
   detectedAt: string
+  /** Auto-hidden in default view (e.g. stale > 7 days). */
+  hidden?: boolean
+  hiddenReason?: string
   meta?: Record<string, unknown>
 }
 
@@ -69,6 +72,7 @@ export type OpsNotificationsResponseDto = {
   total: number
   criticalCount: number
   warningCount: number
+  hiddenCount?: number
   byCategory: Record<OpsNotificationCategory, number>
   items: OpsNotificationDto[]
 }

@@ -10,13 +10,13 @@
  * ✓ server/utils/dailyOpsSnapshot/fetchDashboardBundle.ts
  */
 
-import type { DailyOpsMetricsContext } from '../dailyOpsDashboardMetrics'
+import type { DailyOpsMetricsContext } from '../dailyOpsMetrics/context'
+import { enumerateUtcDatesInclusive } from '../dailyOpsMetrics/context'
 import {
-  enumerateUtcDatesInclusive,
   MOST_PROFITABLE_HOUR_DEFAULTS,
   MOST_PROFITABLE_HOUR_ESTIMATES_NOTE,
-} from '../dailyOpsDashboardMetrics'
-import { VENUE_STRIP_LOCATIONS } from '../dailyOpsVenueStrip'
+} from '../dailyOpsMetrics/profitHour'
+import { VENUE_STRIP_LOCATIONS } from '../venueStrip/constants'
 import type {
   DailyOpsProfitByIntervalDto,
   DailyOpsProfitIntervalCellDto,

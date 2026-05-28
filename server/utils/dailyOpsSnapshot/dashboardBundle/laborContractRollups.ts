@@ -12,7 +12,7 @@
 
 import type { DailyOpsLaborMetricsDto } from '~/types/daily-ops-dashboard'
 import type { DailyOpsSnapshotLaborSection } from '~/types/daily-ops-snapshot'
-import { round2 } from './shared'
+import { snapshotRound2 } from './shared'
 
 export function contractRollupsFromSnapshotLabor(labor: DailyOpsSnapshotLaborSection[]): {
   hoursCostByContractType: DailyOpsLaborMetricsDto['hoursCostByContractType']
@@ -61,8 +61,8 @@ export function contractRollupsFromSnapshotLabor(labor: DailyOpsSnapshotLaborSec
   const hoursCostByContractType = [...periodMap.entries()]
     .map(([contractType, v]) => ({
       contractType,
-      totalHours: round2(v.hours),
-      totalCost: round2(v.cost),
+      totalHours: snapshotRound2(v.hours),
+      totalCost: snapshotRound2(v.cost),
     }))
     .sort((a, b) => a.contractType.localeCompare(b.contractType))
 
@@ -71,8 +71,8 @@ export function contractRollupsFromSnapshotLabor(labor: DailyOpsSnapshotLaborSec
       date: d.date,
       contractType: d.contractType,
       workerCount: d.workerIds.size,
-      totalHours: round2(d.hours),
-      totalCost: round2(d.cost),
+      totalHours: snapshotRound2(d.hours),
+      totalCost: snapshotRound2(d.cost),
     }))
     .sort((a, b) => a.contractType.localeCompare(b.contractType) || a.date.localeCompare(b.date))
 

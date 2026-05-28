@@ -12,11 +12,9 @@
 
 import type { Db } from 'mongodb'
 import type { VenueStripCardDto, VenueStripResponseDto } from '~/types/daily-ops-dashboard'
-import type { DailyOpsMetricsContext } from './dailyOpsDashboardMetrics'
+import type { DailyOpsMetricsContext } from './dailyOpsMetrics/context'
 import { VENUE_STRIP_LOCATIONS } from './venueStrip/constants'
 import { buildVenueStripCardFromSnapshots, loadVenueStripSnapshotBatch } from './venueStrip/snapshotBatch'
-
-export { VENUE_STRIP_LOCATIONS } from './venueStrip/constants'
 
 /** @deprecated Use buildVenueStripResponse — kept for tests/callers that build one card. */
 export async function buildVenueStripCard(

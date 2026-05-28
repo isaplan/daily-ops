@@ -11,7 +11,7 @@
  * ✓ server/utils/dailyOpsSnapshot/fetchDashboardBundle.ts
  */
 
-import type { DailyOpsMetricsContext } from './dailyOpsDashboardMetrics'
+import type { DailyOpsMetricsContext } from './dailyOpsMetrics/context'
 import {
   headlineExVatFromSnapshotRevenue,
   type BasisReportData,

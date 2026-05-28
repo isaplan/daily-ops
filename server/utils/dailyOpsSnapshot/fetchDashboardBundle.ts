@@ -19,19 +19,20 @@ import type {
   DailyOpsRevenueBreakdownDto,
   DailyOpsSummaryDto,
 } from '~/types/daily-ops-dashboard'
+import type { DailyOpsMetricsContext } from '../dailyOpsMetrics/context'
 import {
   buildDailyOpsRevenueBreakdownDto,
   buildDailyOpsSummaryDto,
-  type DailyOpsMetricsContext,
-} from '../dailyOpsDashboardMetrics'
+} from '../dailyOpsMetrics/dtoBuilders'
 import { aggregateLaborForRange } from './aggregateLaborForRange'
 import { buildProfitByIntervalFromSnapshotHourly } from './buildProfitByIntervalFromSnapshot'
 import { buildRevenueDrilldownSection } from './buildRevenueDrilldownSection'
-import { assembleLaborFromSnapshots, contractRollupsFromSnapshotLabor } from './dashboardBundle/assembleLaborDto'
+import { assembleLaborFromSnapshots } from './dashboardBundle/assembleLaborDto'
 import {
   buildHourBundleFromSnapshots,
   categoryTotalsFromProducts,
 } from './dashboardBundle/hourBundle'
+import { contractRollupsFromSnapshotLabor } from './dashboardBundle/laborContractRollups'
 import { loadSnapshotDashboardRows } from './dashboardBundle/loadSnapshotRows'
 import {
   aggregateLaborByDateHour,
@@ -39,7 +40,7 @@ import {
   laborCostMapFromHourly,
 } from './dashboardBundle/laborHourMaps'
 import { buildHeadlineRevenueByLocDay, buildRevLabMaps } from './dashboardBundle/revLabMaps'
-import { round2 } from './dashboardBundle/shared'
+import { snapshotRound2 } from './dashboardBundle/shared'
 import { buildTodayExtrasFromHourBundle } from './dashboardBundle/todayRevenueDetail'
 
 export type DailyOpsDashboardBundleDto = {
@@ -97,7 +98,7 @@ export async function fetchDailyOpsDashboardBundle(
   ])
 
   const summary = buildDailyOpsSummaryDto(ctx, revMap, labMap, {
-    apiBusinessDaysTotal: round2(apiMergedTotal),
+    apiBusinessDaysTotal: snapshotRound2(apiMergedTotal),
     inboxBasisExVat: null,
   })
   if (laborBreakdown.coverage.daysFound > 0) {

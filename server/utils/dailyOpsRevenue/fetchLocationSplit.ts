@@ -1,6 +1,6 @@
 import type { Db } from 'mongodb'
 import type { DailyOpsRevenueLocationDto, DailyOpsRevenueQueryContext } from '~/types/daily-ops-revenue'
-import { VENUE_STRIP_LOCATIONS } from '../dailyOpsVenueStrip'
+import { VENUE_STRIP_LOCATIONS } from '../venueStrip/constants'
 import { fetchRevenueRangeForDates } from './fetchRevenueRange'
 
 function round2(n: number): number {
