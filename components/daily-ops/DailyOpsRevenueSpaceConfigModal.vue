@@ -1,13 +1,15 @@
 <template>
   <UModal
-    v-model="open"
+    :open="open"
     :ui="{
       overlay: 'bg-black/60',
-      content: 'w-[calc(100vw-2rem)] max-w-2xl',
+      content: 'w-[calc(100vw-2rem)] max-w-2xl z-[100]',
     }"
+    :close="false"
+    @update:open="$emit('update:open', $event)"
   >
     <template #content>
-      <div class="max-h-[85vh] overflow-y-auto rounded-lg bg-white p-6">
+      <div class="max-h-[85vh] overflow-y-auto rounded-lg bg-white p-6 shadow-xl">
         <div class="mb-4 flex items-start justify-between gap-4">
           <div>
             <h2 class="text-lg font-semibold text-gray-900">Revenue space config</h2>
@@ -20,7 +22,7 @@
             icon="i-lucide-x"
             aria-label="Close"
             class="shrink-0 bg-gray-900! text-white!"
-            @click="open = false"
+            @click="$emit('update:open', false)"
           />
         </div>
 
@@ -111,12 +113,12 @@ type DraftSpace = LocationRevenueSpace & { tablesInput: string }
 type LocationOption = { label: string; value: string }
 
 const props = defineProps<{
+  open: boolean
   initialLocationId?: string | null
 }>()
 
-const open = defineModel<boolean>('open', { default: false })
-
 const emit = defineEmits<{
+  'update:open': [value: boolean]
   saved: []
 }>()
 
@@ -139,7 +141,7 @@ const saveError = ref('')
 const saveMessage = ref('')
 
 watch(
-  open,
+  () => props.open,
   (isOpen) => {
     if (isOpen) {
       if (props.initialLocationId) {
@@ -157,7 +159,7 @@ watch(locationOptions, (opts) => {
 })
 
 watch(selectedLocationId, () => {
-  if (open.value) void loadSpaces()
+  if (props.open) void loadSpaces()
 })
 
 function toDraft(spaces: LocationRevenueSpace[]): DraftSpace[] {

@@ -55,8 +55,9 @@
   </UCard>
 
   <DailyOpsRevenueSpaceConfigModal
-    v-model:open="configOpen"
+    :open="configOpen"
     :initial-location-id="initialLocationId"
+    @update:open="configOpen = $event"
     @saved="$emit('configSaved')"
   />
 </template>
