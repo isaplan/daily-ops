@@ -131,34 +131,27 @@ alwaysApply: true
 
 ---
 
-## 🚀 NEXT.JS 15 + REACT 18 SPECIFICS
+## 🚀 NUXT 3 + VUE 3 SPECIFICS
 
-**App Router Only:**
-- `app/` directory (no pages/)
-- Server Components by default
-- Client Components only when needed (`'use client'`)
-- Route handlers: `app/api/[route]/route.ts`
+**App structure:**
+- `pages/` file-based routing, `server/` Nitro API routes
+- Server Components by default; `'use client'` only when needed (Nuxt: client-only via `<ClientOnly>` or `.client.vue`)
+- Route handlers: `server/api/[route].get.ts` (and `.post.ts`, etc.)
 
 **Data Fetching:**
-- Server Functions for backend work
-- `fetch()` with `{ cache: 'no-store' }` or `revalidate: 60`
-- Suspense boundaries for async components
+- Server logic in `server/utils/` + `server/services/`; UI calls `/api/*` only
+- `useFetch` / `useAsyncData` with `{ server: true }`; no direct Mongo in Vue
+- Suspense boundaries for async page sections
 
 **State Management:**
-- Use React Context + useContext (simple)
-- Zustand for complex state (if needed)
-- NO Redux, NO Pinia
-
-**Socket.io (Real-Time):**
-- Client: `useSocket()` hook → emit/on events
-- Server: WebSocket handler in `lib/socket/`
-- Emit on state changes, subscribe in Suspense boundaries
+- Pinia for shared client state when needed
+- Composables for feature-local state
 
 **Naming:**
-- Components: PascalCase (Button.tsx)
-- Hooks: camelCase (useAuth.ts)
-- Utilities: camelCase (helpers.ts)
-- Directories: lowercase (app/lib/hooks/)
+- Components: PascalCase (`RevenuePage.vue`)
+- Composables: camelCase (`useDailyOpsRevenueMetrics.ts`)
+- Utilities: camelCase (`fetchRevenueRange.ts`)
+- Directories: lowercase with dashes (`daily-ops/`)
 
 ---
 
@@ -188,10 +181,10 @@ grep '"type": "service"' function-registry.json
 - **Fixed 3 `locationId`s** in `server/utils/dailyOpsVenueStrip.ts` (`VENUE_STRIP_LOCATIONS`) — do not derive strip cards from URL `?location=`.
 - **Productivity and labor rollups** in `dailyOpsVenueStrip.ts` (wages leading; €/h = revenue ÷ gewerkte hours). Operational split (gewerkte, Afwas 50/50) is defined in **`eitjeRebuildAggregationService`** (`gewerkt_*` fields) → **`buildLaborSection`** → snapshot; strip never reads `eitje_raw_data`.
 - **v1 periods:** `today` / `yesterday` single calendar day only; week/month UI is placeholder — API changes need plan phases D–F approval.
-- **Labor read path (ADR-004):** `daily_ops_snapshot_section_labor` first; `eitje_time_registration_aggregation` fallback only. Rebuild agg + snapshot after aggregation schema changes.
+- **Labor read path (ADR-004):** `daily_ops_snapshot_section_labor` only on GET. No `eitje_time_registration_aggregation` or raw fallback on venue strip / dashboard bundle — missing snapshot → zeros + ops notification; fix via snapshot rebuild.
 - Before editing `dailyOpsDashboardMetrics.ts`, `bundle.get.ts`, or `aggregateLaborForRange.ts` → **ask user first** (import helpers only in v1).
-- **Basis inbox revenue pick (SSOT):** `calculateBasisCronPriority` / `pickBasisReportByCronPriority` in `basis-report-mapper.ts`. Morning cron **7 or 8** = final yesterday for `business_date`; **18/23** are intraday partials only. Never pick “latest cron_hour” for headline totals.
-- **Daily Ops GET = snapshot only (ADR-004):** Revenue/labor/dashboard read APIs use `daily_ops_snapshot*` only. Never `bork_*`, `inbox-*`, or raw on page load. Missing snapshot → `dataGap` / zeros; fix via snapshot rebuild, not live agg on GET.
+- **Basis inbox revenue pick (SSOT):** `calculateBasisCronPriority` / `pickBasisReportByCronPriority` in `basis-report-mapper.ts`. Morning cron **7 or 8** = final yesterday for `business_date`; **18/23** are intraday partials only. Never pick “latest cron_hour” for headline totals. **Inbox reads only at snapshot write** (`buildRevenueSection`); GET uses `snapshot.totals` (sealed headline).
+- **Daily Ops GET = snapshot only (ADR-004):** Revenue/labor/dashboard read APIs use `daily_ops_snapshot*` + `daily_ops_revenue_benchmark` only. Never `bork_*`, `inbox-*`, or raw on page load. Missing snapshot → `dataGap` / zeros; fix via snapshot rebuild, not live agg on GET.
 - **Ops notifications:** `/ops-notifications` (sidebar above Organisation). Modular scan: `server/utils/opsNotifications/` — snapshot gaps, **Bork vs Inbox** discrepancy (≥10% or €500), **missed morning cron**, intraday-only Basis, unmapped inbox, **ADR-004 live Bork on GET**, monolith file size. Extend detectors there; never hide issues with Bork fallback on GET.
 - After route/component changes: check dev terminal per RULE #0.5.
 

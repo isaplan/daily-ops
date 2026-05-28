@@ -1,34 +1,25 @@
 /**
  * @registry-id: daily-ops-locations-api
  * @created: 2026-04-12T00:00:00.000Z
- * @last-modified: 2026-04-12T00:00:00.000Z
- * @description: Fetch unified locations for Daily Ops UI
- * @last-fix: [2026-04-12] Return unified ObjectIds, not Eitje IDs
- * 
+ * @last-modified: 2026-05-28T00:00:00.000Z
+ * @description: Fetch unified locations for Daily Ops UI (incl. chartColor from unified_location).
+ * @last-fix: [2026-05-28] Expose chartColor SSOT for venue graph colors.
+ *
  * @exports-to:
  * ✓ components/daily-ops/DailyOpsDashboardShell.vue => /api/daily-ops/locations
+ * ✓ composables/useDailyOpsLocationChartColors.ts
  */
 
 import { getDb } from '../../utils/db'
+import { fetchDailyOpsLocationRows } from '../../utils/dailyOpsLocationChartColors'
+import type { DailyOpsLocationsResponseDto } from '~/types/daily-ops-locations'
 
-export default defineEventHandler(async () => {
+export default defineEventHandler(async (): Promise<DailyOpsLocationsResponseDto> => {
   try {
     const db = await getDb()
-    const unifiedLocations = await db.collection('unified_location').find({}).toArray()
-
-    const locations = unifiedLocations.map((doc: any) => ({
-      _id: String(doc._id),
-      name: doc.name ?? '',
-      abbreviation: doc.abbreviation ?? '',
-      eitjeId: doc.eitjeIds?.[0],
-    }))
-
-    return {
-      success: true,
-      data: locations,
-    }
+    const data = await fetchDailyOpsLocationRows(db)
+    return { success: true, data }
   } catch (error) {
-    console.error('[daily-ops/locations] Error:', error)
     return {
       success: false,
       data: [],

@@ -9,7 +9,7 @@ import {
   type DailyOpsSnapshotLaborSection,
   type DailyOpsSnapshotRevenueSection,
 } from '~/types/daily-ops-snapshot'
-import { VENUE_STRIP_LOCATIONS } from '../dailyOpsVenueStrip'
+import { VENUE_STRIP_LOCATIONS } from '../venueStrip/constants'
 import {
   calculateBasisCronPriority,
   type BasisReportData,

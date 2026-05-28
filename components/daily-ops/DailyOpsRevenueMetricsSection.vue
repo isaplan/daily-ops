@@ -10,6 +10,8 @@
     <DailyOpsRevenueDrilldownSection
       v-if="revenue.drilldown"
       :data="revenue.drilldown"
+      :primary-location-id="locationId"
+      @config-saved="refresh"
     />
   </div>
 </template>
@@ -19,5 +21,6 @@ defineProps<{
   period: string
 }>()
 
-const { revenue, pending } = useDailyOpsRevenueBreakdown()
+const { revenue, pending, refresh } = useDailyOpsRevenueBreakdown()
+const { locationId } = useDailyOpsDashboardRoute()
 </script>

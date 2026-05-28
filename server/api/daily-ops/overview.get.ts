@@ -1,57 +1,32 @@
 import { getDb } from '../../utils/db'
-import {
-  VAT_DISCLAIMER,
-  buildDailyOpsSummaryDto,
-  fetchBorkHourAggregatesBundle,
-  fetchLaborByDate,
-  fetchRevenueByCategoryFromHourAggregates,
-  fetchRevenueByDate,
-  parseDailyOpsMetricsQuery,
-  revenueByTimePeriodFromHourTotals,
-  computeMostProfitableHour,
-} from '../../utils/dailyOpsDashboardMetrics'
+import { parseDailyOpsMetricsQuery } from '../../utils/dailyOpsMetrics/context'
+import { VAT_DISCLAIMER } from '../../utils/dailyOpsMetrics/dtoBuilders'
+import { fetchDailyOpsDashboardBundle } from '../../utils/dailyOpsSnapshot/fetchDashboardBundle'
 import type { DailyOpsOverviewDto } from '~/types/daily-ops-dashboard'
 
-/** @deprecated Prefer /api/daily-ops/metrics/* for smaller, parallel responses. */
+/** @deprecated Removed ADR-004 — use /api/daily-ops/metrics/bundle instead. */
 export default defineEventHandler(async (event): Promise<DailyOpsOverviewDto> => {
   setResponseHeader(event, 'Cache-Control', 'no-store')
+  setResponseHeader(event, 'Deprecation', 'true')
+  setResponseHeader(event, 'Link', '</api/daily-ops/metrics/bundle>; rel="successor-version"')
+
   const ctx = parseDailyOpsMetricsQuery(getQuery(event) as Record<string, unknown>)
   const db = await getDb()
+  const bundle = await fetchDailyOpsDashboardBundle(db, ctx)
+  const { summary, revenue } = bundle
 
-  const [cat, hourBundle, revenueByDate, laborByDate] = await Promise.all([
-    fetchRevenueByCategoryFromHourAggregates(db, ctx),
-    fetchBorkHourAggregatesBundle(db, ctx),
-    fetchRevenueByDate(db, ctx),
-    fetchLaborByDate(db, ctx),
-  ])
+  const revenueByCategory = revenue.revenueByCategory.map((c) => ({
+    key: c.key,
+    label: c.label,
+    amount: c.amount,
+  }))
+  const revenueByTimePeriod = revenue.revenueByTimePeriod.map((c) => ({
+    key: c.key,
+    label: c.label,
+    amount: c.amount,
+  }))
 
-  const summaryDto = buildDailyOpsSummaryDto(ctx, revenueByDate, laborByDate)
-  const totalRevenue = summaryDto.summary.totalRevenue
-  const totalLaborCost = summaryDto.summary.totalLaborCost
-  const profit = summaryDto.summary.profit
-  const profitMarginPct = summaryDto.summary.profitMarginPct
-
-  const tp = revenueByTimePeriodFromHourTotals(hourBundle.byHourOnly)
-  const best = computeMostProfitableHour(hourBundle.byDayHour, revenueByDate, laborByDate)
-
-  const revenueByCategory = [
-    { key: 'drinks', label: 'Drinks', amount: Math.round(cat.drinks * 100) / 100 },
-    { key: 'food', label: 'Food', amount: Math.round(cat.food * 100) / 100 },
-  ]
-
-  const revenueByTimePeriod = [
-    { key: 'lunch', label: 'Lunch', amount: Math.round(tp.lunch * 100) / 100 },
-    { key: 'pre_drinks', label: 'Pre Drinks', amount: Math.round(tp.pre_drinks * 100) / 100 },
-    { key: 'dinner', label: 'Dinner', amount: Math.round(tp.dinner * 100) / 100 },
-    { key: 'after_drinks', label: 'After Drinks', amount: Math.round(tp.after_drinks * 100) / 100 },
-  ]
-  if (tp.other > 0) {
-    revenueByTimePeriod.push({
-      key: 'other',
-      label: 'Other hours',
-      amount: Math.round(tp.other * 100) / 100,
-    })
-  }
+  const best = revenue.mostProfitableHour
 
   return {
     range: {
@@ -60,19 +35,19 @@ export default defineEventHandler(async (event): Promise<DailyOpsOverviewDto> =>
       endDate: ctx.endDate,
     },
     summary: {
-      totalRevenue: Math.round(totalRevenue * 100) / 100,
-      totalLaborCost: Math.round(totalLaborCost * 100) / 100,
-      profit: Math.round(profit * 100) / 100,
-      profitMarginPct: Math.round(profitMarginPct * 10) / 10,
+      totalRevenue: summary.summary.totalRevenue,
+      totalLaborCost: summary.summary.totalLaborCost,
+      profit: summary.summary.profit,
+      profitMarginPct: summary.summary.profitMarginPct,
     },
     revenueByCategory,
     revenueByTimePeriod,
     mostProfitableHour: {
       hourLabel: best.hourLabel,
       date: best.date,
-      revenue: Math.round(best.revenue * 100) / 100,
-      laborCost: Math.round(best.laborCost * 100) / 100,
-      profit: Math.round(best.profit * 100) / 100,
+      revenue: best.revenue,
+      laborCost: best.laborCost,
+      profit: best.profit,
     },
     vatDisclaimer: VAT_DISCLAIMER,
   }

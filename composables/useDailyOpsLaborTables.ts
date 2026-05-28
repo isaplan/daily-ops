@@ -5,8 +5,7 @@
  * @last-fix: [2026-05-18] Extracted from DailyOpsHomeDashboard.vue labor section.
  *
  * @exports-to:
- * ✓ components/daily-ops/DailyOpsHomeDashboard.vue
- * ✓ components/daily-ops/DailyOpsProductivityLaborSection.vue (future)
+ * ✓ components/daily-ops/DailyOpsProductivityLaborSection.vue
  */
 import type { Ref } from 'vue'
 import type {

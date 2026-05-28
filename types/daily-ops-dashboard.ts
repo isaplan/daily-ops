@@ -163,13 +163,20 @@ export type DailyOpsRevenueDrilldownTopRowDto = {
   count?: number
 }
 
+export type DailyOpsRevenueDrilldownTop10WorkersDto = {
+  paymentTime: DailyOpsRevenueDrilldownTopRowDto[]
+  orderTime: DailyOpsRevenueDrilldownTopRowDto[]
+}
+
 export type DailyOpsRevenueDrilldownDto = {
   estimatesNote: string
+  /** True when period spans more than one calendar day (hourly totals are summed). */
+  multiDayRange?: boolean
   coverageNotes: string[]
   hourlyRows: DailyOpsRevenueDrilldownHourlyRowDto[]
   spaces: DailyOpsRevenueDrilldownSpaceRowDto[]
   top10: {
-    workers: DailyOpsRevenueDrilldownTopRowDto[]
+    workers: DailyOpsRevenueDrilldownTop10WorkersDto
     tables: DailyOpsRevenueDrilldownTopRowDto[]
     foodProducts: DailyOpsRevenueDrilldownTopRowDto[]
     beverageProductsOrCategories: DailyOpsRevenueDrilldownTopRowDto[]

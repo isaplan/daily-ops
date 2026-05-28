@@ -10,7 +10,7 @@
  */
 
 import { getDb } from '../../../utils/db'
-import { parseDailyOpsMetricsQuery } from '../../../utils/dailyOpsDashboardMetrics'
+import { parseDailyOpsMetricsQuery } from '../../../utils/dailyOpsMetrics/context'
 import { buildVenueStripResponse } from '../../../utils/dailyOpsVenueStrip'
 import { snapshotCacheControl } from '../../../utils/dailyOpsSnapshot/fetchDashboardBundle'
 import type { VenueStripResponseDto } from '~/types/daily-ops-dashboard'

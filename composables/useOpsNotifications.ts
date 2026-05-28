@@ -13,12 +13,15 @@ export function useOpsNotificationsCount() {
   return { count, criticalCount, pending, refresh, error }
 }
 
-export function useOpsNotificationsList(lookbackDays = 30) {
+export function useOpsNotificationsList(lookbackDays = 30, includeHidden = false) {
   const { data, pending, error, refresh } = useAsyncData(
-    () => `ops-notifications-list-${lookbackDays}`,
+    () => `ops-notifications-list-${lookbackDays}-${includeHidden ? 'with-hidden' : 'default'}`,
     () =>
       $fetch<OpsNotificationsResponseDto>('/api/ops-notifications', {
-        query: { lookbackDays: String(lookbackDays) },
+        query: {
+          lookbackDays: String(lookbackDays),
+          includeHidden: includeHidden ? '1' : '0',
+        },
       }),
     { server: false },
   )

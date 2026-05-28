@@ -1,13 +1,9 @@
 /**
  * @registry-id: dailyOpsSnapshotService
  * @created: 2026-05-13T00:00:00.000Z
- * @last-modified: 2026-05-26T01:12:00.000Z
- * @description: Reads aggregated Bork + Eitje + inbox collections, writes denormalized
- *   daily snapshots (master + revenue section + labor section per location × businessDate).
- *   Idempotent, event-driven, never touches raw data.
- * @last-fix: [2026-05-26] Writes dedicated revenue-by-order-time snapshot section.
- *   Prior: [2026-05-25] Snapshot sealed on cron_hour 7 OR 8 (morning final); was incorrectly checking === 8 only.
- * @adr-ref: ADR-004 (Daily Ops snapshot = authoritative revenue source)
+ * @last-modified: 2026-05-28T00:00:00.000Z
+ * @last-fix: [2026-05-28] Post-seal retention hook (blob archive + fat bork purge, ADR-006)
+ * @adr-ref: ADR-004, ADR-006
  *
  * @architecture:
  *   - No raw data reads — aggregated collections only (bork_business_days, bork_sales_by_hour,
@@ -44,6 +40,11 @@ import { buildLaborSection } from '../utils/dailyOpsSnapshot/buildLaborSection'
 import { buildCards } from '../utils/dailyOpsSnapshot/buildCards'
 import { resolveSources } from '../utils/dailyOpsSnapshot/resolveSources'
 import { registerSnapshotRunner } from '../utils/dailyOpsSnapshot/jobCoalescer'
+import {
+  writeRevenueBenchmarkAllLocations,
+  writeRevenueBenchmarkForLocation,
+} from '../utils/dailyOpsRevenue/revenueBenchmark'
+import { runPostSealRetention } from '../utils/dailyOpsBlob/runPostSealRetention'
 
 const runtimeProcess = globalThis as typeof globalThis & {
   process?: { env?: Record<string, string | undefined> }
@@ -163,12 +164,20 @@ export async function buildDailyOpsSnapshot(input: BuildSnapshotInput): Promise<
           `[snapshot:build] ${businessDate} ${locationName} | wrote master+revenue+labor | status=${master.status} leadSource=${master.leadRevenueSource}`
         )
       }
+
+      if (sealed) {
+        await writeRevenueBenchmarkForLocation(db, businessDate, locationId)
+      }
       out.built.push({ locationId, locationName })
     } catch (e) {
       out.success = false
       out.errors.push({ locationId, error: e instanceof Error ? e.message : String(e) })
       console.error(`[snapshot:build] FAILED ${businessDate} ${locationId}`, e)
     }
+  }
+
+  if (out.built.length > 0) {
+    await writeRevenueBenchmarkAllLocations(db, businessDate)
   }
 
   return out
@@ -202,6 +211,7 @@ export async function sealDailyOpsSnapshot(input: { businessDate: string; locati
     await db
       .collection(DAILY_OPS_SNAPSHOT_COLLECTIONS.master)
       .updateOne({ businessDate: input.businessDate, locationId: input.locationId }, { $set: { status: 'final', sealedAt: new Date() } })
+    await runPostSealRetention(db, input.businessDate, input.locationId)
     if (DEBUG) console.info(`[snapshot:seal] ${input.businessDate} ${input.locationId} sealed`)
     return { sealed: true }
   } catch (e) {

@@ -1,8 +1,6 @@
 import { getDb } from '../../../utils/db'
-import {
-  fetchWorkerStaffDetailMetrics,
-  parseDailyOpsMetricsQuery,
-} from '../../../utils/dailyOpsDashboardMetrics'
+import { parseDailyOpsMetricsQuery } from '../../../utils/dailyOpsMetrics/context'
+import { fetchWorkerStaffDetailMetrics } from '../../../utils/dailyOpsMetrics/workerStaffDetail'
 import type { DailyOpsWorkerStaffDetailResponseDto } from '~/types/daily-ops-dashboard'
 
 export default defineEventHandler(

@@ -24,7 +24,6 @@ import {
   EITJE_LABOR_SHIFT_START_FIELD,
 } from '../utils/eitjeHours'
 import {
-  EITJE_CONTRACT_CPH_LOOKUP,
   EITJE_NORM_NAME_FIELD,
   EITJE_RESOLVE_COST_PER_HOUR_FIELDS,
 } from '../utils/eitjeLoadedCostStages'
@@ -207,7 +206,6 @@ async function rebuildEitjeShiftAggregation (
       },
     },
     EITJE_NORM_NAME_FIELD,
-    EITJE_CONTRACT_CPH_LOOKUP,
     {
       $lookup: {
         from: 'unified_user',

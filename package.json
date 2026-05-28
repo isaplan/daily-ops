@@ -36,11 +36,17 @@
     "snapshots:backfill:daily-ops:all": "npx --yes tsx scripts/backfill-daily-ops-full-snapshots.ts -- --all-locations",
     "snapshots:backfill:daily-ops:dry-run": "npx --yes tsx scripts/backfill-daily-ops-full-snapshots.ts -- --dry-run",
     "snapshots:backfill:daily-ops:force": "npx --yes tsx scripts/backfill-daily-ops-full-snapshots.ts -- --force",
+    "snapshots:benchmarks:backfill": "npx --yes tsx scripts/backfill-revenue-benchmarks.ts",
+    "snapshots:benchmarks:backfill:60d": "npx --yes tsx scripts/backfill-revenue-benchmarks.ts -- --days 60",
+    "retention:rehydrate-day": "npx --yes tsx scripts/rehydrate-day-from-blob.ts",
+    "retention:purge": "npx --yes tsx scripts/run-data-retention-purge.ts",
     "inbox:purge-intraday": "npx --yes tsx scripts/purge-intraday-basis-inbox.ts",
     "inbox:mark-gmail-disconnected": "npx --yes tsx scripts/mark-gmail-disconnected.ts",
+    "locations:seed-chart-colors": "npx --yes tsx scripts/seed-location-chart-colors.ts",
     "start": "node .output/server/index.mjs"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1055.0",
     "@nuxt/ui": "^4.0.0",
     "@tiptap/extension-placeholder": "^3.20.0",
     "@tiptap/starter-kit": "^3.20.0",
