@@ -17,8 +17,36 @@
         aria-label="Hourly revenue time basis"
       />
     </div>
+    <div class="mb-4 flex flex-col gap-3">
+      <div class="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+        <UiPillTabs
+          v-model="viewMode"
+          :options="viewModeOptions"
+          aria-label="Hourly revenue display mode"
+        />
+        <UiPillTabs
+          v-model="venueFilter"
+          :options="venueFilterOptions"
+          aria-label="Filter hourly chart by venue"
+        />
+      </div>
+      <div class="flex justify-end">
+        <UiPillTabs
+          v-model="metricFilter"
+          :options="metricFilterOptions"
+          aria-label="Filter by metric"
+        />
+      </div>
+    </div>
     <div>
-      <div v-if="activeHourlyRows.length > 0">
+      <DailyOpsTodayHourlyDualAxisChart
+        v-if="viewMode === 'chart' && activeHourlyRows.length > 0"
+        :rows="activeHourlyRows"
+        :location-filter="venueFilter"
+        :metric-filter="metricFilter"
+        :basis-label="activeBasisLabel"
+      />
+      <div v-else-if="viewMode === 'table' && activeHourlyRows.length > 0">
         <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
           Hourly · {{ activeBasisLabel }} (calendar hour)
         </p>
@@ -28,17 +56,17 @@
               <tr>
                 <th class="px-3 py-2 align-bottom" rowspan="2">Hour</th>
                 <th
-                  v-for="location in locationColumns"
+                  v-for="location in tableLocationColumns"
                   :key="location.locationId"
                   class="border-l border-gray-200 px-3 py-2 text-center font-semibold text-gray-800"
-                  colspan="2"
+                  :colspan="locationHeaderColspan"
                 >
                   {{ location.locationName }}
                 </th>
               </tr>
               <tr>
                 <th
-                  v-for="column in metricColumns"
+                  v-for="column in tableMetricColumns"
                   :key="column.key"
                   class="px-3 py-2 text-right"
                   :class="column.isFirstForLocation ? 'border-l border-gray-200' : ''"
@@ -49,13 +77,13 @@
             </thead>
             <tbody>
               <tr
-                v-for="row in activeHourlyRows"
+                v-for="row in tableHourlyRows"
                 :key="`th-${row.calendarHour}`"
                 class="border-t border-gray-100"
               >
                 <td class="px-3 py-1.5 tabular-nums">{{ String(row.calendarHour).padStart(2, '0') }}:00</td>
                 <td
-                  v-for="column in metricColumns"
+                  v-for="column in tableMetricColumns"
                   :key="`${row.calendarHour}-${column.key}`"
                   class="px-3 py-1.5 text-right tabular-nums"
                   :class="column.isFirstForLocation ? 'border-l border-gray-100' : ''"
@@ -79,17 +107,20 @@
 
 <script setup lang="ts">
 import type { DailyOpsTodayRevenueDetailDto } from '~/types/daily-ops-dashboard'
+import { DAILY_OPS_PROFIT_VENUE_LOCATIONS } from '~/utils/dailyOpsProfitIntervals'
 
 const props = defineProps<{
   detail?: DailyOpsTodayRevenueDetailDto | null
 }>()
 
 const { formatEur } = useDashboardEurFormat()
+const { mode: viewMode } = useDailyOpsRevenueViewMode('today-hourly-view', 'chart')
 
 type HourlyRow = DailyOpsTodayRevenueDetailDto['apiHourlyByCalendarHour'][number]
 type LocationMetric = HourlyRow['locations'][number]
 type LocationColumn = Pick<LocationMetric, 'locationId' | 'locationName'>
 type HourlyBasis = 'paid' | 'ordered'
+type MetricFilter = 'all' | 'revenue' | 'productivity'
 type MetricColumn = LocationColumn & {
   key: string
   label: string
@@ -98,6 +129,26 @@ type MetricColumn = LocationColumn & {
 }
 
 const hourlyBasis = ref<HourlyBasis>('paid')
+const venueFilter = ref<string>('all')
+const metricFilter = ref<MetricFilter>('all')
+
+const metricFilterOptions: { value: MetricFilter; label: string }[] = [
+  { value: 'all', label: 'All' },
+  { value: 'revenue', label: 'Revenue' },
+  { value: 'productivity', label: 'Labor productivity' },
+]
+
+function locationMetricVisible(metric: LocationMetric): boolean {
+  if (metricFilter.value === 'revenue') return metric.revenue > 0
+  if (metricFilter.value === 'productivity') {
+    return metric.revenuePerLaborHour != null && Number.isFinite(metric.revenuePerLaborHour)
+  }
+  return (
+    metric.revenue > 0
+    || metric.laborHours > 0
+    || (metric.revenuePerLaborHour != null && Number.isFinite(metric.revenuePerLaborHour))
+  )
+}
 
 const paidHourlyRows = computed((): HourlyRow[] => props.detail?.apiHourlyByCalendarHour ?? [])
 const orderedHourlyRows = computed((): HourlyRow[] => props.detail?.orderHourlyByCalendarHour ?? [])
@@ -105,6 +156,19 @@ const orderedHourlyRows = computed((): HourlyRow[] => props.detail?.orderHourlyB
 const hourlyBasisOptions: { value: HourlyBasis; label: string }[] = [
   { value: 'paid', label: 'Paid time' },
   { value: 'ordered', label: 'Order time' },
+]
+
+const viewModeOptions = [
+  { value: 'chart', label: 'Graph' },
+  { value: 'table', label: 'Table' },
+] as const
+
+const venueFilterOptions = [
+  { value: 'all', label: 'All' },
+  ...DAILY_OPS_PROFIT_VENUE_LOCATIONS.map((location) => ({
+    value: location.locationId,
+    label: location.short,
+  })),
 ]
 
 const activeHourlyRows = computed((): HourlyRow[] => {
@@ -116,13 +180,39 @@ const activeBasisLabel = computed(() => hourlyBasis.value === 'ordered' ? 'order
 
 const hasHourlyRows = computed(() => paidHourlyRows.value.length > 0 || orderedHourlyRows.value.length > 0)
 
+const tableLocationColumns = computed((): LocationColumn[] => {
+  if (venueFilter.value === 'all') return locationColumns.value
+  return locationColumns.value.filter((location: LocationColumn) => location.locationId === venueFilter.value)
+})
+
 const locationColumns = computed((): LocationColumn[] => {
   return activeHourlyRows.value
     .find((row: HourlyRow) => row.locations.length > 0)
     ?.locations.map((location: LocationMetric) => ({
-    locationId: location.locationId,
-    locationName: location.locationName,
-  })) ?? []
+      locationId: location.locationId,
+      locationName: location.locationName,
+    })) ?? []
+})
+
+const locationHeaderColspan = computed(() => (metricFilter.value === 'all' ? 2 : 1))
+
+const tableHourlyRows = computed((): HourlyRow[] => {
+  const rows = venueFilter.value === 'all'
+    ? activeHourlyRows.value
+    : activeHourlyRows.value.filter((row: HourlyRow) =>
+        locationMetricVisible(getLocationMetric(row, venueFilter.value)),
+      )
+
+  if (metricFilter.value === 'all') return rows
+
+  return rows.filter((row: HourlyRow) => {
+    const locations = venueFilter.value === 'all'
+      ? tableLocationColumns.value
+      : tableLocationColumns.value.filter((location: LocationColumn) => location.locationId === venueFilter.value)
+    return locations.some((location: LocationColumn) =>
+      locationMetricVisible(getLocationMetric(row, location.locationId)),
+    )
+  })
 })
 
 const getLocationMetric = (row: HourlyRow, locationId: string): LocationMetric => {
@@ -135,8 +225,8 @@ const getLocationMetric = (row: HourlyRow, locationId: string): LocationMetric =
   }
 }
 
-const metricColumns = computed((): MetricColumn[] => {
-  return locationColumns.value.flatMap((location: LocationColumn) => [
+const tableMetricColumns = computed((): MetricColumn[] => {
+  const columns = tableLocationColumns.value.flatMap((location: LocationColumn) => [
     {
       ...location,
       key: `${location.locationId}-revenue`,
@@ -152,6 +242,14 @@ const metricColumns = computed((): MetricColumn[] => {
       isFirstForLocation: false,
     },
   ])
+
+  if (metricFilter.value === 'revenue') {
+    return columns.filter((column: MetricColumn) => column.metric === 'revenue')
+  }
+  if (metricFilter.value === 'productivity') {
+    return columns.filter((column: MetricColumn) => column.metric === 'productivity')
+  }
+  return columns
 })
 
 const formatMetric = (row: HourlyRow, column: MetricColumn) => {

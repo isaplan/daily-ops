@@ -38,6 +38,7 @@
     "snapshots:backfill:daily-ops:force": "npx --yes tsx scripts/backfill-daily-ops-full-snapshots.ts -- --force",
     "inbox:purge-intraday": "npx --yes tsx scripts/purge-intraday-basis-inbox.ts",
     "inbox:mark-gmail-disconnected": "npx --yes tsx scripts/mark-gmail-disconnected.ts",
+    "locations:seed-chart-colors": "npx --yes tsx scripts/seed-location-chart-colors.ts",
     "start": "node .output/server/index.mjs"
   },
   "dependencies": {

@@ -85,7 +85,7 @@ import type { DailyOpsPeriodId } from '~/types/daily-ops-dashboard'
 import { addCalendarDaysYmd, amsterdamOpenRegisterBusinessDateYmd } from '~/utils/dailyOpsBusinessDate'
 import { weekdayShortForYmd } from '~/utils/inbox/importTableQuickDates'
 
-type LocationRow = { _id: string; name: string; abbreviation?: string }
+type LocationRow = { _id: string; name: string; abbreviation?: string; chartColor?: string }
 
 /** Set true to restore fixed location filter (All / Van Kinsbergen / Bar Bea / L'amour). */
 const showLocationShortcuts = false
@@ -183,7 +183,10 @@ const navItems = computed(() => {
   ]
 })
 
-const { data: locationsRes } = await useFetch<{ success: boolean; data: LocationRow[] }>('/api/daily-ops/locations')
+const { data: locationsRes } = await useFetch<{ success: boolean; data: LocationRow[] }>(
+  '/api/daily-ops/locations',
+  { key: 'daily-ops-locations' },
+)
 
 const resolvedLocationShortcuts = computed(() => {
   const rows = locationsRes.value?.data ?? []
