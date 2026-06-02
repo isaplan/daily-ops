@@ -1,19 +1,21 @@
 /**
  * @registry-id: locationSpaceResolver
  * @created: 2026-05-28T00:00:00.000Z
- * @last-modified: 2026-05-28T00:00:00.000Z
+ * @last-modified: 2026-05-30T00:00:00.000Z
  * @description: Resolve Bork table number → location revenue space name from per-location config
- * @last-fix: [2026-05-28] Location-scoped space resolver with hardcoded fallback
+ * @last-fix: [2026-05-30] Load revenue_spaces from org/unified location id peers via locationUnifiedIdResolver
  * @adr-ref: ADR-004
  *
  * @exports-to:
  * ✓ server/utils/dailyOpsSnapshot/buildRevenueTablesSection.ts
  * ✓ server/api/locations/[id]/revenue-spaces.get.ts
+ * ✓ server/api/daily-ops/snapshot/rebuild-spaces.post.ts
  */
 
 import type { Db } from 'mongodb'
 import { ObjectId } from 'mongodb'
 import type { LocationRevenueSpace } from '../../types/location-revenue-spaces'
+import { resolveRevenueSpacesLocationIds } from './locationUnifiedIdResolver'
 import { defaultRevenueSpacesForLocation } from './locationRevenueSpaceDefaults'
 import { getLocationSpaceForTable, LOCATION_SPACE_LABELS } from './dailyOpsRevenue/locationSpaces'
 
@@ -73,21 +75,42 @@ export function fallbackSpaceNameForTable(tableNum: string | number | null | und
 export async function loadLocationRevenueSpaces(
   db: Db,
   locationId: string,
-  options?: { seedIfEmpty?: boolean },
+  options?: { seedIfEmpty?: boolean; locationName?: string },
 ): Promise<{ spaces: LocationRevenueSpace[]; seeded: boolean }> {
   if (!ObjectId.isValid(locationId)) {
     return { spaces: [], seeded: false }
   }
-  const oid = new ObjectId(locationId)
-  const doc = await db.collection('locations').findOne({ _id: oid }, { projection: { revenue_spaces: 1, name: 1 } })
-  let spaces = normalizeSpaces(doc?.revenue_spaces)
-  if (spaces.length > 0) return { spaces, seeded: false }
 
-  const locationName = String(doc?.name ?? '')
-  const defaults = defaultRevenueSpacesForLocation(locationId, locationName)
+  const candidateIds = await resolveRevenueSpacesLocationIds(db, locationId, options?.locationName)
+  let locationName = options?.locationName?.trim() ?? ''
+
+  for (const candidateId of candidateIds) {
+    const doc = await db.collection('locations').findOne(
+      { _id: new ObjectId(candidateId) },
+      { projection: { revenue_spaces: 1, name: 1 } },
+    )
+    if (!locationName && doc?.name) locationName = String(doc.name)
+    const spaces = normalizeSpaces(doc?.revenue_spaces)
+    if (spaces.length > 0) return { spaces, seeded: false }
+  }
+
+  if (!locationName) {
+    const doc = await db.collection('locations').findOne(
+      { _id: new ObjectId(locationId) },
+      { projection: { name: 1 } },
+    )
+    locationName = String(doc?.name ?? '')
+  }
+
+  let defaults: LocationRevenueSpace[] | null = null
+  for (const candidateId of candidateIds) {
+    defaults = defaultRevenueSpacesForLocation(candidateId, locationName)
+    if (defaults?.length) break
+  }
+
   if (options?.seedIfEmpty && defaults?.length) {
     await db.collection('locations').updateOne(
-      { _id: oid },
+      { _id: new ObjectId(locationId) },
       { $set: { revenue_spaces: defaults, updated_at: new Date() } },
     )
     return { spaces: defaults, seeded: true }

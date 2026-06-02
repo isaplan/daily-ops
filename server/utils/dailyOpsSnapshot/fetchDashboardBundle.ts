@@ -1,9 +1,10 @@
 /**
  * @registry-id: dailyOpsSnapshotFetchDashboardBundle
  * @created: 2026-05-25T00:00:00.000Z
- * @last-modified: 2026-05-28T00:00:00.000Z
+ * @last-modified: 2026-06-02T00:00:00.000Z
+ * @last-fix: [2026-06-02] Pass laborByLocDay to profit-by-interval builder
  * @description: Snapshot-first Daily Ops dashboard bundle orchestrator (ADR-004)
- * @last-fix: [2026-05-28] Split 808-line monolith into dashboardBundle modules
+ * @last-fix: [2026-05-31] Dashboard profit math uses Mongo P&L assumptions SSOT
  * @adr-ref: ADR-004, ADR-006
  *
  * @exports-to:
@@ -24,6 +25,7 @@ import {
   buildDailyOpsRevenueBreakdownDto,
   buildDailyOpsSummaryDto,
 } from '../dailyOpsMetrics/dtoBuilders'
+import { loadPnlAssumptions } from '../appSettings/pnlAssumptionsSetting'
 import { aggregateLaborForRange } from './aggregateLaborForRange'
 import { buildProfitByIntervalFromSnapshotHourly } from './buildProfitByIntervalFromSnapshot'
 import { buildRevenueDrilldownSection } from './buildRevenueDrilldownSection'
@@ -56,7 +58,7 @@ export async function fetchDailyOpsDashboardBundle(
 ): Promise<DailyOpsDashboardBundleDto> {
   const rows = await loadSnapshotDashboardRows(db, ctx)
   const snapshotContracts = contractRollupsFromSnapshotLabor(rows.labor)
-  const { revMap, labMap, revByDateLocation } = buildRevLabMaps(
+  const { revMap, labMap, revByDateLocation, laborByLocDay } = buildRevLabMaps(
     rows.masters,
     rows.revenue,
     rows.labor,
@@ -71,6 +73,7 @@ export async function fetchDailyOpsDashboardBundle(
   }
 
   const laborByLocHour = laborByLocHourFromSnapshots(rows.labor)
+  const pnlAssumptions = await loadPnlAssumptions(db)
 
   const [laborBreakdown, profitByInterval, drilldown] = await Promise.all([
     aggregateLaborForRange(db, {
@@ -82,8 +85,9 @@ export async function fetchDailyOpsDashboardBundle(
       ctx,
       hourBundle.byDayHour,
       cat,
-      laborCostMapFromHourly(laborByLocHour),
+      laborByLocDay,
       headlineRevenueByLocDay,
+      pnlAssumptions,
     ),
     buildRevenueDrilldownSection(db, ctx, {
       revenue: rows.revenue,
@@ -94,7 +98,7 @@ export async function fetchDailyOpsDashboardBundle(
       laborByLocHour,
       headlineRevenueByLocDay,
       categoryTotals: cat,
-    }),
+    }, pnlAssumptions),
   ])
 
   const summary = buildDailyOpsSummaryDto(ctx, revMap, labMap, {
@@ -117,6 +121,7 @@ export async function fetchDailyOpsDashboardBundle(
     ctx.startDate === ctx.endDate
       ? buildTodayExtrasFromHourBundle(ctx, hourBundle, rows.revenue, rows.orderTime, laborByLocHour)
       : undefined,
+    pnlAssumptions,
   )
   revenue.drilldown = drilldown
 

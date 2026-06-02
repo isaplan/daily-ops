@@ -1,11 +1,17 @@
 <template>
   <div class="flex min-w-0 flex-col items-center">
     <h3 class="mb-1 text-center text-sm font-semibold text-gray-900">{{ title }}</h3>
+    <p class="mb-1 text-center text-xs font-medium tabular-nums text-gray-700">
+      Revenue {{ formatEurWhole(totalRevenue) }}
+    </p>
     <p
       class="mb-2 text-center text-xs font-medium tabular-nums"
       :style="{ color: statusColor }"
     >
       Day profit {{ formatEur(totalProfit) }}
+      <span v-if="profitMarginPct != null" class="font-normal text-gray-500">
+        ({{ profitMarginPct }}%)
+      </span>
     </p>
 
     <div class="relative" :style="chartBoxStyle">
@@ -36,6 +42,9 @@
           :style="{ color: profitTextColor(row.profit) }"
         >
           {{ row.profitDisplay }}
+          <span v-if="row.sharePct != null" class="font-normal text-gray-500">
+            ({{ row.sharePct }}%)
+          </span>
         </span>
       </li>
     </ul>
@@ -53,14 +62,21 @@ import {
 const props = withDefaults(
   defineProps<{
     title: string
+    totalRevenue: number
     totalProfit: number
     slices: ProfitIntervalSlice[]
     size?: number
   }>(),
-  { size: 200 }
+  { size: 200, totalRevenue: 0 }
 )
 
 const { formatEur } = useDashboardEurFormat()
+const { formatEurWhole } = useDashboardKpiFormat()
+
+const profitMarginPct = computed(() => {
+  if (props.totalRevenue <= 0) return null
+  return Math.round((props.totalProfit / props.totalRevenue) * 100)
+})
 
 const svgRef = ref<SVGSVGElement | null>(null)
 
@@ -85,16 +101,21 @@ function profitTextColor (profit: number): string {
   return '#6b7280'
 }
 
-const legendRows = computed(() =>
-  props.slices.map((s) => ({
+const legendRows = computed(() => {
+  const totalAbs = props.slices.reduce((sum, s) => sum + Math.abs(s.profit), 0)
+  return props.slices.map((s) => ({
     key: s.key,
     label: s.label,
     color: DAILY_OPS_PROFIT_INTERVAL_CHART_COLORS[s.key],
     profit: s.profit,
     profitDisplay:
       s.profit !== 0 || s.hasData ? formatEur(s.profit) : '—',
+    sharePct:
+      totalAbs > 0 && (s.profit !== 0 || s.hasData)
+        ? Math.round((Math.abs(s.profit) / totalAbs) * 100)
+        : null,
   }))
-)
+})
 
 const chartSlices = computed(() =>
   props.slices.filter((s) => Math.abs(s.profit) > 0.005 || s.hasData)
@@ -216,7 +237,7 @@ function drawCenterLabel (g: d3.Selection<SVGGElement, unknown, null, undefined>
 onMounted(() => drawChart())
 
 watch(
-  () => [props.slices, props.totalProfit, props.size, statusColor.value],
+  () => [props.slices, props.totalProfit, props.totalRevenue, props.size, statusColor.value],
   () => drawChart(),
   { deep: true }
 )

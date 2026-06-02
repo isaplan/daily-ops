@@ -590,7 +590,7 @@ const {
                 class="flex flex-wrap items-center justify-between gap-2 py-3 text-sm"
               >
                 <span class="font-medium text-gray-700">{{ row.contractType || '—' }}</span>
-                <span class="tabular-nums text-gray-600">{{ row.totalHours.toFixed(1) }} h · {{ formatEur(row.totalCost) }}</span>
+                <span class="tabular-nums text-gray-600">{{ Math.round(row.totalHours) }} h · {{ formatEur(row.totalCost) }}</span>
               </li>
             </ul>
           </UCard>

@@ -98,6 +98,6 @@ const lists = computed(() => [
 ])
 
 function formatQty(value: number): string {
-  return new Intl.NumberFormat('nl-NL', { maximumFractionDigits: 1 }).format(value)
+  return new Intl.NumberFormat('nl-NL', { maximumFractionDigits: 0 }).format(Math.round(value))
 }
 </script>

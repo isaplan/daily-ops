@@ -1,19 +1,23 @@
 /**
  * @registry-id: borkFoodBeverageSplit
  * @created: 2026-05-23T00:00:00.000Z
- * @last-modified: 2026-05-23T00:00:00.000Z
+ * @last-modified: 2026-06-02T23:30:00.000Z
  * @description: Food vs beverage revenue using product_catalog (Hoofdgroep), with name fallback
- * @last-fix: [2026-05-23] Replace product-name-only heuristic for Daily Ops revenue splits
+ * @last-fix: [2026-06-02] Reject stale product_key hits when sold name ≠ catalog name; name fallback lookup
+ *   Prior: [2026-06-02] Export shared beverage classifiers for drilldown top-10
+ *   Prior: [2026-05-23] Replace product-name-only heuristic for Daily Ops revenue splits
  *
  * @exports-to:
  * ✓ server/utils/dailyOpsDashboardMetrics.ts => fetchRevenueByCategoryFromHourAggregates
  * ✓ server/utils/dailyOpsRevenue/borkRevenueRead.ts => fetchBorkRangeTotals, fillHourlyMatrixFromBork
  * ✓ server/utils/dailyOpsSnapshot/buildRevenueProductsSection.ts => snapshot category rollups
+ * ✓ server/utils/dailyOpsSnapshot/drilldown/buildRevenueDrilldownTop10.ts => food vs beverage top-10 split
  */
 
 import type { Db } from 'mongodb'
 import { resolveBorkAggReadSuffix } from './borkAggVersionSuffix'
 import {
+  classifyCategoryFromCatalogFields,
   isExcludedCatalogForCalculations,
   loadSoldQuantityByProductKey,
   PRODUCT_CATALOG_LOOKUP_PIPELINE,
@@ -26,7 +30,33 @@ import type {
 
 /** Fallback when product_key is missing from product_catalog (pre-sync or legacy keys). */
 export const BORK_DRINK_NAME_FALLBACK =
-  /wine|wijn|beer|bier|birra|moretti|gint|gin |vodka|whisk|whiskey|rum|cocktail|cola|sprite|fanta|coffee|koffie|thee|tea|sap|juice|fris|prosecco|champagne|cider|tonic|latte|cappuccino|espresso|pils|stelz|borrel|aperol|campari|martini|soda|limonade|heineken|amstel|jupiler|desperados|radler|affligem|duvel|warchest|tap/i
+  /wine|wijn|beer|bier|birra|moretti|gint|gin |vodka|whisk|whiskey|rum|cocktail|cola|sprite|fanta|coffee|koffie|thee|tea|sap|juice|fris|prosecco|champagne|cider|tonic|latte|cappuccino|espresso|pils|stelz|borrel|aperol|campari|martini|soda|limonade|heineken|amstel|jupiler|desperados|radler|affligem|duvel|warchest|\btap\b/i
+
+export type ProductCatalogLookupEntry = {
+  category: ProductCatalogCategory
+  displayName: string
+  hoofdgroep: string | null
+  sub_category: string | null
+}
+
+export type ProductCatalogResolver = {
+  byKey: Map<string, ProductCatalogLookupEntry>
+  byName: Map<string, ProductCatalogLookupEntry>
+}
+
+function normalizeProductLabel(name: string): string {
+  return name.trim().toLowerCase().replace(/\s+/g, ' ')
+}
+
+/** Sold line name must align with catalog row — Bork reuses product_key across products over time. */
+export function catalogNamesAlign(catalogName: string, soldName: string): boolean {
+  const a = normalizeProductLabel(catalogName)
+  const b = normalizeProductLabel(soldName)
+  if (!a || !b) return false
+  if (a === b) return true
+  const [short, long] = a.length <= b.length ? [a, b] : [b, a]
+  return short.length >= 5 && long.includes(short)
+}
 
 const LINE_EX_VAT_EXPR = {
   $toDouble: {
@@ -129,24 +159,30 @@ export async function sumFoodBeverageFromHourAggregates(
   return { food, drinks }
 }
 
-export async function loadProductCatalogCategoryMap(
+export async function loadProductCatalogResolver(
   db: Db,
   opts?: { salesRange?: ProductCatalogDateRange },
-): Promise<Map<string, ProductCatalogCategory>> {
+): Promise<ProductCatalogResolver> {
   const rows = await db
     .collection('product_catalog')
-    .find({}, { projection: { product_key: 1, category: 1, display_name: 1, locations: 1 } })
+    .find(
+      {},
+      { projection: { product_key: 1, category: 1, display_name: 1, locations: 1, hoofdgroep: 1, sub_category: 1 } },
+    )
     .toArray()
 
   const soldByKey = opts?.salesRange
     ? await loadSoldQuantityByProductKey(db, opts.salesRange)
     : undefined
 
-  const map = new Map<string, ProductCatalogCategory>()
+  const byKey = new Map<string, ProductCatalogLookupEntry>()
+  const byName = new Map<string, ProductCatalogLookupEntry>()
+
   for (const doc of rows) {
     const key = String((doc as { product_key?: string }).product_key ?? '')
     const cat = (doc as { category?: ProductCatalogCategory }).category
-    if (!key || !cat) continue
+    const displayName = String((doc as { display_name?: string }).display_name ?? '')
+    if (!key || !cat || !displayName) continue
     const sold = soldByKey?.get(key) ?? 0
     if (
       isExcludedCatalogForCalculations(
@@ -156,9 +192,65 @@ export async function loadProductCatalogCategoryMap(
     ) {
       continue
     }
-    map.set(key, cat)
+    const entry: ProductCatalogLookupEntry = {
+      category: cat,
+      displayName,
+      hoofdgroep: (doc as { hoofdgroep?: string | null }).hoofdgroep ?? null,
+      sub_category: (doc as { sub_category?: string | null }).sub_category ?? null,
+    }
+    byKey.set(key, entry)
+    const nameKey = normalizeProductLabel(displayName)
+    const prev = byName.get(nameKey)
+    if (!prev || entry.category === 'food' || entry.category === 'beverage') {
+      byName.set(nameKey, entry)
+    }
+  }
+
+  return { byKey, byName }
+}
+
+export async function loadProductCatalogCategoryMap(
+  db: Db,
+  opts?: { salesRange?: ProductCatalogDateRange },
+): Promise<Map<string, ProductCatalogCategory>> {
+  const resolver = await loadProductCatalogResolver(db, opts)
+  const map = new Map<string, ProductCatalogCategory>()
+  for (const [key, entry] of resolver.byKey) {
+    map.set(key, entry.category)
   }
   return map
+}
+
+export function resolveProductCatalogEntry(
+  productId: string,
+  productName: string,
+  resolver: ProductCatalogResolver,
+): ProductCatalogLookupEntry | null {
+  const soldName = String(productName ?? '').trim()
+  const byId = resolver.byKey.get(String(productId ?? '').trim())
+  if (byId && catalogNamesAlign(byId.displayName, soldName)) return byId
+  if (soldName) {
+    const bySoldName = resolver.byName.get(normalizeProductLabel(soldName))
+    if (bySoldName) return bySoldName
+  }
+  return null
+}
+
+export function classifyProductFoodBeverage(
+  productId: string,
+  productName: string,
+  resolver: ProductCatalogResolver,
+): 'food' | 'beverage' {
+  const entry = resolveProductCatalogEntry(productId, productName, resolver)
+  if (entry?.category === 'beverage') return 'beverage'
+  if (entry?.category === 'food') return 'food'
+  if (entry) {
+    const derived = classifyCategoryFromCatalogFields(entry.hoofdgroep, entry.sub_category)
+    if (derived === 'beverage') return 'beverage'
+    if (derived === 'food') return 'food'
+  }
+  if (BORK_DRINK_NAME_FALLBACK.test(productName)) return 'beverage'
+  return 'food'
 }
 
 export function splitLineRevenueByCatalog(
@@ -166,12 +258,37 @@ export function splitLineRevenueByCatalog(
   productName: string,
   revenueEx: number,
   catalogMap: Map<string, ProductCatalogCategory>,
+  resolver?: ProductCatalogResolver,
 ): { food: number; drinks: number } {
-  const cat = catalogMap.get(productId)
-  if (cat === 'beverage') return { food: 0, drinks: revenueEx }
-  if (cat === 'food') return { food: revenueEx, drinks: 0 }
-  if (BORK_DRINK_NAME_FALLBACK.test(productName)) return { food: 0, drinks: revenueEx }
+  const bucket = resolver
+    ? classifyProductFoodBeverage(productId, productName, resolver)
+    : (() => {
+        const cat = catalogMap.get(productId)
+        if (cat === 'beverage') return 'beverage' as const
+        if (cat === 'food') return 'food' as const
+        if (BORK_DRINK_NAME_FALLBACK.test(productName)) return 'beverage' as const
+        return 'food' as const
+      })()
+  if (bucket === 'beverage') return { food: 0, drinks: revenueEx }
   return { food: revenueEx, drinks: 0 }
+}
+
+/** Bork/inbox category label → beverage bucket (matches rollupFoodBeverageFromCategories). */
+export function isBeverageCategoryName(name: string): boolean {
+  const n = name.trim().toLowerCase()
+  return (
+    /^dranken\s+(hoog|laag)$/.test(n) ||
+    /bierboetiek|bier\s*boetiek/.test(n) ||
+    /^drank|bier|bar\b|tap\b|wijn|wine/.test(n)
+  )
+}
+
+export function isBeverageProduct(
+  productId: string,
+  productName: string,
+  resolver: ProductCatalogResolver,
+): boolean {
+  return classifyProductFoodBeverage(productId, productName, resolver) === 'beverage'
 }
 
 function round2(n: number): number {

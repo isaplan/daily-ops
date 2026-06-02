@@ -5,23 +5,29 @@
         Locations ({{ periodLabel }})
       </h2>
 
-      <UiPillTabs
+      <div
         v-if="isSingleDayPeriod && data?.venues?.length"
-        :model-value="mediumSlideIndex"
-        :options="mediumVenuePillOptions"
-        aria-label="Select venue slide"
         class="hidden md:flex lg:hidden"
-        @update:model-value="goToPillSlide($event, 2)"
-      />
+      >
+        <UiPillTabs
+          :model-value="mediumSlideIndex"
+          :options="mediumVenuePillOptions"
+          aria-label="Select venue slide"
+          @update:model-value="goToPillSlide($event, 2)"
+        />
+      </div>
 
-      <UiPillTabs
+      <div
         v-if="isSingleDayPeriod && data?.venues?.length"
-        :model-value="smallSlideIndex"
-        :options="smallVenuePillOptions"
-        aria-label="Select venue slide"
         class="flex md:hidden"
-        @update:model-value="goToPillSlide($event, 1)"
-      />
+      >
+        <UiPillTabs
+          :model-value="smallSlideIndex"
+          :options="smallVenuePillOptions"
+          aria-label="Select venue slide"
+          @update:model-value="goToPillSlide($event, 1)"
+        />
+      </div>
     </div>
 
     <UAlert

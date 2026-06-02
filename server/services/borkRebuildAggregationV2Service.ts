@@ -1,9 +1,10 @@
 /**
  * @registry-id: borkRebuildAggregationV2Service
  * @created: 2026-04-14T18:00:00.000Z
- * @last-modified: 2026-05-27T12:00:00.000Z
+ * @last-modified: 2026-06-02T23:10:00.000Z
  * @description: V2 Bork aggregates — writes bork_business_days, bork_sales_by_day, bork_sales_by_hour, bork_sales_by_table, bork_sales_by_worker, bork_sales_by_guest_account, bork_sales_by_product (+ version suffix). Every revenue rollup now emits total_revenue (inc VAT, back-compat), total_revenue_ex_vat, total_revenue_inc_vat, total_vat extracted from raw line TotalEx/TotalInc.
- * @last-fix: [2026-05-27] Enqueue daily_ops_snapshot rebuild after V2 aggregation write.
+ * @last-fix: [2026-06-02] Order-time worker rollups credit order.UserName (not ticket closer).
+ *   Prior: [2026-05-27] Enqueue daily_ops_snapshot rebuild after V2 aggregation write.
  *   Prior: [2026-05-26] Added order-time hourly aggregate beside paid-ticket hourly aggregate.
  *   Prior: [2026-05-13] Phase 0: add ex/inc/vat to every revenue rollup using extractLineRevenue helper. Single-pass design preserved; paymodes intentionally remain inc-only (tender amounts).
  *
@@ -277,6 +278,18 @@ export async function rebuildBorkSalesAggregationV2(
           const orderCalendarHour = parseHour((order as { Time?: string }).Time)
           const orderBusiness =
             orderCalendarHour == null ? null : calendarToBusinessDay(isoDate, orderCalendarHour)
+          const borkOrderWorkerName =
+            String((order as { UserName?: string }).UserName ?? '').trim() || borkWorkerName
+          const orderUserMapping =
+            userMap.get(borkOrderWorkerName) ||
+            userMap.get(String((order as { UserId?: string }).UserId ?? ''))
+          const orderUnifiedWorkerId = String(
+            orderUserMapping?.unifiedId ??
+              (borkOrderWorkerName === borkWorkerName ? unifiedWorkerId : 'unknown'),
+          )
+          const orderUnifiedWorkerName =
+            orderUserMapping?.name ??
+            (borkOrderWorkerName === borkWorkerName ? unifiedWorkerName : borkOrderWorkerName)
           const dayKey = `${unifiedLocationId}:${businessDate}`
 
           const tableNumber = String((order as { TableNr?: string }).TableNr || '').trim()
@@ -369,7 +382,7 @@ export async function rebuildBorkSalesAggregationV2(
               op.vat += vat
               op.quantity += qty
 
-              const orderWorkerKey = `${unifiedLocationId}:${orderBusiness.businessDate}:${orderBusiness.businessHour}:${unifiedWorkerId}`
+              const orderWorkerKey = `${unifiedLocationId}:${orderBusiness.businessDate}:${orderBusiness.businessHour}:${orderUnifiedWorkerId}`
               if (!byOrderWorkerMap.has(orderWorkerKey)) {
                 byOrderWorkerMap.set(orderWorkerKey, {
                   schema_version: 2,
@@ -382,8 +395,8 @@ export async function rebuildBorkSalesAggregationV2(
                   calendar_hour: orderCalendarHour,
                   locationId: unifiedLocationId,
                   locationName: unifiedLocationName,
-                  workerId: unifiedWorkerId,
-                  workerName: unifiedWorkerName,
+                  workerId: orderUnifiedWorkerId,
+                  workerName: orderUnifiedWorkerName,
                   total_revenue: 0,
                   total_revenue_ex_vat: 0,
                   total_revenue_inc_vat: 0,

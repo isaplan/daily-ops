@@ -36,12 +36,7 @@ export function useDailyOpsRevenueMetrics() {
     ? useDailyOpsRevenueAnalyticsPeriod()
     : useDailyOpsRevenuePeriod()
   const { revenueQuery, primaryRange } = periodState
-  const { pnlQueryParams } = useDailyOpsRevenuePnlAssumptions()
-  const mergedQuery = computed(() => ({
-    ...revenueQuery.value,
-    ...pnlQueryParams.value,
-  }))
-  const qs = computed(() => buildQueryString(mergedQuery.value))
+  const qs = computed(() => buildQueryString(revenueQuery.value))
   const cacheKey = computed(() => `rev-${qs.value}`)
   const gran = computed(() =>
     timeseriesGranularity(primaryRange.value.startDate, primaryRange.value.endDate),
@@ -63,7 +58,7 @@ export function useDailyOpsRevenueMetrics() {
       key,
       () =>
         $fetch<T>(path, {
-          query: { ...mergedQuery.value, ...extraQuery?.() },
+          query: { ...revenueQuery.value, ...extraQuery?.() },
         }),
       { watch: [qs] },
     )
@@ -88,7 +83,7 @@ export function useDailyOpsRevenueMetrics() {
       key,
       () =>
         $fetch<T>(path, {
-          query: { ...mergedQuery.value, ...extraQuery?.() },
+          query: { ...revenueQuery.value, ...extraQuery?.() },
         }),
       { immediate: false },
     )
@@ -193,7 +188,7 @@ export function useDailyOpsRevenueMetrics() {
       key,
       () =>
         $fetch<DailyOpsWeekdayPatternRow[]>('/api/daily-ops/revenue/weekday-pattern', {
-          query: { ...mergedQuery.value, weekday: w.value },
+          query: { ...revenueQuery.value, weekday: w.value },
         }),
       { watch: [qs, w], immediate: trendsActive.value },
     )
@@ -213,6 +208,7 @@ export function useDailyOpsRevenueMetrics() {
     qs,
     overviewPending,
     activateRevenueTab,
+    refreshPnl: pnlSlice.refresh,
     summary: summarySlice.data,
     pnl: pnlSlice.data,
     pnlPending: pnlSlice.pending,
@@ -227,7 +223,6 @@ export function useDailyOpsRevenueMetrics() {
     hourlyMatrix: hourlyMatrixSlice.data,
     hourlyCategoryStack: hourlyCategoryStackSlice.data,
     coOccurrence: coOccurrenceSlice.data,
-    mergedQuery,
     gran,
     staff: staffSlice.data,
     tables: tablesSlice.data,

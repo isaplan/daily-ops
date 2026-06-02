@@ -28,10 +28,17 @@
         <input v-model.number="draft.overheadPct" type="number" min="0" max="100" class="w-20 rounded border px-2 py-1" />
       </label>
       <div class="flex gap-2">
-        <button type="button" class="rounded bg-gray-900 px-3 py-1 text-xs font-semibold text-white" @click="onApply">
-          Toepassen
+        <button
+          type="button"
+          class="rounded bg-gray-900 px-3 py-1 text-xs font-semibold text-white disabled:opacity-60"
+          :disabled="saving"
+          @click="onApply"
+        >
+          {{ saving ? 'Opslaan…' : 'Toepassen' }}
         </button>
-        <button type="button" class="rounded border px-3 py-1 text-xs" @click="onReset">Standaard</button>
+        <button type="button" class="rounded border px-3 py-1 text-xs" :disabled="saving" @click="onReset">
+          Standaard
+        </button>
       </div>
     </div>
 
@@ -80,7 +87,8 @@
 import type { DailyOpsSimplePnLDto } from '~/types/daily-ops-revenue'
 
 const props = defineProps<{ pnl: DailyOpsSimplePnLDto | null }>()
-const { assumptions, applyAssumptions, resetAssumptions } = useDailyOpsRevenuePnlAssumptions()
+const emit = defineEmits<{ assumptionsSaved: [] }>()
+const { assumptions, applyAssumptions, resetAssumptions, saving } = useDailyOpsRevenuePnlAssumptions()
 const { formatEur } = useDashboardEurFormat()
 const { revenueDelta, formatDelta, deltaClass } = useDailyOpsRevenueCompare()
 
@@ -91,13 +99,14 @@ watch(assumptions, (a) => {
   draft.value = { ...a }
 })
 
-function onApply() {
-  applyAssumptions({ ...draft.value })
+async function onApply() {
+  await applyAssumptions({ ...draft.value })
   showAssumptions.value = false
+  emit('assumptionsSaved')
 }
 
-function onReset() {
-  resetAssumptions()
+async function onReset() {
+  await resetAssumptions()
   draft.value = { ...assumptions.value }
 }
 
@@ -133,7 +142,7 @@ const rows = computed(() => {
   },
   {
     key: 'bev',
-    label: `Inkoop drank (${a?.bevCogsPct ?? 4}%)`,
+    label: `Inkoop drank (${a?.bevCogsPct ?? 30}%)`,
     negative: true,
     fmt: (p: DailyOpsSimplePnLDto) => money(p.bevCogs, true),
     fmtCompare: (p: DailyOpsSimplePnLDto) => money(p.compare!.bevCogs, true),

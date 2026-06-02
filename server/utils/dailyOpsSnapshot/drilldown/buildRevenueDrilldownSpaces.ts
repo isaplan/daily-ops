@@ -1,14 +1,16 @@
 /**
  * @registry-id: dailyOpsRevenueDrilldownSpaces
  * @created: 2026-05-28T00:00:00.000Z
- * @last-modified: 2026-05-28T00:00:00.000Z
+ * @last-modified: 2026-06-03T00:00:00.000Z
  * @description: Space/table revenue rollup for revenue drilldown
+ * @last-fix: [2026-06-03] Sort spaces by fixed venue order then revenue desc
  * @adr-ref: ADR-004
  */
 
 import type { DailyOpsRevenueDrilldownDto } from '~/types/daily-ops-dashboard'
+import { sortRevenueDrilldownSpaceRows } from '~/utils/dailyOpsVenueOrder'
 import type { BuildRevenueDrilldownInput } from './drilldownShared'
-import { round2 } from './drilldownShared'
+import { roundEur } from './drilldownShared'
 
 export function buildRevenueDrilldownSpaces(
   input: BuildRevenueDrilldownInput,
@@ -37,17 +39,17 @@ export function buildRevenueDrilldownSpaces(
       spaces.set(key, prev)
     }
   }
-  return [...spaces.values()]
-    .map((space) => ({
+  return sortRevenueDrilldownSpaceRows(
+    [...spaces.values()].map((space) => ({
       locationId: space.locationId,
       locationName: space.locationName,
       spaceName: space.spaceName,
-      revenue: round2(space.revenue),
-      quantity: round2(space.quantity),
+      revenue: roundEur(space.revenue),
+      quantity: Math.round(space.quantity),
       pctOfVenueRevenue:
         (venueTotals.get(space.locationId) ?? 0) > 0
-          ? round2((space.revenue / (venueTotals.get(space.locationId) ?? 1)) * 100)
+          ? Math.round((space.revenue / (venueTotals.get(space.locationId) ?? 1)) * 100)
           : null,
-    }))
-    .sort((a, b) => b.revenue - a.revenue)
+    })),
+  )
 }

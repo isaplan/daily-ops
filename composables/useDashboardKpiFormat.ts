@@ -1,13 +1,8 @@
-export function useDashboardKpiFormat () {
-  const eurWholeFormatter = new Intl.NumberFormat('nl-NL', {
-    style: 'currency',
-    currency: 'EUR',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  })
+import { formatDashboardEur, roundDashboardEur } from '~/utils/dashboardEurFormat'
 
+export function useDashboardKpiFormat () {
   function formatEurWhole (value: number): string {
-    return eurWholeFormatter.format(Math.round(value))
+    return formatDashboardEur(value)
   }
 
   function formatHoursWhole (value: number): string {
@@ -21,7 +16,7 @@ export function useDashboardKpiFormat () {
 
   function formatEurPerHourWhole (value: number | null): string {
     if (value == null || !Number.isFinite(value)) return '—'
-    return `${formatEurWhole(value)}/h`
+    return `${formatDashboardEur(value)}/h`
   }
 
   return { formatEurWhole, formatHoursWhole, formatPctWhole, formatEurPerHourWhole }
