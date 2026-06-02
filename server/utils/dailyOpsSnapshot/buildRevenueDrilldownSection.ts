@@ -1,9 +1,11 @@
 /**
  * @registry-id: dailyOpsSnapshotBuildRevenueDrilldownSection
  * @created: 2026-05-26T02:36:00.000Z
- * @last-modified: 2026-05-28T14:00:00.000Z
+ * @last-modified: 2026-06-02T23:30:00.000Z
  * @description: Orchestrates snapshot-backed Daily Ops revenue drilldown DTO
- * @last-fix: [2026-05-28] Coverage note when order-time worker snapshots are missing
+ * @last-fix: [2026-06-02] Name-aware catalog resolver for food/beverage top-10 split
+ *   Prior: [2026-06-02] Top-10 food/beverage split uses product_catalog SSOT
+ *   Prior: [2026-05-28] Coverage note when order-time worker snapshots are missing
  * @adr-ref: ADR-004
  *
  * @exports-to:
@@ -13,7 +15,10 @@
 import type { Db } from 'mongodb'
 import type { DailyOpsRevenueDrilldownDto } from '~/types/daily-ops-dashboard'
 import type { DailyOpsMetricsContext } from '../dailyOpsMetrics/context'
-import { MOST_PROFITABLE_HOUR_ESTIMATES_NOTE } from '../dailyOpsMetrics/profitHour'
+import { formatProfitEstimatesNote } from '../dailyOpsMetrics/profitHour'
+import { DEFAULT_PNL_ASSUMPTIONS } from '~/utils/dailyOpsPnlAssumptionsDefaults'
+import type { DailyOpsSimplePnLAssumptions } from '~/types/daily-ops-revenue'
+import { loadProductCatalogResolver } from '../borkFoodBeverageSplit'
 import { buildHourlyRows } from './drilldown/buildRevenueDrilldownHourly'
 import { loadHourlyBenchmarks } from './drilldown/hourlyBenchmarks'
 import { buildRevenueDrilldownSpaces } from './drilldown/buildRevenueDrilldownSpaces'
@@ -24,11 +29,15 @@ export async function buildRevenueDrilldownSection(
   db: Db,
   ctx: DailyOpsMetricsContext,
   input: BuildRevenueDrilldownInput,
+  pnlAssumptions?: DailyOpsSimplePnLAssumptions,
 ): Promise<DailyOpsRevenueDrilldownDto> {
   const hourlyBenchmarks = await loadHourlyBenchmarks(db, ctx)
-  const hourlyRows = buildHourlyRows(ctx, input, hourlyBenchmarks)
+  const catalogResolver = await loadProductCatalogResolver(db, {
+    salesRange: { range_start: ctx.startDate, range_end: ctx.endDate },
+  })
+  const hourlyRows = buildHourlyRows(ctx, input, hourlyBenchmarks, pnlAssumptions)
   const spaces = buildRevenueDrilldownSpaces(input)
-  const top10 = buildRevenueDrilldownTop10(input)
+  const top10 = buildRevenueDrilldownTop10(input, catalogResolver)
   const coverageNotes: string[] = []
   const activeRevenueHourCount = hourlyRows.filter((row) => row.revenue > 0).length
   const benchmarkedActiveHourCount = hourlyRows.filter(
@@ -56,7 +65,7 @@ export async function buildRevenueDrilldownSection(
   if (input.products.length === 0) coverageNotes.push('No product/category revenue snapshot rows for this range.')
 
   return {
-    estimatesNote: MOST_PROFITABLE_HOUR_ESTIMATES_NOTE,
+    estimatesNote: formatProfitEstimatesNote(pnlAssumptions ?? DEFAULT_PNL_ASSUMPTIONS),
     multiDayRange: ctx.startDate !== ctx.endDate,
     coverageNotes,
     hourlyRows,

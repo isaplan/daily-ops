@@ -5,7 +5,7 @@
       :daily-timeseries="dailyTimeseries"
       :daily-pending="dailyPending"
     />
-    <DailyOpsRevenuePnLCard :pnl="pnl" />
+    <DailyOpsRevenuePnLCard :pnl="pnl" @assumptions-saved="emit('assumptionsSaved')" />
     <div v-if="locations?.length" class="grid gap-6 lg:grid-cols-2">
       <ChartsD3PieChartV2 :data="pieData" :width="360" :height="280" />
       <div class="overflow-x-auto rounded-lg border border-gray-200 bg-white">
@@ -52,6 +52,8 @@ const props = defineProps<{
   dailyTimeseries: DailyOpsRevenueTimeseriesDto | null
   dailyPending?: boolean
 }>()
+
+const emit = defineEmits<{ assumptionsSaved: [] }>()
 
 const { formatEur } = useDashboardEurFormat()
 const hasLocCompare = computed(() => props.locations?.some((l) => l.compareRevenue != null) ?? false)

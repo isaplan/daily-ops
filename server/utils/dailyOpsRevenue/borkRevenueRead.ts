@@ -10,7 +10,7 @@ import { ObjectId } from 'mongodb'
 import { listBorkAggReadSuffixCandidates, resolveBorkAggReadSuffix } from '../borkAggVersionSuffix'
 import { BORK_DOC_REVENUE_EXPR, BORK_DOC_REVENUE_INC_EXPR } from '../dailyOpsMetrics/borkAggregationExprs'
 import {
-  loadProductCatalogCategoryMap,
+  loadProductCatalogResolver,
   splitLineRevenueByCatalog,
   sumFoodBeverageFromHourAggregates,
 } from '../borkFoodBeverageSplit'
@@ -222,7 +222,7 @@ export async function fillHourlyMatrixFromBork(
   accum: HourlyMatrixAccumCell[][],
 ): Promise<void> {
   const suffix = resolveBorkAggReadSuffix()
-  const [rows, catalogMap] = await Promise.all([
+  const [rows, catalogResolver] = await Promise.all([
     db
       .collection(`bork_sales_by_hour${suffix}`)
       .find(borkRevenueMatch(ctx))
@@ -236,7 +236,7 @@ export async function fillHourlyMatrixFromBork(
         products: 1,
       })
       .toArray(),
-    loadProductCatalogCategoryMap(db, {
+    loadProductCatalogResolver(db, {
       salesRange: { range_start: ctx.startDate, range_end: ctx.endDate },
     }),
   ])
@@ -263,7 +263,8 @@ export async function fillHourlyMatrixFromBork(
         String(p.productId ?? ''),
         String(p.productName ?? ''),
         pRev,
-        catalogMap,
+        new Map(),
+        catalogResolver,
       )
       cell.drinksRevenue += split.drinks
       cell.foodRevenue += split.food

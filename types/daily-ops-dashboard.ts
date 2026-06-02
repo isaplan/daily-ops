@@ -97,6 +97,8 @@ export type DailyOpsProfitIntervalCellDto = {
   cogsCost: number
   fixedCost: number
   profit: number
+  /** Full-day loaded labor for this venue+date (matches venue strip); interval labor is a revenue share. */
+  dayLoadedLabor: number
   chartColor: string
 }
 

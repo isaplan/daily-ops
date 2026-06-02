@@ -1,9 +1,9 @@
 /**
  * @registry-id: dailyOpsRevenueDailySeries
  * @created: 2026-05-22T12:00:00.000Z
- * @last-modified: 2026-05-23T00:00:00.000Z
+ * @last-modified: 2026-06-03T00:00:00.000Z
  * @description: One-query daily revenue series from snapshot sections (ADR-004 hot read)
- * @last-fix: [2026-05-24] Snapshot-only on GET (ADR-004); no Bork gap fill on read path
+ * @last-fix: [2026-06-03] Sum all venue rows per date when locationId filter is absent
  * @adr-ref: ADR-004, ADR-006
  *
  * @exports-to:
@@ -46,11 +46,19 @@ export async function fetchRevenueDailyFromSnapshots(
   const map = new Map<string, DailyOpsRevenueTimeseriesPoint>()
   for (const row of rows) {
     const t = row.totals
-    map.set(row.businessDate, {
-      date: row.businessDate,
-      revenue: round2(Number(t?.ex_vat ?? 0)),
-      itemsCount: Number(t?.quantity ?? 0),
-    })
+    const ex = Number(t?.ex_vat ?? 0)
+    const qty = Number(t?.quantity ?? 0)
+    const cur = map.get(row.businessDate)
+    if (cur) {
+      cur.revenue = round2(cur.revenue + ex)
+      cur.itemsCount += qty
+    } else {
+      map.set(row.businessDate, {
+        date: row.businessDate,
+        revenue: round2(ex),
+        itemsCount: qty,
+      })
+    }
   }
   return map
 }

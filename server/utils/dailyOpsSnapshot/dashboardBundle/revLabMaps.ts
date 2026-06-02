@@ -1,7 +1,8 @@
 /**
  * @registry-id: dailyOpsDashboardBundleRevLabMaps
  * @created: 2026-05-28T00:00:00.000Z
- * @last-modified: 2026-05-28T00:00:00.000Z
+ * @last-modified: 2026-06-02T00:00:00.000Z
+ * @last-fix: [2026-06-02] Export laborByLocDay for profit-by-interval full-day labor
  * @description: Revenue/labor day maps from snapshot rows (master gap-fill)
  * @adr-ref: ADR-004
  */
@@ -22,6 +23,7 @@ export function buildRevLabMaps(
   revMap: Map<string, number>
   labMap: Map<string, { laborCost: number; hours: number; distinctWorkerCount: number }>
   revByDateLocation: Map<string, number>
+  laborByLocDay: Map<string, { laborCost: number; hours: number; distinctWorkerCount: number }>
 } {
   const revByDateLocation = new Map<string, number>()
   const labByLocDay = new Map<string, { laborCost: number; hours: number; workerIds: Set<string> }>()
@@ -81,7 +83,16 @@ export function buildRevLabMaps(
     }
   }
 
-  return { revMap, labMap, revByDateLocation }
+  const laborByLocDay = new Map<string, { laborCost: number; hours: number; distinctWorkerCount: number }>()
+  for (const [key, lab] of labByLocDay) {
+    laborByLocDay.set(key, {
+      laborCost: lab.laborCost,
+      hours: lab.hours,
+      distinctWorkerCount: lab.workerIds.size,
+    })
+  }
+
+  return { revMap, labMap, revByDateLocation, laborByLocDay }
 }
 
 export function buildHeadlineRevenueByLocDay(

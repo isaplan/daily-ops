@@ -1,9 +1,9 @@
 /**
  * @registry-id: dailyOpsSnapshotTriggerRebuilds
  * @created: 2026-05-27T00:00:00.000Z
- * @last-modified: 2026-05-27T00:00:00.000Z
+ * @last-modified: 2026-06-02T00:00:00.000Z
  * @description: Enqueue or run daily_ops_snapshot rebuilds after Bork/Eitje aggregation writes.
- * @last-fix: [2026-05-27] Wire snapshot materialization into sync pipeline (ADR-004).
+ * @last-fix: [2026-06-02] Bork location discovery uses suffix fallback (_test vs _v2)
  * @adr-ref: ADR-004
  *
  * @architecture:
@@ -18,8 +18,8 @@
 
 import type { Db } from 'mongodb'
 import { ObjectId } from 'mongodb'
+import { distinctBorkLocationIdsForDate } from '../bork/distinctBorkLocationIdsForDate'
 import { buildDailyOpsSnapshotRange } from '../../services/dailyOpsSnapshotService'
-import { resolveBorkAggReadSuffix } from '../borkAggVersionSuffix'
 import { eachBusinessDate } from '../dailyOpsRevenue/dateRange'
 import { enqueueSnapshotBuild } from './jobCoalescer'
 
@@ -34,11 +34,8 @@ export async function listAffectedLocationIdsForBusinessDate(
   db: Db,
   businessDate: string,
 ): Promise<string[]> {
-  const sfx = resolveBorkAggReadSuffix()
-  const borkDays = `bork_business_days${sfx}`
-
   const [borkLocs, eitjeLocs, inboxLocs] = await Promise.all([
-    db.collection(borkDays).distinct('locationId', { business_date: businessDate }),
+    distinctBorkLocationIdsForDate(db, businessDate),
     db.collection('eitje_time_registration_aggregation').distinct('locationId', { period: businessDate }),
     db.collection('inbox-bork-basis-report').distinct('location_id', { business_date: businessDate }),
   ])

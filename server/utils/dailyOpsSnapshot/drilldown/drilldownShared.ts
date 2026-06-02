@@ -31,6 +31,12 @@ export function round2(n: number): number {
   return Math.round(n * 100) / 100
 }
 
+/** Whole euros for dashboard P&L / drilldown currency fields. */
+export function roundEur(n: number): number {
+  if (!Number.isFinite(n)) return 0
+  return Math.round(n)
+}
+
 export function hourLabel(hour: number): string {
   return `${String(hour).padStart(2, '0')}:00`
 }

@@ -42,9 +42,6 @@
 
         <DailyOpsProductivityLaborSection v-if="isProductivityView" :labor="labor" />
 
-        <DailyOpsInventoryNotesCard :inventory="labor?.inventory ?? null" />
-
-
         <p class="text-xs text-gray-400">
           Range: {{ summary.range.startDate }} → {{ summary.range.endDate }} ({{ summary.range.period }}) · Dashboard metrics
           load in parallel (summary, revenue, labor).

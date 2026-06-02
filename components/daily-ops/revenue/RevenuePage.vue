@@ -30,6 +30,7 @@
         :locations="locations"
         :daily-timeseries="dailyTimeseries"
         :daily-pending="dailyTimeseriesPending"
+        @assumptions-saved="refreshPnl()"
       />
       <DailyOpsRevenueTrendsTab
         v-else-if="activeTab === 'trends'"
@@ -69,6 +70,7 @@ const {
   locationSpaces,
   overviewPending,
   activateRevenueTab,
+  refreshPnl,
 } = useDailyOpsRevenueMetrics()
 
 const tabs = [

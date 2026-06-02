@@ -1,8 +1,9 @@
 /**
  * @registry-id: dailyOpsMetricsProfitHour
  * @created: 2026-05-28T00:00:00.000Z
- * @last-modified: 2026-05-28T00:00:00.000Z
+ * @last-modified: 2026-05-31T12:00:00.000Z
  * @description: Most-profitable-hour math for Daily Ops revenue breakdown DTOs
+ * @last-fix: [2026-05-31] Profit COGS/overhead driven by Mongo P&L assumptions SSOT
  * @adr-ref: ADR-004
  *
  * @exports-to:
@@ -11,7 +12,35 @@
  * ✓ server/utils/dailyOpsSnapshot/buildProfitByIntervalFromSnapshot.ts
  */
 
+import type { DailyOpsSimplePnLAssumptions } from '~/types/daily-ops-revenue'
+import { DEFAULT_PNL_ASSUMPTIONS } from '~/utils/dailyOpsPnlAssumptionsDefaults'
+import { roundDashboardEur } from '~/utils/dashboardEurFormat'
 import type { DailyOpsLabMap } from './types'
+
+export type ProfitHourDefaults = {
+  foodCogsPct: number
+  beverageCogsPct: number
+  fixedOverheadPct: number
+}
+
+export function profitHourDefaultsFromPnlAssumptions(
+  assumptions: DailyOpsSimplePnLAssumptions = DEFAULT_PNL_ASSUMPTIONS,
+): ProfitHourDefaults {
+  return {
+    foodCogsPct: assumptions.foodCogsPct / 100,
+    beverageCogsPct: assumptions.bevCogsPct / 100,
+    fixedOverheadPct: assumptions.overheadPct / 100,
+  }
+}
+
+export function formatProfitEstimatesNote(assumptions: DailyOpsSimplePnLAssumptions): string {
+  return (
+    `Labor from Eitje shift start/end (loaded cost, Amsterdam hour). ` +
+    `Cost of sales: food ${assumptions.foodCogsPct}% / beverages ${assumptions.bevCogsPct}% ` +
+    `when product COGS is unknown (period food–drink mix). ` +
+    `Fixed overhead ${assumptions.overheadPct}% of hour revenue.`
+  )
+}
 
 function timePeriodKey(hour: number): 'lunch' | 'pre_drinks' | 'dinner' | 'after_drinks' | 'other' {
   if (hour >= 11 && hour <= 14) return 'lunch'
@@ -29,14 +58,9 @@ export function revenueByTimePeriodFromHourTotals(rows: { _id: number; amount: n
   return sums
 }
 
-export const MOST_PROFITABLE_HOUR_DEFAULTS = {
-  foodCogsPct: 0.3,
-  beverageCogsPct: 0.04,
-  fixedOverheadPct: 0.25,
-} as const
+export const MOST_PROFITABLE_HOUR_DEFAULTS = profitHourDefaultsFromPnlAssumptions(DEFAULT_PNL_ASSUMPTIONS)
 
-export const MOST_PROFITABLE_HOUR_ESTIMATES_NOTE =
-  'Labor from Eitje shift start/end (loaded cost, Amsterdam hour). Cost of sales: food 30% / beverages 4% when product COGS is unknown (period food–drink mix). Fixed overhead 25% of hour revenue.'
+export const MOST_PROFITABLE_HOUR_ESTIMATES_NOTE = formatProfitEstimatesNote(DEFAULT_PNL_ASSUMPTIONS)
 
 export type MostProfitableHourResult = {
   hourLabel: string
@@ -66,7 +90,7 @@ export function computeProfitExtremeHours(
   laborByDate: DailyOpsLabMap,
   categoryTotals: { food: number; drinks: number },
   laborByDateHour: Map<string, number>,
-  defaults: typeof MOST_PROFITABLE_HOUR_DEFAULTS = MOST_PROFITABLE_HOUR_DEFAULTS,
+  defaults: ProfitHourDefaults = MOST_PROFITABLE_HOUR_DEFAULTS,
 ): { best: MostProfitableHourResult; worst: MostProfitableHourResult } {
   const catTotal = categoryTotals.food + categoryTotals.drinks
   const foodShare = catTotal > 0 ? categoryTotals.food / catTotal : 0.5
@@ -136,7 +160,7 @@ export function computeMostProfitableHour(
   laborByDate: DailyOpsLabMap,
   categoryTotals: { food: number; drinks: number },
   laborByDateHour: Map<string, number>,
-  defaults: typeof MOST_PROFITABLE_HOUR_DEFAULTS = MOST_PROFITABLE_HOUR_DEFAULTS,
+  defaults: ProfitHourDefaults = MOST_PROFITABLE_HOUR_DEFAULTS,
 ): MostProfitableHourResult {
   return computeProfitExtremeHours(
     hourRows,
@@ -148,16 +172,19 @@ export function computeMostProfitableHour(
   ).best
 }
 
-export function roundProfitHourSnapshot(row: MostProfitableHourResult) {
+export function roundProfitHourSnapshot(
+  row: MostProfitableHourResult,
+  assumptions: DailyOpsSimplePnLAssumptions = DEFAULT_PNL_ASSUMPTIONS,
+) {
   return {
     hourLabel: row.hourLabel,
     date: row.date,
     hour: row.hour,
-    revenue: Math.round(row.revenue * 100) / 100,
-    laborCost: Math.round(row.laborCost * 100) / 100,
-    cogsCost: Math.round(row.cogsCost * 100) / 100,
-    fixedCost: Math.round(row.fixedCost * 100) / 100,
-    profit: Math.round(row.profit * 100) / 100,
-    estimatesNote: MOST_PROFITABLE_HOUR_ESTIMATES_NOTE,
+    revenue: roundDashboardEur(row.revenue),
+    laborCost: roundDashboardEur(row.laborCost),
+    cogsCost: roundDashboardEur(row.cogsCost),
+    fixedCost: roundDashboardEur(row.fixedCost),
+    profit: roundDashboardEur(row.profit),
+    estimatesNote: formatProfitEstimatesNote(assumptions),
   }
 }
