@@ -1,17 +1,17 @@
 /**
  * @registry-id: dailyOpsSnapshotBuildRevenueTablesSection
  * @created: 2026-05-20T00:00:00.000Z
- * @last-modified: 2026-05-28T00:00:00.000Z
+ * @last-modified: 2026-06-02T00:00:00.000Z
  * @description: Per-table revenue snapshot from bork_sales_by_table (aggregated per table per day)
- * @last-fix: [2026-05-28] Location-scoped table→space mapping from locations.revenue_spaces
+ * @last-fix: [2026-06-02] Bork collection suffix fallback (_test env vs _v2 data)
  *
  * @exports-to:
  * ✓ server/services/dailyOpsSnapshotService.ts
  */
 
 import type { Db } from 'mongodb'
-import { ObjectId } from 'mongodb'
-import { resolveBorkAggReadSuffix } from '../borkAggVersionSuffix'
+import { extractBorkTableNumber } from '../bork/extractBorkTableNumber'
+import { fetchBorkTableDayRows } from '../bork/fetchBorkTableDayRows'
 import {
   fallbackSpaceNameForTable,
   loadLocationRevenueSpaces,
@@ -31,18 +31,9 @@ export async function buildRevenueTablesSection(
   input: BuildRevenueInput,
 ): Promise<DailyOpsSnapshotRevenueTablesSection> {
   const { businessDate, locationId, locationName } = input
-  const suffix = resolveBorkAggReadSuffix()
-  const locOid = ObjectId.isValid(locationId) ? new ObjectId(locationId) : null
-  const coll = `bork_sales_by_table${suffix}`
+  const rows = await fetchBorkTableDayRows(db, businessDate, locationId)
 
-  const rows = locOid
-    ? await db
-        .collection(coll)
-        .find({ business_date: businessDate, locationId: locOid })
-        .toArray()
-    : []
-
-  const { spaces } = await loadLocationRevenueSpaces(db, locationId, { seedIfEmpty: true })
+  const { spaces } = await loadLocationRevenueSpaces(db, locationId, { seedIfEmpty: true, locationName })
   const spaceForTable = (tableNum: string) =>
     spaces.length > 0 ? resolveSpaceNameForTable(tableNum, spaces) : fallbackSpaceNameForTable(tableNum)
 
@@ -50,7 +41,7 @@ export async function buildRevenueTablesSection(
 
   for (const r of rows) {
     const doc = r as Record<string, unknown>
-    const tableNum = String(doc.tableNum ?? doc.table_nr ?? doc.TableNr ?? '')
+    const tableNum = extractBorkTableNumber(doc)
     if (!tableNum) continue
     const rev = docRevenueEx(doc)
     const qty = Number(doc.total_quantity ?? 0)

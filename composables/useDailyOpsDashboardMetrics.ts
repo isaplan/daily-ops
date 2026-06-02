@@ -37,7 +37,7 @@ type DashboardBundleResponse = {
 }
 
 const metricsKey = (q: Record<string, string | undefined>): string =>
-  `daily-ops-bundle-${q.period ?? 'today'}-${q.location ?? 'all'}-${q.anchor ?? ''}`
+  `daily-ops-bundle-v2-${q.period ?? 'today'}-${q.location ?? 'all'}-${q.anchor ?? ''}`
 
 export function useDailyOpsDashboardMetrics(): DailyOpsDashboardMetrics {
   const { dashboardQuery } = useDailyOpsDashboardRoute()

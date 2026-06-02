@@ -22,9 +22,11 @@ import type {
 import type { DailyOpsMetricsContext } from './context'
 import {
   computeMostProfitableHour,
+  profitHourDefaultsFromPnlAssumptions,
   revenueByTimePeriodFromHourTotals,
   roundProfitHourSnapshot,
 } from './profitHour'
+import type { DailyOpsSimplePnLAssumptions } from '~/types/daily-ops-revenue'
 import type { BorkHourAggregatesBundle, DailyOpsLabMap, TodayRevenueExtras } from './types'
 
 export const VAT_DISCLAIMER = 'All revenue values shown are excluding VAT (ex VAT)'
@@ -109,14 +111,17 @@ export function buildDailyOpsRevenueBreakdownDto(
   laborByDateHour: Map<string, number>,
   profitByInterval: DailyOpsProfitByIntervalDto,
   todayExtras?: TodayRevenueExtras,
+  pnlAssumptions?: DailyOpsSimplePnLAssumptions,
 ): DailyOpsRevenueBreakdownDto {
   const tp = revenueByTimePeriodFromHourTotals(hourBundle.byHourOnly)
+  const profitDefaults = profitHourDefaultsFromPnlAssumptions(pnlAssumptions)
   const best = computeMostProfitableHour(
     hourBundle.byDayHour,
     revMap,
     labMap,
     cat,
     laborByDateHour,
+    profitDefaults,
   )
 
   const revenueByCategory = [
@@ -146,7 +151,7 @@ export function buildDailyOpsRevenueBreakdownDto(
     },
     revenueByCategory,
     revenueByTimePeriod,
-    mostProfitableHour: roundProfitHourSnapshot(best),
+    mostProfitableHour: roundProfitHourSnapshot(best, pnlAssumptions),
     profitByInterval,
     todayRevenueDetail: todayExtras
       ? {

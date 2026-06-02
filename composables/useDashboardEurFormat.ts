@@ -1,11 +1,8 @@
-export function useDashboardEurFormat() {
-  const formatter = new Intl.NumberFormat('nl-NL', {
-    style: 'currency',
-    currency: 'EUR',
-  })
+import { formatDashboardEur } from '~/utils/dashboardEurFormat'
 
+export function useDashboardEurFormat() {
   function formatEur(value: number): string {
-    return formatter.format(value)
+    return formatDashboardEur(value)
   }
 
   return { formatEur }

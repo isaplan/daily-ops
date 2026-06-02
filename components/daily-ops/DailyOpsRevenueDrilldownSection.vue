@@ -47,21 +47,11 @@
     />
     <DailyOpsRevenueHourlyTable v-else :rows="data.hourlyRows" />
 
-    <div class="grid gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
-      <DailyOpsRevenueSpaceTable
-        :rows="data.spaces"
-        :initial-location-id="primaryLocationId"
-        @config-saved="$emit('configSaved')"
-      />
-      <UCard class="border-2 border-gray-900 bg-white! ring-0 shadow-none">
-        <template #header>
-          <h3 class="text-sm font-semibold uppercase tracking-wide text-gray-600">Calculation Notes</h3>
-        </template>
-        <p class="text-xs leading-relaxed text-gray-600">
-          {{ data.estimatesNote }}
-        </p>
-      </UCard>
-    </div>
+    <DailyOpsRevenueSpaceTable
+      :rows="data.spaces"
+      :initial-location-id="primaryLocationId"
+      @config-saved="$emit('configSaved')"
+    />
 
     <DailyOpsRevenueTop10Grid :top10="data.top10" />
   </section>

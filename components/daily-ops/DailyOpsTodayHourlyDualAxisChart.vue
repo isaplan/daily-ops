@@ -19,15 +19,17 @@
         </span>
       </div>
     </div>
-    <svg
-      v-if="activeHours.length > 0 && chartSeries.length > 0"
-      ref="svgRef"
-      viewBox="0 0 760 300"
-      role="img"
-      aria-label="Hourly revenue and labor productivity by venue"
-      class="h-72 w-full"
-      preserveAspectRatio="xMidYMid meet"
-    />
+    <div ref="chartWrapEl" class="min-w-0">
+      <svg
+        v-if="activeHours.length > 0 && chartSeries.length > 0"
+        ref="svgRef"
+        viewBox="0 0 760 300"
+        role="img"
+        aria-label="Hourly revenue and labor productivity by venue"
+        class="block aspect-[760/300] w-full max-h-72 min-h-44"
+        preserveAspectRatio="xMidYMid meet"
+      />
+    </div>
     <div
       v-if="legendItems.length"
       class="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-gray-700"
@@ -79,8 +81,27 @@ type ChartSeries = {
 }
 
 const svgRef = ref<SVGSVGElement | null>(null)
+const chartWrapEl = ref<HTMLElement | null>(null)
+const chartWidth = ref(760)
 
-const margin = { top: 12, right: 52, bottom: 40, left: 52 }
+let chartResizeObserver: ResizeObserver | undefined
+
+function measureChartWidth (): void {
+  chartWidth.value = chartWrapEl.value?.clientWidth ?? 760
+}
+
+onMounted(() => {
+  measureChartWidth()
+  if (typeof ResizeObserver === 'undefined' || !chartWrapEl.value) return
+  chartResizeObserver = new ResizeObserver(measureChartWidth)
+  chartResizeObserver.observe(chartWrapEl.value)
+})
+
+onUnmounted(() => {
+  chartResizeObserver?.disconnect()
+})
+
+const margin = { top: 12, right: 52, bottom: 48, left: 52 }
 const width = 760
 const height = 300
 
@@ -209,6 +230,30 @@ function formatRightTick(value: d3.NumberValue): string {
   return `€${Math.round(n)}`
 }
 
+function axisFontSize (): number {
+  return chartWidth.value < 640 ? 14 : 13
+}
+
+function xTickLabelsForWidth(hourLabels: string[]): string[] {
+  const w = chartWidth.value
+  if (w >= 1024 || hourLabels.length <= 8) return hourLabels
+  if (w >= 640) {
+    return hourLabels.filter((_: string, index: number) => index % 2 === 0 || index === hourLabels.length - 1)
+  }
+  if (w >= 400) {
+    return hourLabels.filter((_: string, index: number) => index % 3 === 0 || index === hourLabels.length - 1)
+  }
+  const keep = new Set([0, Math.floor(hourLabels.length / 2), hourLabels.length - 1])
+  return hourLabels.filter((_: string, index: number) => keep.has(index))
+}
+
+function styleAxisText(selection: d3.Selection<SVGTextElement, unknown, null, undefined>): void {
+  selection
+    .attr('font-size', axisFontSize())
+    .attr('fill', '#111827')
+    .attr('font-weight', '600')
+}
+
 function drawChart() {
   if (!svgRef.value) return
   const svg = d3.select(svgRef.value)
@@ -219,6 +264,7 @@ function drawChart() {
   if (hours.length === 0 || series.length === 0) return
 
   const hourLabels = hours.map((hour: number) => `${String(hour).padStart(2, '0')}:00`)
+  const xTickLabels = xTickLabelsForWidth(hourLabels)
   const innerW = width - margin.left - margin.right
   const innerH = height - margin.top - margin.bottom
 
@@ -241,26 +287,26 @@ function drawChart() {
 
   g.append('g')
     .attr('transform', `translate(0,${innerH})`)
-    .call(d3.axisBottom(x))
-    .selectAll('text')
-    .attr('font-size', 10)
-    .attr('fill', '#6B7280')
+    .call(d3.axisBottom(x).tickValues(xTickLabels))
+    .call((axis: d3.Selection<SVGGElement, unknown, null, undefined>) => {
+      styleAxisText(axis.selectAll<SVGTextElement, unknown>('text'))
+    })
 
   if (series.some((entry: ChartSeries) => entry.axis === 'left')) {
     g.append('g')
       .call(d3.axisLeft(yLeft).ticks(5).tickFormat(formatLeftTick))
-      .selectAll('text')
-      .attr('font-size', 10)
-      .attr('fill', '#6B7280')
+      .call((axis: d3.Selection<SVGGElement, unknown, null, undefined>) => {
+        styleAxisText(axis.selectAll<SVGTextElement, unknown>('text'))
+      })
   }
 
   if (series.some((entry: ChartSeries) => entry.axis === 'right')) {
     g.append('g')
       .attr('transform', `translate(${innerW},0)`)
       .call(d3.axisRight(yRight).ticks(5).tickFormat(formatRightTick))
-      .selectAll('text')
-      .attr('font-size', 10)
-      .attr('fill', '#6B7280')
+      .call((axis: d3.Selection<SVGGElement, unknown, null, undefined>) => {
+        styleAxisText(axis.selectAll<SVGTextElement, unknown>('text'))
+      })
   }
 
   const line = d3
@@ -282,7 +328,7 @@ function drawChart() {
   }
 }
 
-watch([chartSeries, activeHours, () => props.metricFilter], async () => {
+watch([chartSeries, activeHours, () => props.metricFilter, chartWidth], async () => {
   await nextTick()
   drawChart()
 }, { deep: true, immediate: true })

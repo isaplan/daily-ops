@@ -1,33 +1,33 @@
 ---
 name: revenue-table-space-config
-overview: "Add editable location-scoped revenue space mapping (Restaurant/Bar/Terras/Parkeer/etc.) with modal config UI, API persistence, and 60-day snapshot rebuild trigger. Implements org-level control for table→space grouping used by Revenue Per Space card."
+overview: Add editable location-scoped revenue space mapping (Restaurant/Bar/Terras/Parkeer/etc.) with modal config UI, API persistence, and 60-day snapshot rebuild trigger. Implements org-level control for table→space grouping used by Revenue Per Space card.
 todos:
   - id: data-model
     content: "Add location.revenue_spaces field (Mongo doc: {spaceId, name, tableRanges: [{min,max}], individualTables: []})"
     status: completed
   - id: api-create-update
-    content: "Create POST /api/locations/:id/revenue-spaces and PUT /api/locations/:id/revenue-spaces/:spaceId"
+    content: Create POST /api/locations/:id/revenue-spaces and PUT /api/locations/:id/revenue-spaces/:spaceId
     status: completed
   - id: builder-refactor
-    content: "Refactor buildRevenueTablesSection to read location space config from DB instead of hardcoded locationSpaces.ts"
+    content: Refactor buildRevenueTablesSection to read location space config from DB instead of hardcoded locationSpaces.ts
     status: completed
   - id: snapshot-rebuild
-    content: "Add rebuild endpoint POST /api/daily-ops/snapshot/rebuild-spaces that rebuilds last 60 days for a location"
+    content: Add rebuild endpoint POST /api/daily-ops/snapshot/rebuild-spaces that rebuilds last 60 days for a location
     status: completed
   - id: modal-ui
-    content: "Create DailyOpsRevenueSpaceConfigModal.vue with add/edit space forms, table range inputs"
+    content: Create DailyOpsRevenueSpaceConfigModal.vue with add/edit space forms, table range inputs
     status: completed
   - id: card-integration
-    content: "Add info icon + modal trigger to DailyOpsRevenueSpaceTable.vue header"
+    content: Add info icon + modal trigger to DailyOpsRevenueSpaceTable.vue header
     status: completed
   - id: seed-defaults
-    content: "Script to seed revenue_spaces on existing locations (Kinsbergen, Bar Bea, L'Amour) on first deploy"
+    content: Script to seed revenue_spaces on existing locations (Kinsbergen, Bar Bea, L'Amour) on first deploy
     status: completed
   - id: verify-rebuild
-    content: "Test rebuild for last 60 days, verify snapshot rows update with new space names"
+    content: Test rebuild for last 60 days, verify snapshot rows update with new space names
     status: pending
   - id: monolith-split
-    content: "Split assembleLaborDto + buildRevenueDrilldownHourly; extend MONOLITH_WATCH detector"
+    content: Split assembleLaborDto + buildRevenueDrilldownHourly; extend MONOLITH_WATCH detector
     status: completed
 isProject: false
 ---

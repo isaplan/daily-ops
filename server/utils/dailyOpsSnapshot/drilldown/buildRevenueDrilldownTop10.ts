@@ -1,19 +1,22 @@
 /**
  * @registry-id: dailyOpsRevenueDrilldownTop10
  * @created: 2026-05-28T00:00:00.000Z
- * @last-modified: 2026-05-28T14:00:00.000Z
+ * @last-modified: 2026-06-02T23:30:00.000Z
  * @description: Top-10 workers/tables/products for revenue drilldown
- * @last-fix: [2026-05-28] Workers top-10 by payment time and order-entry time
+ * @last-fix: [2026-06-02] Name-aware catalog resolver (guards recycled Bork product_key)
+ *   Prior: [2026-06-02] Classify food vs beverage via product_catalog SSOT (not local name regex)
+ *   Prior: [2026-05-28] Workers top-10 by payment time and order-entry time
  * @adr-ref: ADR-004
  */
 
 import type { DailyOpsRevenueDrilldownDto, DailyOpsRevenueDrilldownTopRowDto } from '~/types/daily-ops-dashboard'
 import type { DailyOpsSnapshotRevenueWorkersSection } from '~/types/daily-ops-snapshot'
+import type { ProductCatalogResolver } from '../../borkFoodBeverageSplit'
+import { isBeverageCategoryName, isBeverageProduct } from '../../borkFoodBeverageSplit'
 import type { BuildRevenueDrilldownInput } from './drilldownShared'
-import { round2 } from './drilldownShared'
+import { roundEur } from './drilldownShared'
 
-const DRINK_NAME_PATTERN =
-  /wine|wijn|beer|bier|gint|gin |vodka|whisk|whiskey|rum|cocktail|cola|sprite|fanta|coffee|koffie|thee|tea|sap|juice|fris|prosecco|champagne|cider|tonic|latte|cappuccino|espresso|pils|stelz|borrel|aperol|campari|martini|soda|limonade/i
+const EMPTY_CATALOG: ProductCatalogResolver = { byKey: new Map(), byName: new Map() }
 
 function pushTopRow(
   map: Map<string, DailyOpsRevenueDrilldownTopRowDto>,
@@ -22,17 +25,17 @@ function pushTopRow(
 ): void {
   const prev = map.get(key)
   if (!prev) {
-    map.set(key, { ...row, revenue: round2(row.revenue), quantity: row.quantity, count: row.count })
+    map.set(key, { ...row, revenue: roundEur(row.revenue), quantity: row.quantity, count: row.count })
     return
   }
-  prev.revenue = round2(prev.revenue + row.revenue)
+  prev.revenue = roundEur(prev.revenue + row.revenue)
   prev.quantity += row.quantity
   prev.count = (prev.count ?? 0) + (row.count ?? 0)
 }
 
 function topRows(map: Map<string, DailyOpsRevenueDrilldownTopRowDto>, limit = 10): DailyOpsRevenueDrilldownTopRowDto[] {
   return [...map.values()]
-    .map((row) => ({ ...row, revenue: round2(row.revenue) }))
+    .map((row) => ({ ...row, revenue: roundEur(row.revenue) }))
     .sort((a, b) => b.revenue - a.revenue || a.label.localeCompare(b.label))
     .slice(0, limit)
 }
@@ -59,6 +62,7 @@ function buildWorkerTopRows(
 
 export function buildRevenueDrilldownTop10(
   input: BuildRevenueDrilldownInput,
+  catalogResolver: ProductCatalogResolver = EMPTY_CATALOG,
 ): DailyOpsRevenueDrilldownDto['top10'] {
   const tables = new Map<string, DailyOpsRevenueDrilldownTopRowDto>()
   const foodProducts = new Map<string, DailyOpsRevenueDrilldownTopRowDto>()
@@ -79,7 +83,8 @@ export function buildRevenueDrilldownTop10(
   for (const doc of input.products) {
     for (const product of doc.products ?? []) {
       const label = String(product.productName ?? '').trim() || 'Unknown product'
-      const target = DRINK_NAME_PATTERN.test(label) ? beverages : foodProducts
+      const productId = String(product.productId ?? '').trim()
+      const target = isBeverageProduct(productId, label, catalogResolver) ? beverages : foodProducts
       pushTopRow(target, label, {
         label,
         subLabel: doc.locationName,
@@ -89,7 +94,7 @@ export function buildRevenueDrilldownTop10(
     }
     for (const category of doc.categories ?? []) {
       const label = String(category.name ?? '').trim() || 'Unknown category'
-      if (!DRINK_NAME_PATTERN.test(label)) continue
+      if (!isBeverageCategoryName(label)) continue
       pushTopRow(beverages, `category|${label}`, {
         label,
         subLabel: `${doc.locationName} · category`,
