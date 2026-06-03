@@ -86,8 +86,55 @@ export default defineNuxtConfig({
       borkDisplayExVatPercent: process.env.BORK_DISPLAY_EX_VAT_PERCENT ?? '21',
     },
   },
-  modules: ['@nuxt/ui'],
+  modules: ['@nuxt/ui', '@vite-pwa/nuxt'],
   srcDir: '.',
+  pwa: {
+    manifest: {
+      name: 'DO Teams',
+      short_name: 'DO Teams',
+      description: 'Daily Operations Management - Restaurant & Bar Operations Hub',
+      theme_color: '#4a148c',
+      background_color: '#ffffff',
+      categories: ['productivity', 'business'],
+    },
+    workbox: {
+      globPatterns: ['**/*.{js,css,html,png,svg,ico,woff,woff2}'],
+      globIgnores: ['**/node_modules/**/*', '.nuxt/**/*'],
+      runtimeCaching: [
+        {
+          urlPattern: '^https://.*',
+          handler: 'NetworkFirst',
+          options: {
+            cacheName: 'https-calls',
+            expiration: {
+              maxEntries: 200,
+              maxAgeSeconds: 5 * 60, // 5 minutes
+            },
+            cacheableResponse: {
+              statuses: [0, 200],
+            },
+          },
+        },
+        {
+          urlPattern: '^/api/.*',
+          handler: 'NetworkFirst',
+          options: {
+            cacheName: 'api-cache',
+            expiration: {
+              maxEntries: 500,
+              maxAgeSeconds: 2 * 60, // 2 minutes
+            },
+          },
+        },
+      ],
+    },
+    devOptions: {
+      enabled: true,
+      suppressWarnings: true,
+      navigateFallback: '/',
+      type: 'module',
+    },
+  },
   /** Avoid trailing slash — prevents bad joins like `.nuxt//dist` in generated dev paths. */
   buildDir: '.nuxt',
   css: ['~/assets/css/main.css'],
