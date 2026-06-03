@@ -66,4 +66,3 @@ definePageMeta({
   layout: 'default',
 })
 </script>
-</script>
