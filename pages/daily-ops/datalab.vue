@@ -23,12 +23,12 @@
         </UButton>
 
         <template #body>
-          <div class="h-screen w-full overflow-hidden">
+          <div class="h-screen w-full overflow-hidden bg-white">
             <iframe
-              :src="report.url"
+              :src="`/api/datalab/proxy?url=${encodeURIComponent(report.url)}`"
               class="h-full w-full border-0"
               title="Bork Datalab Report"
-              allow="fullscreen; accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
             />
           </div>
         </template>
