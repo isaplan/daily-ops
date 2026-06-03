@@ -2,6 +2,8 @@
  * Nitro crons (Gmail + Bork/Eitje) run on DO production only.
  * Local `pnpm dev` often uses prod Mongo — duplicating crons causes overlap/timeouts.
  * Set `ENABLE_NITRO_SCHEDULED_TASKS=1` to test crons locally; `DISABLE_*` still fine-tunes production.
+ * 
+ * PWA: @vite-pwa/nuxt module included (2026-06-03)
  */
 const enableNitroScheduled =
   process.env.NODE_ENV === 'production' || process.env.ENABLE_NITRO_SCHEDULED_TASKS === '1'
