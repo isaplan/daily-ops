@@ -42,7 +42,10 @@ export default defineEventHandler(async (event) => {
     }
 
     const html = await response.text()
-    return { html }
+    
+    // Set proper headers and return HTML directly (not JSON)
+    setHeader(event, 'Content-Type', 'text/html; charset=utf-8')
+    return html
   } catch (error) {
     throw createError({
       statusCode: 500,
