@@ -24,27 +24,30 @@
         <DailyOpsRevenueAnalyticsNav v-if="isRevenueRoute" />
 
         <div v-if="!hideOpsPeriodNav" class="flex w-full min-w-0 justify-end">
-          <div class="inline-flex w-max max-w-full shrink-0 flex-nowrap items-center gap-1 rounded-md border-2 border-gray-900 bg-white p-1">
+          <nav
+            aria-label="Daily Ops period"
+            class="scrollbar-hide inline-flex w-10/12 min-w-0 shrink-0 flex-nowrap items-center gap-1 overflow-x-auto rounded-md border-2 border-gray-900 bg-white p-1 md:w-auto"
+          >
             <NuxtLink
               v-for="opt in periodOptions"
               :key="opt.id"
               :to="{ path: route.path, query: periodLinkQuery(opt.id) }"
               replace
               prefetch
-              class="rounded px-3 py-1.5 text-sm font-semibold no-underline transition-colors"
+              class="inline-flex shrink-0 rounded px-3 py-1.5 text-sm font-semibold no-underline transition-colors"
               :class="period === opt.id
                 ? 'bg-gray-900 text-white'
                 : 'text-gray-700 hover:bg-gray-100'"
             >
               {{ opt.label }}
             </NuxtLink>
-          </div>
+          </nav>
         </div>
 
         <div v-if="showLocationShortcuts" class="flex w-full min-w-0 justify-end">
           <nav
             aria-label="Location shortcuts"
-            class="inline-flex w-max max-w-full shrink-0 flex-nowrap gap-1 rounded-md border-2 border-gray-900 bg-white p-1"
+            class="scrollbar-hide inline-flex w-max max-w-full min-w-0 shrink-0 flex-nowrap gap-1 overflow-x-auto rounded-md border-2 border-gray-900 bg-white p-1"
           >
             <button
               type="button"
