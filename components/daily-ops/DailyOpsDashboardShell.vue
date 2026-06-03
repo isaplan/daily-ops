@@ -5,7 +5,7 @@
           <nav
             ref="sectionNavEl"
             aria-label="Daily Ops sections"
-            class="scrollbar-hide inline-flex w-max max-w-full min-w-0 shrink-0 flex-nowrap gap-1 overflow-x-auto rounded-md border-2 border-gray-900 bg-white p-1"
+            class="scrollbar-hide inline-flex w-11/12 min-w-0 shrink-0 flex-nowrap gap-1 overflow-x-auto rounded-md border-2 border-gray-900 bg-white p-1 md:w-auto"
           >
             <NuxtLink
               v-for="item in navItems"
@@ -26,7 +26,7 @@
         <div v-if="!hideOpsPeriodNav" class="flex w-full min-w-0 justify-end">
           <nav
             aria-label="Daily Ops period"
-            class="scrollbar-hide inline-flex w-10/12 min-w-0 shrink-0 flex-nowrap items-center gap-1 overflow-x-auto rounded-md border-2 border-gray-900 bg-white p-1 md:w-auto"
+            class="scrollbar-hide inline-flex w-9/12 min-w-0 shrink-0 flex-nowrap items-center gap-1 overflow-x-auto rounded-md border-2 border-gray-900 bg-white p-1 sm:w-10/12 md:w-auto"
           >
             <NuxtLink
               v-for="opt in periodOptions"
