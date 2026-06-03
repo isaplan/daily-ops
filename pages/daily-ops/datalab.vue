@@ -1,63 +1,49 @@
 <template>
-  <div class="flex h-full flex-col gap-6 p-6">
-    <div>
-      <h1 class="text-3xl font-bold">Bork Datalab Reports</h1>
-      <p class="text-sm text-gray-600">Real-time sales & operations data from Bork API</p>
+  <!-- Page: Only Buttons -->
+  <div class="flex h-full flex-col items-center justify-center gap-8 p-6">
+    <div class="text-center">
+      <h1 class="text-4xl font-bold">Bork Datalab Reports</h1>
+      <p class="text-gray-600">Click a button to view report</p>
     </div>
 
-    <!-- Button Grid -->
+    <!-- Button Grid Only -->
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
       <UButton
         v-for="report in DATALAB_REPORTS"
         :key="report.url"
         @click="openDrawer(report)"
-        size="lg"
+        size="xl"
         color="violet"
-        variant="soft"
-        class="h-20"
+        class="h-24 text-base"
       >
         {{ report.name }}
       </UButton>
     </div>
   </div>
 
-  <!-- Full Page Drawer from Bottom -->
-  <USlideover v-model="isDrawerOpen" side="bottom">
-    <div class="flex h-full flex-col bg-white">
-      <!-- Header with Close Button -->
-      <div class="flex items-center justify-between border-b border-gray-200 px-6 py-4">
-        <h2 class="text-lg font-bold">{{ selectedReport?.name }}</h2>
-        <UButton
-          color="gray"
-          variant="ghost"
-          size="sm"
-          icon="i-heroicons-x-mark-20-solid"
-          @click="isDrawerOpen = false"
-        />
-      </div>
+  <!-- Drawer: Full Screen Overlay from Bottom -->
+  <USlideover v-model="isDrawerOpen" side="bottom" :ui="{ width: 'w-full' }">
+    <!-- Header -->
+    <div class="flex items-center justify-between border-b border-gray-200 bg-white px-6 py-4">
+      <h2 class="text-xl font-bold">{{ selectedReport?.name }}</h2>
+      <UButton
+        color="gray"
+        variant="ghost"
+        size="md"
+        icon="i-heroicons-x-mark-20-solid"
+        @click="isDrawerOpen = false"
+      />
+    </div>
 
-      <!-- Iframe Full Screen -->
-      <div class="flex-1 overflow-hidden">
-        <iframe
-          v-if="selectedReport && isDrawerOpen"
-          :src="selectedReport.url"
-          class="h-full w-full border-0"
-          title="Bork Datalab Report"
-          allow="fullscreen; accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-          @error="onIframeError"
-        />
-        <!-- Fallback if iframe fails -->
-        <div v-if="iframeError" class="flex h-full flex-col items-center justify-center gap-4 bg-gray-50 p-6">
-          <p class="text-gray-700">Unable to load report in page</p>
-          <UButton
-            @click="openInNewTab"
-            color="violet"
-            variant="solid"
-          >
-            Open in New Tab
-          </UButton>
-        </div>
-      </div>
+    <!-- Iframe -->
+    <div class="flex-1 overflow-hidden bg-white">
+      <iframe
+        v-if="selectedReport && isDrawerOpen"
+        :src="selectedReport.url"
+        class="h-full w-full border-0"
+        title="Bork Datalab Report"
+        allow="fullscreen; accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+      />
     </div>
   </USlideover>
 </template>
@@ -68,22 +54,10 @@ import { DATALAB_REPORTS, type DatalabReport } from '~/utils/datalabReports'
 
 const isDrawerOpen = ref(false)
 const selectedReport = ref<DatalabReport | null>(null)
-const iframeError = ref(false)
 
 const openDrawer = (report: DatalabReport) => {
   selectedReport.value = report
   isDrawerOpen.value = true
-  iframeError.value = false
-}
-
-const onIframeError = () => {
-  iframeError.value = true
-}
-
-const openInNewTab = () => {
-  if (selectedReport.value) {
-    window.open(selectedReport.value.url, '_blank')
-  }
 }
 
 definePageMeta({
