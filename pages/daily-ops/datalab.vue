@@ -21,8 +21,8 @@
     </div>
   </div>
 
-  <!-- Full Page Drawer -->
-  <USlideover v-model="isDrawerOpen" :ui="{ width: 'w-screen' }">
+  <!-- Full Page Drawer from Bottom -->
+  <USlideover v-model="isDrawerOpen" side="bottom">
     <div class="flex h-full flex-col bg-white">
       <!-- Header with Close Button -->
       <div class="flex items-center justify-between border-b border-gray-200 px-6 py-4">
