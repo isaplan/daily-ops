@@ -44,7 +44,19 @@
           class="h-full w-full border-0"
           title="Bork Datalab Report"
           allow="fullscreen; accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          @error="onIframeError"
         />
+        <!-- Fallback if iframe fails -->
+        <div v-if="iframeError" class="flex h-full flex-col items-center justify-center gap-4 bg-gray-50 p-6">
+          <p class="text-gray-700">Unable to load report in page</p>
+          <UButton
+            @click="openInNewTab"
+            color="violet"
+            variant="solid"
+          >
+            Open in New Tab
+          </UButton>
+        </div>
       </div>
     </div>
   </USlideover>
@@ -56,10 +68,22 @@ import { DATALAB_REPORTS, type DatalabReport } from '~/utils/datalabReports'
 
 const isDrawerOpen = ref(false)
 const selectedReport = ref<DatalabReport | null>(null)
+const iframeError = ref(false)
 
 const openDrawer = (report: DatalabReport) => {
   selectedReport.value = report
   isDrawerOpen.value = true
+  iframeError.value = false
+}
+
+const onIframeError = () => {
+  iframeError.value = true
+}
+
+const openInNewTab = () => {
+  if (selectedReport.value) {
+    window.open(selectedReport.value.url, '_blank')
+  }
 }
 
 definePageMeta({
