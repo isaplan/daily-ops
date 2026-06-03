@@ -6,6 +6,16 @@
       <p class="text-gray-600">Click a button to view report</p>
     </div>
 
+    <!-- Refresh Button -->
+    <UButton
+      icon="i-heroicons-arrow-path"
+      color="gray"
+      variant="soft"
+      @click="refreshPage"
+    >
+      Refresh Page
+    </UButton>
+
     <!-- Button Grid -->
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
       <UDrawer
@@ -28,7 +38,7 @@
               :src="`/api/datalab/proxy?url=${encodeURIComponent(report.url)}`"
               class="h-full w-full border-0"
               title="Bork Datalab Report"
-              sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
             />
           </div>
         </template>
@@ -43,4 +53,8 @@ import { DATALAB_REPORTS } from '~/utils/datalabReports'
 definePageMeta({
   layout: 'default',
 })
+
+const refreshPage = () => {
+  location.reload()
+}
 </script>
