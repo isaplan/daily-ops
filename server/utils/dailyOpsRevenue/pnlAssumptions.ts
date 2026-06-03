@@ -1,8 +1,6 @@
 import type { DailyOpsSimplePnLAssumptions } from '~/types/daily-ops-revenue'
 import { DEFAULT_PNL_ASSUMPTIONS, normalizePnlAssumptions } from '~/utils/dailyOpsPnlAssumptionsDefaults'
 
-export { DEFAULT_PNL_ASSUMPTIONS }
-
 /** @deprecated Prefer loadPnlAssumptions(db) — query override kept for backwards-compatible tests only. */
 export function parsePnlAssumptions(q: Record<string, unknown>): DailyOpsSimplePnLAssumptions {
   const food = Number(q.foodCogsPct)
