@@ -22,28 +22,30 @@
   </div>
 
   <!-- Drawer: Full Screen Overlay from Bottom -->
-  <USlideover v-model="isDrawerOpen" side="bottom" :ui="{ width: 'w-full' }">
-    <!-- Header -->
-    <div class="flex items-center justify-between border-b border-gray-200 bg-white px-6 py-4">
-      <h2 class="text-xl font-bold">{{ selectedReport?.name }}</h2>
-      <UButton
-        color="gray"
-        variant="ghost"
-        size="md"
-        icon="i-heroicons-x-mark-20-solid"
-        @click="isDrawerOpen = false"
-      />
-    </div>
+  <USlideover v-model="isDrawerOpen" side="bottom">
+    <div class="flex h-screen w-screen flex-col bg-white">
+      <!-- Header -->
+      <div class="flex items-center justify-between border-b border-gray-200 px-6 py-4">
+        <h2 class="text-xl font-bold">{{ selectedReport?.name }}</h2>
+        <UButton
+          color="gray"
+          variant="ghost"
+          size="md"
+          icon="i-heroicons-x-mark-20-solid"
+          @click="isDrawerOpen = false"
+        />
+      </div>
 
-    <!-- Iframe -->
-    <div class="flex-1 overflow-hidden bg-white">
-      <iframe
-        v-if="selectedReport && isDrawerOpen"
-        :src="selectedReport.url"
-        class="h-full w-full border-0"
-        title="Bork Datalab Report"
-        allow="fullscreen; accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-      />
+      <!-- Iframe -->
+      <div class="flex-1 overflow-hidden">
+        <iframe
+          v-if="selectedReport && isDrawerOpen"
+          :src="selectedReport.url"
+          class="h-full w-full border-0"
+          title="Bork Datalab Report"
+          allow="fullscreen; accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+        />
+      </div>
     </div>
   </USlideover>
 </template>
