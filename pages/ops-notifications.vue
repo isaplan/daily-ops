@@ -121,21 +121,22 @@
         description="Try another category or widen the scan window."
       />
 
-      <div v-else class="rounded-lg border border-gray-200 bg-white shadow-sm overflow-hidden">
-        <table class="min-w-full text-base">
-          <thead class="bg-gray-50 text-left text-sm font-semibold uppercase text-gray-500">
-            <tr>
-              <th class="px-4 py-3">Severity</th>
-              <th class="px-4 py-3">Area</th>
-              <th class="px-4 py-3">{{ viewMode === 'grouped' ? 'Date range' : 'Date' }}</th>
-              <th class="px-4 py-3">Venue</th>
-              <th v-if="viewMode === 'grouped'" class="px-4 py-3">Rows</th>
-              <th class="px-4 py-3">Status</th>
-              <th class="px-4 py-3">Issue</th>
-              <th class="px-4 py-3 text-right">Action</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-gray-100">
+      <div v-else class="rounded-lg border border-gray-200 bg-white shadow-sm">
+        <div class="overflow-x-auto">
+          <table class="min-w-[56rem] w-full text-base">
+            <thead class="border-b border-gray-200 bg-gray-50 text-left text-sm font-semibold uppercase text-gray-500">
+              <tr>
+                <th class="sticky top-0 z-10 bg-gray-50 px-4 py-3 whitespace-nowrap shadow-[0_1px_0_0_rgb(229,231,235)]">Severity</th>
+                <th class="sticky top-0 z-10 bg-gray-50 px-4 py-3 whitespace-nowrap shadow-[0_1px_0_0_rgb(229,231,235)]">Area</th>
+                <th class="sticky top-0 z-10 bg-gray-50 px-4 py-3 whitespace-nowrap shadow-[0_1px_0_0_rgb(229,231,235)]">{{ viewMode === 'grouped' ? 'Date range' : 'Date' }}</th>
+                <th class="sticky top-0 z-10 bg-gray-50 px-4 py-3 whitespace-nowrap shadow-[0_1px_0_0_rgb(229,231,235)]">Venue</th>
+                <th v-if="viewMode === 'grouped'" class="sticky top-0 z-10 bg-gray-50 px-4 py-3 whitespace-nowrap shadow-[0_1px_0_0_rgb(229,231,235)]">Rows</th>
+                <th class="sticky top-0 z-10 bg-gray-50 px-4 py-3 whitespace-nowrap shadow-[0_1px_0_0_rgb(229,231,235)]">Status</th>
+                <th class="sticky top-0 z-10 bg-gray-50 px-4 py-3 whitespace-nowrap shadow-[0_1px_0_0_rgb(229,231,235)]">Issue</th>
+                <th class="sticky top-0 z-10 bg-gray-50 px-4 py-3 text-right whitespace-nowrap shadow-[0_1px_0_0_rgb(229,231,235)]">Action</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100 bg-white">
             <tr v-for="entry in displayItems" :key="entry.id" class="hover:bg-gray-50">
               <td class="px-4 py-3 align-top">
                 <UBadge :color="severityColor(entry.severity)" variant="subtle" size="sm">
@@ -196,6 +197,7 @@
             </tr>
           </tbody>
         </table>
+        </div>
       </div>
     </template>
   </div>
