@@ -2,9 +2,9 @@
  * Nitro scheduled task: Bork then Eitje `daily-data` (same order and 30s gap as daily-ops-sync.yml).
  *
  * @registry-id: taskIntegrationsBorkEitjeDaily
- * @last-modified: 2026-05-27T12:00:00.000Z
- * @last-fix: [2026-05-28] Corrected cron: 01:00, 08:00, 15:00, 18:00, 19:00, 20:00, 21:00, 23:00 (8× daily).
- *   Prior: [2026-05-26] Summer daily slots 01,08,15,17–23,24 Amsterdam (see nuxt.config scheduledTasks)
+ * @last-modified: 2026-06-06T00:40:00.000Z
+ * @last-fix: [2026-06-06] Added 22:00 run (before 23:00) + 02:00 on Fri/Sat (weekend late-night). Now 9×/day + weekend bonus.
+ *   Prior: [2026-05-28] Corrected cron: 01:00, 08:00, 15:00, 18:00, 19:00, 20:00, 21:00, 23:00 (8× daily).
  * @exports-to: nuxt.config.ts → nitro.scheduledTasks
  */
 
