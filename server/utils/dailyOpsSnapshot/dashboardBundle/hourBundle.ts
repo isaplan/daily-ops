@@ -1,8 +1,9 @@
 /**
  * @registry-id: dailyOpsDashboardBundleHourBundle
  * @created: 2026-05-28T00:00:00.000Z
- * @last-modified: 2026-05-28T00:00:00.000Z
+ * @last-modified: 2026-06-05T00:00:00.000Z
  * @description: Hourly revenue bundle from snapshot sections (no Bork on GET)
+ * @last-fix: [2026-06-05] Fall back to revenue-section hourly when hourly section is empty
  * @adr-ref: ADR-004
  */
 
@@ -14,6 +15,40 @@ import type { BorkHourAggregatesBundle } from '../../dailyOpsMetrics/types'
 import { rollupFoodBeverageFromCategories } from '../../borkFoodBeverageSplit'
 import type { DailyOpsSnapshotRevenueProductsSection } from '~/types/daily-ops-snapshot'
 import { snapshotRound2 } from './shared'
+
+function sumHourlyRevenue(slots: DailyOpsSnapshotRevenueSection['hourly'] | undefined): number {
+  return (slots ?? []).reduce((sum, slot) => sum + Number(slot.revenue?.ex_vat ?? 0), 0)
+}
+
+/** Prefer dedicated hourly section; fall back to revenue section when hourly rows are empty. */
+export function mergeHourlySnapshotSections(
+  hourly: DailyOpsSnapshotRevenueHourlySection[],
+  revenue: DailyOpsSnapshotRevenueSection[],
+): DailyOpsSnapshotRevenueHourlySection[] {
+  const out = new Map<string, DailyOpsSnapshotRevenueHourlySection>()
+
+  for (const doc of hourly) {
+    out.set(`${doc.businessDate}|${doc.locationId}`, doc)
+  }
+
+  for (const doc of revenue) {
+    const key = `${doc.businessDate}|${doc.locationId}`
+    const existing = out.get(key)
+    if (sumHourlyRevenue(existing?.hourly) > 0) continue
+
+    const fallbackSlots = doc.hourly ?? []
+    if (sumHourlyRevenue(fallbackSlots) <= 0 && existing) continue
+
+    out.set(key, {
+      businessDate: doc.businessDate,
+      locationId: doc.locationId,
+      locationName: doc.locationName ?? existing?.locationName ?? doc.locationId,
+      hourly: sumHourlyRevenue(fallbackSlots) > 0 ? fallbackSlots : (existing?.hourly ?? []),
+    })
+  }
+
+  return [...out.values()]
+}
 
 export function buildHourBundleFromSnapshots(
   hourly: DailyOpsSnapshotRevenueHourlySection[],
@@ -36,9 +71,7 @@ export function buildHourBundleFromSnapshots(
     }
   }
 
-  for (const doc of hourly) ingestHourly(doc.businessDate, doc.locationId, doc.hourly)
-  for (const doc of revenue) {
-    if (hourly.some((h) => h.businessDate === doc.businessDate && h.locationId === doc.locationId)) continue
+  for (const doc of mergeHourlySnapshotSections(hourly, revenue)) {
     ingestHourly(doc.businessDate, doc.locationId, doc.hourly)
   }
 

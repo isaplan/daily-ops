@@ -1,8 +1,9 @@
 /**
  * @registry-id: dailyOpsDashboardBundleTodayDetail
  * @created: 2026-05-28T00:00:00.000Z
- * @last-modified: 2026-05-28T00:00:00.000Z
+ * @last-modified: 2026-06-05T02:45:00.000Z
  * @description: Today revenue hourly detail + inbox cron snapshots for dashboard
+ * @last-fix: [2026-06-05] Omit flat labor-synthesized productivity; shared sparse-hour redistribution
  * @adr-ref: ADR-004
  */
 
@@ -16,6 +17,11 @@ import type { BorkHourAggregatesBundle } from '../../dailyOpsMetrics/types'
 import { VENUE_STRIP_LOCATIONS } from '../../venueStrip/constants'
 import type { SnapshotLaborByBusinessDateHourBucket } from './laborHourMaps'
 import { laborBucketForLocationHour } from './laborHourMaps'
+import { locDayKey, revenueScale } from '../drilldown/drilldownShared'
+import {
+  redistributeRevenueByLaborHours,
+  shouldRedistributeSparseHourlyRevenue,
+} from '../hourlyRevenueLaborShape'
 import { snapshotRound2 } from './shared'
 
 function buildHourlyRevenueRows(
@@ -71,6 +77,7 @@ export function buildTodayExtrasFromHourBundle(
   revenue: DailyOpsSnapshotRevenueSection[],
   orderTime: DailyOpsSnapshotRevenueByOrderTimeSection[],
   laborByLocHour: Map<string, SnapshotLaborByBusinessDateHourBucket>,
+  headlineRevenueByLocDay: Map<string, number>,
 ): DailyOpsRevenueBreakdownDto['todayRevenueDetail'] {
   const apiHourly = new Map<number, number>()
   const apiHourlyByLocation = new Map<string, number>()
@@ -78,27 +85,40 @@ export function buildTodayExtrasFromHourBundle(
   const orderHourlyByLocation = new Map<string, number>()
   const dateStr = ctx.startDate
 
+  const rawByLocDay = new Map<string, number>()
+  for (const row of hourBundle.byDayHour) {
+    if (row._id.d !== dateStr || !row._id.loc) continue
+    const key = locDayKey(dateStr, row._id.loc)
+    rawByLocDay.set(key, (rawByLocDay.get(key) ?? 0) + row.revenue)
+  }
+
   for (const row of hourBundle.byDayHour) {
     if (row._id.d !== dateStr) continue
     const h = Number(row._id.h)
-    if (row.revenue <= 0) continue
-    apiHourly.set(h, (apiHourly.get(h) ?? 0) + row.revenue)
-    if (row._id.loc) {
-      const locHourKey = `${row._id.loc}|${h}`
-      apiHourlyByLocation.set(locHourKey, (apiHourlyByLocation.get(locHourKey) ?? 0) + row.revenue)
-    }
+    const loc = row._id.loc
+    if (!loc) continue
+    const scale = revenueScale(dateStr, loc, rawByLocDay, headlineRevenueByLocDay)
+    const rev = snapshotRound2(row.revenue * scale)
+    if (rev <= 0) continue
+    apiHourly.set(h, (apiHourly.get(h) ?? 0) + rev)
+    const locHourKey = `${loc}|${h}`
+    apiHourlyByLocation.set(locHourKey, (apiHourlyByLocation.get(locHourKey) ?? 0) + rev)
   }
-  if (apiHourly.size === 0) {
-    for (const row of hourBundle.byHourOnly) {
-      if (row.amount <= 0) continue
-      apiHourly.set(Number(row._id), (apiHourly.get(Number(row._id)) ?? 0) + row.amount)
-    }
+
+  if (shouldRedistributeSparseHourlyRevenue(dateStr, apiHourly, headlineRevenueByLocDay)) {
+    const redistributed = redistributeRevenueByLaborHours(dateStr, headlineRevenueByLocDay, laborByLocHour)
+    apiHourly.clear()
+    apiHourlyByLocation.clear()
+    for (const [hour, revenue] of redistributed.byHour) apiHourly.set(hour, revenue)
+    for (const [key, revenue] of redistributed.byLocationHour) apiHourlyByLocation.set(key, revenue)
   }
+
   for (const doc of orderTime) {
     if (doc.businessDate !== dateStr) continue
+    const scale = revenueScale(dateStr, doc.locationId, rawByLocDay, headlineRevenueByLocDay)
     for (const slot of doc.hourly ?? []) {
       const h = Number(slot.calendar_hour)
-      const rev = Number(slot.revenue?.ex_vat ?? 0)
+      const rev = snapshotRound2(Number(slot.revenue?.ex_vat ?? 0) * scale)
       if (!Number.isFinite(h) || rev <= 0) continue
       orderHourly.set(h, (orderHourly.get(h) ?? 0) + rev)
       orderHourlyByLocation.set(`${doc.locationId}|${h}`, (orderHourlyByLocation.get(`${doc.locationId}|${h}`) ?? 0) + rev)
@@ -107,9 +127,10 @@ export function buildTodayExtrasFromHourBundle(
   if (orderHourly.size === 0) {
     for (const doc of revenue) {
       if (doc.businessDate !== dateStr) continue
+      const scale = revenueScale(dateStr, doc.locationId, rawByLocDay, headlineRevenueByLocDay)
       for (const slot of doc.orderHourly ?? []) {
         const h = Number(slot.calendar_hour)
-        const rev = Number(slot.revenue?.ex_vat ?? 0)
+        const rev = snapshotRound2(Number(slot.revenue?.ex_vat ?? 0) * scale)
         if (!Number.isFinite(h) || rev <= 0) continue
         orderHourly.set(h, (orderHourly.get(h) ?? 0) + rev)
         orderHourlyByLocation.set(`${doc.locationId}|${h}`, (orderHourlyByLocation.get(`${doc.locationId}|${h}`) ?? 0) + rev)
@@ -133,8 +154,18 @@ export function buildTodayExtrasFromHourBundle(
   if (apiHourly.size === 0 && orderHourly.size === 0 && inboxSnaps.length === 0) return undefined
 
   return {
-    apiHourlyByCalendarHour: buildHourlyRevenueRows(dateStr, apiHourly, apiHourlyByLocation, laborByLocHour),
-    orderHourlyByCalendarHour: buildHourlyRevenueRows(dateStr, orderHourly, orderHourlyByLocation, laborByLocHour),
+    apiHourlyByCalendarHour: buildHourlyRevenueRows(
+      dateStr,
+      apiHourly,
+      apiHourlyByLocation,
+      laborByLocHour,
+    ),
+    orderHourlyByCalendarHour: buildHourlyRevenueRows(
+      dateStr,
+      orderHourly,
+      orderHourlyByLocation,
+      laborByLocHour,
+    ),
     inboxBasisCronSnapshots: inboxSnaps,
   }
 }

@@ -92,18 +92,24 @@ const {
               Each column is one day (UTC). Each <span class="font-medium text-gray-700">stacked bar is one venue</span>; the label under the bar is the location name. Segments are teams (hours), stacked bottom-to-top: Afwas, Keuken, Bediening, Management, Algemeen, Ziek, then others. Bestellen/Bestelling/Stock and HK &amp; HR Management roll up into Management. Bar height scales to the busiest venue that day. Hover segments for hours. Scroll horizontally when the range has many days.
             </p>
             <div v-show="teamsWorkersViewMode === 'chart'" class="mb-4 min-w-0 space-y-3">
-              <div class="min-w-0 overflow-x-auto pb-1">
-                <div class="flex w-max items-stretch gap-5 px-0.5">
-                  <div
-                    v-for="col in laborStackedChartColumns"
-                    :key="`labor-stack-${col.date}`"
-                    class="flex shrink-0 flex-col gap-1.5"
-                    :style="{ minWidth: `max(10rem, ${Math.max(3, col.bars.length) * 2.75}rem)` }"
-                  >
-                    <div
-                      class="flex h-56 items-end justify-center gap-0.5 border-b-2 border-gray-900 px-0.5"
-                      :aria-label="`Labor hours by venue for ${col.date}`"
-                    >
+              <DailyOpsChartExpandShell
+                title="Labor hours by venue"
+                expand-aria-label="Expand labor stacked chart"
+              >
+                <template #default="{ expanded }">
+                  <div class="min-w-0 overflow-x-auto pb-1">
+                    <div class="flex w-max items-stretch gap-5 px-0.5">
+                      <div
+                        v-for="col in laborStackedChartColumns"
+                        :key="`labor-stack-${col.date}`"
+                        class="flex shrink-0 flex-col gap-1.5"
+                        :style="{ minWidth: `max(10rem, ${Math.max(3, col.bars.length) * 2.75}rem)` }"
+                      >
+                        <div
+                          class="flex items-end justify-center gap-0.5 border-b-2 border-gray-900 px-0.5"
+                          :class="expanded ? 'h-[min(60vh,28rem)]' : 'h-56'"
+                          :aria-label="`Labor hours by venue for ${col.date}`"
+                        >
                       <div
                         v-for="bar in col.bars"
                         :key="`${col.date}-${bar.locationId}`"
@@ -165,19 +171,23 @@ const {
                   </div>
                 </div>
               </div>
-              <div>
-                <p class="mb-2 text-[10px] font-medium uppercase tracking-wide text-gray-500">Teams (grey scale, darker = lower in stack)</p>
-                <div class="flex flex-wrap gap-x-3 gap-y-1.5 border-t border-gray-100 pt-3 text-[11px] text-gray-700">
-                  <span
-                    v-for="leg in laborStackedChartLegend"
-                    :key="`leg-${leg.normKey}`"
-                    class="inline-flex max-w-full items-center gap-1.5"
-                  >
-                    <span class="size-2.5 shrink-0 rounded-sm border border-gray-900/20" :style="{ backgroundColor: leg.color }" />
-                    <span class="min-w-0 truncate" :title="leg.label">{{ leg.label }}</span>
-                  </span>
-                </div>
-              </div>
+                </template>
+                <template #below>
+                  <div>
+                    <p class="mb-2 text-[10px] font-medium uppercase tracking-wide text-gray-500">Teams (grey scale, darker = lower in stack)</p>
+                    <div class="flex flex-wrap gap-x-3 gap-y-1.5 border-t border-gray-100 pt-3 text-[11px] text-gray-700">
+                      <span
+                        v-for="leg in laborStackedChartLegend"
+                        :key="`leg-${leg.normKey}`"
+                        class="inline-flex max-w-full items-center gap-1.5"
+                      >
+                        <span class="size-2.5 shrink-0 rounded-sm border border-gray-900/20" :style="{ backgroundColor: leg.color }" />
+                        <span class="min-w-0 truncate" :title="leg.label">{{ leg.label }}</span>
+                      </span>
+                    </div>
+                  </div>
+                </template>
+              </DailyOpsChartExpandShell>
             </div>
             <div v-show="teamsWorkersViewMode === 'table'" class="min-w-0">
               <div

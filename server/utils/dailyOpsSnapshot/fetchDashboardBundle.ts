@@ -1,8 +1,9 @@
 /**
  * @registry-id: dailyOpsSnapshotFetchDashboardBundle
  * @created: 2026-05-25T00:00:00.000Z
- * @last-modified: 2026-06-02T00:00:00.000Z
- * @last-fix: [2026-06-02] Pass laborByLocDay to profit-by-interval builder
+ * @last-modified: 2026-06-05T17:50:00.000Z
+ * @last-fix: [2026-06-05] Cache sealed days 24h immutable; yesterday 1h + stale-while-revalidate
+ *   Prior: [2026-06-05] Merge revenue-section hourly fallback + scale today hourly detail
  * @description: Snapshot-first Daily Ops dashboard bundle orchestrator (ADR-004)
  * @last-fix: [2026-05-31] Dashboard profit math uses Mongo P&L assumptions SSOT
  * @adr-ref: ADR-004, ADR-006
@@ -33,6 +34,7 @@ import { assembleLaborFromSnapshots } from './dashboardBundle/assembleLaborDto'
 import {
   buildHourBundleFromSnapshots,
   categoryTotalsFromProducts,
+  mergeHourlySnapshotSections,
 } from './dashboardBundle/hourBundle'
 import { contractRollupsFromSnapshotLabor } from './dashboardBundle/laborContractRollups'
 import { loadSnapshotDashboardRows } from './dashboardBundle/loadSnapshotRows'
@@ -64,7 +66,8 @@ export async function fetchDailyOpsDashboardBundle(
     rows.labor,
   )
   const cat = categoryTotalsFromProducts(rows.products)
-  const hourBundle = buildHourBundleFromSnapshots(rows.hourly, rows.revenue)
+  const mergedHourly = mergeHourlySnapshotSections(rows.hourly, rows.revenue)
+  const hourBundle = buildHourBundleFromSnapshots(mergedHourly, [])
   const headlineRevenueByLocDay = buildHeadlineRevenueByLocDay(rows.revenue)
 
   let apiMergedTotal = 0
@@ -88,10 +91,11 @@ export async function fetchDailyOpsDashboardBundle(
       laborByLocDay,
       headlineRevenueByLocDay,
       pnlAssumptions,
+      laborByLocHour,
     ),
     buildRevenueDrilldownSection(db, ctx, {
       revenue: rows.revenue,
-      hourly: rows.hourly,
+      hourly: mergedHourly,
       products: rows.products,
       tables: rows.tables,
       workers: rows.workers,
@@ -119,7 +123,14 @@ export async function fetchDailyOpsDashboardBundle(
     laborByDateHour,
     profitByInterval,
     ctx.startDate === ctx.endDate
-      ? buildTodayExtrasFromHourBundle(ctx, hourBundle, rows.revenue, rows.orderTime, laborByLocHour)
+      ? buildTodayExtrasFromHourBundle(
+          ctx,
+          hourBundle,
+          rows.revenue,
+          rows.orderTime,
+          laborByLocHour,
+          headlineRevenueByLocDay,
+        )
       : undefined,
     pnlAssumptions,
   )
@@ -134,7 +145,19 @@ export async function fetchDailyOpsDashboardBundle(
 }
 
 export function snapshotCacheControl(ctx: DailyOpsMetricsContext): string {
-  const sealedPast =
-    ctx.period !== 'today' && ctx.startDate === ctx.endDate && ctx.endDate < new Date().toISOString().slice(0, 10)
-  return sealedPast ? 'private, max-age=300' : 'no-store'
+  const today = new Date().toISOString().slice(0, 10)
+  const sealedSingleDay = ctx.period !== 'today' && ctx.startDate === ctx.endDate && ctx.endDate < today
+
+  if (sealedSingleDay) {
+    const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10)
+    if (ctx.endDate === yesterday) {
+      // Yesterday: 1h cache, revalidate in background (morning cron might update)
+      return 'public, max-age=3600, stale-while-revalidate=86400'
+    }
+    // Older sealed days: 24h cache, immutable (only weekly backfills update)
+    return 'public, max-age=86400, stale-while-revalidate=604800, immutable'
+  }
+
+  // Today or multi-day ranges: no cache
+  return 'no-store'
 }

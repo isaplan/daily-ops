@@ -4,12 +4,19 @@
       <h2 class="mb-0 text-lg font-semibold">Werkdruk per uur</h2>
       <DailyOpsRevenueViewToggle :mode="mode" @update:mode="mode = $event" />
     </div>
-    <ChartsD3LineChart
+    <DailyOpsChartExpandShell
       v-if="mode === 'chart' && points.length"
-      :series="series"
-      :width="720"
-      :height="260"
-    />
+      title="Werkdruk per uur"
+      expand-aria-label="Expand workload chart"
+    >
+      <template #default="{ width, height }">
+        <ChartsD3LineChart
+          :series="series"
+          :width="width"
+          :height="Math.max(240, Math.round(height))"
+        />
+      </template>
+    </DailyOpsChartExpandShell>
     <table v-else-if="points.length" class="min-w-full text-sm">
       <thead class="bg-gray-50 text-left text-xs uppercase text-gray-500">
         <tr>

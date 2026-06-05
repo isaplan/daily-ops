@@ -19,14 +19,21 @@
 
     <template v-else>
       <ClientOnly>
-        <ChartsD3StackedBarChart
+        <DailyOpsChartExpandShell
           v-if="viewMode === 'chart'"
-          :data="barData"
-          :keys="['revenue']"
-          :width="760"
-          :height="280"
-          :colors="['#111827']"
-        />
+          title="Omzet per dag"
+          expand-aria-label="Expand daily revenue chart"
+        >
+          <template #default="{ width, height }">
+            <ChartsD3StackedBarChart
+              :data="barData"
+              :keys="['revenue']"
+              :width="width"
+              :height="Math.max(260, Math.round(height))"
+              :colors="['#111827']"
+            />
+          </template>
+        </DailyOpsChartExpandShell>
       </ClientOnly>
 
       <div v-if="viewMode === 'table'" class="overflow-x-auto">

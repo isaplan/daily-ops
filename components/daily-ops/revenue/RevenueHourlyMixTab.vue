@@ -14,14 +14,21 @@
         <h2 class="text-sm font-semibold">Omzet per uur (keuken vs drank)</h2>
         <DailyOpsRevenueViewToggle :mode="stackMode" @update:mode="stackMode = $event" />
       </div>
-      <ChartsD3StackedBarChart
+      <DailyOpsChartExpandShell
         v-if="stackMode === 'chart'"
-        :data="stackData"
-        :keys="['keuken', 'dranken']"
-        :colors="['#fbbf24', '#3b82f6']"
-        :width="720"
-        :height="280"
-      />
+        title="Omzet per uur (keuken vs drank)"
+        expand-aria-label="Expand hourly category stack chart"
+      >
+        <template #default="{ width, height }">
+          <ChartsD3StackedBarChart
+            :data="stackData"
+            :keys="['keuken', 'dranken']"
+            :colors="['#fbbf24', '#3b82f6']"
+            :width="width"
+            :height="Math.max(260, Math.round(height))"
+          />
+        </template>
+      </DailyOpsChartExpandShell>
       <table v-else class="text-sm">
         <thead>
           <tr class="text-xs text-gray-500">
@@ -77,11 +84,22 @@
         <p class="text-sm font-semibold">Uur × weekdag</p>
         <DailyOpsRevenueViewToggle :mode="heatMode" @update:mode="heatMode = $event" />
       </div>
-      <ChartsD3HeatmapChart
+      <DailyOpsChartExpandShell
         v-if="heatMode === 'chart'"
-        :rows="heatRows"
-        :col-labels="dowLabels"
-      />
+        title="Uur × weekdag"
+        expand-aria-label="Expand hourly weekday heatmap"
+        :default-width="520"
+        :default-height="420"
+      >
+        <template #default="{ width, height }">
+          <ChartsD3HeatmapChart
+            :rows="heatRows"
+            :col-labels="dowLabels"
+            :width="width"
+            :height="Math.max(360, Math.round(height))"
+          />
+        </template>
+      </DailyOpsChartExpandShell>
       <table v-else class="border-collapse text-xs">
         <thead>
           <tr>

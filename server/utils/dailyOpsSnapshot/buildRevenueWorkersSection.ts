@@ -1,9 +1,9 @@
 /**
  * @registry-id: dailyOpsSnapshotBuildRevenueWorkersSection
  * @created: 2026-05-20T00:00:00.000Z
- * @last-modified: 2026-05-28T14:00:00.000Z
+ * @last-modified: 2026-06-05T12:00:00.000Z
  * @description: Per-worker revenue snapshot from bork_sales_by_worker (+ order-time rollups)
- * @last-fix: [2026-05-28] Include order-time worker rollups from bork_sales_by_order_worker
+ * @last-fix: [2026-06-05] Scale worker revenues proportionally to Inbox headline when provided
  *
  * @exports-to:
  * ✓ server/services/dailyOpsSnapshotService.ts
@@ -73,18 +73,34 @@ async function aggregateWorkersFromCollection(
     .sort((a, b) => b.revenue_ex_vat - a.revenue_ex_vat)
 }
 
+function scaleWorkers(
+  workers: WorkerRollup[],
+  headlineExVat: number | undefined,
+): WorkerRollup[] {
+  if (!headlineExVat || headlineExVat <= 0 || workers.length === 0) return workers
+  const borkTotal = workers.reduce((sum, w) => sum + w.revenue_ex_vat, 0)
+  if (borkTotal <= 0) return workers
+  const scale = headlineExVat / borkTotal
+  if (Math.abs(scale - 1) < 0.001) return workers
+  return workers.map((w) => ({ ...w, revenue_ex_vat: Math.round(w.revenue_ex_vat * scale * 100) / 100 }))
+}
+
 export async function buildRevenueWorkersSection(
   db: Db,
   input: BuildRevenueInput,
+  headlineExVat?: number,
 ): Promise<DailyOpsSnapshotRevenueWorkersSection> {
   const { businessDate, locationId, locationName } = input
   const suffix = resolveBorkAggReadSuffix()
   const locOid = ObjectId.isValid(locationId) ? new ObjectId(locationId) : null
 
-  const [workers, orderTimeWorkers] = await Promise.all([
+  const [rawWorkers, rawOrderTimeWorkers] = await Promise.all([
     aggregateWorkersFromCollection(db, `bork_sales_by_worker${suffix}`, businessDate, locOid),
     aggregateWorkersFromCollection(db, `bork_sales_by_order_worker${suffix}`, businessDate, locOid),
   ])
+
+  const workers = scaleWorkers(rawWorkers, headlineExVat)
+  const orderTimeWorkers = scaleWorkers(rawOrderTimeWorkers, headlineExVat)
 
   return {
     schema_version: 1,

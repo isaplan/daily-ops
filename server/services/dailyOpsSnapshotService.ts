@@ -1,8 +1,9 @@
 /**
  * @registry-id: dailyOpsSnapshotService
  * @created: 2026-05-13T00:00:00.000Z
- * @last-modified: 2026-05-28T00:00:00.000Z
- * @last-fix: [2026-05-28] Post-seal retention hook (blob archive + fat bork purge, ADR-006)
+ * @last-modified: 2026-06-05T17:50:00.000Z
+ * @last-fix: [2026-06-05] Pre-generate bundle JSON cache after snapshot builds complete
+ *   Prior: [2026-06-05] Guard: preserve sealed fat sections when Bork data is purged; scale workers/tables to headline
  * @adr-ref: ADR-004, ADR-006
  *
  * @architecture:
@@ -45,6 +46,7 @@ import {
   writeRevenueBenchmarkForLocation,
 } from '../utils/dailyOpsRevenue/revenueBenchmark'
 import { runPostSealRetention } from '../utils/dailyOpsBlob/runPostSealRetention'
+import { preGenerateBundleForDate, preGenerateBundlesForRange } from '../utils/dailyOpsSnapshot/preGenerateBundleCache'
 
 const runtimeProcess = globalThis as typeof globalThis & {
   process?: { env?: Record<string, string | undefined> }
@@ -99,15 +101,27 @@ export async function buildDailyOpsSnapshot(input: BuildSnapshotInput): Promise<
         console.warn(`[snapshot:build] ${businessDate} ${locationId} | missing locationName`)
       }
       const buildInput = { businessDate, locationId, locationName }
-      const [revenue, labor, sources, revenueHourly, revenueProducts, revenueTables, revenueWorkers, revenueByOrderTime] =
+
+      // Read existing master before building so we know if it's already sealed.
+      // Sealed snapshots must not have their fat Bork sections overwritten with
+      // empty data (those collections are purged after seal per ADR-006).
+      const existingMaster = await db
+        .collection(DAILY_OPS_SNAPSHOT_COLLECTIONS.master)
+        .findOne({ businessDate, locationId })
+      const alreadySealed = (existingMaster as { status?: string } | null)?.status === 'final'
+
+      // Build revenue first so headline is available for worker/table scaling.
+      const revenue = await buildRevenueSection(db, buildInput)
+      const headlineExVat = revenue.totals.ex_vat
+
+      const [labor, sources, revenueHourly, revenueProducts, revenueTables, revenueWorkers, revenueByOrderTime] =
         await Promise.all([
-          buildRevenueSection(db, buildInput),
           buildLaborSection(db, buildInput),
           resolveSources(db, businessDate, locationId),
           buildRevenueHourlySection(db, buildInput),
           buildRevenueProductsSection(db, buildInput),
-          buildRevenueTablesSection(db, buildInput),
-          buildRevenueWorkersSection(db, buildInput),
+          buildRevenueTablesSection(db, buildInput, headlineExVat),
+          buildRevenueWorkersSection(db, buildInput, headlineExVat),
           buildRevenueByOrderTimeSection(db, buildInput),
         ])
       const cards = buildCards(revenue, labor)
@@ -137,26 +151,43 @@ export async function buildDailyOpsSnapshot(input: BuildSnapshotInput): Promise<
         sealedAt: sealed ? new Date() : null,
       }
 
+      // For fat Bork sections (hourly, products, tables, workers, orderTime):
+      // if this day is already sealed AND the new build produced no data
+      // (Bork slices were purged per ADR-006), skip the upsert to preserve
+      // the original data that was saved before purge.
+      const hourlyHasData = revenueHourly.hourly.some((s) => s.revenue.ex_vat > 0)
+        || (revenueHourly.orderHourly ?? []).some((s) => s.revenue.ex_vat > 0)
+      const productsHasData = revenueProducts.categories.length > 0 || revenueProducts.products.length > 0
+      const tablesHasData = revenueTables.tables.length > 0
+      const workersHasData = revenueWorkers.workers.length > 0
+      const orderTimeHasData = revenueByOrderTime.hourly.some((s) => s.revenue.ex_vat > 0)
+
+      const writeHourly = !alreadySealed || hourlyHasData
+      const writeProducts = !alreadySealed || productsHasData
+      const writeTables = !alreadySealed || tablesHasData
+      const writeWorkers = !alreadySealed || workersHasData
+      const writeOrderTime = !alreadySealed || orderTimeHasData
+
       const filter = { businessDate, locationId }
       await Promise.all([
         db.collection(DAILY_OPS_SNAPSHOT_COLLECTIONS.master).updateOne(filter, { $set: master }, { upsert: true }),
         db.collection(DAILY_OPS_SNAPSHOT_COLLECTIONS.revenueSection).updateOne(filter, { $set: revenue }, { upsert: true }),
         db.collection(DAILY_OPS_SNAPSHOT_COLLECTIONS.laborSection).updateOne(filter, { $set: labor }, { upsert: true }),
-        db
-          .collection(DAILY_OPS_SNAPSHOT_COLLECTIONS.revenueHourlySection)
-          .updateOne(filter, { $set: revenueHourly }, { upsert: true }),
-        db
-          .collection(DAILY_OPS_SNAPSHOT_COLLECTIONS.revenueProductsSection)
-          .updateOne(filter, { $set: revenueProducts }, { upsert: true }),
-        db
-          .collection(DAILY_OPS_SNAPSHOT_COLLECTIONS.revenueTablesSection)
-          .updateOne(filter, { $set: revenueTables }, { upsert: true }),
-        db
-          .collection(DAILY_OPS_SNAPSHOT_COLLECTIONS.revenueWorkersSection)
-          .updateOne(filter, { $set: revenueWorkers }, { upsert: true }),
-        db
-          .collection(DAILY_OPS_SNAPSHOT_COLLECTIONS.revenueByOrderTimeSection)
-          .updateOne(filter, { $set: revenueByOrderTime }, { upsert: true }),
+        ...(writeHourly
+          ? [db.collection(DAILY_OPS_SNAPSHOT_COLLECTIONS.revenueHourlySection).updateOne(filter, { $set: revenueHourly }, { upsert: true })]
+          : []),
+        ...(writeProducts
+          ? [db.collection(DAILY_OPS_SNAPSHOT_COLLECTIONS.revenueProductsSection).updateOne(filter, { $set: revenueProducts }, { upsert: true })]
+          : []),
+        ...(writeTables
+          ? [db.collection(DAILY_OPS_SNAPSHOT_COLLECTIONS.revenueTablesSection).updateOne(filter, { $set: revenueTables }, { upsert: true })]
+          : []),
+        ...(writeWorkers
+          ? [db.collection(DAILY_OPS_SNAPSHOT_COLLECTIONS.revenueWorkersSection).updateOne(filter, { $set: revenueWorkers }, { upsert: true })]
+          : []),
+        ...(writeOrderTime
+          ? [db.collection(DAILY_OPS_SNAPSHOT_COLLECTIONS.revenueByOrderTimeSection).updateOne(filter, { $set: revenueByOrderTime }, { upsert: true })]
+          : []),
       ])
 
       if (DEBUG) {
@@ -167,6 +198,9 @@ export async function buildDailyOpsSnapshot(input: BuildSnapshotInput): Promise<
 
       if (sealed) {
         await writeRevenueBenchmarkForLocation(db, businessDate, locationId)
+        // Pre-generate bundle cache for instant page loads
+        await preGenerateBundleForDate(db, businessDate, locationId)
+        await preGenerateBundleForDate(db, businessDate, 'all')
       }
       out.built.push({ locationId, locationName })
     } catch (e) {
@@ -188,18 +222,29 @@ export async function buildDailyOpsSnapshotRange(input: {
   endDate: string
   locationId?: string
 }): Promise<{ built: number; errors: number }> {
+  const db = await getDb()
   let built = 0
   let errors = 0
+  const locationIds: string[] = []
   let cursor = input.startDate
   while (cursor <= input.endDate) {
     const r = await buildDailyOpsSnapshot({ businessDate: cursor, locationId: input.locationId })
     built += r.built.length
     errors += r.errors.length
+    for (const { locationId } of r.built) {
+      if (!locationIds.includes(locationId)) locationIds.push(locationId)
+    }
     // increment one day
     const [y, m, d] = cursor.split('-').map(Number)
     const next = new Date(Date.UTC(y!, m! - 1, d! + 1))
     cursor = `${next.getUTCFullYear()}-${String(next.getUTCMonth() + 1).padStart(2, '0')}-${String(next.getUTCDate()).padStart(2, '0')}`
   }
+  
+  // Pre-generate bundle cache for all sealed days in range
+  if (locationIds.length > 0) {
+    await preGenerateBundlesForRange(db, input.startDate, input.endDate, [...locationIds, 'all'])
+  }
+  
   return { built, errors }
 }
 
@@ -212,6 +257,8 @@ export async function sealDailyOpsSnapshot(input: { businessDate: string; locati
       .collection(DAILY_OPS_SNAPSHOT_COLLECTIONS.master)
       .updateOne({ businessDate: input.businessDate, locationId: input.locationId }, { $set: { status: 'final', sealedAt: new Date() } })
     await runPostSealRetention(db, input.businessDate, input.locationId)
+    await preGenerateBundleForDate(db, input.businessDate, input.locationId)
+    await preGenerateBundleForDate(db, input.businessDate, 'all')
     if (DEBUG) console.info(`[snapshot:seal] ${input.businessDate} ${input.locationId} sealed`)
     return { sealed: true }
   } catch (e) {

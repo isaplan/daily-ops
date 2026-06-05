@@ -1,9 +1,9 @@
 /**
  * @registry-id: dailyOpsRevenueDrilldownHourly
  * @created: 2026-05-28T00:00:00.000Z
- * @last-modified: 2026-05-28T00:00:00.000Z
+ * @last-modified: 2026-06-05T02:45:00.000Z
  * @description: Hourly revenue/labor/profit rows for revenue drilldown
- * @last-fix: [2026-05-28] Benchmark loading moved to drilldown/hourlyBenchmarks.ts
+ * @last-fix: [2026-06-05] Redistribute sparse sealed-day hourly revenue by labor hours
  * @adr-ref: ADR-004
  *
  * @exports-to:
@@ -17,6 +17,10 @@ import type { DailyOpsMetricsContext } from '../../dailyOpsMetrics/context'
 import { VENUE_STRIP_LOCATIONS } from '../../venueStrip/constants'
 import type { BuildRevenueDrilldownInput } from './drilldownShared'
 import { benchmarkStatus } from './hourlyBenchmarks'
+import {
+  redistributeRevenueByLaborHours,
+  shouldRedistributeSparseHourlyRevenue,
+} from '../hourlyRevenueLaborShape'
 import { hourLabel, locDayKey, locHourKey, revenueScale, roundEur } from './drilldownShared'
 
 export function buildHourlyRows(
@@ -48,6 +52,38 @@ export function buildHourlyRows(
       prev.revenue += Number(slot.revenue?.ex_vat ?? 0) * scale
       prev.laborCost += input.laborByLocHour.get(locHourKey(doc.locationId, doc.businessDate, hour))?.loadedCost ?? 0
       byHourLoc.set(key, prev)
+    }
+  }
+
+  if (ctx.startDate === ctx.endDate) {
+    const revenueByHour = new Map<number, number>()
+    for (const [key, row] of byHourLoc) {
+      if (row.revenue <= 0) continue
+      const hour = Number(key.split('|')[0])
+      if (!Number.isFinite(hour)) continue
+      revenueByHour.set(hour, roundEur((revenueByHour.get(hour) ?? 0) + row.revenue))
+    }
+
+    if (shouldRedistributeSparseHourlyRevenue(ctx.startDate, revenueByHour, input.headlineRevenueByLocDay)) {
+      byHourLoc.clear()
+      const redistributed = redistributeRevenueByLaborHours(
+        ctx.startDate,
+        input.headlineRevenueByLocDay,
+        input.laborByLocHour,
+      )
+      for (const location of VENUE_STRIP_LOCATIONS) {
+        for (let hour = 0; hour < 24; hour += 1) {
+          const revenue = redistributed.byLocationHour.get(`${location.locationId}|${hour}`) ?? 0
+          if (revenue <= 0) continue
+          const key = `${hour}|${location.locationId}`
+          byHourLoc.set(key, {
+            locationName: location.locationName,
+            revenue,
+            laborCost:
+              input.laborByLocHour.get(locHourKey(location.locationId, ctx.startDate, hour))?.loadedCost ?? 0,
+          })
+        }
+      }
     }
   }
 
