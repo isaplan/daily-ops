@@ -364,7 +364,8 @@ export async function executeBorkJob (db: Db, jobType: string): Promise<BorkSync
       v2CalendarStartYmd = yesterdayYmd
       v2CalendarEndYmd = todayYmd
 
-      v2AggregationResult = await rebuildBorkSalesAggregationV2(db, yesterdayYmd, todayYmd, v2RebuildSuffix)
+      // For today (realtime): include open/unsettled tickets; for yesterday: closed/settled only
+      v2AggregationResult = await rebuildBorkSalesAggregationV2(db, yesterdayYmd, todayYmd, v2RebuildSuffix, true)
     } catch (e) {
       console.error('[borkSyncService] Aggregation error:', e)
     }

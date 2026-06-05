@@ -1,12 +1,10 @@
 /**
  * @registry-id: borkRebuildAggregationV2Service
  * @created: 2026-04-14T18:00:00.000Z
- * @last-modified: 2026-06-02T23:10:00.000Z
+ * @last-modified: 2026-06-06T00:34:00.000Z
  * @description: V2 Bork aggregates — writes bork_business_days, bork_sales_by_day, bork_sales_by_hour, bork_sales_by_table, bork_sales_by_worker, bork_sales_by_guest_account, bork_sales_by_product (+ version suffix). Every revenue rollup now emits total_revenue (inc VAT, back-compat), total_revenue_ex_vat, total_revenue_inc_vat, total_vat extracted from raw line TotalEx/TotalInc.
- * @last-fix: [2026-06-02] Order-time worker rollups credit order.UserName (not ticket closer).
- *   Prior: [2026-05-27] Enqueue daily_ops_snapshot rebuild after V2 aggregation write.
- *   Prior: [2026-05-26] Added order-time hourly aggregate beside paid-ticket hourly aggregate.
- *   Prior: [2026-05-13] Phase 0: add ex/inc/vat to every revenue rollup using extractLineRevenue helper. Single-pass design preserved; paymodes intentionally remain inc-only (tender amounts).
+ * @last-fix: [2026-06-06] Add includeOpenTickets param: for today (realtime), include open/unsettled tickets; for historical (yesterday+), skip as before.
+ *   Prior: [2026-06-02] Order-time worker rollups credit order.UserName (not ticket closer).
  *
  * @CRITICAL: Line revenue uses Lines[].TotalEx + TotalInc (live data confirmed); paymode totals use Order.Paymodes[].Total (tender amounts, no VAT split).
  *
@@ -160,7 +158,8 @@ export async function rebuildBorkSalesAggregationV2(
   db: Db,
   startDate: string,
   endDate: string,
-  collectionSuffix: string = ''
+  collectionSuffix: string = '',
+  includeOpenTickets: boolean = false
 ): Promise<RebuildBorkAggV2Result> {
   const result: RebuildBorkAggV2Result = {
     businessDays: 0,
@@ -254,7 +253,12 @@ export async function rebuildBorkSalesAggregationV2(
 
       for (const ticket of tickets) {
         if (!ticket || typeof ticket !== 'object') continue
-        if (isBorkTicketOpenUnsettled(ticket)) continue
+        
+        // Skip open/unsettled tickets UNLESS: includeOpenTickets=true
+        // Even when including open tickets, we only include those from today (endDate)
+        const isOpen = isBorkTicketOpenUnsettled(ticket)
+        if (isOpen && !includeOpenTickets) continue
+        
         const calendarHour = extractHour(ticket.Time as string)
         const borkWorkerName = (ticket as { UserName?: string }).UserName || 'Unknown'
         const userMapping =
