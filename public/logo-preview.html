@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DO teams Logo Preview</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: system-ui, sans-serif; padding: 40px; background: #e5e7eb; }
+    h1 { font-size: 18px; color: #374151; margin-bottom: 24px; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; max-width: 700px; }
+    .card { border-radius: 12px; padding: 32px; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+    .card h2 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #6b7280; }
+    .light { background: #f3f4f6; }
+    .dark { background: #111827; }
+    .checker {
+      background-image:
+        linear-gradient(45deg, #ccc 25%, transparent 25%),
+        linear-gradient(-45deg, #ccc 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, #ccc 75%),
+        linear-gradient(-45deg, transparent 75%, #ccc 75%);
+      background-size: 16px 16px;
+      background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+      background-color: #fff;
+    }
+    img { width: 180px; height: 180px; }
+    .sizes { display: flex; gap: 20px; align-items: flex-end; margin-top: 24px; }
+  </style>
+</head>
+<body>
+  <h1>DO teams — SVG Preview</h1>
+  <div class="grid">
+    <div class="card light">
+      <h2>On light gray</h2>
+      <img src="logo.svg" alt="DO teams logo">
+    </div>
+    <div class="card dark">
+      <h2>On dark</h2>
+      <img src="logo.svg" alt="DO teams logo">
+    </div>
+    <div class="card checker">
+      <h2>Transparency check</h2>
+      <img src="logo.svg" alt="DO teams logo">
+    </div>
+    <div class="card" style="background:#4a148c;">
+      <h2 style="color:#c4b5fd;">On brand purple</h2>
+      <img src="logo.svg" alt="DO teams logo">
+    </div>
+  </div>
+  <div class="sizes">
+    <img src="logo.svg" style="width:48px;height:48px" alt="">
+    <img src="logo.svg" style="width:72px;height:72px" alt="">
+    <img src="logo.svg" style="width:96px;height:96px" alt="">
+    <img src="logo.svg" style="width:128px;height:128px" alt="">
+    <img src="logo.svg" style="width:180px;height:180px" alt="">
+  </div>
+</body>
+</html>
