@@ -1,15 +1,17 @@
 /**
  * @registry-id: dailyOpsSnapshotAggregateLaborForRange
  * @created: 2026-05-13T00:00:00.000Z
- * @last-modified: 2026-05-13T00:00:00.000Z
+ * @last-modified: 2026-06-05T19:16:00.000Z
  * @description: Reads daily_ops_snapshot_section_labor across a (startDate..endDate, locationId?)
  *   window and rolls up totals + per-team breakdown (Keuken / Bediening / Other) for both wage and
  *   loaded cost methodologies. Source of truth for the "Total Labor Cost" dashboard card
  *   improvements requested 2026-05-12.
- * @last-fix: [2026-05-13] Initial.
+ * @last-fix: [2026-06-05] For today: read live eitje_time_registration_aggregation (real-time labor). For yesterday+: read snapshot (sealed).
+ *   Prior: [2026-05-13] Initial.
  *
  * @architecture:
- *   - Reads only daily_ops_snapshot_section_labor (already denormalized; no $lookup needed).
+ *   - **Today (startDate === endDate === today):** Reads eitje_time_registration_aggregation (live, updates hourly)
+ *   - **Yesterday & older:** Reads daily_ops_snapshot_section_labor (sealed snapshot)
  *   - Team bucketing: case-insensitive name match → keuken / bediening / other.
  *   - Coverage: reports daysExpected vs daysFound so caller can decide partial vs complete UX.
  *
@@ -76,15 +78,28 @@ export async function aggregateLaborForRange(
   db: Db,
   ctx: { startDate: string; endDate: string; locationId?: string }
 ): Promise<LaborBreakdown> {
-  const filter: Record<string, unknown> = {
-    businessDate: { $gte: ctx.startDate, $lte: ctx.endDate },
-  }
+  const today = new Date().toISOString().slice(0, 10)
+  
+  // Special case: today's data comes from live eitje_time_registration_aggregation (updates hourly)
+  // Yesterday & older: sealed snapshot data (no more updates)
+  const useLiveEitje = ctx.startDate === ctx.endDate && ctx.startDate === today
+
+  const collectionName = useLiveEitje ? 'eitje_time_registration_aggregation' : 'daily_ops_snapshot_section_labor'
+  
+  const filter: Record<string, unknown> = useLiveEitje
+    ? { period: { $gte: ctx.startDate, $lte: ctx.endDate } }
+    : { businessDate: { $gte: ctx.startDate, $lte: ctx.endDate } }
+    
   if (ctx.locationId) filter.locationId = ctx.locationId
 
+  const project = useLiveEitje
+    ? { period: 1, locationId: 1, total_hours: 1, total_wage_cost: 1, total_loaded_cost: 1, teams: 1 }
+    : { businessDate: 1, locationId: 1, totals: 1, teams: 1 }
+
   const docs = await db
-    .collection('daily_ops_snapshot_section_labor')
+    .collection(collectionName)
     .find(filter)
-    .project({ businessDate: 1, locationId: 1, totals: 1, teams: 1 })
+    .project(project)
     .toArray()
 
   const acc: Record<LaborBreakdownTeamKey, { wages: number; loaded: number; hours: number }> = {
@@ -99,9 +114,20 @@ export async function aggregateLaborForRange(
 
   for (const d of docs) {
     locsFound.add(String(d.locationId))
-    totalWages += Number(d.totals?.wage_cost ?? 0)
-    totalLoaded += Number(d.totals?.loaded_cost ?? 0)
-    totalHours += Number(d.totals?.hours ?? 0)
+    
+    // Handle both snapshot and live eitje schemas
+    if (useLiveEitje) {
+      // eitje_time_registration_aggregation: total_hours, total_wage_cost, total_loaded_cost
+      totalWages += Number(d.total_wage_cost ?? 0)
+      totalLoaded += Number(d.total_loaded_cost ?? 0)
+      totalHours += Number(d.total_hours ?? 0)
+    } else {
+      // daily_ops_snapshot_section_labor: totals.wage_cost, totals.loaded_cost, totals.hours
+      totalWages += Number(d.totals?.wage_cost ?? 0)
+      totalLoaded += Number(d.totals?.loaded_cost ?? 0)
+      totalHours += Number(d.totals?.hours ?? 0)
+    }
+    
     const teams = Array.isArray(d.teams) ? d.teams : []
     for (const t of teams) {
       const key = bucketTeam(t.teamName ?? '')
@@ -116,7 +142,7 @@ export async function aggregateLaborForRange(
 
   if (DEBUG) {
     console.info(
-      `[snapshot:labor-agg] ${ctx.startDate}..${ctx.endDate} loc=${ctx.locationId ?? 'all'} | docs=${docs.length} wages=${totalWages.toFixed(2)} loaded=${totalLoaded.toFixed(2)} hours=${totalHours.toFixed(2)}`
+      `[snapshot:labor-agg] ${ctx.startDate}..${ctx.endDate} (${useLiveEitje ? 'live' : 'snapshot'}) loc=${ctx.locationId ?? 'all'} | docs=${docs.length} wages=${totalWages.toFixed(2)} loaded=${totalLoaded.toFixed(2)} hours=${totalHours.toFixed(2)}`
     )
   }
 
