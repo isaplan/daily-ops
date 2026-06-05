@@ -1,6 +1,6 @@
 <template>
-  <div class="max-w-6xl mx-auto space-y-8">
-    <header class="flex w-full items-center justify-between gap-4">
+  <div class="mx-auto flex w-full min-w-0 max-w-6xl flex-col gap-6">
+    <header class="flex w-full shrink-0 items-center justify-between gap-4">
       <h1 class="text-3xl font-bold text-gray-900">Bug alerts</h1>
       <div class="flex shrink-0 items-center gap-1">
         <UTooltip text="Active notification rules">
@@ -33,6 +33,7 @@
     <UAlert v-else-if="error" color="error" title="Scan failed" :description="error.message" />
 
     <template v-else-if="report">
+      <div class="flex shrink-0 flex-col gap-4">
       <div class="flex items-center gap-2">
         <span class="text-xs font-semibold uppercase text-gray-500">View</span>
         <UButton
@@ -100,7 +101,7 @@
 
       <nav
         aria-label="Filter by area"
-        class="inline-flex w-max max-w-full flex-wrap justify-start gap-1 rounded-md border-2 border-gray-900 bg-white p-1"
+        class="scrollbar-hide inline-flex w-full max-w-full min-w-0 flex-nowrap gap-1 overflow-x-auto rounded-md border-2 border-gray-900 bg-white p-1 sm:w-max sm:flex-wrap"
       >
         <button
           v-for="cat in categoryFilters"
@@ -113,6 +114,7 @@
           {{ cat.label }} ({{ cat.count }})
         </button>
       </nav>
+      </div>
 
       <UAlert
         v-if="displayItems.length === 0"
@@ -121,21 +123,27 @@
         description="Try another category or widen the scan window."
       />
 
-      <div v-else class="rounded-lg border border-gray-200 bg-white shadow-sm overflow-hidden">
-        <table class="min-w-full text-base">
-          <thead class="bg-gray-50 text-left text-sm font-semibold uppercase text-gray-500">
-            <tr>
-              <th class="px-4 py-3">Severity</th>
-              <th class="px-4 py-3">Area</th>
-              <th class="px-4 py-3">{{ viewMode === 'grouped' ? 'Date range' : 'Date' }}</th>
-              <th class="px-4 py-3">Venue</th>
-              <th v-if="viewMode === 'grouped'" class="px-4 py-3">Rows</th>
-              <th class="px-4 py-3">Status</th>
-              <th class="px-4 py-3">Issue</th>
-              <th class="px-4 py-3 text-right">Action</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-gray-100">
+      <div
+        v-else
+        class="min-h-0 w-full min-w-0 max-w-full overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm"
+      >
+        <div
+          class="max-h-[calc(100dvh-17.5rem)] min-h-[12rem] w-full max-w-full overflow-auto overscroll-contain sm:max-h-[calc(100dvh-16rem)] lg:max-h-[calc(100dvh-15rem)]"
+        >
+          <table class="w-full min-w-[48rem] text-base md:min-w-[56rem]">
+            <thead class="border-b border-gray-200 bg-gray-50 text-left text-sm font-semibold uppercase text-gray-500">
+              <tr>
+                <th class="sticky top-0 z-20 bg-gray-50 px-4 py-3 whitespace-nowrap shadow-[0_1px_0_0_rgb(229,231,235)]">Severity</th>
+                <th class="sticky top-0 z-20 bg-gray-50 px-4 py-3 whitespace-nowrap shadow-[0_1px_0_0_rgb(229,231,235)]">Area</th>
+                <th class="sticky top-0 z-20 bg-gray-50 px-4 py-3 whitespace-nowrap shadow-[0_1px_0_0_rgb(229,231,235)]">{{ viewMode === 'grouped' ? 'Date range' : 'Date' }}</th>
+                <th class="sticky top-0 z-20 bg-gray-50 px-4 py-3 whitespace-nowrap shadow-[0_1px_0_0_rgb(229,231,235)]">Venue</th>
+                <th v-if="viewMode === 'grouped'" class="sticky top-0 z-20 bg-gray-50 px-4 py-3 whitespace-nowrap shadow-[0_1px_0_0_rgb(229,231,235)]">Rows</th>
+                <th class="sticky top-0 z-20 bg-gray-50 px-4 py-3 whitespace-nowrap shadow-[0_1px_0_0_rgb(229,231,235)]">Status</th>
+                <th class="sticky top-0 z-20 bg-gray-50 px-4 py-3 whitespace-nowrap shadow-[0_1px_0_0_rgb(229,231,235)]">Issue</th>
+                <th class="sticky top-0 z-20 bg-gray-50 px-4 py-3 text-right whitespace-nowrap shadow-[0_1px_0_0_rgb(229,231,235)]">Action</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100 bg-white">
             <tr v-for="entry in displayItems" :key="entry.id" class="hover:bg-gray-50">
               <td class="px-4 py-3 align-top">
                 <UBadge :color="severityColor(entry.severity)" variant="subtle" size="sm">
@@ -196,6 +204,7 @@
             </tr>
           </tbody>
         </table>
+        </div>
       </div>
     </template>
   </div>

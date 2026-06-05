@@ -39,10 +39,11 @@
       />
     </UButton>
     <main class="flex min-w-0 flex-1 flex-col overflow-y-auto overflow-x-hidden bg-[hsl(45,15%,95%)] shadow-[0_0_15px_rgba(0,0,0,0.06)] transition-[width] duration-200 ease-linear">
-      <div class="flex min-h-0 w-full min-w-0 flex-1 flex-col px-10 py-8">
+      <div class="flex min-h-0 w-full min-w-0 flex-1 flex-col px-4 pt-14 pb-6 sm:px-6 sm:pt-14 md:px-10 md:pt-8 md:pb-8">
         <slot />
       </div>
     </main>
+    <DailyOpsPwaRefreshFab />
   </div>
 </template>
 

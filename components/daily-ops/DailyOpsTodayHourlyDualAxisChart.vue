@@ -1,52 +1,69 @@
 <template>
   <div class="rounded border border-gray-200 bg-white p-3">
-    <div class="mb-3 flex flex-wrap items-center justify-between gap-2 text-[10px] text-gray-600">
-      <span class="font-semibold uppercase tracking-wide text-gray-500">
-        Hourly · {{ basisLabel }} (calendar hour)
-      </span>
-      <div class="flex flex-wrap gap-x-4 gap-y-1">
-        <span
-          v-if="showRevenueLegend"
-          class="inline-flex items-center gap-1"
-        >
-          <span class="h-0.5 w-4 bg-gray-900" /> Revenue (left)
-        </span>
-        <span
-          v-if="showProductivityLegend"
-          class="inline-flex items-center gap-1"
-        >
-          <span class="h-0.5 w-4 border-t border-dashed border-gray-900" /> €/labor h (right)
-        </span>
-      </div>
-    </div>
-    <div ref="chartWrapEl" class="min-w-0">
-      <svg
-        v-if="activeHours.length > 0 && chartSeries.length > 0"
-        ref="svgRef"
-        viewBox="0 0 760 300"
-        role="img"
-        aria-label="Hourly revenue and labor productivity by venue"
-        class="block aspect-[760/300] w-full max-h-72 min-h-44"
-        preserveAspectRatio="xMidYMid meet"
-      />
-    </div>
-    <div
-      v-if="legendItems.length"
-      class="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-gray-700"
+    <DailyOpsChartExpandShell
+      v-if="activeHours.length > 0 && chartSeries.length > 0"
+      :title="`Hourly · ${basisLabel} (calendar hour)`"
+      expand-aria-label="Expand hourly revenue and productivity chart"
+      :default-width="760"
+      :default-height="300"
     >
-      <span
-        v-for="item in legendItems"
-        :key="item.id"
-        class="inline-flex items-center gap-1.5"
-      >
-        <span
-          class="inline-block h-0.5 w-4"
-          :class="item.dashed ? 'border-t border-dashed' : ''"
-          :style="item.dashed ? { borderColor: item.color } : { backgroundColor: item.color }"
+      <template #header>
+        <div class="mb-3 flex flex-wrap items-center justify-between gap-2 text-[10px] text-gray-600">
+          <span class="font-semibold uppercase tracking-wide text-gray-500">
+            Hourly · {{ basisLabel }} (calendar hour)
+          </span>
+          <div class="flex flex-wrap gap-x-4 gap-y-1">
+            <span
+              v-if="showRevenueLegend"
+              class="inline-flex items-center gap-1"
+            >
+              <span class="h-0.5 w-4 bg-gray-900" /> Revenue (left)
+            </span>
+            <span
+              v-if="showProductivityLegend"
+              class="inline-flex items-center gap-1"
+            >
+              <span class="h-0.5 w-4 border-t border-dashed border-gray-900" /> €/labor h (right)
+            </span>
+          </div>
+        </div>
+      </template>
+
+      <template #default="{ width, expanded }">
+        <svg
+          ref="svgRef"
+          viewBox="0 0 760 300"
+          role="img"
+          aria-label="Hourly revenue and labor productivity by venue"
+          class="block aspect-[760/300] w-full max-h-72 min-h-44"
+          :class="expanded ? 'max-h-none min-h-[16rem] h-full' : ''"
+          preserveAspectRatio="xMidYMid meet"
+          :data-expanded="expanded ? 'true' : 'false'"
+          :data-width="width"
         />
-        {{ item.label }}
-      </span>
-    </div>
+      </template>
+
+      <template #below>
+        <div
+          v-if="legendItems.length"
+          class="flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-gray-700"
+        >
+          <span
+            v-for="item in legendItems"
+            :key="item.id"
+            class="inline-flex items-center gap-1.5"
+          >
+            <span
+              class="inline-block h-0.5 w-4"
+              :class="item.dashed ? 'border-t border-dashed' : ''"
+              :style="item.dashed ? { borderColor: item.color } : { backgroundColor: item.color }"
+            />
+            {{ item.label }}
+          </span>
+        </div>
+      </template>
+    </DailyOpsChartExpandShell>
+
     <p
       v-if="activeHours.length === 0"
       class="py-8 text-center text-sm text-gray-500"
@@ -81,25 +98,18 @@ type ChartSeries = {
 }
 
 const svgRef = ref<SVGSVGElement | null>(null)
-const chartWrapEl = ref<HTMLElement | null>(null)
 const chartWidth = ref(760)
 
-let chartResizeObserver: ResizeObserver | undefined
-
-function measureChartWidth (): void {
-  chartWidth.value = chartWrapEl.value?.clientWidth ?? 760
+function readChartWidthFromDom (): void {
+  const el = svgRef.value
+  if (!el) return
+  const attr = el.getAttribute('data-width')
+  if (attr) {
+    chartWidth.value = Number(attr) || 760
+    return
+  }
+  chartWidth.value = el.parentElement?.clientWidth ?? 760
 }
-
-onMounted(() => {
-  measureChartWidth()
-  if (typeof ResizeObserver === 'undefined' || !chartWrapEl.value) return
-  chartResizeObserver = new ResizeObserver(measureChartWidth)
-  chartResizeObserver.observe(chartWrapEl.value)
-})
-
-onUnmounted(() => {
-  chartResizeObserver?.disconnect()
-})
 
 const margin = { top: 12, right: 52, bottom: 48, left: 52 }
 const width = 760
@@ -231,6 +241,8 @@ function formatRightTick(value: d3.NumberValue): string {
 }
 
 function axisFontSize (): number {
+  const expanded = svgRef.value?.getAttribute('data-expanded') === 'true'
+  if (expanded) return chartWidth.value < 640 ? 16 : 15
   return chartWidth.value < 640 ? 14 : 13
 }
 
@@ -328,8 +340,25 @@ function drawChart() {
   }
 }
 
-watch([chartSeries, activeHours, () => props.metricFilter, chartWidth], async () => {
+watch([chartSeries, activeHours, () => props.metricFilter, svgRef], async () => {
   await nextTick()
+  readChartWidthFromDom()
   drawChart()
 }, { deep: true, immediate: true })
+
+let svgResizeObserver: ResizeObserver | undefined
+
+watch(svgRef, (el: SVGSVGElement | null) => {
+  svgResizeObserver?.disconnect()
+  if (!el?.parentElement || typeof ResizeObserver === 'undefined') return
+  svgResizeObserver = new ResizeObserver(() => {
+    readChartWidthFromDom()
+    drawChart()
+  })
+  svgResizeObserver.observe(el.parentElement)
+})
+
+onUnmounted(() => {
+  svgResizeObserver?.disconnect()
+})
 </script>

@@ -17,7 +17,21 @@
         <h2 class="text-sm font-semibold">Omzet ({{ timeseries.granularity }})</h2>
         <DailyOpsRevenueViewToggle :mode="tsMode" @update:mode="tsMode = $event" />
       </div>
-      <ChartsD3LineChart v-if="tsMode === 'chart'" :series="tsSeries" :width="760" :height="300" />
+      <DailyOpsChartExpandShell
+        v-if="tsMode === 'chart'"
+        :title="`Omzet (${timeseries.granularity})`"
+        expand-aria-label="Expand revenue timeseries chart"
+        :default-width="760"
+        :default-height="300"
+      >
+        <template #default="{ width, height }">
+          <ChartsD3LineChart
+            :series="tsSeries"
+            :width="width"
+            :height="Math.max(260, Math.round(height))"
+          />
+        </template>
+      </DailyOpsChartExpandShell>
       <table v-else class="min-w-full text-sm">
         <thead>
           <tr class="text-left text-xs text-gray-500">
@@ -68,12 +82,21 @@
           </tr>
         </tbody>
       </table>
-      <ChartsD3LineChart
+      <DailyOpsChartExpandShell
         v-else-if="weekdayRows?.length"
-        :series="wdSeries"
-        :width="640"
-        :height="240"
-      />
+        title="Omzet per weekdag"
+        expand-aria-label="Expand weekday revenue chart"
+        :default-width="640"
+        :default-height="240"
+      >
+        <template #default="{ width, height }">
+          <ChartsD3LineChart
+            :series="wdSeries"
+            :width="width"
+            :height="Math.max(220, Math.round(height))"
+          />
+        </template>
+      </DailyOpsChartExpandShell>
     </div>
   </section>
 </template>

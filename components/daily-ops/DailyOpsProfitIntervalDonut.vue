@@ -67,7 +67,7 @@ const props = withDefaults(
     slices: ProfitIntervalSlice[]
     size?: number
   }>(),
-  { size: 200, totalRevenue: 0 }
+  { size: 200, totalRevenue: 0 },
 )
 
 const { formatEur } = useDashboardEurFormat()
@@ -92,10 +92,10 @@ const chartBoxStyle = computed(() => ({
 }))
 
 const chartAriaLabel = computed(
-  () => `${props.title}: profit ${formatEur(props.totalProfit)} by time of day`
+  () => `${props.title}: profit ${formatEur(props.totalProfit)} by time of day`,
 )
 
-function profitTextColor (profit: number): string {
+function profitTextColor(profit: number): string {
   if (profit > 0) return DAILY_OPS_PROFIT_STATUS_RING.positive
   if (profit < 0) return DAILY_OPS_PROFIT_STATUS_RING.negative
   return '#6b7280'
@@ -118,10 +118,10 @@ const legendRows = computed(() => {
 })
 
 const chartSlices = computed(() =>
-  props.slices.filter((s) => Math.abs(s.profit) > 0.005 || s.hasData)
+  props.slices.filter((s) => Math.abs(s.profit) > 0.005 || s.hasData),
 )
 
-function drawChart (): void {
+function drawChart(): void {
   const el = svgRef.value
   if (!el) return
 
@@ -209,7 +209,7 @@ function drawChart (): void {
   drawCenterLabel(g)
 }
 
-function drawCenterLabel (g: d3.Selection<SVGGElement, unknown, null, undefined>): void {
+function drawCenterLabel(g: d3.Selection<SVGGElement, unknown, null, undefined>): void {
   const sign = props.totalProfit >= 0 ? '' : '−'
   const absVal = Math.abs(props.totalProfit)
   const main =
@@ -239,6 +239,6 @@ onMounted(() => drawChart())
 watch(
   () => [props.slices, props.totalProfit, props.totalRevenue, props.size, statusColor.value],
   () => drawChart(),
-  { deep: true }
+  { deep: true },
 )
 </script>

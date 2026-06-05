@@ -1,9 +1,9 @@
 /**
  * @registry-id: dailyOpsSnapshotBuildProfitByInterval
  * @created: 2026-05-25T00:00:00.000Z
- * @last-modified: 2026-06-02T00:00:00.000Z
+ * @last-modified: 2026-06-05T00:00:00.000Z
  * @description: Profit-by-interval cells from snapshot hourly revenue (no bork_* / eitje on GET).
- * @last-fix: [2026-06-02] Whole-euro rounding for interval P&L + drilldown currency fields
+ * @last-fix: [2026-06-05] Allocate headline revenue by labor hours when hourly revenue missing
  * @adr-ref: ADR-004
  *
  * @exports-to:
@@ -30,7 +30,9 @@ import {
   DAILY_OPS_PROFIT_INTERVALS,
 } from '~/utils/dailyOpsProfitIntervals'
 import { snapshotLocDayKey } from './dashboardBundle/shared'
+import type { SnapshotLaborByBusinessDateHourBucket } from './dashboardBundle/laborHourMaps'
 import { roundDashboardEur } from '~/utils/dashboardEurFormat'
+import { amsterdamOpenRegisterBusinessDateYmd } from '~/utils/dailyOpsBusinessDate'
 
 const INTERVAL_MATCHERS: Record<DailyOpsProfitIntervalKey, (hour: number) => boolean> = {
   lunch: (h) => h >= 8 && h < 16,
@@ -86,9 +88,59 @@ function rawHeadlineRevenue(
   }, 0)
 }
 
+function intervalLaborHours(
+  laborByLocHour: Map<string, SnapshotLaborByBusinessDateHourBucket>,
+  date: string,
+  locationId: string | null,
+  intervalKey: DailyOpsProfitIntervalKey,
+): number {
+  const def = INTERVAL_MATCHERS[intervalKey]
+  let total = 0
+  for (const [key, bucket] of laborByLocHour) {
+    const parts = key.split('|')
+    if (parts.length < 3) continue
+    const loc = parts[0] ?? ''
+    const d = parts[1] ?? ''
+    const h = Number(parts[2])
+    if (d !== date || !Number.isFinite(h) || !def(h)) continue
+    if (locationId != null && loc !== locationId) continue
+    if (locationId == null && loc && !VENUE_STRIP_LOCATIONS.some((v) => v.locationId === loc)) continue
+    total += bucket.hours
+  }
+  return total
+}
+
+function dayLaborHoursForLocation(
+  laborByLocHour: Map<string, SnapshotLaborByBusinessDateHourBucket>,
+  date: string,
+  locationId: string | null,
+): number {
+  return DAILY_OPS_PROFIT_INTERVALS.reduce(
+    (sum, interval) => sum + intervalLaborHours(laborByLocHour, date, locationId, interval.key),
+    0,
+  )
+}
+
+function dayPnlFromHeadline(
+  dayRevenue: number,
+  dayLoadedLabor: number,
+  foodShare: number,
+  profitDefaults: ProfitHourDefaults,
+): { cogs: number; fixed: number; profit: number } {
+  const foodRev = dayRevenue * foodShare
+  const bevRev = dayRevenue - foodRev
+  const cogs = roundDashboardEur(
+    foodRev * profitDefaults.foodCogsPct + bevRev * profitDefaults.beverageCogsPct,
+  )
+  const fixed = roundDashboardEur(dayRevenue * profitDefaults.fixedOverheadPct)
+  const profit = roundDashboardEur(dayRevenue - dayLoadedLabor - cogs - fixed)
+  return { cogs, fixed, profit }
+}
+
 function computeCell(
   hourRows: { _id: { d: string; h: number; loc?: string }; revenue: number }[],
   laborByLocDay: Map<string, LaborLocDay>,
+  laborByLocHour: Map<string, SnapshotLaborByBusinessDateHourBucket>,
   headlineRevenueByLocDay: Map<string, number> | undefined,
   foodShare: number,
   date: string,
@@ -112,8 +164,16 @@ function computeCell(
 
   const rawTotal = rawHeadlineRevenue(hourRows, date, locationId)
   const targetTotal = targetHeadlineRevenue(headlineRevenueByLocDay, date, locationId)
+  let usedLaborFallback = false
   if (targetTotal != null && targetTotal > 0 && rawTotal > 0) {
     revenue *= targetTotal / rawTotal
+  } else if (revenue <= 0 && targetTotal != null && targetTotal > 0 && rawTotal <= 0) {
+    const dayHours = dayLaborHoursForLocation(laborByLocHour, date, locationId)
+    const intervalHours = intervalLaborHours(laborByLocHour, date, locationId, intervalKey)
+    if (dayHours > 0 && intervalHours > 0) {
+      revenue = targetTotal * (intervalHours / dayHours)
+      usedLaborFallback = true
+    }
   }
 
   const dayLoadedLabor = roundDashboardEur(dayLoadedLaborForLocation(laborByLocDay, date, locationId))
@@ -123,6 +183,29 @@ function computeCell(
       : rawTotal > 0
         ? rawTotal
         : 0
+
+  const isSealedPastDay = date < amsterdamOpenRegisterBusinessDateYmd()
+
+  if (isSealedPastDay && dayRevenue > 0) {
+    const dayHours = dayLaborHoursForLocation(laborByLocHour, date, locationId)
+    const intervalHours = intervalLaborHours(laborByLocHour, date, locationId, intervalKey)
+    const share = dayHours > 0 ? intervalHours / dayHours : 0
+    const dayPnl = dayPnlFromHeadline(dayRevenue, dayLoadedLabor, foodShare, profitDefaults)
+    return {
+      date,
+      locationId,
+      locationName,
+      intervalKey,
+      intervalLabel,
+      revenue: roundDashboardEur(dayRevenue * share),
+      laborCost: roundDashboardEur(dayLoadedLabor * share),
+      cogsCost: roundDashboardEur(dayPnl.cogs * share),
+      fixedCost: roundDashboardEur(dayPnl.fixed * share),
+      profit: roundDashboardEur(dayPnl.profit * share),
+      dayLoadedLabor,
+      chartColor: DAILY_OPS_PROFIT_INTERVAL_CHART_COLORS[intervalKey],
+    }
+  }
 
   const laborCost =
     dayRevenue > 0 && dayLoadedLabor > 0 ? roundDashboardEur(dayLoadedLabor * (revenue / dayRevenue)) : 0
@@ -158,6 +241,7 @@ export async function buildProfitByIntervalFromSnapshotHourly(
   laborByLocDay: Map<string, LaborLocDay>,
   headlineRevenueByLocDay?: Map<string, number>,
   pnlAssumptions?: DailyOpsSimplePnLAssumptions,
+  laborByLocHour: Map<string, SnapshotLaborByBusinessDateHourBucket> = new Map(),
 ): Promise<DailyOpsProfitByIntervalDto> {
   const profitDefaults = profitHourDefaultsFromPnlAssumptions(pnlAssumptions)
   const catTotal = categoryTotals.food + categoryTotals.drinks
@@ -189,6 +273,7 @@ export async function buildProfitByIntervalFromSnapshotHourly(
           computeCell(
             hourRows,
             laborByLocDay,
+            laborByLocHour,
             headlineRevenueByLocDay,
             foodShare,
             date,

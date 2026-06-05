@@ -1,9 +1,9 @@
 /**
  * @registry-id: dailyOpsSnapshotBuildRevenueTablesSection
  * @created: 2026-05-20T00:00:00.000Z
- * @last-modified: 2026-06-02T00:00:00.000Z
+ * @last-modified: 2026-06-05T12:00:00.000Z
  * @description: Per-table revenue snapshot from bork_sales_by_table (aggregated per table per day)
- * @last-fix: [2026-06-02] Bork collection suffix fallback (_test env vs _v2 data)
+ * @last-fix: [2026-06-05] Scale table revenues proportionally to Inbox headline when provided
  *
  * @exports-to:
  * ✓ server/services/dailyOpsSnapshotService.ts
@@ -29,6 +29,7 @@ function docRevenueEx(doc: Record<string, unknown>): number {
 export async function buildRevenueTablesSection(
   db: Db,
   input: BuildRevenueInput,
+  headlineExVat?: number,
 ): Promise<DailyOpsSnapshotRevenueTablesSection> {
   const { businessDate, locationId, locationName } = input
   const rows = await fetchBorkTableDayRows(db, businessDate, locationId)
@@ -52,7 +53,7 @@ export async function buildRevenueTablesSection(
     byTable.set(tableNum, cur)
   }
 
-  const tables = Array.from(byTable.entries())
+  const rawTables = Array.from(byTable.entries())
     .map(([tableNum, v]) => ({
       tableNum,
       locationSpace: v.locationSpace,
@@ -60,6 +61,16 @@ export async function buildRevenueTablesSection(
       quantity: v.quantity,
     }))
     .sort((a, b) => b.revenue_ex_vat - a.revenue_ex_vat)
+
+  const borkTotal = rawTables.reduce((sum, t) => sum + t.revenue_ex_vat, 0)
+  const scale =
+    headlineExVat && headlineExVat > 0 && borkTotal > 0 && Math.abs(headlineExVat / borkTotal - 1) >= 0.001
+      ? headlineExVat / borkTotal
+      : 1
+
+  const tables = scale === 1
+    ? rawTables
+    : rawTables.map((t) => ({ ...t, revenue_ex_vat: Math.round(t.revenue_ex_vat * scale * 100) / 100 }))
 
   return {
     schema_version: 1,
