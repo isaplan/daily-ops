@@ -14,7 +14,10 @@ import type {
 } from '~/types/daily-ops-snapshot'
 import { proportionalFoodBeverageToHeadline, rollupFoodBeverageFromCategories } from '../borkFoodBeverageSplit'
 import { bucketTeamFromName } from '../dailyOpsTeamBucket'
-import { headlineExVatFromSnapshotSection } from '../dailyOpsSnapshot/snapshotHeadlineRevenue'
+import {
+  headlineExVatFromSnapshotSection,
+  headlineIncVatFromSnapshotSection,
+} from '../dailyOpsSnapshot/snapshotHeadlineRevenue'
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100
@@ -65,11 +68,27 @@ export function contractsByTeamFromSnapshot(
 export function revenueFromSnapshotSections(
   rev: DailyOpsSnapshotRevenueSection | null,
   products: DailyOpsSnapshotRevenueProductsSection | null,
-): { totalRevenue: number; food: number; beverage: number } {
+): {
+  totalRevenue: number
+  food: number
+  beverage: number
+  totalIncVat: number
+  foodIncVat: number
+  beverageIncVat: number
+} {
   const totalRevenue = round2(headlineExVatFromSnapshotSection(rev))
+  const totalIncVat = round2(headlineIncVatFromSnapshotSection(rev))
   const split = rollupFoodBeverageFromCategories(
     (products?.categories ?? []).map((c) => ({ name: c.name, revenue_ex_vat: c.revenue_ex_vat })),
   )
   const scaled = proportionalFoodBeverageToHeadline(totalRevenue, split.food, split.beverage)
-  return { totalRevenue, food: scaled.food, beverage: scaled.beverage }
+  const scaledInc = proportionalFoodBeverageToHeadline(totalIncVat, split.food, split.beverage)
+  return {
+    totalRevenue,
+    food: scaled.food,
+    beverage: scaled.beverage,
+    totalIncVat,
+    foodIncVat: scaledInc.food,
+    beverageIncVat: scaledInc.beverage,
+  }
 }

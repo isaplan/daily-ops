@@ -62,7 +62,8 @@ export async function buildVenueStripCardFromSnapshots(
   const snapLabor = batch.laborByLoc.get(venue.locationId) ?? null
   const snapProducts = batch.productsByLoc.get(venue.locationId) ?? null
 
-  const { totalRevenue, food, beverage } = revenueFromSnapshotSections(snapRev, snapProducts)
+  const { totalRevenue, food, beverage, totalIncVat, foodIncVat, beverageIncVat } =
+    revenueFromSnapshotSections(snapRev, snapProducts)
 
   const [laborBundle, contractsByTeam] = await Promise.all([
     resolveVenueStripLabor(db, snapLabor),
@@ -72,18 +73,16 @@ export async function buildVenueStripCardFromSnapshots(
   const laborWithPct = enrichLaborWithPct(laborBundle.labor, totalRevenue)
   const locationName = snapLabor?.locationName ?? snapRev?.locationName ?? venue.locationName
 
-  const VAT_RATE = 1.21 // Netherlands VAT rate
-  
   return {
     locationId: venue.locationId,
     locationName,
-    revenue: { 
-      total: totalRevenue, 
-      food, 
+    revenue: {
+      total: totalRevenue,
+      food,
       beverage,
-      totalIncVat: totalRevenue * VAT_RATE,
-      foodIncVat: food * VAT_RATE,
-      beverageIncVat: beverage * VAT_RATE,
+      totalIncVat,
+      foodIncVat,
+      beverageIncVat,
     },
     labor: laborWithPct,
     workers: laborBundle.workers,
