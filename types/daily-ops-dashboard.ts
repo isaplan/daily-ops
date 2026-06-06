@@ -375,6 +375,9 @@ export type VenueStripCardDto = {
     total: number
     food: number
     beverage: number
+    totalIncVat: number
+    foodIncVat: number
+    beverageIncVat: number
   }
   labor: {
     /** All shift types and teams (Ziek, Management, Afwas, …). */

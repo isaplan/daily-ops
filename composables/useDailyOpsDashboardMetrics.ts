@@ -2,7 +2,7 @@
  * @created: 2026-05-18T00:00:00.000Z
  * @last-modified: 2026-06-06T17:15:00.000Z
  * @description: Dashboard metrics via single snapshot bundle (ADR-004). One HTTP round-trip; progressive UI gates on summary only.
- * @last-fix: [2026-06-06] CRITICAL FIX: Invalidate cache every 5 min for 'today' to show fresh revenue data after cron runs
+ * @last-fix: [2026-06-06] Smart cache invalidation: refresh only after cron runs (01,08,15,18-23h + Fri/Sat 02h), then cache for 1h
  *   Prior: [2026-05-25] Replaced 3 parallel live-agg endpoints with /metrics/bundle snapshot read.
  * @adr-ref: ADR-004
  *
@@ -40,11 +40,23 @@ type DashboardBundleResponse = {
 const metricsKey = (q: Record<string, string | undefined>): string => {
   const base = `daily-ops-bundle-v2-${q.period ?? 'today'}-${q.location ?? 'all'}-${q.anchor ?? ''}`
   
-  // For 'today', invalidate cache every 5 minutes to ensure fresh data
+  // For 'today', invalidate cache based on cron schedule
   if ((q.period ?? 'today') === 'today') {
     const now = new Date()
-    const cacheWindow = Math.floor(now.getTime() / (5 * 60 * 1000)) // 5-minute windows
-    return `${base}-${cacheWindow}`
+    const hour = now.getHours()
+    
+    // Cache until next expected cron run: 01,08,15,18,19,20,21,22,23 + Fri/Sat 02:00
+    const cronHours = [1, 8, 15, 18, 19, 20, 21, 22, 23]
+    const isFriSat = now.getDay() === 5 || now.getDay() === 6 // Friday=5, Saturday=6
+    if (isFriSat) cronHours.push(2)
+    
+    // Find next cron hour (or tomorrow's first cron)
+    const nextCronHour = cronHours.find(h => h > hour) || (cronHours[0] + 24)
+    
+    // Cache window: current hour if cron expected, otherwise until next cron
+    const cacheWindow = cronHours.includes(hour) ? `${hour}` : `until-${nextCronHour}`
+    
+    return `${base}-${now.toISOString().slice(0, 10)}-${cacheWindow}`
   }
   
   return base

@@ -72,15 +72,24 @@
             <dl class="space-y-1">
               <div class="flex justify-between gap-2">
                 <dt>Total</dt>
-                <dd class="tabular-nums font-semibold text-gray-900">{{ formatEurWhole(venue.revenue.total) }}</dd>
+                <dd class="tabular-nums font-semibold text-gray-900">
+                  {{ formatEurWhole(venue.revenue.total) }}
+                  <span class="ml-1 font-normal text-gray-400">({{ formatEurWhole(venue.revenue.totalIncVat) }})</span>
+                </dd>
               </div>
               <div class="flex justify-between gap-2">
                 <dt>Food</dt>
-                <dd class="tabular-nums">{{ formatEurWhole(venue.revenue.food) }}</dd>
+                <dd class="tabular-nums">
+                  {{ formatEurWhole(venue.revenue.food) }}
+                  <span class="ml-1 font-normal text-gray-400">({{ formatEurWhole(venue.revenue.foodIncVat) }})</span>
+                </dd>
               </div>
               <div class="flex justify-between gap-2">
                 <dt>Beverage</dt>
-                <dd class="tabular-nums">{{ formatEurWhole(venue.revenue.beverage) }}</dd>
+                <dd class="tabular-nums">
+                  {{ formatEurWhole(venue.revenue.beverage) }}
+                  <span class="ml-1 font-normal text-gray-400">({{ formatEurWhole(venue.revenue.beverageIncVat) }})</span>
+                </dd>
               </div>
             </dl>
           </div>
@@ -181,15 +190,24 @@
                 <dl class="space-y-1">
                   <div class="flex justify-between gap-2">
                     <dt>Total</dt>
-                    <dd class="tabular-nums font-semibold text-gray-900">{{ formatEurWhole(venue.revenue.total) }}</dd>
+                    <dd class="tabular-nums font-semibold text-gray-900">
+                      {{ formatEurWhole(venue.revenue.total) }}
+                      <span class="ml-1 font-normal text-gray-400">({{ formatEurWhole(venue.revenue.totalIncVat) }})</span>
+                    </dd>
                   </div>
                   <div class="flex justify-between gap-2">
                     <dt>Food</dt>
-                    <dd class="tabular-nums">{{ formatEurWhole(venue.revenue.food) }}</dd>
+                    <dd class="tabular-nums">
+                      {{ formatEurWhole(venue.revenue.food) }}
+                      <span class="ml-1 font-normal text-gray-400">({{ formatEurWhole(venue.revenue.foodIncVat) }})</span>
+                    </dd>
                   </div>
                   <div class="flex justify-between gap-2">
                     <dt>Beverage</dt>
-                    <dd class="tabular-nums">{{ formatEurWhole(venue.revenue.beverage) }}</dd>
+                    <dd class="tabular-nums">
+                      {{ formatEurWhole(venue.revenue.beverage) }}
+                      <span class="ml-1 font-normal text-gray-400">({{ formatEurWhole(venue.revenue.beverageIncVat) }})</span>
+                    </dd>
                   </div>
                 </dl>
               </div>
@@ -294,15 +312,24 @@
                 <dl class="space-y-1">
                   <div class="flex justify-between gap-2">
                     <dt>Total</dt>
-                    <dd class="tabular-nums font-semibold text-gray-900">{{ formatEurWhole(venue.revenue.total) }}</dd>
+                    <dd class="tabular-nums font-semibold text-gray-900">
+                      {{ formatEurWhole(venue.revenue.total) }}
+                      <span class="ml-1 font-normal text-gray-400">({{ formatEurWhole(venue.revenue.totalIncVat) }})</span>
+                    </dd>
                   </div>
                   <div class="flex justify-between gap-2">
                     <dt>Food</dt>
-                    <dd class="tabular-nums">{{ formatEurWhole(venue.revenue.food) }}</dd>
+                    <dd class="tabular-nums">
+                      {{ formatEurWhole(venue.revenue.food) }}
+                      <span class="ml-1 font-normal text-gray-400">({{ formatEurWhole(venue.revenue.foodIncVat) }})</span>
+                    </dd>
                   </div>
                   <div class="flex justify-between gap-2">
                     <dt>Beverage</dt>
-                    <dd class="tabular-nums">{{ formatEurWhole(venue.revenue.beverage) }}</dd>
+                    <dd class="tabular-nums">
+                      {{ formatEurWhole(venue.revenue.beverage) }}
+                      <span class="ml-1 font-normal text-gray-400">({{ formatEurWhole(venue.revenue.beverageIncVat) }})</span>
+                    </dd>
                   </div>
                 </dl>
               </div>

@@ -72,10 +72,19 @@ export async function buildVenueStripCardFromSnapshots(
   const laborWithPct = enrichLaborWithPct(laborBundle.labor, totalRevenue)
   const locationName = snapLabor?.locationName ?? snapRev?.locationName ?? venue.locationName
 
+  const VAT_RATE = 1.21 // Netherlands VAT rate
+  
   return {
     locationId: venue.locationId,
     locationName,
-    revenue: { total: totalRevenue, food, beverage },
+    revenue: { 
+      total: totalRevenue, 
+      food, 
+      beverage,
+      totalIncVat: totalRevenue * VAT_RATE,
+      foodIncVat: food * VAT_RATE,
+      beverageIncVat: beverage * VAT_RATE,
+    },
     labor: laborWithPct,
     workers: laborBundle.workers,
     productivity: {
