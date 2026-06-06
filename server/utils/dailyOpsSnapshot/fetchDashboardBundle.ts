@@ -46,6 +46,7 @@ import {
 import { buildHeadlineRevenueByLocDay, buildRevLabMaps } from './dashboardBundle/revLabMaps'
 import { snapshotRound2 } from './dashboardBundle/shared'
 import { buildTodayExtrasFromHourBundle } from './dashboardBundle/todayRevenueDetail'
+import { patchTodayRevenueRowsFromBork } from './dashboardBundle/patchTodayRevenueFromBork'
 
 export type DailyOpsDashboardBundleDto = {
   summary: DailyOpsSummaryDto
@@ -59,6 +60,7 @@ export async function fetchDailyOpsDashboardBundle(
   ctx: DailyOpsMetricsContext,
 ): Promise<DailyOpsDashboardBundleDto> {
   const rows = await loadSnapshotDashboardRows(db, ctx)
+  await patchTodayRevenueRowsFromBork(db, ctx, rows.revenue)
   const snapshotContracts = contractRollupsFromSnapshotLabor(rows.labor)
   const { revMap, labMap, revByDateLocation, laborByLocDay } = buildRevLabMaps(
     rows.masters,

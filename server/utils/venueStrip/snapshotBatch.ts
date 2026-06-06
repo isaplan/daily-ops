@@ -18,6 +18,7 @@ import type { DailyOpsMetricsContext } from '../dailyOpsMetrics/context'
 import { VENUE_STRIP_LOCATIONS } from './constants'
 import { enrichLaborWithPct, productivityPerHour, resolveVenueStripLabor } from './labor'
 import { contractsByTeamFromSnapshot, revenueFromSnapshotSections } from './revenue'
+import { fetchVenueStripLiveRevenue } from './liveRevenue'
 
 export type VenueStripSnapshotBatch = {
   revenueByLoc: Map<string, DailyOpsSnapshotRevenueSection>
@@ -65,35 +66,40 @@ export async function buildVenueStripCardFromSnapshots(
   const { totalRevenue, food, beverage, totalIncVat, foodIncVat, beverageIncVat } =
     revenueFromSnapshotSections(snapRev, snapProducts)
 
+  const liveRevenue = await fetchVenueStripLiveRevenue(db, ctx.startDate, venue.locationId)
+  const revenue = liveRevenue ?? {
+    total: totalRevenue,
+    food,
+    beverage,
+    totalIncVat,
+    foodIncVat,
+    beverageIncVat,
+  }
+
+  const headlineTotal = revenue.total
+  const locationName = snapLabor?.locationName ?? snapRev?.locationName ?? venue.locationName
+
   const [laborBundle, contractsByTeam] = await Promise.all([
     resolveVenueStripLabor(db, snapLabor),
     Promise.resolve(contractsByTeamFromSnapshot(snapLabor)),
   ])
 
-  const laborWithPct = enrichLaborWithPct(laborBundle.labor, totalRevenue)
-  const locationName = snapLabor?.locationName ?? snapRev?.locationName ?? venue.locationName
+  const laborWithPct = enrichLaborWithPct(laborBundle.labor, headlineTotal)
 
   return {
     locationId: venue.locationId,
     locationName,
-    revenue: {
-      total: totalRevenue,
-      food,
-      beverage,
-      totalIncVat,
-      foodIncVat,
-      beverageIncVat,
-    },
+    revenue,
     labor: laborWithPct,
     workers: laborBundle.workers,
     productivity: {
-      totalPerHour: productivityPerHour(totalRevenue, laborWithPct.gewerkt.hours),
-      keukenPerHour: productivityPerHour(food, laborWithPct.keuken.hours),
-      bedieningPerHour: productivityPerHour(beverage, laborWithPct.bediening.hours),
+      totalPerHour: productivityPerHour(headlineTotal, laborWithPct.gewerkt.hours),
+      keukenPerHour: productivityPerHour(revenue.food, laborWithPct.keuken.hours),
+      bedieningPerHour: productivityPerHour(revenue.beverage, laborWithPct.bediening.hours),
     },
     contractsByTeam,
     coverage: {
-      hasRevenue: totalRevenue > 0 || food > 0 || beverage > 0,
+      hasRevenue: headlineTotal > 0 || revenue.food > 0 || revenue.beverage > 0,
       hasLabor: laborWithPct.all.hours > 0,
       snapshotBuilt: !!snapLabor || !!snapRev,
     },
