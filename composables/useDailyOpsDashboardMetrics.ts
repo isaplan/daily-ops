@@ -1,8 +1,9 @@
 /**
  * @created: 2026-05-18T00:00:00.000Z
- * @last-modified: 2026-05-25T00:00:00.000Z
+ * @last-modified: 2026-06-06T17:15:00.000Z
  * @description: Dashboard metrics via single snapshot bundle (ADR-004). One HTTP round-trip; progressive UI gates on summary only.
- * @last-fix: [2026-05-25] Replaced 3 parallel live-agg endpoints with /metrics/bundle snapshot read.
+ * @last-fix: [2026-06-06] CRITICAL FIX: Invalidate cache every 5 min for 'today' to show fresh revenue data after cron runs
+ *   Prior: [2026-05-25] Replaced 3 parallel live-agg endpoints with /metrics/bundle snapshot read.
  * @adr-ref: ADR-004
  *
  * @exports-to:
@@ -36,8 +37,18 @@ type DashboardBundleResponse = {
   labor: DailyOpsLaborMetricsDto
 }
 
-const metricsKey = (q: Record<string, string | undefined>): string =>
-  `daily-ops-bundle-v2-${q.period ?? 'today'}-${q.location ?? 'all'}-${q.anchor ?? ''}`
+const metricsKey = (q: Record<string, string | undefined>): string => {
+  const base = `daily-ops-bundle-v2-${q.period ?? 'today'}-${q.location ?? 'all'}-${q.anchor ?? ''}`
+  
+  // For 'today', invalidate cache every 5 minutes to ensure fresh data
+  if ((q.period ?? 'today') === 'today') {
+    const now = new Date()
+    const cacheWindow = Math.floor(now.getTime() / (5 * 60 * 1000)) // 5-minute windows
+    return `${base}-${cacheWindow}`
+  }
+  
+  return base
+}
 
 export function useDailyOpsDashboardMetrics(): DailyOpsDashboardMetrics {
   const { dashboardQuery } = useDailyOpsDashboardRoute()
