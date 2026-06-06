@@ -156,3 +156,67 @@ API endpoint (`bundle.get.ts`) intelligently serves from the appropriate cache l
 **Docs:** `dev-docs/CACHE_CASCADE.md`
 
 ---
+
+## ADR-009 — Eitje Data Architecture: API as SSOT for Hours, Inbox for Contracts
+
+**Date:** 2026-06-06  
+**Status:** ✅ Implemented
+
+**Context:**
+- Eitje API (hourly sync) provides real-time shift data but limited contract info
+- Morning inbox email provides final approved hours + complete contract data (hourly_rate, contract_type, support_id)
+- Inbox limitation: Only shows **approved** hours (excludes pending/unapproved shifts)
+- Staff endpoint was reading from empty `inbox-eitje-contracts` collection
+- Members collection serves as unified staff profile SSOT but wasn't being enriched from all sources
+
+**Decision:** **Option B Architecture**
+
+1. **Eitje API = SSOT for hours** (real-time, includes pending shifts)
+   - `eitje_raw_data` → `eitje_time_registration_aggregation`
+   - Used for: Today's dashboard, hour tracking, all shift activity
+
+2. **Inbox = SSOT for contracts** (enriches members with wages/contracts)
+   - `inbox-eitje-hours` contains both hours AND contract data per row
+   - Used for: Contract/wage updates, validation, historical corrections
+
+3. **Members collection = Unified staff profiles**
+   - Enriched from BOTH API + inbox
+   - Used by: Aggregations for cost calculations, staff management UI
+
+**Benefits:**
+- ✅ **Real-time accuracy:** API includes pending shifts (today's view)
+- ✅ **Contract completeness:** Inbox provides accurate wages/contracts
+- ✅ **Validation layer:** Cross-check API vs inbox for discrepancies
+- ✅ **Manual control:** Ops alerts flag issues for intervention
+- ✅ **Flexibility:** Retroactive updates via inbox re-processing
+
+**Consequences:**
+- Staff with recent shifts but missing contract data will trigger ops alerts
+- Inbox-only staff (no API activity) indicate sync issues
+- Contract updates happen daily via morning email (not real-time)
+
+**Implementation:**
+
+### Core Changes:
+1. **`server/api/daily-ops/eitje-staff.get.ts`**
+   - ✅ Read from `members` collection (SSOT)
+   - ✅ Enrich with API activity (`eitje_time_registration_aggregation` last 30 days)
+   - ✅ Show data source indicators + missing data flags
+
+2. **`server/services/dataMappingService.ts`**
+   - ✅ Apply contract data from `inbox-eitje-hours` rows to members
+   - ✅ Both 'contracts' and 'hours' document types update members
+
+3. **`server/api/daily-ops/eitje-staff-refresh-from-inbox.post.ts`**
+   - ✅ Manual endpoint to re-process current month inbox data
+   - ✅ Supports retroactive contract updates
+
+### Ops Notifications:
+4. **`server/utils/opsNotifications/detectors/eitjeStaffData.ts`**
+   - ✅ Alert: Staff in API but NOT in members (new staff)
+   - ✅ Alert: Staff missing critical data (hourly_rate, contract_type, support_id)
+
+**Related:** ADR-001 (member compensation), ADR-004 (snapshot reads)  
+**Docs:** `EITJE_ARCHITECTURE_OPTION_B.md`
+
+---

@@ -1,7 +1,9 @@
 /**
  * @registry-id: runOpsNotificationScan
- * @last-fix: [2026-05-28] businessDates on scan context; unparsed Basis detector.
- * @adr-ref: ADR-004, ADR-006
+ * @last-modified: 2026-06-06T13:00:00.000Z
+ * @last-fix: [2026-06-06] Added Eitje staff data quality detector (ADR-009 Option B).
+ *   Prior: [2026-05-28] businessDates on scan context; unparsed Basis detector.
+ * @adr-ref: ADR-004, ADR-006, ADR-009
  */
 
 import type { Db } from 'mongodb'
@@ -13,6 +15,7 @@ import { detectIntegrityNotifications } from './detectors/integrity'
 import { detectSnapshotGapNotifications } from './detectors/snapshotGaps'
 import { detectSourceDiscrepancyNotifications } from './detectors/sourceDiscrepancy'
 import { detectUnparsedBasisAttachments } from './detectors/unparsedBasisAttachment'
+import { detectEitjeStaffDataNotifications } from './detectors/eitjeStaffData'
 import { countByCategory, sortNotifications } from './notificationItem'
 import { addCalendarDaysYmd } from '~/utils/dailyOpsBusinessDate'
 import { loadOpsScanContext, resolveScanWindow, type OpsScanWindow } from './scanContext'
@@ -50,9 +53,11 @@ export async function runOpsNotificationScan(
   const ctx = await loadOpsScanContext(db, window)
 
   const gmailOAuthItems = await detectGmailOAuthNotifications()
+  const eitjeStaffDataItems = await detectEitjeStaffDataNotifications(db)
 
   const items = [
     ...gmailOAuthItems,
+    ...eitjeStaffDataItems,
     ...detectSnapshotGapNotifications(ctx),
     ...detectSourceDiscrepancyNotifications(ctx),
     ...detectCronPipelineNotifications(ctx),

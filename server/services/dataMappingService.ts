@@ -1,10 +1,12 @@
 /**
  * @registry-id: dataMappingService
  * @created: 2026-01-26T00:00:00.000Z
- * @last-modified: 2026-05-12T00:00:00.000Z
+ * @last-modified: 2026-06-06T13:10:00.000Z
  * @description: Data mapping service - maps parsed document data to MongoDB collections
- * @last-fix: [2026-05-12] Hours: startdatum contract/einddatum contract → contract_start_date/end_date; contractvestiging → contract_location
+ * @last-fix: [2026-06-06] Apply contract data from inbox-eitje-hours to members (ADR-009 Option B).
+ *   Prior: [2026-05-12] Hours: startdatum contract/einddatum contract → contract_start_date/end_date; contractvestiging → contract_location
  *
+ * @adr-ref: ADR-009
  * @exports-to:
  * ✓ server/services/inboxProcessService.ts
  * ✓ server/api/inbox/upload.post.ts
@@ -469,9 +471,14 @@ class DataMappingService {
         updatedRecords = result.modifiedCount || 0
         matchedRecords = result.matchedCount || 0
 
-        if (documentType === 'contracts') {
+        // Update members collection from inbox contract data (ADR-009 Option B)
+        // Both 'contracts' and 'hours' CSVs contain contract fields
+        if (documentType === 'contracts' || documentType === 'hours') {
           for (const row of mappedRows) {
-            await applyContractInboxRowToMember(database, row)
+            // Only apply if row has contract data (hourly_rate, contract_type, or support_id)
+            if (row.hourly_rate || row.contract_type || row.support_id) {
+              await applyContractInboxRowToMember(database, row)
+            }
           }
         }
       }

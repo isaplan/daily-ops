@@ -1,11 +1,11 @@
 /**
  * @registry-id: dailyOpsEitjeStaffHubGet
  * @created: 2026-05-11T17:50:00.000Z
- * @last-modified: 2026-05-12T01:00:00.000Z
- * @description: Lists deduped Eitje contract rows from inbox-eitje-contracts with member match hints
- * @last-fix: [2026-05-18] ZZP rows: cost_per_hour = hourly_rate only
+ * @last-modified: 2026-06-06T12:50:00.000Z
+ * @description: Lists staff from members collection (SSOT) enriched with Eitje API activity data
+ * @last-fix: [2026-06-06] Option B: Read from members + enrich with API activity (ADR-009)
  *
- * @adr-ref: ADR-001
+ * @adr-ref: ADR-001, ADR-009 (Option B architecture)
  *
  * @exports-to:
  * ✓ pages/daily-ops/inbox/eitje-staff.vue (GET hub data)
@@ -15,26 +15,33 @@ import { getDb } from '../../utils/db'
 import { ObjectId } from 'mongodb'
 import {
   compensationStatusFromFields,
-  isNulUrenContract,
-  isZzpContract,
 } from '../../utils/memberCompensationRevisions'
-import { LOADED_FALLBACK_RATIO } from '../../utils/eitjeLoadedCostShared'
 
 type MatchConfidence = 'high' | 'medium' | 'none'
+type DataSource = 'members' | 'api' | 'inbox' | 'mixed'
 
 export type EitjeStaffRow = {
-  support_ids: string[]
+  member_id: string
   employee_name: string
-  contract_type: string
-  contract_location: string
-  startdatum: string | null
-  einddatum: string | null
+  support_id: string | null
+  eitje_ids: string[]
+  contract_type: string | null
   hourly_rate: number | null
   cost_per_hour: number | null
-  matched_member_id?: string
-  match_confidence: MatchConfidence
-  /** From members SSOT when matched (ADR-001) */
-  compensation_status?: 'ok' | 'missing'
+  compensation_status: 'ok' | 'missing'
+  /** Recent activity from Eitje API (last 30 days) */
+  recent_activity: {
+    last_worked: string | null
+    total_hours: number
+    teams: string[]
+  }
+  /** Data source indicators */
+  data_sources: {
+    contract: DataSource
+    activity: DataSource
+  }
+  /** Missing data flags (for ops alerts) */
+  missing_data: string[]
 }
 
 function normStr(s: unknown): string {
@@ -44,61 +51,11 @@ function normStr(s: unknown): string {
     .replace(/\s+/g, ' ')
 }
 
-/** YYYY-MM-DD using local calendar (matches parseDate DD/MM/YYYY → local Date). */
-function ymdFromValue(v: unknown): string | null {
-  if (v == null) return null
-  if (v instanceof Date && !Number.isNaN(v.getTime())) {
-    const y = v.getFullYear()
-    const m = String(v.getMonth() + 1).padStart(2, '0')
-    const d = String(v.getDate()).padStart(2, '0')
-    return `${y}-${m}-${d}`
-  }
-  if (typeof v === 'string' && v.trim()) {
-    const ddmmyyyy = v.trim().match(/^(\d{2})\/(\d{2})\/(\d{4})$/)
-    if (ddmmyyyy) {
-      const [, day, month, year] = ddmmyyyy
-      return `${year}-${month}-${day}`
-    }
-    const dt = new Date(v)
-    if (!Number.isNaN(dt.getTime())) {
-      const y = dt.getFullYear()
-      const m = String(dt.getMonth() + 1).padStart(2, '0')
-      const d = String(dt.getDate()).padStart(2, '0')
-      return `${y}-${m}-${d}`
-    }
-  }
-  return null
-}
-
-function ymdStartFromDoc(doc: Record<string, unknown>): string | null {
-  return (
-    ymdFromValue(doc.start_date)
-    ?? ymdFromValue(doc.contract_start_date)
-    ?? ymdFromValue(doc.startdatum)
-    ?? ymdFromValue(doc.StartDate)
-  )
-}
-
-function ymdEndFromDoc(doc: Record<string, unknown>): string | null {
-  return (
-    ymdFromValue(doc.end_date)
-    ?? ymdFromValue(doc.contract_end_date)
-    ?? ymdFromValue(doc.einddatum)
-    ?? ymdFromValue(doc.EndDate)
-  )
-}
-
 function toNum(v: unknown): number | null {
   if (v == null) return null
   if (typeof v === 'number' && Number.isFinite(v)) return v
   const n = Number(v)
   return Number.isFinite(n) ? n : null
-}
-
-function dedupeKey(doc: Record<string, unknown>): string {
-  const name = normStr(doc.employee_name)
-  const loc = normStr(doc.contract_location)
-  return `${name}|${loc}`
 }
 
 export default defineEventHandler(async (event) => {
@@ -107,236 +64,172 @@ export default defineEventHandler(async (event) => {
     const skip = Math.max(0, parseInt(String(query.skip ?? '0'), 10) || 0)
     const limit = Math.min(200, Math.max(1, parseInt(String(query.limit ?? '50'), 10) || 50))
     const search = normStr(query.search ?? '')
-    const locationFilter = String(query.location ?? '').trim().toLowerCase()
+    const onlyMissingData = String(query.onlyMissingData ?? 'false') === 'true'
 
     const db = await getDb()
-    const raw = (await db
-      .collection('inbox-eitje-contracts')
-      .find({})
-      .sort({ _id: -1 })
-      .toArray()) as Record<string, unknown>[]
 
-    const bestByKey = new Map<string, Record<string, unknown>[]>()
-    for (const doc of raw) {
-      const k = dedupeKey(doc)
-      if (!bestByKey.has(k)) bestByKey.set(k, [])
-      bestByKey.get(k)!.push(doc)
-    }
-
+    // 1. Load all members (SSOT for staff profiles)
     const members = (await db
       .collection('members')
       .find({})
       .project({
-        support_id: 1,
-        email: 1,
+        _id: 1,
         name: 1,
-        compensation_status: 1,
+        support_id: 1,
+        eitje_id: 1,
+        eitje_ids: 1,
         contract_type: 1,
         hourly_rate: 1,
         cost_per_hour: 1,
+        compensation_status: 1,
       })
-      .toArray()) as {
+      .toArray()) as Array<{
       _id: ObjectId
-      support_id?: string
-      email?: string
       name?: string
-      compensation_status?: 'ok' | 'missing'
+      support_id?: string | number
+      eitje_id?: string | number
+      eitje_ids?: Array<string | number>
       contract_type?: string
       hourly_rate?: number
       cost_per_hour?: number
-    }[]
+      compensation_status?: 'ok' | 'missing'
+    }>
 
-    /** Newest inbox-eitje-hours row per support_id (daily export stores contract dates here). */
-    const hoursDateBySupport = new Map<string, { start: string | null; end: string | null }>()
-    const hoursAgg = await db
-      .collection('inbox-eitje-hours')
+    // 2. Get recent activity from Eitje API (last 30 days)
+    const thirtyDaysAgo = new Date()
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+    const cutoffYmd = thirtyDaysAgo.toISOString().slice(0, 10)
+
+    const apiActivity = await db
+      .collection('eitje_time_registration_aggregation')
       .aggregate<{
         _id: string
-        contract_start_date?: unknown
-        contract_end_date?: unknown
+        last_worked: string
+        total_hours: number
+        teams: string[]
       }>([
         {
           $match: {
-            support_id: { $exists: true, $nin: [null, ''] },
+            period: { $gte: cutoffYmd },
+            user_name: { $exists: true, $ne: null },
           },
         },
-        { $sort: { _id: -1 } },
         {
           $group: {
-            _id: { $toString: '$support_id' },
-            contract_start_date: { $first: '$contract_start_date' },
-            contract_end_date: { $first: '$contract_end_date' },
+            _id: { $toLower: '$user_name' },
+            last_worked: { $max: '$period' },
+            total_hours: { $sum: { $ifNull: ['$total_hours', 0] } },
+            teams: { $addToSet: '$team_name' },
           },
         },
       ])
       .toArray()
-    for (const h of hoursAgg) {
-      const sid = String(h._id ?? '').trim()
-      if (!sid) continue
-      hoursDateBySupport.set(sid, {
-        start: ymdFromValue(h.contract_start_date),
-        end: ymdFromValue(h.contract_end_date),
-      })
-    }
 
-    const bySupport = new Map<string, { id: string; compensation_status?: 'ok' | 'missing' }>()
-    const byEmail = new Map<string, { id: string; compensation_status?: 'ok' | 'missing' }>()
-    const byName = new Map<string, { id: string; compensation_status?: 'ok' | 'missing' }>()
+    const activityByName = new Map(
+      apiActivity.map((a) => [
+        a._id,
+        {
+          last_worked: a.last_worked,
+          total_hours: Math.round(a.total_hours * 100) / 100,
+          teams: a.teams.filter(Boolean),
+        },
+      ])
+    )
+
+    // 3. Build staff rows
+    const rows: EitjeStaffRow[] = []
+
     for (const m of members) {
-      const id = String(m._id)
-      const ct = typeof m.contract_type === 'string' ? m.contract_type : ''
-      const hr = toNum(m.hourly_rate)
-      const cph = toNum(m.cost_per_hour)
-      const status =
+      const employee_name = String(m.name ?? '').trim() || 'Unknown'
+      const support_id = String(m.support_id ?? '').trim() || null
+      const eitje_ids = [
+        ...(m.eitje_ids || []).map(String),
+        ...(m.eitje_id ? [String(m.eitje_id)] : []),
+      ].filter(Boolean)
+
+      const contract_type = m.contract_type?.trim() || null
+      const hourly_rate = toNum(m.hourly_rate)
+      const cost_per_hour = toNum(m.cost_per_hour)
+
+      const compensation_status =
         m.compensation_status === 'ok' || m.compensation_status === 'missing'
           ? m.compensation_status
-          : compensationStatusFromFields(ct, hr, cph)
-      const entry = { id, compensation_status: status }
-      const sup = String(m.support_id ?? '').trim()
-      if (sup) bySupport.set(sup, entry)
-      const em = String(m.email ?? '').trim().toLowerCase()
-      if (em && !byEmail.has(em)) byEmail.set(em, entry)
-      const nm = normStr(m.name)
-      if (nm && !byName.has(nm)) byName.set(nm, entry)
-    }
+          : compensationStatusFromFields(
+              contract_type || '',
+              hourly_rate,
+              cost_per_hour
+            )
 
-    const rows: EitjeStaffRow[] = []
-    for (const group of bestByKey.values()) {
-      if (!group.length) continue
-
-      const sorted = [...group].sort((a, b) => {
-        const ta = a._id instanceof ObjectId ? a._id.getTimestamp().getTime() : 0
-        const tb = b._id instanceof ObjectId ? b._id.getTimestamp().getTime() : 0
-        return tb - ta
-      })
-      const primary = sorted[0]!
-
-      const support_ids = [
-        ...new Set(group.map((d) => String(d.support_id ?? '').trim()).filter(Boolean)),
-      ].sort()
-
-      const employee_name = String(primary.employee_name ?? '').trim() || 'Unknown'
-      const contract_type = String(primary.contract_type ?? '').trim() || '—'
-      const contract_location = String(primary.contract_location ?? '').trim() || '—'
-
-      let startdatum: string | null = null
-      let einddatum: string | null = null
-      for (const d of group) {
-        const s = ymdStartFromDoc(d)
-        const e = ymdEndFromDoc(d)
-        if (s && (!startdatum || s < startdatum)) startdatum = s
-        if (e && (!einddatum || e > einddatum)) einddatum = e
+      // Check recent activity
+      const nameKey = normStr(employee_name)
+      const activity = activityByName.get(nameKey) || {
+        last_worked: null,
+        total_hours: 0,
+        teams: [],
       }
 
-      if (!startdatum || !einddatum) {
-        for (const sid of support_ids) {
-          const h = hoursDateBySupport.get(sid)
-          if (!h) continue
-          if (!startdatum && h.start) startdatum = h.start
-          if (!einddatum && h.end) einddatum = h.end
-        }
+      // Determine data sources
+      const hasContract = contract_type && hourly_rate !== null
+      const hasActivity = activity.total_hours > 0
+
+      const data_sources = {
+        contract: (hasContract ? 'members' : 'missing') as DataSource,
+        activity: (hasActivity ? 'api' : 'none') as DataSource,
       }
 
-      let hourly_rate: number | null = null
-      for (const d of sorted) {
-        const hr = toNum(d.hourly_rate)
-        if (hr != null) {
-          hourly_rate = hr
-          break
-        }
-      }
+      // Missing data flags
+      const missing_data: string[] = []
+      if (!hourly_rate) missing_data.push('hourly_rate')
+      if (!contract_type) missing_data.push('contract_type')
+      if (!support_id) missing_data.push('support_id')
 
-      let cost_per_hour: number | null = null
-      if (isZzpContract(contract_type) && hourly_rate != null) {
-        cost_per_hour = hourly_rate
-      } else if (isNulUrenContract(contract_type) && hourly_rate != null) {
-        cost_per_hour = hourly_rate * LOADED_FALLBACK_RATIO
-      } else {
-        for (const d of sorted) {
-          const c = toNum(d.cost_per_hour)
-          if (c != null) {
-            cost_per_hour = c
-            break
-          }
-        }
-      }
-
-      if (locationFilter && !normStr(contract_location).includes(locationFilter) && normStr(contract_location) !== locationFilter) {
+      // Filter: only show staff with activity OR missing data flag
+      if (!hasActivity && !onlyMissingData && missing_data.length === 0) {
         continue
       }
+
+      // Search filter
       if (search) {
-        const sidHay = support_ids.join(' ').toLowerCase()
-        const hay = `${normStr(employee_name)} ${normStr(contract_location)} ${sidHay}`
+        const hay = `${normStr(employee_name)} ${support_id || ''} ${eitje_ids.join(' ')}`
         if (!hay.includes(search)) continue
       }
 
-      let match_confidence: MatchConfidence = 'none'
-      let matched_member_id: string | undefined
-      let compensation_status: 'ok' | 'missing' | undefined
-
-      for (const sid of support_ids) {
-        if (bySupport.has(sid)) {
-          match_confidence = 'high'
-          const hit = bySupport.get(sid)!
-          matched_member_id = hit.id
-          compensation_status = hit.compensation_status
-          break
-        }
-      }
-      if (!matched_member_id) {
-        let hitEmail = false
-        for (const d of group) {
-          const em = String(d.email ?? '').trim().toLowerCase()
-          if (em && byEmail.has(em)) {
-            match_confidence = 'medium'
-            const hit = byEmail.get(em)!
-            matched_member_id = hit.id
-            compensation_status = hit.compensation_status
-            hitEmail = true
-            break
-          }
-        }
-        if (!hitEmail) {
-          const nm = normStr(employee_name)
-          if (nm && byName.has(nm)) {
-            match_confidence = 'medium'
-            const hit = byName.get(nm)!
-            matched_member_id = hit.id
-            compensation_status = hit.compensation_status
-          }
-        }
+      // Only missing data filter
+      if (onlyMissingData && missing_data.length === 0) {
+        continue
       }
 
       rows.push({
-        support_ids,
+        member_id: String(m._id),
         employee_name,
+        support_id,
+        eitje_ids,
         contract_type,
-        contract_location,
-        startdatum,
-        einddatum,
         hourly_rate,
         cost_per_hour,
-        ...(matched_member_id ? { matched_member_id } : {}),
-        match_confidence,
-        ...(compensation_status ? { compensation_status } : {}),
+        compensation_status,
+        recent_activity: activity,
+        data_sources,
+        missing_data,
       })
     }
 
+    // Sort: missing data first, then by recent activity
     rows.sort((a, b) => {
-      const order = { none: 0, medium: 1, high: 2 }
-      if (order[a.match_confidence] !== order[b.match_confidence]) {
-        return order[a.match_confidence] - order[b.match_confidence]
+      if (a.missing_data.length !== b.missing_data.length) {
+        return b.missing_data.length - a.missing_data.length
+      }
+      if (a.recent_activity.last_worked !== b.recent_activity.last_worked) {
+        return (b.recent_activity.last_worked || '').localeCompare(
+          a.recent_activity.last_worked || ''
+        )
       }
       return a.employee_name.localeCompare(b.employee_name, 'nl')
     })
 
     const total = rows.length
-    const matched = rows.filter((r) => r.match_confidence !== 'none').length
-    const unmatched = total - matched
-    const missing_compensation = rows.filter((r) => r.compensation_status === 'missing').length
-    const distinct_contract_locations = [
-      ...new Set(rows.map((r) => r.contract_location.trim()).filter((s) => s && s !== '—')),
-    ].sort((a, b) => a.localeCompare(b, 'nl'))
+    const with_activity = rows.filter((r) => r.recent_activity.total_hours > 0).length
+    const missing_critical_data = rows.filter((r) => r.missing_data.length > 0).length
     const page = rows.slice(skip, skip + limit)
 
     return {
@@ -345,10 +238,10 @@ export default defineEventHandler(async (event) => {
       pagination: { skip, limit, total },
       summary: {
         total_staff: total,
-        matched,
-        unmatched,
-        missing_compensation,
-        distinct_contract_locations,
+        with_recent_activity: with_activity,
+        missing_critical_data,
+        data_sources_note:
+          'contract=members (SSOT), activity=api (last 30d from eitje_time_registration_aggregation)',
       },
     }
   } catch (error) {
