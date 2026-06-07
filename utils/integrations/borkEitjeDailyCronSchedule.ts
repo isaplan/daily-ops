@@ -3,7 +3,7 @@
  * @created: 2026-06-07T00:00:00.000Z
  * @last-modified: 2026-06-07T12:00:00.000Z
  * @description: SSOT — Bork + Eitje daily-data Nitro cron hours per Amsterdam weekday
- * @last-fix: [2026-06-07] Self-contained (no imports) — safe for nuxt.config jiti bootstrap
+ * @last-fix: [2026-06-08] Add minuteInAmsterdam + pollWindowState for snapshot version polling
  *
  * @architecture:
  *   - All times Europe/Amsterdam (server TZ=Europe/Amsterdam on DO).
@@ -27,6 +27,44 @@ function hourInAmsterdam(d: Date): number {
     hour12: false,
   }).formatToParts(d)
   return parseInt(p.find((x) => x.type === 'hour')?.value ?? '0', 10)
+}
+
+export function minuteInAmsterdam(d: Date): number {
+  const p = new Intl.DateTimeFormat('en-GB', {
+    timeZone: AMSTERDAM_TZ,
+    minute: '2-digit',
+  }).formatToParts(d)
+  return parseInt(p.find((x) => x.type === 'minute')?.value ?? '0', 10)
+}
+
+/**
+ * Returns whether the current Amsterdam time is in the "expect a rebuild" window:
+ * 4–10 minutes after a scheduled cron hour. Zero cost outside that window.
+ *
+ * POLL_OFFSET_START_MIN = 4 (cron pipeline takes ~2–4 min; snapshot ready by +4)
+ * POLL_OFFSET_END_MIN   = 10 (bail if still not rebuilt after +10; ops alert handles)
+ */
+const POLL_OFFSET_START_MIN = 4
+const POLL_OFFSET_END_MIN = 10
+
+export type PollWindowState = {
+  active: boolean
+  /** UTC timestamp of the cron hour start (i.e. cronHour:00:00 Amsterdam → UTC ms). Null if not active. */
+  cronStartedAtMs: number | null
+}
+
+export function pollWindowState(d = new Date()): PollWindowState {
+  const hour = hourInAmsterdam(d)
+  const minute = minuteInAmsterdam(d)
+
+  if (!isDailyCronHour(hour, d)) return { active: false, cronStartedAtMs: null }
+  if (minute < POLL_OFFSET_START_MIN || minute >= POLL_OFFSET_END_MIN) {
+    return { active: false, cronStartedAtMs: null }
+  }
+
+  // Compute UTC ms for the start of this cron hour in Amsterdam.
+  const cronStartedAtMs = d.getTime() - minute * 60_000 - d.getSeconds() * 1_000 - d.getMilliseconds()
+  return { active: true, cronStartedAtMs }
 }
 
 /** User-facing label hour → cron hour (24:00 = 00:00). */

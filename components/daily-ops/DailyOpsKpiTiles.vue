@@ -364,6 +364,8 @@ function staffForVenue (venue: VenueStripCardDto, filter: GewerktStaffFilter | '
     .map((w) => ({
       name: w.userName,
       team: w.teamName,
+      startLabel: w.startLabel,
+      endLabel: w.endLabel,
       hours: formatHoursWhole(w.hours),
       wages: formatEurWhole(w.wages),
     }))
@@ -418,6 +420,7 @@ function attendanceSections (
       hours: kind === 'planned' ? 'Planned → actual' : kind === 'leave' ? 'Hours used' : 'Hours',
       wages: kind === 'planned' ? 'Start - end' : kind === 'leave' ? 'From - to' : 'Cost',
     },
+    showShiftTimeColumns: false,
   }))
 }
 

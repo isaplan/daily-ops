@@ -366,6 +366,10 @@ export type VenueStripWorkerLineDto = {
   hours: number
   /** Loaded employer cost (Eitje-style). */
   wages: number
+  /** Amsterdam HH:MM from Eitje shift clock-in. */
+  startLabel?: string
+  /** Amsterdam HH:MM — omitted on open shifts (today); inbox fallback on sealed days. */
+  endLabel?: string
 }
 
 export type VenueStripCardDto = {

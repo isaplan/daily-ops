@@ -68,6 +68,14 @@
                         <tr class="border-b border-gray-100 text-xs uppercase text-gray-500">
                           <th class="py-1.5 pr-3 font-medium">Name</th>
                           <th class="py-1.5 pr-3 font-medium">Team</th>
+                          <template v-if="section.showShiftTimeColumns !== false">
+                            <th class="py-1.5 pr-3 font-medium">
+                              {{ section.staffColumns?.start ?? 'Start' }}
+                            </th>
+                            <th class="py-1.5 pr-3 font-medium">
+                              {{ section.staffColumns?.end ?? 'End' }}
+                            </th>
+                          </template>
                           <th class="py-1.5 pr-3 text-right font-medium">{{ section.staffColumns?.hours ?? 'Hours' }}</th>
                           <th class="py-1.5 text-right font-medium">{{ section.staffColumns?.wages ?? 'Wages' }}</th>
                         </tr>
@@ -79,6 +87,10 @@
                         >
                           <td class="py-1.5 pr-3 text-gray-900">{{ person.name }}</td>
                           <td class="py-1.5 pr-3 text-gray-600">{{ person.team }}</td>
+                          <template v-if="section.showShiftTimeColumns !== false">
+                            <td class="py-1.5 pr-3 tabular-nums text-gray-700">{{ person.startLabel ?? '—' }}</td>
+                            <td class="py-1.5 pr-3 tabular-nums text-gray-700">{{ person.endLabel ?? '—' }}</td>
+                          </template>
                           <td class="py-1.5 pr-3 text-right tabular-nums text-gray-900">{{ person.hours }}</td>
                           <td class="py-1.5 text-right tabular-nums text-gray-900">{{ person.wages }}</td>
                         </tr>
@@ -128,13 +140,21 @@
 <script setup lang="ts">
 export type KpiDrawerSummaryRow = { label: string; value: string }
 export type KpiDrawerVenueRow = { locationName: string; cells: string[] }
-export type KpiDrawerStaffRow = { name: string; team: string; hours: string; wages: string }
-export type KpiDrawerStaffColumns = { hours?: string; wages?: string }
+export type KpiDrawerStaffRow = {
+  name: string
+  team: string
+  startLabel?: string
+  endLabel?: string
+  hours: string
+  wages: string
+}
+export type KpiDrawerStaffColumns = { start?: string; end?: string; hours?: string; wages?: string }
 export type KpiDrawerVenueSection = {
   locationName: string
   cells: string[]
   staff: KpiDrawerStaffRow[]
   staffColumns?: KpiDrawerStaffColumns
+  showShiftTimeColumns?: boolean
 }
 
 withDefaults(

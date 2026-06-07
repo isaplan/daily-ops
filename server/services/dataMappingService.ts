@@ -60,6 +60,9 @@ const FIELD_MAPPINGS: Record<DocumentType, FieldMapping[]> = {
     { sourceColumn: 'contracttype', targetField: 'contract_type' },
     { sourceColumn: 'uurloon', targetField: 'hourly_rate', transform: (v) => parseEuro(v as string) },
     { sourceColumn: 'support ID', targetField: 'support_id', transform: (v) => String(v) },
+    { sourceColumn: 'geplande starttijd', targetField: 'planned_start_time' },
+    { sourceColumn: 'geplande eindttijd', targetField: 'planned_end_time' },
+    { sourceColumn: 'geplande eindtijd', targetField: 'planned_end_time' },
     // Daily/weekly hours export: contract columns (same row as shift)
     { sourceColumn: 'contractvestiging', targetField: 'contract_location', transform: (v) => String(v).trim() },
     {

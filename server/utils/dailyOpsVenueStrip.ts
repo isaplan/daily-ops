@@ -15,6 +15,7 @@ import type { VenueStripCardDto, VenueStripResponseDto } from '~/types/daily-ops
 import type { DailyOpsMetricsContext } from './dailyOpsMetrics/context'
 import { VENUE_STRIP_LOCATIONS } from './venueStrip/constants'
 import { buildVenueStripCardFromSnapshots, loadVenueStripSnapshotBatch } from './venueStrip/snapshotBatch'
+import { fetchWorkerShiftTimeMaps } from './venueStrip/workerShiftTimes'
 
 /** @deprecated Use buildVenueStripResponse — kept for tests/callers that build one card. */
 export async function buildVenueStripCard(
@@ -23,7 +24,17 @@ export async function buildVenueStripCard(
   venue: { locationId: string; locationName: string },
 ): Promise<VenueStripCardDto> {
   const batch = await loadVenueStripSnapshotBatch(db, ctx.startDate)
-  return buildVenueStripCardFromSnapshots(db, ctx, venue, batch)
+  return buildVenueStripCardFromSnapshots(
+    db,
+    ctx,
+    venue,
+    batch,
+    await fetchWorkerShiftTimeMaps(
+      db,
+      ctx.startDate,
+      VENUE_STRIP_LOCATIONS.map((v) => v.locationId),
+    ),
+  )
 }
 
 export async function buildVenueStripResponse(
@@ -31,8 +42,13 @@ export async function buildVenueStripResponse(
   ctx: DailyOpsMetricsContext,
 ): Promise<VenueStripResponseDto> {
   const batch = await loadVenueStripSnapshotBatch(db, ctx.startDate)
+  const shiftTimeMaps = await fetchWorkerShiftTimeMaps(
+    db,
+    ctx.startDate,
+    VENUE_STRIP_LOCATIONS.map((v) => v.locationId),
+  )
   const venues = await Promise.all(
-    VENUE_STRIP_LOCATIONS.map((v) => buildVenueStripCardFromSnapshots(db, ctx, v, batch)),
+    VENUE_STRIP_LOCATIONS.map((v) => buildVenueStripCardFromSnapshots(db, ctx, v, batch, shiftTimeMaps)),
   )
   return {
     range: {

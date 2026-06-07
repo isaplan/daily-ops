@@ -1,8 +1,9 @@
 /**
  * @registry-id: dailyOpsVenueStripLabor
  * @created: 2026-05-28T00:00:00.000Z
- * @last-modified: 2026-05-28T00:00:00.000Z
+ * @last-modified: 2026-06-07T00:00:00.000Z
  * @description: Venue-strip labor bucket resolution from snapshot labor sections
+ * @last-fix: [2026-06-07] Enrich KPI drawer staff rows with Eitje shift start/end times
  * @adr-ref: ADR-004
  */
 
@@ -13,6 +14,7 @@ import { enrichSnapshotLaborWorkersFromMembers } from '../eitjeAggCompensationEn
 import { allocateOperationalTeamLabor, type VenueLaborSlice } from '../eitjeVenueLaborRollup'
 import { bucketTeamFromName } from '../dailyOpsTeamBucket'
 import { workersFromSnapshot } from '../dailyOpsVenueStripWorkers'
+import { enrichWorkersWithShiftTimesFromMaps, type WorkerShiftTimeMaps } from './workerShiftTimes'
 
 export type VenueStripLaborBundle = {
   labor: VenueStripCardDto['labor']
@@ -128,6 +130,9 @@ function operationalLooksStale(doc: DailyOpsSnapshotLaborSection, workers: Venue
 export async function resolveVenueStripLabor(
   db: Db,
   snapLabor: DailyOpsSnapshotLaborSection | null,
+  businessDate: string,
+  locationId: string,
+  shiftTimeMaps?: WorkerShiftTimeMaps,
 ): Promise<VenueStripLaborBundle> {
   await enrichSnapshotLaborWorkersFromMembers(db, snapLabor?.workers as Array<Record<string, unknown>> | undefined)
   const workerBuckets: Record<VenueStripTeamBucket, Set<string>> = {
@@ -138,10 +143,15 @@ export async function resolveVenueStripLabor(
   const labor = emptyLaborBlock()
   const workers = workersFromSnapshot(snapLabor)
 
+  const enrich = (lines: VenueStripWorkerLineDto[]) =>
+    shiftTimeMaps
+      ? enrichWorkersWithShiftTimesFromMaps(lines, locationId, businessDate, shiftTimeMaps)
+      : lines
+
   const doc = snapLabor
   if (!doc) {
     finalizeLaborOther(labor, workers)
-    return { labor, workers }
+    return { labor, workers: enrich(workers) }
   }
 
   for (const w of doc.workers ?? []) {
@@ -171,7 +181,7 @@ export async function resolveVenueStripLabor(
         laborPctOfRevenue: null,
       }
       finalizeLaborOther(labor, workers)
-      return { labor, workers }
+      return { labor, workers: enrich(workers) }
     }
     labor.gewerkt = laborRowFromCostPair(
       doc.operational.gewerkt,
@@ -180,7 +190,7 @@ export async function resolveVenueStripLabor(
     labor.keuken = laborRowFromCostPair(doc.operational.keuken, workerBuckets.keuken.size)
     labor.bediening = laborRowFromCostPair(doc.operational.bediening, workerBuckets.bediening.size)
     finalizeLaborOther(labor, workers)
-    return { labor, workers }
+    return { labor, workers: enrich(workers) }
   }
 
   for (const t of doc.teams ?? []) {
@@ -219,7 +229,10 @@ export async function resolveVenueStripLabor(
   finalizeVenueLaborRow(labor.bediening)
   finalizeLaborOther(labor, workers)
 
-  return { labor, workers }
+  return {
+    labor,
+    workers: enrich(workers),
+  }
 }
 
 export function productivityPerHour(revenue: number, hours: number): number | null {

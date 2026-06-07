@@ -18,8 +18,9 @@ import {
 import type { DailyOpsMetricsContext } from '../dailyOpsMetrics/context'
 import { VENUE_STRIP_LOCATIONS } from './constants'
 import { enrichLaborWithPct, productivityPerHour, resolveVenueStripLabor } from './labor'
-import { contractsByTeamFromSnapshot, revenueFromSnapshotSections } from './revenue'
 import { fetchVenueStripLiveRevenue } from './liveRevenue'
+import { contractsByTeamFromSnapshot, revenueFromSnapshotSections } from './revenue'
+import type { WorkerShiftTimeMaps } from './workerShiftTimes'
 
 export type VenueStripSnapshotBatch = {
   revenueByLoc: Map<string, DailyOpsSnapshotRevenueSection>
@@ -59,6 +60,7 @@ export async function buildVenueStripCardFromSnapshots(
   ctx: DailyOpsMetricsContext,
   venue: { locationId: string; locationName: string },
   batch: VenueStripSnapshotBatch,
+  shiftTimeMaps: WorkerShiftTimeMaps,
 ): Promise<VenueStripCardDto> {
   const snapRev = batch.revenueByLoc.get(venue.locationId) ?? null
   const snapLabor = batch.laborByLoc.get(venue.locationId) ?? null
@@ -81,7 +83,7 @@ export async function buildVenueStripCardFromSnapshots(
   const locationName = snapLabor?.locationName ?? snapRev?.locationName ?? venue.locationName
 
   const [laborBundle, contractsByTeam] = await Promise.all([
-    resolveVenueStripLabor(db, snapLabor),
+    resolveVenueStripLabor(db, snapLabor, ctx.startDate, venue.locationId, shiftTimeMaps),
     Promise.resolve(contractsByTeamFromSnapshot(snapLabor)),
   ])
 
