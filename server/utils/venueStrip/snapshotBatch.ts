@@ -3,7 +3,7 @@
  * @created: 2026-05-28T00:00:00.000Z
  * @last-modified: 2026-06-07T01:00:00.000Z
  * @description: Batch snapshot reads + venue card assembly for venue strip
- * @last-fix: [2026-06-07] Open day revenue via liveRevenue (aggregate + raw max, ADR-010)
+ * @last-fix: [2026-06-08] Snapshot-only revenue on GET (remove liveRevenue patch, ADR-004)
  * @adr-ref: ADR-004, ADR-010
  */
 
@@ -18,7 +18,6 @@ import {
 import type { DailyOpsMetricsContext } from '../dailyOpsMetrics/context'
 import { VENUE_STRIP_LOCATIONS } from './constants'
 import { enrichLaborWithPct, productivityPerHour, resolveVenueStripLabor } from './labor'
-import { fetchVenueStripLiveRevenue } from './liveRevenue'
 import { contractsByTeamFromSnapshot, revenueFromSnapshotSections } from './revenue'
 import type { WorkerShiftTimeMaps } from './workerShiftTimes'
 
@@ -69,8 +68,7 @@ export async function buildVenueStripCardFromSnapshots(
   const { totalRevenue, food, beverage, totalIncVat, foodIncVat, beverageIncVat } =
     revenueFromSnapshotSections(snapRev, snapProducts)
 
-  const liveRevenue = await fetchVenueStripLiveRevenue(db, ctx.startDate, venue.locationId)
-  const revenue = liveRevenue ?? {
+  const revenue = {
     total: totalRevenue,
     food,
     beverage,

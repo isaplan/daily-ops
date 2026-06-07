@@ -186,7 +186,7 @@ const navItems = computed(() => {
   ]
 })
 
-const { data: locationsRes } = await useFetch<{ success: boolean; data: LocationRow[] }>(
+const { data: locationsRes } = useFetch<{ success: boolean; data: LocationRow[] }>(
   '/api/daily-ops/locations',
   { key: 'daily-ops-locations' },
 )

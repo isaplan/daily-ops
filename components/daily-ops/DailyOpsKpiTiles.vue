@@ -4,6 +4,10 @@
       <USkeleton v-for="i in 11" :key="i" class="h-24 w-full rounded-lg" />
     </div>
 
+    <div v-else-if="!pending && !totals" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-8">
+      <USkeleton v-for="i in 11" :key="i" class="h-24 w-full rounded-lg" />
+    </div>
+
     <div
       v-else-if="totals"
       class="grid min-w-0 gap-4 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-8"
