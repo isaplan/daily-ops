@@ -1,5 +1,10 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import {
+  AMSTERDAM_TZ,
+  addCalendarDaysYmd,
+  amsterdamOpenRegisterBusinessDateYmd,
+} from '~/utils/dailyOpsBusinessDate'
 
 const runtime = useRuntimeConfig()
 
@@ -23,60 +28,9 @@ type BorkAggRow = {
   accountName?: string
 }
 
-/** Align quick picks + default with Bork `business_date` (register opens 08:00 Amsterdam). */
-const AMSTERDAM_TZ = 'Europe/Amsterdam'
-
-function calendarYmdInAmsterdam(d: Date): string {
-  const p = new Intl.DateTimeFormat('en-CA', {
-    timeZone: AMSTERDAM_TZ,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).formatToParts(d)
-  const g = (t: string) => p.find((x) => x.type === t)?.value ?? ''
-  return `${g('year')}-${g('month')}-${g('day')}`
-}
-
-function hourInAmsterdam(d: Date): number {
-  const p = new Intl.DateTimeFormat('en-GB', {
-    timeZone: AMSTERDAM_TZ,
-    hour: '2-digit',
-    hour12: false,
-  }).formatToParts(d)
-  return parseInt(p.find((x) => x.type === 'hour')?.value ?? '0', 10)
-}
-
-function addCalendarDaysYmd(ymd: string, delta: number): string {
-  const parts = ymd.split('-').map((x) => Number(x))
-  const y = parts[0] ?? 0
-  const m = parts[1] ?? 1
-  const d = parts[2] ?? 1
-  const dt = new Date(Date.UTC(y, m - 1, d + delta))
-  const yy = dt.getUTCFullYear()
-  const mm = String(dt.getUTCMonth() + 1).padStart(2, '0')
-  const dd = String(dt.getUTCDate()).padStart(2, '0')
-  return `${yy}-${mm}-${dd}`
-}
-
-/** `business_date` for the register day that is “open” at instant `d` (before 08:00 Amsterdam = previous calendar day). */
-function registerBusinessDateForInstant(d: Date): string {
-  const cal = calendarYmdInAmsterdam(d)
-  if (hourInAmsterdam(d) < 8) return addCalendarDaysYmd(cal, -1)
-  return cal
-}
-
-function weekdayLongForBusinessYmd(ymd: string): string {
-  const parts = ymd.split('-').map((x) => Number(x))
-  const y = parts[0] ?? 0
-  const m = parts[1] ?? 1
-  const d = parts[2] ?? 1
-  const ref = new Date(Date.UTC(y, m - 1, d, 12, 0, 0))
-  return new Intl.DateTimeFormat('en-GB', { timeZone: AMSTERDAM_TZ, weekday: 'long' }).format(ref)
-}
-
 /** Last completed register day (typical “yesterday” for ops). */
 function defaultSelectedBusinessDate(): string {
-  return addCalendarDaysYmd(registerBusinessDateForInstant(new Date()), -1)
+  return addCalendarDaysYmd(amsterdamOpenRegisterBusinessDateYmd(), -1)
 }
 
 const selectedDate = ref<string>(defaultSelectedBusinessDate())
@@ -116,12 +70,21 @@ const scaleRev = (n: number | null | undefined) => (n ?? 0) * revenueScale.value
 
 const showLocationColumn = computed(() => selectedLocation.value === 'all')
 
+function weekdayLongForBusinessYmd(ymd: string): string {
+  const parts = ymd.split('-').map((x) => Number(x))
+  const y = parts[0] ?? 0
+  const m = parts[1] ?? 1
+  const d = parts[2] ?? 1
+  const ref = new Date(Date.UTC(y, m - 1, d, 12, 0, 0))
+  return new Intl.DateTimeFormat('en-GB', { timeZone: AMSTERDAM_TZ, weekday: 'long' }).format(ref)
+}
+
 // Location options (from unified_location_mapping)
 const locations = ['all', 'Bar Bea', 'Van Kinsbergen', 'l\'Amour Toujours']
 
 // Last 7 register business days (i=0 = today’s open register day; before 08:00 that is still “yesterday”)
 const last7Days = computed(() => {
-  const registerToday = registerBusinessDateForInstant(new Date())
+  const registerToday = amsterdamOpenRegisterBusinessDateYmd()
   const days: { date: string; label: string; dayName: string }[] = []
   for (let i = 0; i < 7; i++) {
     const dateStr = addCalendarDaysYmd(registerToday, -i)

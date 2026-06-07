@@ -1,14 +1,15 @@
 /**
  * @registry-id: runOpsNotificationScan
- * @last-modified: 2026-06-06T13:00:00.000Z
- * @last-fix: [2026-06-06] Added Eitje staff data quality detector (ADR-009 Option B).
- *   Prior: [2026-05-28] businessDates on scan context; unparsed Basis detector.
- * @adr-ref: ADR-004, ADR-006, ADR-009
+ * @last-modified: 2026-06-07T00:00:00.000Z
+ * @last-fix: [2026-06-07] ADR-010 business-day ISO misuse detector on Daily Ops paths
+ *   Prior: [2026-06-06] Added Eitje staff data quality detector (ADR-009 Option B).
+ * @adr-ref: ADR-004, ADR-006, ADR-009, ADR-010
  */
 
 import type { Db } from 'mongodb'
 import type { OpsNotificationsResponseDto } from '~/types/ops-notifications'
 import { detectArchitectureNotifications } from './detectors/architecture'
+import { detectBusinessDayIsoMisuseNotifications } from './detectors/businessDayIsoMisuse'
 import { detectCronPipelineNotifications } from './detectors/cronPipeline'
 import { detectGmailOAuthNotifications } from './detectors/gmailOAuth'
 import { detectIntegrityNotifications } from './detectors/integrity'
@@ -73,6 +74,7 @@ export async function runOpsNotificationScan(
       }),
     )).flat(),
     ...(opts?.skipArchitecture ? [] : detectArchitectureNotifications()),
+    ...(opts?.skipArchitecture ? [] : detectBusinessDayIsoMisuseNotifications()),
   ]
 
   const now = new Date()

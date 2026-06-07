@@ -220,3 +220,22 @@ API endpoint (`bundle.get.ts`) intelligently serves from the appropriate cache l
 **Docs:** `EITJE_ARCHITECTURE_OPTION_B.md`
 
 ---
+
+## ADR-010 — Register business day is SSOT for Daily Ops “today”
+
+**Status:** Accepted (2026-06-07)
+
+**Context:** Daily Ops repeatedly regressed to ISO calendar date (`calendarYmdInAmsterdam`, `new Date().toISOString().slice(0, 10)`) for “today” in venue strip, bundle cache, and live revenue paths. That breaks the register model: **business day N = 08:00 Amsterdam on calendar N through 07:59:59 on calendar N+1** (late-night spillover).
+
+**Decision:**
+
+1. **SSOT:** `utils/dailyOpsBusinessDate.ts` — `amsterdamOpenRegisterBusinessDateYmd()`, `registerBusinessDateForInstant()`, `isOpenRegisterBusinessDate()`.
+2. **Daily Ops UI + GET paths** resolve periods and compare “today” only via register business_date. Query Mongo by `business_date`, never by ISO calendar “today”.
+3. **Integration fetch** (Bork `ticket/day.json/{YYYYMMDD}`, Eitje cron windows) may use calendar dates for API params only — not for dashboard display.
+4. **Ops guard:** `detectors/businessDayIsoMisuse.ts` flags forbidden patterns in Daily Ops read/UI directories on every scan.
+
+**Consequences:** Venue strip / bundle / labor live paths must import from `dailyOpsBusinessDate.ts`. Violations surface as critical architecture alerts on `/ops-notifications`.
+
+**Related:** ADR-004 (snapshot reads), `types/daily-ops-snapshot.ts` (business_date field semantics)
+
+---

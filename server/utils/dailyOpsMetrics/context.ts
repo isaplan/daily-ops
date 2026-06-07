@@ -1,9 +1,14 @@
 /**
  * @registry-id: dailyOpsMetricsContext
  * @created: 2026-05-28T00:00:00.000Z
- * @last-modified: 2026-05-28T00:00:00.000Z
+ * @last-modified: 2026-06-07T00:00:00.000Z
  * @description: Daily Ops dashboard query context (period, dates, location filter)
- * @adr-ref: ADR-004
+ * @last-fix: [2026-06-07] startDate/endDate are register business_date (ADR-010), not ISO calendar
+ * @adr-ref: ADR-004, ADR-010
+ *
+ * @architecture:
+ *   - `startDate` / `endDate` = inclusive `business_date` from resolveDailyOpsPeriod (08:00 Amsterdam boundary).
+ *   - Never derive these from `calendarYmdInAmsterdam()` or UTC `toISOString().slice(0, 10)`.
  *
  * @exports-to:
  * ✓ server/utils/dailyOpsDashboardMetrics.ts (barrel)

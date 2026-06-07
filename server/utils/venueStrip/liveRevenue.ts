@@ -1,10 +1,15 @@
 /**
  * @registry-id: dailyOpsVenueStripLiveRevenue
  * @created: 2026-06-06T18:00:00.000Z
- * @last-modified: 2026-06-06T18:00:00.000Z
- * @description: Today-only venue revenue from live Bork V2 aggregates (not sealed snapshot)
- * @last-fix: [2026-06-06] ADR-004 exception: today reads bork_business_days_v2 directly
- * @adr-ref: ADR-004
+ * @last-modified: 2026-06-07T01:00:00.000Z
+ * @description: Open register-day venue revenue — freshest of Bork V2 aggregate or live raw sum
+ * @last-fix: [2026-06-07] Merge raw ticket sum for open day (sync lag + next-morning spillover); ADR-010
+ *   Prior: [2026-06-07] isTodayBusinessDate uses open register day, not ISO calendar
+ * @adr-ref: ADR-004, ADR-010
+ *
+ * @architecture:
+ *   - “Today” = open register `business_date` (08:00 → next morning 07:59).
+ *   - Prefer max(aggregate, raw) so hourly cron lag does not under-report vs Datalab/POS.
  *
  * @exports-to:
  * ✓ server/utils/venueStrip/snapshotBatch.ts
@@ -13,19 +18,21 @@
 
 import type { Db } from 'mongodb'
 import type { VenueStripCardDto } from '~/types/daily-ops-dashboard'
-import { calendarYmdInAmsterdam } from '~/utils/dailyOpsBusinessDate'
+import { isOpenRegisterBusinessDate } from '~/utils/dailyOpsBusinessDate'
 import { proportionalFoodBeverageToHeadline } from '../borkFoodBeverageSplit'
 import { fetchBorkRangeTotals } from '../dailyOpsRevenue/borkRevenueRead'
+import { sumBusinessDateFromBorkRaw } from './liveRevenueRaw'
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100
 }
 
+/** True when `ymd` is the open register business day (ADR-010). */
 export function isTodayBusinessDate(ymd: string): boolean {
-  return ymd === calendarYmdInAmsterdam(new Date())
+  return isOpenRegisterBusinessDate(ymd)
 }
 
-/** Live Bork aggregate revenue for one venue-day (today only). */
+/** Live Bork revenue for one venue × open register business day. */
 export async function fetchVenueStripLiveRevenue(
   db: Db,
   businessDate: string,
@@ -33,26 +40,32 @@ export async function fetchVenueStripLiveRevenue(
 ): Promise<VenueStripCardDto['revenue'] | null> {
   if (!isTodayBusinessDate(businessDate)) return null
 
-  const live = await fetchBorkRangeTotals(db, {
-    startDate: businessDate,
-    endDate: businessDate,
-    locationId,
-  })
+  const [agg, raw] = await Promise.all([
+    fetchBorkRangeTotals(db, {
+      startDate: businessDate,
+      endDate: businessDate,
+      locationId,
+    }),
+    sumBusinessDateFromBorkRaw(db, locationId, businessDate),
+  ])
 
-  if (live.revenue <= 0 && live.revenueIncVat <= 0) return null
+  const revenue = Math.max(agg.revenue, raw?.revenue ?? 0)
+  const revenueIncVat = Math.max(agg.revenueIncVat, raw?.revenueIncVat ?? 0)
 
-  const scaledEx = proportionalFoodBeverageToHeadline(live.revenue, live.foodRevenue, live.beverageRevenue)
+  if (revenue <= 0 && revenueIncVat <= 0) return null
+
+  const scaledEx = proportionalFoodBeverageToHeadline(revenue, agg.foodRevenue, agg.beverageRevenue)
   const scaledInc = proportionalFoodBeverageToHeadline(
-    live.revenueIncVat,
-    live.foodRevenue,
-    live.beverageRevenue,
+    revenueIncVat,
+    agg.foodRevenue,
+    agg.beverageRevenue,
   )
 
   return {
-    total: round2(live.revenue),
+    total: round2(revenue),
     food: round2(scaledEx.food),
     beverage: round2(scaledEx.beverage),
-    totalIncVat: round2(live.revenueIncVat),
+    totalIncVat: round2(revenueIncVat),
     foodIncVat: round2(scaledInc.food),
     beverageIncVat: round2(scaledInc.beverage),
   }

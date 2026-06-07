@@ -1,9 +1,13 @@
 /**
  * @registry-id: dailyOpsPatchTodayRevenueFromBork
  * @created: 2026-06-06T18:00:00.000Z
- * @last-modified: 2026-06-06T18:00:00.000Z
- * @description: Override today's snapshot revenue rows with live Bork V2 aggregates
- * @adr-ref: ADR-004
+ * @last-modified: 2026-06-07T01:00:00.000Z
+ * @description: Override open register-day snapshot revenue with freshest Bork aggregate or raw sum
+ * @last-fix: [2026-06-07] max(aggregate, raw) for sync lag; ADR-010
+ * @adr-ref: ADR-004, ADR-010
+ *
+ * @exports-to:
+ * ✓ server/utils/dailyOpsSnapshot/fetchDashboardBundle.ts
  */
 
 import type { Db } from 'mongodb'
@@ -11,6 +15,7 @@ import type { DailyOpsSnapshotRevenueSection } from '~/types/daily-ops-snapshot'
 import type { DailyOpsMetricsContext } from '../../dailyOpsMetrics/context'
 import { fetchBorkRangeTotals } from '../../dailyOpsRevenue/borkRevenueRead'
 import { isTodayBusinessDate } from '../../venueStrip/liveRevenue'
+import { sumBusinessDateFromBorkRaw } from '../../venueStrip/liveRevenueRaw'
 import { snapshotRound2 } from './shared'
 
 export async function patchTodayRevenueRowsFromBork(
@@ -22,15 +27,19 @@ export async function patchTodayRevenueRowsFromBork(
 
   await Promise.all(
     revenueRows.map(async (row) => {
-      const live = await fetchBorkRangeTotals(db, {
-        startDate: ctx.startDate,
-        endDate: ctx.endDate,
-        locationId: row.locationId,
-      })
-      if (live.revenue <= 0 && live.revenueIncVat <= 0) return
+      const [agg, raw] = await Promise.all([
+        fetchBorkRangeTotals(db, {
+          startDate: ctx.startDate,
+          endDate: ctx.endDate,
+          locationId: row.locationId,
+        }),
+        sumBusinessDateFromBorkRaw(db, row.locationId, ctx.startDate),
+      ])
 
-      const ex = snapshotRound2(live.revenue)
-      const inc = snapshotRound2(live.revenueIncVat)
+      const ex = snapshotRound2(Math.max(agg.revenue, raw?.revenue ?? 0))
+      const inc = snapshotRound2(Math.max(agg.revenueIncVat, raw?.revenueIncVat ?? 0))
+      if (ex <= 0 && inc <= 0) return
+
       row.totals = {
         ex_vat: ex,
         inc_vat: inc,

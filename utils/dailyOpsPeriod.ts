@@ -1,3 +1,17 @@
+/**
+ * @registry-id: dailyOpsPeriodResolver
+ * @created: 2026-05-19T00:00:00.000Z
+ * @last-modified: 2026-06-07T00:00:00.000Z
+ * @description: Resolves Daily Ops dashboard periods to register business_date ranges
+ * @last-fix: [2026-06-07] Document ADR-010 — today/yesterday use open register day, not ISO calendar
+ * @adr-ref: ADR-010
+ *
+ * @exports-to:
+ * ✓ server/utils/dailyOpsPeriod.ts (re-export)
+ * ✓ server/utils/dailyOpsMetrics/context.ts
+ * ✓ composables/useDailyOpsDashboardRoute.ts
+ */
+
 import type { DailyOpsPeriodId } from '~/types/daily-ops-dashboard'
 import {
   addCalendarDaysYmd,

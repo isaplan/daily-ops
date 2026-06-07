@@ -3,8 +3,8 @@
  *
  * @registry-id: taskIntegrationsBorkEitjeDaily
  * @last-modified: 2026-06-06T00:40:00.000Z
- * @last-fix: [2026-06-06] Added 22:00 run (before 23:00) + 02:00 on Fri/Sat (weekend late-night). Now 9×/day + weekend bonus.
- *   Prior: [2026-05-28] Corrected cron: 01:00, 08:00, 15:00, 18:00, 19:00, 20:00, 21:00, 23:00 (8× daily).
+ * @last-fix: [2026-06-07] Per-weekday Amsterdam cron (SSOT borkEitjeDailyCronSchedule.ts)
+ *   Prior: [2026-06-06] Added 22:00 + Fri/Sat 02:00 weekend bonus
  * @exports-to: nuxt.config.ts → nitro.scheduledTasks
  */
 

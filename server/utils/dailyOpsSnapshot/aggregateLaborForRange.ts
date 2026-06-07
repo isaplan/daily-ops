@@ -1,17 +1,14 @@
 /**
  * @registry-id: dailyOpsSnapshotAggregateLaborForRange
  * @created: 2026-05-13T00:00:00.000Z
- * @last-modified: 2026-06-05T19:16:00.000Z
- * @description: Reads daily_ops_snapshot_section_labor across a (startDate..endDate, locationId?)
- *   window and rolls up totals + per-team breakdown (Keuken / Bediening / Other) for both wage and
- *   loaded cost methodologies. Source of truth for the "Total Labor Cost" dashboard card
- *   improvements requested 2026-05-12.
- * @last-fix: [2026-06-05] For today: read live eitje_time_registration_aggregation (real-time labor). For yesterday+: read snapshot (sealed).
- *   Prior: [2026-05-13] Initial.
+ * @last-modified: 2026-06-07T00:00:00.000Z
+ * @last-fix: [2026-06-07] Live Eitje path uses open register business_date (ADR-010), not UTC ISO
+ *   Prior: [2026-06-05] For today: read live eitje_time_registration_aggregation (real-time labor). For yesterday+: read snapshot (sealed).
+ * @adr-ref: ADR-010
  *
  * @architecture:
- *   - **Today (startDate === endDate === today):** Reads eitje_time_registration_aggregation (live, updates hourly)
- *   - **Yesterday & older:** Reads daily_ops_snapshot_section_labor (sealed snapshot)
+ *   - **Open register day:** Reads eitje_time_registration_aggregation (live, updates hourly)
+ *   - **Sealed days:** Reads daily_ops_snapshot_section_labor (sealed snapshot)
  *   - Team bucketing: case-insensitive name match → keuken / bediening / other.
  *   - Coverage: reports daysExpected vs daysFound so caller can decide partial vs complete UX.
  *
@@ -21,6 +18,7 @@
  */
 
 import type { Db } from 'mongodb'
+import { amsterdamOpenRegisterBusinessDateYmd } from '~/utils/dailyOpsBusinessDate'
 
 const DEBUG = typeof process.env.DEBUG === 'string' && process.env.DEBUG.includes('snapshot:labor-agg')
 
@@ -78,11 +76,8 @@ export async function aggregateLaborForRange(
   db: Db,
   ctx: { startDate: string; endDate: string; locationId?: string }
 ): Promise<LaborBreakdown> {
-  const today = new Date().toISOString().slice(0, 10)
-  
-  // Special case: today's data comes from live eitje_time_registration_aggregation (updates hourly)
-  // Yesterday & older: sealed snapshot data (no more updates)
-  const useLiveEitje = ctx.startDate === ctx.endDate && ctx.startDate === today
+  const openRegister = amsterdamOpenRegisterBusinessDateYmd()
+  const useLiveEitje = ctx.startDate === ctx.endDate && ctx.startDate === openRegister
 
   const collectionName = useLiveEitje ? 'eitje_time_registration_aggregation' : 'daily_ops_snapshot_section_labor'
   

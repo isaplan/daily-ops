@@ -52,7 +52,7 @@ See [TIMEZONE_AND_DEPLOYMENT.md](./dev-docs/TIMEZONE_AND_DEPLOYMENT.md) for deta
 
 Scheduled tasks run automatically via Nitro's built-in scheduler (if `TZ=Europe/Amsterdam` is set):
 - **Gmail inbox sync (`inbox:gmail-sync`):** **4×** daily Amsterdam — **08:05**, **12:05**, **18:05**, **23:05**. This is **only** Gmail fetch + parse (not the Bork/Eitje REST API jobs). Purposes and `cron_hour` contract: see metadata in [`server/tasks/inbox/gmail-sync.ts`](./server/tasks/inbox/gmail-sync.ts).
-- **Bork/Eitje API sync (Nitro):** **06:00** Amsterdam — morning maintenance (`integrations:bork-eitje-morning-maintenance`); **`daily-data`** runs at **01:00, 08:00, 15:00, 18:00, 19:00, 20:00, 21:00, 23:00** Amsterdam (`integrations:bork-eitje-daily`). Separate from Gmail.
+- **Bork/Eitje API sync (Nitro):** **06:00** Amsterdam — morning maintenance; **`daily-data`** per weekday schedule in `utils/integrations/borkEitjeDailyCronSchedule.ts` (`integrations:bork-eitje-daily`). Separate from Gmail.
 
 For local development without setting TZ, you can manually trigger via UI "Sync Gmail" / "Run Now" buttons.
 

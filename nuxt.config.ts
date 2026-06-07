@@ -2,9 +2,10 @@
  * Nitro crons (Gmail + Bork/Eitje) run on DO production only.
  * Local `pnpm dev` often uses prod Mongo — duplicating crons causes overlap/timeouts.
  * Set `ENABLE_NITRO_SCHEDULED_TASKS=1` to test crons locally; `DISABLE_*` still fine-tunes production.
- * 
+ *
  * PWA: @vite-pwa/nuxt module included (2026-06-03)
  */
+import { buildBorkEitjeDailyNitroCronEntries } from './utils/integrations/borkEitjeDailyCronSchedule'
 const enableNitroScheduled =
   process.env.NODE_ENV === 'production' || process.env.ENABLE_NITRO_SCHEDULED_TASKS === '1'
 /** Set `DISABLE_INBOX_SCHEDULED=1` to skip Gmail poll (e.g. prod without inbox). */
@@ -59,20 +60,12 @@ if (enableNitroScheduled && !disableInboxSchedule) {
 }
 if (enableNitroScheduled && !disableIntegrationsSchedule) {
   /**
-   * Bork + Eitje **morning maintenance** (06:00): `master-data` then `historical-data` for both integrations.
-   * Same sync pipeline as daily (`runIntegrationCronJob` → raw upsert + Bork V2 / Eitje labor rules for that job type).
-   * Bork master/historical ticket pulls exclude **today** (yesterday-only for master; window ends yesterday for historical).
-   * Eitje historical uses the same rule (`dateRangeDaysEndingYesterday`); Eitje master is list endpoints (not day-scoped).
-   *
-   * Bork + Eitje **daily** (`daily-data`): yesterday + today labor/tickets, 9× per day Amsterdam (no slot at 06:00 — independent of maintenance).
-   * - 01:00, 08:00, 15:00, 18:00, 19:00, 20:00, 21:00, 22:00, 23:00
-   * - **Plus:** 02:00 on Friday/Saturday (late-night weekend captures)
-   *
-   * Cron expressions use TZ from the server env (set TZ=Europe/Amsterdam on DO).
+   * Bork + Eitje **morning maintenance** (06:00): master + historical (through yesterday).
+   * Bork + Eitje **daily** (`daily-data`): per-weekday Amsterdam hours — SSOT:
+   * `utils/integrations/borkEitjeDailyCronSchedule.ts`
    */
   scheduledTasks['0 6 * * *'] = ['integrations:bork-eitje-morning-maintenance']
-  scheduledTasks['0 1,8,15,18,19,20,21,22,23 * * *'] = ['integrations:bork-eitje-daily']
-  scheduledTasks['0 2 * * 5,6'] = ['integrations:bork-eitje-daily'] // 02:00 Fri/Sat only
+  Object.assign(scheduledTasks, buildBorkEitjeDailyNitroCronEntries())
 }
 if (enableNitroScheduled && enableOpsAutoRetry) {
   // Staggered away from :00/:05 integration/inbox windows.
@@ -133,7 +126,8 @@ export default defineNuxtConfig({
       ],
     },
     devOptions: {
-      enabled: true,
+      // Avoid ENOENT on `.nuxt/dev-sw-dist/sw.js` when .nuxt is stale; opt-in with PWA_DEV=1
+      enabled: process.env.PWA_DEV === '1',
       suppressWarnings: true,
       navigateFallback: '/',
       type: 'module',

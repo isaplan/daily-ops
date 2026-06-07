@@ -17,7 +17,7 @@ import { resolve } from 'node:path'
 import { MongoClient } from 'mongodb'
 import { rebuildBorkSalesAggregationV2 } from '../server/services/borkRebuildAggregationV2Service.ts'
 import { resolveV2RebuildCollectionSuffix } from '../server/utils/borkV2RebuildSuffix.ts'
-import { calendarYmdInAmsterdam } from '../utils/dailyOpsBusinessDate.ts'
+import { amsterdamOpenRegisterBusinessDateYmd } from '../utils/dailyOpsBusinessDate.ts'
 
 function loadDotEnv() {
   for (const file of ['.env.local', '.env']) {
@@ -75,7 +75,7 @@ async function main() {
   await client.connect()
   const db = client.db(dbName)
 
-  const includeOpenTickets = startDate === endDate && endDate === calendarYmdInAmsterdam(new Date())
+  const includeOpenTickets = startDate === endDate && endDate === amsterdamOpenRegisterBusinessDateYmd()
   const result = await rebuildBorkSalesAggregationV2(
     db,
     startDate,

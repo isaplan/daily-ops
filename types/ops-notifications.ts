@@ -36,6 +36,7 @@ export type OpsNotificationKind =
   // Architecture / ADR / agent-rules
   | 'adr004_live_bork_on_revenue_get'
   | 'monolithic_module'
+  | 'daily_ops_iso_calendar_misuse'
 
 export type OpsNotificationDto = {
   id: string
