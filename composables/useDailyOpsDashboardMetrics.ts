@@ -1,10 +1,10 @@
 /**
  * @created: 2026-05-18T00:00:00.000Z
- * @last-modified: 2026-06-06T17:15:00.000Z
+ * @last-modified: 2026-06-07T00:00:00.000Z
  * @description: Dashboard metrics via single snapshot bundle (ADR-004). One HTTP round-trip; progressive UI gates on summary only.
- * @last-fix: [2026-06-06] CRITICAL FIX: Invalidate cache every 5 min for 'today' to show fresh revenue data after cron runs
- *   Prior: [2026-05-25] Replaced 3 parallel live-agg endpoints with /metrics/bundle snapshot read.
- * @adr-ref: ADR-004
+ * @last-fix: [2026-06-07] Cache invalidation follows per-weekday Bork/Eitje cron SSOT
+ *   Prior: [2026-06-07] Cache key uses open register business_date (ADR-010)
+ * @adr-ref: ADR-004, ADR-010
  *
  * @exports-to:
  * ✓ components/daily-ops/DailyOpsHomeDashboard.vue
@@ -18,6 +18,8 @@ import type {
   DailyOpsSummaryDto,
 } from '~/types/daily-ops-dashboard'
 import type { ComputedRef, Ref } from 'vue'
+import { amsterdamOpenRegisterBusinessDateYmd } from '~/utils/dailyOpsBusinessDate'
+import { dailyCronCacheWindowKey } from '~/utils/integrations/borkEitjeDailyCronSchedule'
 
 export type DailyOpsDashboardMetrics = {
   summary: ComputedRef<DailyOpsSummaryDto | null>
@@ -42,9 +44,7 @@ const metricsKey = (q: Record<string, string | undefined>): string => {
   
   // For 'today', invalidate cache every 5 minutes to ensure fresh data
   if ((q.period ?? 'today') === 'today') {
-    const now = new Date()
-    const cacheWindow = Math.floor(now.getTime() / (5 * 60 * 1000)) // 5-minute windows
-    return `${base}-${cacheWindow}`
+    return `${base}-${amsterdamOpenRegisterBusinessDateYmd()}-${dailyCronCacheWindowKey()}`
   }
   
   return base

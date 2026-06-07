@@ -1,9 +1,10 @@
 /**
  * @registry-id: dailyOpsVenueStripSnapshotBatch
  * @created: 2026-05-28T00:00:00.000Z
- * @last-modified: 2026-05-28T00:00:00.000Z
+ * @last-modified: 2026-06-07T01:00:00.000Z
  * @description: Batch snapshot reads + venue card assembly for venue strip
- * @adr-ref: ADR-004
+ * @last-fix: [2026-06-07] Open day revenue via liveRevenue (aggregate + raw max, ADR-010)
+ * @adr-ref: ADR-004, ADR-010
  */
 
 import type { Db } from 'mongodb'

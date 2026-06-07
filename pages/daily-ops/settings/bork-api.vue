@@ -176,7 +176,10 @@
               <div class="space-y-0.5">
                 <p class="text-sm font-medium text-gray-900">Enable Daily Data Sync</p>
                 <p class="text-sm text-gray-600">Sync today and yesterday at set times for all locations (catches missed runs)</p>
-                <p class="text-xs text-gray-500">Sync runs at 01:00, 08:00, 15:00, 18:00, 19:00, 20:00, 21:00, 23:00 (Europe/Amsterdam)</p>
+                <p class="text-xs text-gray-500">Sync runs (Europe/Amsterdam, per weekday):</p>
+                <ul class="text-xs text-gray-500 list-disc list-inside mt-1 space-y-0.5">
+                  <li v-for="line in dailyCronScheduleLines" :key="line">{{ line }}</li>
+                </ul>
               </div>
               <SettingsCronSwitch
                 :model-value="Boolean(dailyCronStatus?.isActive)"
@@ -323,8 +326,11 @@
 <script setup lang="ts">
 import { ref, onMounted, reactive, computed } from 'vue'
 import { useHead } from '#imports'
+import { formatBorkEitjeDailyCronScheduleLines } from '~/utils/integrations/borkEitjeDailyCronSchedule'
 
 useHead({ title: 'Bork API Settings' })
+
+const dailyCronScheduleLines = formatBorkEitjeDailyCronScheduleLines()
 
 type CredentialItem = {
   _id: string

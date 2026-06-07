@@ -1,15 +1,17 @@
 /**
  * @registry-id: dailyOpsAggregateBundles
  * @created: 2026-06-05T18:48:00.000Z
- * @last-modified: 2026-06-05T18:48:00.000Z
+ * @last-modified: 2026-06-07T00:00:00.000Z
  * @description: Aggregate multiple daily dashboard bundles into weekly/monthly/yearly totals
- * @adr-ref: ADR-004
+ * @last-fix: [2026-06-07] Week bounds via addCalendarDaysYmd (ADR-010)
+ * @adr-ref: ADR-004, ADR-010
  *
  * @exports-to:
  * ✓ server/utils/dailyOpsSnapshot/cacheCascade.ts
  */
 
 import type { DailyOpsDashboardBundleDto } from './fetchDashboardBundle'
+import { addCalendarDaysYmd } from '~/utils/dailyOpsBusinessDate'
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100
@@ -117,20 +119,16 @@ export function getYearKey(ymd: string): string {
   return ymd.slice(0, 4) // YYYY
 }
 
-/** ISO week start (Monday) for a date. */
+/** ISO week start (Monday) for a business_date YMD. */
 export function getWeekStart(ymd: string): string {
   const [y, m, d] = ymd.split('-').map(Number)
   const date = new Date(Date.UTC(y!, m! - 1, d!))
   const dow = date.getUTCDay()
   const diff = dow === 0 ? -6 : 1 - dow
-  date.setUTCDate(date.getUTCDate() + diff)
-  return date.toISOString().slice(0, 10)
+  return addCalendarDaysYmd(ymd, diff)
 }
 
-/** ISO week end (Sunday) for a date. */
+/** ISO week end (Sunday) for a business_date YMD. */
 export function getWeekEnd(ymd: string): string {
-  const start = getWeekStart(ymd)
-  const [y, m, d] = start.split('-').map(Number)
-  const date = new Date(Date.UTC(y!, m! - 1, d! + 6))
-  return date.toISOString().slice(0, 10)
+  return addCalendarDaysYmd(getWeekStart(ymd), 6)
 }

@@ -80,6 +80,7 @@ export const OPS_NOTIFICATION_RULE_SECTIONS: OpsNotificationRuleSection[] = [
     ],
     bullets: [
       'ADR-004 violation — revenue-related GET path still reads bork_raw_data, bork_sales_by_*, or fillHourlyMatrixFromBork (watched files in detectors/architecture.ts).',
+      'ADR-010 ISO calendar misuse — Daily Ops read/UI file uses calendarYmdInAmsterdam or UTC toISOString().slice(0,10) for “today” instead of amsterdamOpenRegisterBusinessDateYmd (detectors/businessDayIsoMisuse.ts).',
       'Monolithic module — file exceeds line budget (e.g. dailyOpsDashboardMetrics.ts > 600 lines).',
     ],
   },

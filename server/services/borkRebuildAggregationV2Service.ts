@@ -11,7 +11,9 @@
  * @architecture:
  *   - One pass over bork_raw_data rebuilds all 7 collections.
  *   - VAT extraction delegated to server/utils/borkVatCalculation.ts (single source of truth).
- *   - Business day = 08:00 Amsterdam → 07:59:59 next ISO day (see calendarToBusinessDay).
+ *   - Business day = 08:00 Amsterdam → 07:59:59 next ISO day (see calendarToBusinessDay). Client reads use ADR-010 SSOT.
+ *
+ * @adr-ref: ADR-010
  *
  * @exports-to:
  * ✓ scripts/bork-backfill-weekly-backward.ts

@@ -1,9 +1,10 @@
 /**
  * @registry-id: dailyOpsCacheCascade
  * @created: 2026-06-05T18:48:00.000Z
- * @last-modified: 2026-06-05T18:48:00.000Z
+ * @last-modified: 2026-06-07T00:00:00.000Z
  * @description: Cascading cache: daily → weekly → monthly → yearly bundle aggregation
- * @adr-ref: ADR-004
+ * @last-fix: [2026-06-07] Date iteration via addCalendarDaysYmd on business_date (ADR-010)
+ * @adr-ref: ADR-004, ADR-010
  *
  * @exports-to:
  * ✓ scripts/pregenerate-dashboard-bundles.ts
@@ -11,6 +12,7 @@
 
 import { readFile, writeFile, mkdir, readdir } from 'node:fs/promises'
 import { resolve } from 'node:path'
+import { addCalendarDaysYmd } from '~/utils/dailyOpsBusinessDate'
 import {
   aggregateDailyBundles,
   getIsoWeek,
@@ -54,9 +56,7 @@ export async function generateWeeklyBundle(
     const dailyBundles: DailyOpsDashboardBundleDto[] = []
     
     for (let i = 0; i < 7; i++) {
-      const [y, m, d] = weekStart.split('-').map(Number)
-      const date = new Date(Date.UTC(y!, m! - 1, d! + i))
-      const ymd = date.toISOString().slice(0, 10)
+      const ymd = addCalendarDaysYmd(weekStart, i)
       const dailyPath = cachePath('daily', ymd, locationId)
       const bundle = await readCachedBundle(dailyPath)
       if (!bundle) {
@@ -191,9 +191,7 @@ export async function cascadeGenerate(
     months.add(getMonthKey(cursor))
     years.add(getYearKey(cursor))
 
-    const [y, m, d] = cursor.split('-').map(Number)
-    const next = new Date(Date.UTC(y!, m! - 1, d! + 1))
-    cursor = next.toISOString().slice(0, 10)
+    cursor = addCalendarDaysYmd(cursor, 1)
   }
 
   let weeklyCount = 0
@@ -211,9 +209,7 @@ export async function cascadeGenerate(
           weekStart = getWeekStart(cursor)
           break
         }
-        const [y, m, d] = cursor.split('-').map(Number)
-        const next = new Date(Date.UTC(y!, m! - 1, d! + 1))
-        cursor = next.toISOString().slice(0, 10)
+        cursor = addCalendarDaysYmd(cursor, 1)
       }
       
       const result = await generateWeeklyBundle(week, locationId, weekStart)

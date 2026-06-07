@@ -1,12 +1,13 @@
 /**
  * @registry-id: dailyOpsSnapshotFetchDashboardBundle
  * @created: 2026-05-25T00:00:00.000Z
- * @last-modified: 2026-06-05T17:50:00.000Z
- * @last-fix: [2026-06-05] Cache sealed days 24h immutable; yesterday 1h + stale-while-revalidate
+ * @last-modified: 2026-06-07T00:00:00.000Z
+ * @last-fix: [2026-06-07] snapshotCacheControl uses open register business_date (ADR-010), not UTC ISO
+ *   Prior: [2026-06-05] Cache sealed days 24h immutable; yesterday 1h + stale-while-revalidate
  *   Prior: [2026-06-05] Merge revenue-section hourly fallback + scale today hourly detail
  * @description: Snapshot-first Daily Ops dashboard bundle orchestrator (ADR-004)
  * @last-fix: [2026-05-31] Dashboard profit math uses Mongo P&L assumptions SSOT
- * @adr-ref: ADR-004, ADR-006
+ * @adr-ref: ADR-004, ADR-006, ADR-010
  *
  * @exports-to:
  * ✓ server/api/daily-ops/metrics/bundle.get.ts
@@ -26,6 +27,7 @@ import {
   buildDailyOpsRevenueBreakdownDto,
   buildDailyOpsSummaryDto,
 } from '../dailyOpsMetrics/dtoBuilders'
+import { addCalendarDaysYmd, amsterdamOpenRegisterBusinessDateYmd } from '~/utils/dailyOpsBusinessDate'
 import { loadPnlAssumptions } from '../appSettings/pnlAssumptionsSetting'
 import { aggregateLaborForRange } from './aggregateLaborForRange'
 import { buildProfitByIntervalFromSnapshotHourly } from './buildProfitByIntervalFromSnapshot'
@@ -145,11 +147,11 @@ export async function fetchDailyOpsDashboardBundle(
 }
 
 export function snapshotCacheControl(ctx: DailyOpsMetricsContext): string {
-  const today = new Date().toISOString().slice(0, 10)
-  const sealedSingleDay = ctx.period !== 'today' && ctx.startDate === ctx.endDate && ctx.endDate < today
+  const openRegister = amsterdamOpenRegisterBusinessDateYmd()
+  const sealedSingleDay = ctx.period !== 'today' && ctx.startDate === ctx.endDate && ctx.endDate < openRegister
 
   if (sealedSingleDay) {
-    const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10)
+    const yesterday = addCalendarDaysYmd(openRegister, -1)
     if (ctx.endDate === yesterday) {
       // Yesterday: 1h cache, revalidate in background (morning cron might update)
       return 'public, max-age=3600, stale-while-revalidate=86400'

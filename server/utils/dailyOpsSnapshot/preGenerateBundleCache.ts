@@ -1,10 +1,11 @@
 /**
  * @registry-id: dailyOpsPreGenerateBundleCache
  * @created: 2026-06-05T17:50:00.000Z
- * @last-modified: 2026-06-05T17:50:00.000Z
+ * @last-modified: 2026-06-07T00:00:00.000Z
  * @description: Pre-generate static JSON cache for sealed dashboard bundles (instant page loads)
- * @last-fix: [2026-06-05] Initial pre-generation after snapshot builds complete
- * @adr-ref: ADR-004
+ * @last-fix: [2026-06-07] Open register day check via amsterdamOpenRegisterBusinessDateYmd (ADR-010)
+ *   Prior: [2026-06-05] Initial pre-generation after snapshot builds complete
+ * @adr-ref: ADR-004, ADR-010
  *
  * @exports-to:
  * ✓ server/services/dailyOpsSnapshotService.ts
@@ -14,6 +15,7 @@ import type { Db } from 'mongodb'
 import { writeFile, mkdir } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import type { DailyOpsMetricsContext } from '../dailyOpsMetrics/context'
+import { addCalendarDaysYmd, amsterdamOpenRegisterBusinessDateYmd } from '~/utils/dailyOpsBusinessDate'
 import { fetchDailyOpsDashboardBundle } from './fetchDashboardBundle'
 
 const CACHE_DIR = resolve(process.cwd(), '.cache/daily-ops-bundles/daily')
@@ -28,8 +30,8 @@ export async function preGenerateBundleForDate(
   businessDate: string,
   locationId: string,
 ): Promise<{ written: boolean; path: string | null; error?: string }> {
-  const today = new Date().toISOString().slice(0, 10)
-  if (businessDate >= today) {
+  const openRegister = amsterdamOpenRegisterBusinessDateYmd()
+  if (businessDate >= openRegister) {
     return { written: false, path: null, error: 'Skip today (not sealed)' }
   }
 
@@ -71,12 +73,10 @@ export async function preGenerateBundlesForRange(
   let errors = 0
 
   const dates: string[] = []
-  let current = new Date(startDate + 'T00:00:00Z')
-  const end = new Date(endDate + 'T00:00:00Z')
-
-  while (current <= end) {
-    dates.push(current.toISOString().slice(0, 10))
-    current = new Date(current.getTime() + 86400000)
+  let cursor = startDate
+  while (cursor <= endDate) {
+    dates.push(cursor)
+    cursor = addCalendarDaysYmd(cursor, 1)
   }
 
   for (const date of dates) {

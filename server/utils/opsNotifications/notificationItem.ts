@@ -25,6 +25,7 @@ const TITLES: Record<OpsNotificationKind, string> = {
   labor_snapshot_inconsistent: 'Labor snapshot internally inconsistent',
   adr004_live_bork_on_revenue_get: 'ADR-004 violation on GET',
   monolithic_module: 'Monolithic module',
+  daily_ops_iso_calendar_misuse: 'ADR-010 ISO date in Daily Ops',
 }
 
 const SEVERITY: Record<OpsNotificationKind, OpsNotificationSeverity> = {
@@ -47,6 +48,7 @@ const SEVERITY: Record<OpsNotificationKind, OpsNotificationSeverity> = {
   revenue_snapshot_empty: 'warning',
   adr004_live_bork_on_revenue_get: 'critical',
   monolithic_module: 'info',
+  daily_ops_iso_calendar_misuse: 'critical',
 }
 
 const CATEGORY: Record<OpsNotificationKind, OpsNotificationCategory> = {
@@ -69,6 +71,7 @@ const CATEGORY: Record<OpsNotificationKind, OpsNotificationCategory> = {
   labor_snapshot_inconsistent: 'integrity',
   adr004_live_bork_on_revenue_get: 'architecture',
   monolithic_module: 'architecture',
+  daily_ops_iso_calendar_misuse: 'architecture',
 }
 
 export function buildNotificationItem(input: {
