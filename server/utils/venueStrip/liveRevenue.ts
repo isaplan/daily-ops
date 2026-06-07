@@ -3,7 +3,7 @@
  * @created: 2026-06-06T18:00:00.000Z
  * @last-modified: 2026-06-07T01:00:00.000Z
  * @description: Open register-day venue revenue — freshest of Bork V2 aggregate or live raw sum
- * @last-fix: [2026-06-07] Merge raw ticket sum for open day (sync lag + next-morning spillover); ADR-010
+ * @last-fix: [2026-06-08] Bounded raw scan via sumBusinessDateFromBorkRawBounded (4s cap)
  *   Prior: [2026-06-07] isTodayBusinessDate uses open register day, not ISO calendar
  * @adr-ref: ADR-004, ADR-010
  *
@@ -21,7 +21,7 @@ import type { VenueStripCardDto } from '~/types/daily-ops-dashboard'
 import { isOpenRegisterBusinessDate } from '~/utils/dailyOpsBusinessDate'
 import { proportionalFoodBeverageToHeadline } from '../borkFoodBeverageSplit'
 import { fetchBorkRangeTotals } from '../dailyOpsRevenue/borkRevenueRead'
-import { sumBusinessDateFromBorkRaw } from './liveRevenueRaw'
+import { sumBusinessDateFromBorkRawBounded } from './liveRevenueRaw'
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100
@@ -46,7 +46,7 @@ export async function fetchVenueStripLiveRevenue(
       endDate: businessDate,
       locationId,
     }),
-    sumBusinessDateFromBorkRaw(db, locationId, businessDate),
+    sumBusinessDateFromBorkRawBounded(db, locationId, businessDate),
   ])
 
   const revenue = Math.max(agg.revenue, raw?.revenue ?? 0)

@@ -123,7 +123,7 @@ function goReconnectGmail(): void {
   window.location.href = '/api/auth/gmail/authorize'
 }
 
-const { data: stripData, pending } = await useAsyncData(
+const { data: stripData, pending } = useAsyncData(
   cacheKey,
   async (): Promise<VenueStripResponseDto | null> => {
     if (!isSingleDayPeriod.value) return null

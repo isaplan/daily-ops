@@ -491,7 +491,7 @@ const cacheKey = computed(
   () => `daily-ops-venue-strip-${props.period}-${props.anchor ?? ''}`
 )
 
-const { data, pending, error: fetchError } = await useAsyncData(
+const { data, pending, error: fetchError } = useAsyncData(
   cacheKey,
   async (): Promise<VenueStripResponseDto | null> => {
     if (!isSingleDayPeriod.value) return null

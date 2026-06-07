@@ -15,7 +15,7 @@ import type { DailyOpsSnapshotRevenueSection } from '~/types/daily-ops-snapshot'
 import type { DailyOpsMetricsContext } from '../../dailyOpsMetrics/context'
 import { fetchBorkRangeTotals } from '../../dailyOpsRevenue/borkRevenueRead'
 import { isTodayBusinessDate } from '../../venueStrip/liveRevenue'
-import { sumBusinessDateFromBorkRaw } from '../../venueStrip/liveRevenueRaw'
+import { sumBusinessDateFromBorkRawBounded } from '../../venueStrip/liveRevenueRaw'
 import { snapshotRound2 } from './shared'
 
 export async function patchTodayRevenueRowsFromBork(
@@ -33,7 +33,7 @@ export async function patchTodayRevenueRowsFromBork(
           endDate: ctx.endDate,
           locationId: row.locationId,
         }),
-        sumBusinessDateFromBorkRaw(db, row.locationId, ctx.startDate),
+        sumBusinessDateFromBorkRawBounded(db, row.locationId, ctx.startDate),
       ])
 
       const ex = snapshotRound2(Math.max(agg.revenue, raw?.revenue ?? 0))

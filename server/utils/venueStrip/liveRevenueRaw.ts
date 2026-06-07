@@ -1,9 +1,9 @@
 /**
  * @registry-id: dailyOpsVenueStripLiveRevenueRaw
  * @created: 2026-06-07T00:00:00.000Z
- * @last-modified: 2026-06-07T00:00:00.000Z
+ * @last-modified: 2026-06-08T00:00:00.000Z
  * @description: Open register-day revenue from latest bork_raw_data (before/at aggregate rebuild)
- * @last-fix: [2026-06-07] Sum lines for business_date incl. spillover on calendar next day (ADR-010)
+ * @last-fix: [2026-06-08] Bounded raw scan (4s) — unbounded ticket walk blocked venue-strip GET
  * @adr-ref: ADR-004, ADR-010
  *
  * @exports-to:
@@ -101,4 +101,26 @@ export async function sumBusinessDateFromBorkRaw(
 
   if (revenue <= 0 && revenueIncVat <= 0) return null
   return { revenue, revenueIncVat, latestRawAt }
+}
+
+const DEFAULT_RAW_SCAN_TIMEOUT_MS = 4000
+
+/** Raw sum with wall-clock cap — falls back to aggregate-only when scan exceeds budget. */
+export async function sumBusinessDateFromBorkRawBounded(
+  db: Db,
+  unifiedLocationId: string,
+  businessDate: string,
+  timeoutMs = DEFAULT_RAW_SCAN_TIMEOUT_MS,
+): Promise<LiveRawBusinessDayTotals | null> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    return await Promise.race([
+      sumBusinessDateFromBorkRaw(db, unifiedLocationId, businessDate),
+      new Promise<null>((resolve) => {
+        timer = setTimeout(() => resolve(null), timeoutMs)
+      }),
+    ])
+  } finally {
+    if (timer) clearTimeout(timer)
+  }
 }
