@@ -3,7 +3,7 @@
  * @created: 2026-06-07T00:00:00.000Z
  * @last-modified: 2026-06-08T00:00:00.000Z
  * @description: Shift start/end labels for venue-strip KPI staff drawers (Eitje raw + inbox fallback)
- * @last-fix: [2026-06-08] Fix env lookup via unified_location _id + raw.environment.id; inbox date = Amsterdam midnight UTC
+ * @last-fix: [2026-06-08] Open shifts on register-today: end "—", hours = start → now on venue strip GET
  * @adr-ref: ADR-004
  *
  * @exports-to:
@@ -33,6 +33,9 @@ type ShiftRow = {
   hasRawEnd: boolean
   hours: number
 }
+
+/** Exported for open-shift labor overlay on today's venue strip GET. */
+export type EitjeShiftRow = ShiftRow
 
 function formatAmsterdamTime(value: Date | null | undefined): string | undefined {
   if (!value || Number.isNaN(value.getTime())) return undefined
@@ -353,7 +356,7 @@ async function fetchInboxShiftFallback(
   return out
 }
 
-function findShiftSlot(
+export function findShiftSlot(
   eitjeMap: Map<string, ShiftSlot>,
   inboxMap: Map<string, ShiftSlot>,
   locationId: string,
@@ -405,19 +408,20 @@ function labelsFromSlot(
 export type WorkerShiftTimeMaps = {
   eitje: Map<string, ShiftSlot>
   inbox: Map<string, ShiftSlot>
+  eitjeRows: EitjeShiftRow[]
 }
 
 export async function fetchWorkerShiftTimeMaps(
   db: Db,
   businessDate: string,
   locationIds: string[],
-): Promise<{ eitje: Map<string, ShiftSlot>; inbox: Map<string, ShiftSlot> }> {
+): Promise<WorkerShiftTimeMaps> {
   const allowOpenEnd = businessDate >= amsterdamOpenRegisterBusinessDateYmd()
   const [eitjeRows, inboxMap] = await Promise.all([
     fetchEitjeShiftRows(db, businessDate, locationIds),
     allowOpenEnd ? Promise.resolve(new Map<string, ShiftSlot>()) : fetchInboxShiftFallback(db, businessDate, locationIds),
   ])
-  return { eitje: buildShiftMap(eitjeRows), inbox: inboxMap }
+  return { eitje: buildShiftMap(eitjeRows), inbox: inboxMap, eitjeRows }
 }
 
 export function enrichWorkersWithShiftTimesFromMaps(

@@ -1,6 +1,6 @@
 /**
  * @description: Allocate Eitje shift labor to business_date × calendar_hour (Amsterdam).
- * @last-fix: [2026-05-25] Match locationId by string inside aggregation so snapshot hourly writes per venue.
+ * @last-fix: [2026-06-08] Open shifts on register-today: hours = start → $$NOW in aggregation + hourly labor buckets
  */
 import type { Db } from 'mongodb'
 import { ObjectId } from 'mongodb'
@@ -8,7 +8,10 @@ import {
   EITJE_HOURS_ADD_FIELDS,
   EITJE_LABOR_PERIOD_FROM_SHIFT_START_FIELD,
   EITJE_LABOR_SHIFT_START_FIELD,
+  buildEitjeOpenShiftHoursAddFields,
+  buildEitjeShiftEndField,
 } from './eitjeHours'
+import { amsterdamOpenRegisterBusinessDateYmd } from '../../utils/dailyOpsBusinessDate'
 import {
   EITJE_CONTRACT_CPH_LOOKUP,
   EITJE_NORM_NAME_FIELD,
@@ -30,24 +33,6 @@ type LaborHourOptions = {
 }
 
 const AMSTERDAM_TZ = 'Europe/Amsterdam'
-
-const EITJE_SHIFT_END_FIELD = {
-  shiftEnd: {
-    $ifNull: [
-      { $toDate: '$rawApiResponse.end' },
-      { $toDate: '$rawApiResponse.end_time' },
-      { $toDate: '$rawApiResponse.ended_at' },
-      { $toDate: '$rawApiResponse.to' },
-      {
-        $cond: [
-          { $and: [{ $ne: ['$shiftStart', null] }, { $gt: [{ $ifNull: ['$hours', 0] }, 0] }] },
-          { $add: ['$shiftStart', { $multiply: ['$hours', 3600000] }] },
-          '$shiftStart',
-        ],
-      },
-    ],
-  },
-}
 
 function addUtcDays (d: Date, delta: number): Date {
   const x = new Date(d.getTime())
@@ -182,7 +167,6 @@ export async function fetchLaborByBusinessDateHour (
       $addFields: {
         ...EITJE_HOURS_ADD_FIELDS,
         ...EITJE_LABOR_SHIFT_START_FIELD,
-        ...EITJE_SHIFT_END_FIELD,
         userId: { $ifNull: ['$extracted.userId', '$rawApiResponse.user_id'] },
         teamId: { $ifNull: ['$extracted.teamId', '$rawApiResponse.team_id'] },
         environmentId: {
@@ -197,6 +181,8 @@ export async function fetchLaborByBusinessDateHour (
       },
     },
     { $addFields: EITJE_LABOR_PERIOD_FROM_SHIFT_START_FIELD },
+    buildEitjeOpenShiftHoursAddFields(amsterdamOpenRegisterBusinessDateYmd()),
+    { $addFields: buildEitjeShiftEndField(amsterdamOpenRegisterBusinessDateYmd()) },
     {
       $match: {
         $expr: {

@@ -6,8 +6,99 @@
  * @registry-id: eitjeHours
  * @last-modified: 2026-05-11T15:00:00.000Z
  * @description: Shared hours $addFields + labor period from shift start (Amsterdam calendar day)
- * @last-fix: [2026-05-11] Labor period = Amsterdam date of ISO start — not Bork-style post-midnight revenue day
+ * @last-fix: [2026-06-08] Open shifts on register-today: hours = start → $$NOW when no clock-out
  */
+
+/** True when Eitje raw payload has an explicit clock-out timestamp. */
+export const EITJE_SHIFT_HAS_RAW_END_EXPR = {
+  $or: [
+    { $ne: [{ $ifNull: ['$rawApiResponse.end', null] }, null] },
+    { $ne: [{ $ifNull: ['$rawApiResponse.end_time', null] }, null] },
+    { $ne: [{ $ifNull: ['$rawApiResponse.ended_at', null] }, null] },
+    { $ne: [{ $ifNull: ['$rawApiResponse.to', null] }, null] },
+  ],
+}
+
+/**
+ * After `hours`, `shiftStart`, and `period` exist: for open shifts on the open register day,
+ * set hours = elapsed from shiftStart to $$NOW minus break_minutes.
+ */
+export function buildEitjeOpenShiftHoursAddFields(openRegisterBusinessDateYmd: string): Record<string, unknown> {
+  return {
+    $addFields: {
+      hours: {
+        $let: {
+          vars: {
+            baseHours: { $ifNull: ['$hours', 0] },
+            breakMin: { $ifNull: [{ $toDouble: '$rawApiResponse.break_minutes' }, 0] },
+          },
+          in: {
+            $cond: [
+              {
+                $and: [
+                  { $lte: ['$$baseHours', 0] },
+                  { $ne: ['$shiftStart', null] },
+                  { $not: EITJE_SHIFT_HAS_RAW_END_EXPR },
+                  { $eq: ['$period', openRegisterBusinessDateYmd] },
+                ],
+              },
+              {
+                $max: [
+                  0,
+                  {
+                    $subtract: [
+                      { $divide: [{ $subtract: ['$$NOW', '$shiftStart'] }, 3600000] },
+                      { $divide: ['$$breakMin', 60] },
+                    ],
+                  },
+                ],
+              },
+              '$$baseHours',
+            ],
+          },
+        },
+      },
+    },
+  }
+}
+
+/** shiftEnd for hourly labor allocation — open register-day shifts use $$NOW. */
+export function buildEitjeShiftEndField(openRegisterBusinessDateYmd: string): Record<string, unknown> {
+  return {
+    shiftEnd: {
+      $ifNull: [
+        { $toDate: '$rawApiResponse.end' },
+        { $toDate: '$rawApiResponse.end_time' },
+        { $toDate: '$rawApiResponse.ended_at' },
+        { $toDate: '$rawApiResponse.to' },
+        {
+          $cond: [
+            {
+              $and: [
+                { $ne: ['$shiftStart', null] },
+                { $gt: [{ $ifNull: ['$hours', 0] }, 0] },
+              ],
+            },
+            { $add: ['$shiftStart', { $multiply: ['$hours', 3600000] }] },
+            {
+              $cond: [
+                {
+                  $and: [
+                    { $ne: ['$shiftStart', null] },
+                    { $not: EITJE_SHIFT_HAS_RAW_END_EXPR },
+                    { $eq: ['$period', openRegisterBusinessDateYmd] },
+                  ],
+                },
+                '$$NOW',
+                '$shiftStart',
+              ],
+            },
+          ],
+        },
+      ],
+    },
+  }
+}
 
 /** MongoDB $addFields expression: computes `hours` from extracted/rawApiResponse (same order everywhere). */
 export const EITJE_HOURS_ADD_FIELDS = {

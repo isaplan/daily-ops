@@ -22,6 +22,7 @@ import {
   EITJE_HOURS_ADD_FIELDS,
   EITJE_LABOR_PERIOD_FROM_SHIFT_START_FIELD,
   EITJE_LABOR_SHIFT_START_FIELD,
+  buildEitjeOpenShiftHoursAddFields,
 } from '../utils/eitjeHours'
 import {
   EITJE_NORM_NAME_FIELD,
@@ -33,6 +34,7 @@ import {
 } from '../utils/eitjeLoadedCostEmployerStages'
 import { fixAggregationDuplicates } from './dataIntegrityService'
 import { enqueueSnapshotBuild } from '../utils/dailyOpsSnapshot/jobCoalescer'
+import { amsterdamOpenRegisterBusinessDateYmd } from '../../utils/dailyOpsBusinessDate'
 
 function addUtcDays (d: Date, delta: number): Date {
   const x = new Date(d.getTime())
@@ -110,6 +112,7 @@ async function rebuildEitjeShiftAggregation (
       },
     },
     { $addFields: EITJE_LABOR_PERIOD_FROM_SHIFT_START_FIELD },
+    buildEitjeOpenShiftHoursAddFields(amsterdamOpenRegisterBusinessDateYmd()),
     {
       $match: {
         $expr: {

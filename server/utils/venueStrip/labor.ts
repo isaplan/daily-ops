@@ -3,18 +3,23 @@
  * @created: 2026-05-28T00:00:00.000Z
  * @last-modified: 2026-06-07T00:00:00.000Z
  * @description: Venue-strip labor bucket resolution from snapshot labor sections
- * @last-fix: [2026-06-07] Enrich KPI drawer staff rows with Eitje shift start/end times
+ * @last-fix: [2026-06-08] Open-shift hours overlay on today (start → now) + labor totals refresh
  * @adr-ref: ADR-004
  */
 
 import type { Db } from 'mongodb'
 import type { VenueStripCardDto, VenueStripLaborRowDto, VenueStripTeamBucket, VenueStripWorkerLineDto } from '~/types/daily-ops-dashboard'
 import type { DailyOpsSnapshotLaborSection } from '~/types/daily-ops-snapshot'
-import { enrichSnapshotLaborWorkersFromMembers } from '../eitjeAggCompensationEnrich'
+import {
+  enrichSnapshotLaborWorkersFromMembers,
+  loadMemberCompensationByShiftUserIds,
+} from '../eitjeAggCompensationEnrich'
+import { amsterdamOpenRegisterBusinessDateYmd } from '~/utils/dailyOpsBusinessDate'
 import { allocateOperationalTeamLabor, type VenueLaborSlice } from '../eitjeVenueLaborRollup'
 import { bucketTeamFromName } from '../dailyOpsTeamBucket'
 import { workersFromSnapshot } from '../dailyOpsVenueStripWorkers'
 import { enrichWorkersWithShiftTimesFromMaps, type WorkerShiftTimeMaps } from './workerShiftTimes'
+import { applyOpenShiftLaborOverlay, laborTotalsFromWorkers } from './openShiftLaborOverlay'
 
 export type VenueStripLaborBundle = {
   labor: VenueStripCardDto['labor']
@@ -135,6 +140,16 @@ export async function resolveVenueStripLabor(
   shiftTimeMaps?: WorkerShiftTimeMaps,
 ): Promise<VenueStripLaborBundle> {
   await enrichSnapshotLaborWorkersFromMembers(db, snapLabor?.workers as Array<Record<string, unknown>> | undefined)
+  const openRegister = amsterdamOpenRegisterBusinessDateYmd()
+  const memberComp =
+    businessDate === openRegister && shiftTimeMaps
+      ? await loadMemberCompensationByShiftUserIds(
+          db,
+          shiftTimeMaps.eitjeRows
+            .filter((r) => r.locationId === locationId && !r.hasRawEnd)
+            .map((r) => r.userId),
+        )
+      : undefined
   const workerBuckets: Record<VenueStripTeamBucket, Set<string>> = {
     keuken: new Set(),
     bediening: new Set(),
@@ -143,10 +158,60 @@ export async function resolveVenueStripLabor(
   const labor = emptyLaborBlock()
   const workers = workersFromSnapshot(snapLabor)
 
-  const enrich = (lines: VenueStripWorkerLineDto[]) =>
-    shiftTimeMaps
+  const enrich = (lines: VenueStripWorkerLineDto[]) => {
+    let out = shiftTimeMaps
       ? enrichWorkersWithShiftTimesFromMaps(lines, locationId, businessDate, shiftTimeMaps)
       : lines
+    if (shiftTimeMaps) {
+      const { workers: overlaid, adjusted } = applyOpenShiftLaborOverlay(
+        out,
+        locationId,
+        businessDate,
+        shiftTimeMaps,
+        memberComp,
+      )
+      out = enrichWorkersWithShiftTimesFromMaps(overlaid, locationId, businessDate, shiftTimeMaps)
+      if (adjusted) {
+        const totals = laborTotalsFromWorkers(out)
+        labor.all = {
+          ...labor.all,
+          hours: totals.all.hours,
+          wages: totals.all.loaded,
+          loaded: totals.all.loaded,
+          workers: totals.all.workers,
+        }
+        labor.gewerkt = {
+          ...labor.gewerkt,
+          hours: totals.gewerkt.hours,
+          wages: totals.gewerkt.loaded,
+          loaded: totals.gewerkt.loaded,
+          workers: totals.gewerkt.workers,
+        }
+        labor.keuken = {
+          ...labor.keuken,
+          hours: totals.keuken.hours,
+          wages: totals.keuken.loaded,
+          loaded: totals.keuken.loaded,
+          workers: totals.keuken.workers,
+        }
+        labor.bediening = {
+          ...labor.bediening,
+          hours: totals.bediening.hours,
+          wages: totals.bediening.loaded,
+          loaded: totals.bediening.loaded,
+          workers: totals.bediening.workers,
+        }
+        labor.other = {
+          ...labor.other,
+          hours: totals.other.hours,
+          wages: totals.other.loaded,
+          loaded: totals.other.loaded,
+          workers: totals.other.workers,
+        }
+      }
+    }
+    return out
+  }
 
   const doc = snapLabor
   if (!doc) {
