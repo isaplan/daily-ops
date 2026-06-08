@@ -3,7 +3,7 @@
     <div class="space-y-6">
       <header>
         <h1 class="text-2xl font-bold text-gray-900">Revenue</h1>
-        <p class="text-sm text-gray-600">Alle bedragen excl. BTW</p>
+        <p class="text-sm text-gray-600">All amounts excl. VAT</p>
       </header>
 
       <nav class="flex flex-wrap gap-1 border-b border-gray-200">
@@ -74,10 +74,10 @@ const {
 } = useDailyOpsRevenueMetrics()
 
 const tabs = [
-  { id: 'overview', label: 'Overzicht' },
-  { id: 'trends', label: 'Trends' },
-  { id: 'hourly', label: 'Uur & mix' },
-  { id: 'dimensions', label: 'Ruimtes' },
+  { id: 'overview',    label: 'Overview' },
+  { id: 'trends',      label: 'Trends' },
+  { id: 'hourly',      label: 'Hourly & mix' },
+  { id: 'dimensions',  label: 'Spaces' },
 ] as const
 
 type TabId = (typeof tabs)[number]['id']

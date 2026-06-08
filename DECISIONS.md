@@ -239,3 +239,25 @@ API endpoint (`bundle.get.ts`) intelligently serves from the appropriate cache l
 **Related:** ADR-004 (snapshot reads), `types/daily-ops-snapshot.ts` (business_date field semantics)
 
 ---
+
+## ADR-011 — Revenue Nav V2: mode-first tab navigation
+
+**Status:** Accepted (2026-06-08)  
+**Branch:** `feat/revenue-nav-v2`
+
+**Context:** The V1 revenue filter presents five `<select>` dropdowns for period groups (week, month, quarter, season, rolling). UX is opaque; compare is limited; daily register-day navigation doesn't exist on the revenue page.
+
+**Decision:**
+
+1. **Two-tier tab nav:** Primary bar selects `mode` (daily | weekly | monthly | quarterly | yearly | seasonal | menu | period). Secondary bar shows contextual child slots for that mode.
+2. **URL is SSOT:** `?mode=daily&slot=today&location=&compare=0&pick=YYYY-MM-DD`. Deep-linkable; refresh-safe.
+3. **Feature flag:** `runtimeConfig.public.revenueNavVersion` = `'v1'` (default) | `'v2'`. V1 frozen until V2 sign-off.
+4. **Slot → date range:** Pure TS resolver in `utils/dailyOpsRevenueNavV2/resolveRange.ts`. All existing V1 period IDs reused where possible; new IDs (`w-2`, `w-3`, `m-YYYY-MM`) added for missing slots.
+5. **ADR-004 unchanged:** GET paths read snapshots only. V2 only changes query → date-range mapping on the client.
+6. **Compare mode:** When `compare=1`, child tabs become multi-select (max 4). Composable exposes `compareSlots[]`; charts receive multiple date-range series.
+
+**Consequences:** `DailyOpsDashboardShell` conditionally renders `RevenueAnalyticsNavV2` on revenue routes when flag is `v2`. All V2 logic lives in `utils/dailyOpsRevenueNavV2/` and `composables/useDailyOpsRevenueNavV2.ts`.
+
+**Related:** ADR-004, ADR-010, `dev-docs/REVENUE_NAV_V2_BUILD_PLAN.md`
+
+---

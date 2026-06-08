@@ -21,7 +21,8 @@
           </nav>
         </div>
 
-        <DailyOpsRevenueAnalyticsNav v-if="isRevenueRoute" />
+        <DailyOpsRevenueNavV2RevenueAnalyticsNavV2 v-if="isRevenueRoute && revenueNavV2" />
+        <DailyOpsRevenueAnalyticsNav v-else-if="isRevenueRoute" />
 
         <div v-if="!hideOpsPeriodNav" class="flex w-full min-w-0 justify-end">
           <nav
@@ -137,6 +138,9 @@ onUnmounted(() => {
 provide('dailyOpsSectionNavWidthPx', sectionNavWidthPx)
 
 const isRevenueRoute = computed(() => route.path.includes('/daily-ops/revenue'))
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const revenueNavV2 = (useRuntimeConfig() as any).public?.revenueNavVersion === 'v2'
 
 watch(isRevenueRoute, () => {
   nextTick(measureSectionNavWidth)

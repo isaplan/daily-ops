@@ -81,6 +81,11 @@ export default defineNuxtConfig({
     /** Default BTW % for “ex BTW” display on day-breakdown (Bork lines are incl. BTW). Override per session in UI. */
     public: {
       borkDisplayExVatPercent: process.env.BORK_DISPLAY_EX_VAT_PERCENT ?? '21',
+      /**
+       * Revenue navigation version. Set REVENUE_NAV_VERSION=v2 to opt into the new
+       * two-tier tab nav (ADR-011). Default v1 keeps the existing dropdown filter.
+       */
+      revenueNavVersion: (process.env.REVENUE_NAV_VERSION ?? 'v1') as 'v1' | 'v2',
     },
   },
   modules: ['@nuxt/ui', '@vite-pwa/nuxt'],
