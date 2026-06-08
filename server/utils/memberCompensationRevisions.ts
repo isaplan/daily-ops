@@ -3,7 +3,7 @@
  * @created: 2026-05-16T12:00:00.000Z
  * @last-modified: 2026-05-21T12:00:00.000Z
  * @description: Open/close compensation revision intervals on members (forward-only, idempotent)
- * @last-fix: [2026-05-21] Nul-uren loaded ratio 1.36 → 1.56
+ * @last-fix: [2026-06-09] Leerling overig field; fix compensationHistory $set/$push conflict on revision close
  *
  * @architecture-ref: ARCHITECTURE.md#5-business-rules
  * @adr-ref: ADR-001, ADR-002, ADR-005
@@ -21,6 +21,7 @@ import type {
   CompensationRevisionSource,
   CompensationStatus,
 } from '../../types/member-compensation'
+import { resolveLeerlingInboxWages } from '../../utils/dailyOpsLeerlingWageFallback'
 
 const NUL_UREN_RATIO = 1.56
 
@@ -178,19 +179,20 @@ export async function openNewRevision(
   if (hourlyRate != null) setFields.hourly_rate = hourlyRate
   if (costPerHour != null) setFields.cost_per_hour = costPerHour
 
-  const update: Record<string, unknown> = {
-    $set: setFields,
-    $push: { compensationHistory: revision },
-  }
-
   if (prevOpen) {
-    setFields['compensationHistory.$[open].effective_to'] = asOf
+    await db.collection('members').updateOne(
+      { _id: memberId },
+      { $set: { 'compensationHistory.$[open].effective_to': asOf } },
+      { arrayFilters: [{ 'open.effective_to': null }] },
+    )
   }
 
   await db.collection('members').updateOne(
     { _id: memberId },
-    update,
-    prevOpen ? { arrayFilters: [{ 'open.effective_to': null }] } : undefined
+    {
+      $set: setFields,
+      $push: { compensationHistory: revision },
+    },
   )
 
   return { changed: true, revision }
@@ -228,9 +230,18 @@ export async function applyContractInboxRowToMember(
 
   const importedAt = row.importedAt instanceof Date ? row.importedAt : new Date()
   const asOf = effectiveFromFromInboxRow(row, importedAt)
+  const employeeName = String(row.employee_name ?? '')
   const contractType = String(row.contract_type ?? '').trim()
-  const hourlyRate = toNum(row.hourly_rate)
-  const costPerHour = toNum(row.cost_per_hour)
+  let hourlyRate = toNum(row.hourly_rate)
+  let costPerHour = toNum(row.cost_per_hour)
+
+  const overig = row.overig != null ? String(row.overig).trim() : null
+  const leerling = resolveLeerlingInboxWages(employeeName, contractType, hourlyRate, costPerHour, overig)
+  if (leerling) {
+    hourlyRate = leerling.hourly_rate
+    costPerHour = leerling.cost_per_hour
+  }
+
   const sourceRef = row._id != null ? String(row._id) : undefined
 
   const { changed } = await openNewRevision(
@@ -241,6 +252,10 @@ export async function applyContractInboxRowToMember(
     asOf,
     sourceRef
   )
+
+  if (overig) {
+    await db.collection('members').updateOne({ _id: memberId }, { $set: { overig } })
+  }
 
   return { memberId, changed }
 }

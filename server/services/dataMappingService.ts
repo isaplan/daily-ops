@@ -58,6 +58,7 @@ const FIELD_MAPPINGS: Record<DocumentType, FieldMapping[]> = {
     { sourceColumn: 'Loonkosten', targetField: 'realized_labor_costs', transform: (v) => parseEuro(v as string) },
     { sourceColumn: 'Loonkosten per uur', targetField: 'cost_per_hour', transform: (v) => parseEuro(v as string) },
     { sourceColumn: 'contracttype', targetField: 'contract_type' },
+    { sourceColumn: 'overig', targetField: 'overig', transform: (v) => String(v ?? '').trim() || null },
     { sourceColumn: 'uurloon', targetField: 'hourly_rate', transform: (v) => parseEuro(v as string) },
     { sourceColumn: 'support ID', targetField: 'support_id', transform: (v) => String(v) },
     { sourceColumn: 'geplande starttijd', targetField: 'planned_start_time' },
@@ -86,6 +87,7 @@ const FIELD_MAPPINGS: Record<DocumentType, FieldMapping[]> = {
     // Eitje Contracts CSV columns (Dutch)
     { sourceColumn: 'naam', targetField: 'employee_name', required: true },
     { sourceColumn: 'contracttype', targetField: 'contract_type', required: true },
+    { sourceColumn: 'overig', targetField: 'overig', transform: (v) => String(v ?? '').trim() || null },
     { sourceColumn: 'uurloon', targetField: 'hourly_rate', transform: (v) => parseEuro(v as string) },
     { sourceColumn: 'wekelijkse contracturen', targetField: 'weekly_contract_hours', transform: (v) => parseTimeToHours(v as string) },
     { sourceColumn: 'contractvestiging', targetField: 'contract_location' },

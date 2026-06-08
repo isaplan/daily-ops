@@ -125,15 +125,26 @@
           </ul>
         </li>
         <li>
-          <button
+          <UTooltip v-if="collapsed" text="Inbox" :popper="{ placement: 'right' }">
+            <UDropdownMenu :items="inboxDropdownItems" :popper="{ placement: 'right-start' }">
+              <button
+                type="button"
+                :class="navLinkClass(isInboxSection)"
+                class="w-full flex items-center"
+              >
+                <UIcon name="i-lucide-mail" class="size-5 shrink-0" />
+              </button>
+            </UDropdownMenu>
+          </UTooltip>
+          <button v-else
             type="button"
             :class="navLinkClass(isInboxSection)"
             class="w-full flex items-center"
             @click="isInboxOpen = !isInboxOpen"
           >
             <UIcon name="i-lucide-mail" class="size-4 shrink-0" />
-            <span v-if="!collapsed" class="flex-1 text-left">Inbox</span>
-            <UIcon v-if="!collapsed" name="i-lucide-chevron-right" :class="['size-4 shrink-0 transition-transform', isInboxOpen && 'rotate-90']" />
+            <span class="flex-1 text-left">Inbox</span>
+            <UIcon name="i-lucide-chevron-right" :class="['size-4 shrink-0 transition-transform', isInboxOpen && 'rotate-90']" />
           </button>
           <ul v-if="!collapsed && isInboxOpen" class="mt-1 ml-4 space-y-0.5 border-l border-gray-200 pl-3">
             <li><NuxtLink to="/daily-ops/inbox" :class="navLinkClass(route.path === '/daily-ops/inbox' || route.path === '/daily-ops/inbox/')">Inbox</NuxtLink></li>
@@ -353,6 +364,28 @@ const salesDropdownItems = computed(() => [
   }, {
     label: 'By Product',
     to: '/daily-ops/sales/by-product',
+  }],
+])
+
+const inboxDropdownItems = computed(() => [
+  [{
+    label: 'Inbox',
+    to: '/daily-ops/inbox',
+  }, {
+    label: 'Eitje staff',
+    to: '/daily-ops/inbox/eitje-staff',
+  }, {
+    label: 'Eitje hours',
+    to: '/daily-ops/inbox/eitje-hours',
+  }, {
+    label: 'Bork sales',
+    to: '/daily-ops/inbox/bork-sales',
+  }, {
+    label: 'Bork staff',
+    to: '/daily-ops/inbox/bork-staff',
+  }, {
+    label: 'Product catalog',
+    to: '/daily-ops/inbox/product-catalog',
   }],
 ])
 

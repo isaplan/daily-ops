@@ -149,7 +149,9 @@ watch(
     pending.value = true
     fetchError.value = null
     try {
-      res.value = await $fetch<{ success: boolean; data: MemberPayload }>(`/api/members/${clean}`)
+      res.value = await $fetch<{ success: boolean; data: MemberPayload }>(
+        `/api/daily-ops/eitje-staff/member/${encodeURIComponent(clean)}`
+      )
     } catch (e) {
       res.value = null
       fetchError.value = e instanceof Error ? e.message : 'Failed to load member'

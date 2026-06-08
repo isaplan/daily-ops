@@ -12,6 +12,7 @@
 import { ObjectId } from 'mongodb'
 import { getDb } from '../../../utils/db'
 import { parseOptionalYmdToDate } from '../../../utils/parseOptionalYmdToDate'
+import { invalidateEitjeStaffHubCache } from '../../../utils/eitjeStaffHub'
 
 export default defineEventHandler(async (event) => {
   const body = await readBody<{
@@ -113,5 +114,6 @@ export default defineEventHandler(async (event) => {
         is_active: inserted.is_active,
       }
     : { _id: String(result.insertedId), name: doc.name as string, email }
+  invalidateEitjeStaffHubCache()
   return { success: true as const, data }
 })

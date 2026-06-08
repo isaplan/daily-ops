@@ -13,6 +13,7 @@
 
 import { getDb } from '../../utils/db'
 import { applyContractInboxRowToMember } from '../../utils/memberCompensationRevisions'
+import { invalidateEitjeStaffHubCache } from '../../utils/eitjeStaffHub'
 
 export default defineEventHandler(async (event) => {
   try {
@@ -51,6 +52,7 @@ export default defineEventHandler(async (event) => {
         contract_start_date: 1,
         contract_end_date: 1,
         cost_per_hour: 1,
+        overig: 1,
         date: 1,
       })
       .toArray()
@@ -91,9 +93,9 @@ export default defineEventHandler(async (event) => {
       }
     }
 
+    invalidateEitjeStaffHubCache()
+
     return {
-      success: true,
-      month: targetMonth,
       total_rows: rows.length,
       unique_staff: byKey.size,
       updated,

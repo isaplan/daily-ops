@@ -9,8 +9,8 @@
         <div>
           <h1 class="text-3xl font-bold text-gray-900">Eitje — Staff</h1>
           <p class="mt-2 text-gray-600">
-            Contract rows from <span class="font-mono text-gray-800">inbox-eitje-contracts</span>, matched to
-            <span class="font-semibold">members</span> where possible.
+            Staff profiles from <span class="font-semibold">members</span> (SSOT), enriched with recent Eitje
+            activity (last 30 days).
           </p>
           <NuxtLink
             class="mt-2 inline-block text-sm font-medium text-primary-600 underline-offset-2 hover:text-primary-700 hover:underline"
@@ -21,7 +21,15 @@
         </div>
       </div>
 
-      <div class="mb-6 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div v-if="initialLoading" class="mb-6 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <UCard v-for="i in 4" :key="`sk-${i}`" class="border-2 border-gray-200 bg-white">
+          <template #header>
+            <span class="inline-block h-4 w-24 animate-pulse rounded bg-gray-200" />
+          </template>
+          <span class="inline-block h-8 w-16 animate-pulse rounded bg-gray-200" />
+        </UCard>
+      </div>
+      <div v-else class="mb-6 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <UCard class="border-2 border-gray-900 bg-white">
           <template #header>
             <span class="text-sm font-medium text-gray-500">Total staff</span>
@@ -40,10 +48,10 @@
         </UCard>
         <UCard class="border-2 border-gray-900 bg-white">
           <template #header>
-            <span class="text-sm font-medium text-gray-500">Unmatched</span>
+            <span class="text-sm font-medium text-gray-500">Active (30d)</span>
           </template>
-          <p class="text-3xl font-bold tabular-nums text-amber-700">
-            {{ summary ? summary.unmatched : '—' }}
+          <p class="text-3xl font-bold tabular-nums text-blue-700">
+            {{ summary ? summary.with_recent_activity : '—' }}
           </p>
         </UCard>
         <UCard
@@ -61,7 +69,7 @@
       </div>
 
       <div
-        v-if="missingCompensationRows.length > 0"
+        v-if="!initialLoading && missingCompensationRows.length > 0"
         class="mb-6 overflow-hidden rounded-lg border border-red-200 bg-red-50/80 p-4 shadow-sm"
       >
         <h2 class="mb-3 text-sm font-semibold text-red-900">Missing compensation data</h2>
@@ -75,13 +83,13 @@
             class="flex flex-wrap items-center justify-between gap-2 rounded border border-red-200 bg-white px-3 py-2 text-sm"
           >
             <span class="font-medium text-gray-900">{{ r.employee_name }}</span>
-            <span class="text-xs text-gray-500">{{ r.support_ids.join(', ') }}</span>
+            <span class="text-xs text-gray-500">{{ r.support_ids.join(', ') || '—' }}</span>
             <UBadge color="error" variant="subtle">Missing data</UBadge>
             <UButton
               v-if="r.matched_member_id"
               size="xs"
               variant="outline"
-              @click="openProfile(r.matched_member_id!)"
+              @click="openProfile(r.matched_member_id)"
             >
               Open profile
             </UButton>
@@ -90,17 +98,16 @@
       </div>
 
       <div
-        v-if="!loading && rows.length === 0 && !loadError"
+        v-if="!initialLoading && rows.length === 0 && !loadError"
         class="mb-6 rounded-lg border border-gray-200 bg-white p-4 shadow-sm"
       >
         <p class="text-sm text-gray-600">
-          No contract rows in <span class="font-mono">inbox-eitje-contracts</span> yet. Sync inbox and process a contract
-          CSV.
+          No staff with recent Eitje activity or missing profile data. Check members collection and Eitje sync.
         </p>
       </div>
 
       <div
-        v-if="rows.length > 0 || loading"
+        v-if="initialLoading || rows.length > 0"
         class="mb-6 rounded-lg border border-gray-200 bg-white p-4 shadow-sm"
       >
         <div class="mb-3 flex items-center gap-2 text-gray-700">
@@ -109,40 +116,37 @@
         </div>
         <div class="flex flex-wrap items-end gap-4">
           <div class="min-w-[200px] flex-1 space-y-1">
-            <label class="text-xs font-medium text-gray-600">Contract location</label>
-            <USelectMenu
-              v-model="filterLocation"
-              :items="locationOptions"
-              value-key="value"
-              class="w-full"
-              @update:model-value="applyFilters"
-            />
-          </div>
-          <div class="min-w-[200px] flex-1 space-y-1">
             <label class="text-xs font-medium text-gray-600">Search</label>
             <UInput v-model="searchInput" class="w-full" placeholder="Name, support id…" @keyup.enter="applyFilters" />
           </div>
+          <div class="flex items-center gap-2 pb-1">
+            <UCheckbox v-model="onlyMissingData" label="Missing data only" @update:model-value="applyFilters" />
+          </div>
           <UButton color="neutral" variant="outline" icon="i-lucide-rotate-ccw" @click="clearFilters">Clear</UButton>
-          <UButton color="neutral" variant="solid" :loading="loading" @click="applyFilters">Apply</UButton>
+          <UButton color="neutral" variant="solid" :loading="tableBusy" @click="applyFilters">Apply</UButton>
         </div>
       </div>
 
-      <div v-if="loading" class="flex justify-center py-12">
-        <p class="text-lg text-gray-600">Loading staff…</p>
+      <div v-if="initialLoading" class="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+        <div class="space-y-3 p-4">
+          <div v-for="i in 8" :key="`row-sk-${i}`" class="h-10 animate-pulse rounded bg-gray-100" />
+        </div>
       </div>
 
       <div v-else-if="loadError" class="mb-6 rounded-lg border border-red-200 bg-red-50 p-4">
         <p class="text-red-800">{{ loadError }}</p>
       </div>
 
-      <div v-else-if="rows.length > 0" class="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+      <div v-else-if="rows.length > 0" class="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm" :class="tableBusy ? 'opacity-60' : ''">
         <div class="overflow-x-auto">
           <table class="w-full text-left text-sm">
             <thead>
               <tr class="border-b border-gray-200 bg-gray-50 text-gray-600">
                 <th class="px-4 py-3 font-medium">Name</th>
                 <th class="px-4 py-3 font-medium">Contract</th>
-                <th class="px-4 py-3 font-medium">Location</th>
+                <th class="px-4 py-3 font-medium">Teams (30d)</th>
+                <th class="px-4 py-3 font-medium">Last worked</th>
+                <th class="px-4 py-3 text-right font-medium">Hours (30d)</th>
                 <th class="px-4 py-3 text-right font-medium">€/h</th>
                 <th class="px-4 py-3 text-right font-medium">Cost/h</th>
                 <th class="px-4 py-3 font-medium">Status</th>
@@ -152,7 +156,7 @@
             <tbody>
               <tr
                 v-for="(r, i) in rows"
-                :key="`${r.support_ids.join('-')}-${i}`"
+                :key="`${r.matched_member_id ?? r.employee_name}-${i}`"
                 class="border-b border-gray-100 last:border-0"
                 :class="
                   r.matched_member_id && r.matched_member_id === profileMemberId
@@ -161,8 +165,10 @@
                 "
               >
                 <td class="px-4 py-3 font-medium text-gray-900">{{ r.employee_name }}</td>
-                <td class="px-4 py-3 text-gray-700">{{ r.contract_type }}</td>
-                <td class="px-4 py-3 text-gray-700">{{ r.contract_location }}</td>
+                <td class="px-4 py-3 text-gray-700">{{ r.contract_type || '—' }}</td>
+                <td class="px-4 py-3 text-gray-700">{{ r.teams_label || '—' }}</td>
+                <td class="px-4 py-3 tabular-nums text-gray-700">{{ r.last_worked || '—' }}</td>
+                <td class="px-4 py-3 text-right tabular-nums text-gray-700">{{ r.hours_30d ?? '—' }}</td>
                 <td class="px-4 py-3 text-right tabular-nums">{{ money(r.hourly_rate) }}</td>
                 <td class="px-4 py-3 text-right tabular-nums">{{ money(r.cost_per_hour) }}</td>
                 <td class="px-4 py-3">
@@ -297,7 +303,7 @@
             </div>
           </div>
           <div class="min-h-0 flex-1 overflow-y-auto px-3 py-3">
-            <EitjeStaffMemberProfilePanel :key="profileMemberId" :member-id="profileMemberId" />
+            <EitjeStaffMemberProfilePanelLazy :key="profileMemberId" :member-id="profileMemberId" />
           </div>
           <div class="shrink-0 border-t border-gray-100 p-3">
             <UButton
@@ -318,9 +324,9 @@
 </template>
 
 <script setup lang="ts">
-import EitjeStaffMemberProfilePanel from '~/components/daily-ops/inbox/EitjeStaffMemberProfilePanel.vue'
-
-const FILTER_ALL = '__all__'
+const EitjeStaffMemberProfilePanelLazy = defineAsyncComponent(
+  () => import('~/components/daily-ops/inbox/EitjeStaffMemberProfilePanel.vue')
+)
 
 const PROFILE_ASIDE_WIDTH_LS = 'eitje-staff-profile-aside-px-v1'
 const profileAsideWidthPx = ref(384)
@@ -369,11 +375,30 @@ function startResizeProfile(e: MouseEvent) {
 
 type MatchConfidence = 'high' | 'medium' | 'none'
 
+type ApiStaffRow = {
+  member_id: string
+  employee_name: string
+  support_id: string | null
+  eitje_ids: string[]
+  contract_type: string | null
+  hourly_rate: number | null
+  cost_per_hour: number | null
+  compensation_status: 'ok' | 'missing'
+  recent_activity: {
+    last_worked: string | null
+    total_hours: number
+    teams: string[]
+  }
+  missing_data: string[]
+}
+
 type StaffRow = {
   support_ids: string[]
   employee_name: string
   contract_type: string
-  contract_location: string
+  teams_label: string
+  last_worked: string | null
+  hours_30d: number | null
   startdatum: string | null
   einddatum: string | null
   hourly_rate: number | null
@@ -381,6 +406,29 @@ type StaffRow = {
   matched_member_id?: string
   match_confidence: MatchConfidence
   compensation_status?: 'ok' | 'missing'
+}
+
+function mapApiRow(r: ApiStaffRow): StaffRow {
+  const supportIds = [
+    ...(r.support_id ? [r.support_id] : []),
+    ...r.eitje_ids,
+  ].filter(Boolean)
+  const hasActivity = r.recent_activity.total_hours > 0
+  return {
+    support_ids: supportIds,
+    employee_name: r.employee_name,
+    contract_type: r.contract_type ?? '—',
+    teams_label: r.recent_activity.teams.filter(Boolean).join(', ') || '—',
+    last_worked: r.recent_activity.last_worked,
+    hours_30d: hasActivity ? r.recent_activity.total_hours : null,
+    startdatum: r.recent_activity.last_worked,
+    einddatum: null,
+    hourly_rate: r.hourly_rate,
+    cost_per_hour: r.cost_per_hour,
+    matched_member_id: r.member_id,
+    match_confidence: r.compensation_status === 'ok' ? 'high' : hasActivity ? 'medium' : 'none',
+    compensation_status: r.compensation_status,
+  }
 }
 
 type LocationItem = { _id: string; name: string }
@@ -415,15 +463,15 @@ function openFullMemberPage(memberId: string) {
   void navigateTo(memberFullPageTo(memberId))
 }
 
-const loading = ref(false)
+const initialLoading = ref(true)
+const tableBusy = ref(false)
 const loadError = ref<string | null>(null)
 const rows = ref<StaffRow[]>([])
 const summary = ref<{
   total_staff: number
   matched: number
-  unmatched: number
+  with_recent_activity: number
   missing_compensation: number
-  distinct_contract_locations?: string[]
 } | null>(null)
 
 const missingCompensationRows = computed(() =>
@@ -435,15 +483,7 @@ const page = ref(1)
 const pageSize = 25
 const searchInput = ref('')
 const searchActive = ref('')
-const filterLocation = ref<string>(FILTER_ALL)
-
-const locationOptions = computed(() => [
-  { label: 'All locations', value: FILTER_ALL },
-  ...(summary.value?.distinct_contract_locations ?? []).map((name: string) => ({
-    label: name,
-    value: name.toLowerCase(),
-  })),
-])
+const onlyMissingData = ref(false)
 
 const locationSelectOptions = computed(() => [
   { label: 'None', value: '' },
@@ -462,32 +502,36 @@ function money(n: number | null): string {
 }
 
 async function load() {
-  loading.value = true
+  const isFirst = initialLoading.value
+  if (!isFirst) tableBusy.value = true
   loadError.value = null
   try {
     const skip = (page.value - 1) * pageSize
-    const locQ = filterLocation.value === FILTER_ALL ? '' : filterLocation.value
     const q: Record<string, string> = {
       skip: String(skip),
       limit: String(pageSize),
     }
     if (searchActive.value.trim()) q.search = searchActive.value.trim()
-    if (locQ) q.location = locQ
+    if (onlyMissingData.value) q.onlyMissingData = 'true'
     const params = new URLSearchParams(q).toString()
     const res = await $fetch<{
       success: boolean
-      data: StaffRow[]
+      data: ApiStaffRow[]
       summary: {
         total_staff: number
-        matched: number
-        unmatched: number
-        distinct_contract_locations?: string[]
+        with_recent_activity: number
+        missing_critical_data: number
       }
       pagination: { skip: number; limit: number; total: number }
     }>(`/api/daily-ops/eitje-staff?${params}`)
     if (!res.success) throw new Error('Failed to load staff')
-    rows.value = res.data
-    summary.value = res.summary
+    rows.value = res.data.map(mapApiRow)
+    summary.value = {
+      total_staff: res.summary.total_staff,
+      matched: res.summary.total_staff - res.summary.missing_critical_data,
+      with_recent_activity: res.summary.with_recent_activity,
+      missing_compensation: res.summary.missing_critical_data,
+    }
     pagination.value = res.pagination
   } catch (e) {
     loadError.value = e instanceof Error ? e.message : String(e)
@@ -495,7 +539,8 @@ async function load() {
     summary.value = null
     pagination.value = null
   } finally {
-    loading.value = false
+    initialLoading.value = false
+    tableBusy.value = false
   }
 }
 
@@ -508,15 +553,26 @@ function applyFilters() {
 function clearFilters() {
   searchInput.value = ''
   searchActive.value = ''
-  filterLocation.value = FILTER_ALL
+  onlyMissingData.value = false
   page.value = 1
   load()
 }
 
-const { data: locationsData } = useFetch<{ success: boolean; data: LocationItem[] }>('/api/locations')
-const { data: teamsData } = useFetch<{ success: boolean; data: TeamItem[] }>('/api/teams')
-const locations = computed(() => locationsData.value?.data ?? [])
-const teams = computed(() => teamsData.value?.data ?? [])
+
+const locations = ref<LocationItem[]>([])
+const teams = ref<TeamItem[]>([])
+const createMetaLoaded = ref(false)
+
+async function ensureCreateMeta() {
+  if (createMetaLoaded.value) return
+  const [locRes, teamRes] = await Promise.all([
+    $fetch<{ success: boolean; data: LocationItem[] }>('/api/locations'),
+    $fetch<{ success: boolean; data: TeamItem[] }>('/api/teams'),
+  ])
+  locations.value = locRes.data ?? []
+  teams.value = teamRes.data ?? []
+  createMetaLoaded.value = true
+}
 
 const filteredTeamOptionsCreate = computed(() => {
   const locId = createForm.location_id
@@ -539,6 +595,7 @@ function openCreate(r: StaffRow) {
     toast.add({ title: 'Missing support id', color: 'warning' })
     return
   }
+  void ensureCreateMeta()
   createTarget.value = r
   createForm.email = ''
   createForm.location_id = ''

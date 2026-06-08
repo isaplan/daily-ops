@@ -5,6 +5,10 @@
 
 import type { Db } from 'mongodb'
 import { resolveCostPerHour, toNum } from './memberCompensationRevisions'
+import {
+  isLeerlingEmployee,
+  resolveLeerlingInboxWages,
+} from '../../utils/dailyOpsLeerlingWageFallback'
 
 export type MemberCompensationHit = {
   contractType: string
@@ -25,11 +29,23 @@ function escapeRegex (s: string): string {
 }
 
 function hitFromMemberDoc (m: Record<string, unknown>): MemberCompensationHit | null {
+  const name = String(m.name ?? '')
   const contractType = String(m.contract_type ?? '').trim()
-  const hourlyRate = toNum(m.hourly_rate) ?? toNum(m.hourly_wage)
-  if (hourlyRate == null) return null
-  const costPerHour = resolveCostPerHour(contractType, hourlyRate, toNum(m.cost_per_hour)) ?? hourlyRate
-  return { contractType, hourlyRate, costPerHour }
+  let hourlyRate = toNum(m.hourly_rate) ?? toNum(m.hourly_wage)
+  let costPerHour = toNum(m.cost_per_hour)
+
+  const overig = m.overig != null ? String(m.overig).trim() : null
+  const leerling = resolveLeerlingInboxWages(name, contractType, hourlyRate, costPerHour, overig)
+  if (leerling) {
+    hourlyRate = leerling.hourly_rate
+    costPerHour = leerling.cost_per_hour
+  } else if (hourlyRate == null) {
+    return null
+  } else {
+    costPerHour = resolveCostPerHour(contractType, hourlyRate, costPerHour) ?? hourlyRate
+  }
+
+  return { contractType, hourlyRate: hourlyRate!, costPerHour: costPerHour ?? hourlyRate! }
 }
 
 /** Map shift userId → compensation (support_id, eitje_id, eitje_ids). */
@@ -50,6 +66,7 @@ export async function loadMemberCompensationByShiftUserIds (
       ],
     })
     .project({
+      name: 1,
       support_id: 1,
       eitje_id: 1,
       eitje_ids: 1,
@@ -57,6 +74,7 @@ export async function loadMemberCompensationByShiftUserIds (
       hourly_wage: 1,
       cost_per_hour: 1,
       contract_type: 1,
+      overig: 1,
     })
     .toArray()
 
@@ -99,6 +117,7 @@ export async function loadMemberCompensationByNames (
       hourly_wage: 1,
       cost_per_hour: 1,
       contract_type: 1,
+      overig: 1,
     })
     .toArray()
 
@@ -151,6 +170,27 @@ function applyCompensationToRow (
   }
 }
 
+function applyLeerlingFallbackToRow(row: Record<string, unknown>): boolean {
+  const userName = String(row.user_name ?? row.userName ?? '')
+  const overig = row.overig != null ? String(row.overig).trim() : null
+  if (!isLeerlingEmployee(userName, overig)) return false
+  const contractType = String(row.contract_type ?? row.team_name ?? 'uren contract')
+  const leerling = resolveLeerlingInboxWages(
+    userName,
+    contractType,
+    toNum(row.hourly_rate),
+    toNum(row.cost_per_hour ?? row.total_cost_loaded),
+    overig,
+  )
+  if (!leerling) return false
+  applyCompensationToRow(row, {
+    contractType,
+    hourlyRate: leerling.hourly_rate,
+    costPerHour: leerling.cost_per_hour,
+  })
+  return true
+}
+
 /** Mutates rows in place when hours exist but wages/rate are missing. */
 export async function enrichEitjeAggRowsFromMembers (
   db: Db,
@@ -177,9 +217,15 @@ export async function enrichEitjeAggRowsFromMembers (
     db,
     stillNeed.map((r) => String(r.user_name ?? '')),
   )
+  const afterName: Record<string, unknown>[] = []
   for (const row of stillNeed) {
     const comp = byName.get(normPersonName(String(row.user_name ?? '')))
     if (comp) applyCompensationToRow(row, comp)
+    else afterName.push(row)
+  }
+
+  for (const row of afterName) {
+    applyLeerlingFallbackToRow(row)
   }
 }
 
@@ -212,5 +258,6 @@ export async function enrichSnapshotLaborWorkersFromMembers (
   for (const w of stillNeed) {
     const comp = byName.get(normPersonName(String(w.user_name ?? '')))
     if (comp) applyCompensationToRow(w, comp)
+    else applyLeerlingFallbackToRow(w)
   }
 }
