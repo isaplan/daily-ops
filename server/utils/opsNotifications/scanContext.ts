@@ -7,7 +7,6 @@ import { ObjectId } from 'mongodb'
 import {
   DAILY_OPS_SNAPSHOT_COLLECTIONS,
   type DailyOpsSnapshotLaborSection,
-  type DailyOpsSnapshotRevenueSection,
 } from '~/types/daily-ops-snapshot'
 import { VENUE_STRIP_LOCATIONS } from '../venueStrip/constants'
 import {
@@ -18,7 +17,6 @@ import {
   addCalendarDaysYmd,
   amsterdamOpenRegisterBusinessDateYmd,
 } from '~/utils/dailyOpsBusinessDate'
-import { eachBusinessDate } from '../dailyOpsRevenue/dateRange'
 import { resolveBorkAggReadSuffix } from '../borkAggVersionSuffix'
 
 export const REV_EPS = 0.02
@@ -32,44 +30,15 @@ export function snapKey(businessDate: string, locationId: string): string {
 export type OpsScanContext = {
   startDate: string
   endDate: string
-  /** Calendar days in scan window (inclusive). */
-  businessDates: string[]
   openBusinessDate: string
   locIds: string[]
   locName: Map<string, string>
   revenueByKey: Map<string, { ex: number; inc: number }>
-  revenueSnapshotQualityByKey: Map<
-    string,
-    {
-      ex: number
-      hourlyNonzero: number
-      lastBuiltAt: Date | null
-    }
-  >
   laborKeys: Set<string>
   laborByKey: Map<string, DailyOpsSnapshotLaborSection>
   masterKeys: Set<string>
   borkExByKey: Map<string, number>
-  borkAggregationQualityByKey: Map<
-    string,
-    {
-      dayEx: number
-      hourlyEx: number
-      hourlyRows: number
-      latestBorkAt: Date | null
-    }
-  >
   eitjeHoursByKey: Map<string, number>
-  eitjeAggQualityByKey: Map<
-    string,
-    {
-      rows: number
-      hours: number
-      missingTeamNameRows: number
-      missingLoadedCostRows: number
-      latestAggregatedAt: Date | null
-    }
-  >
   inboxByKey: Map<string, BasisReportData[]>
   inboxUnmapped: Array<{ business_date: string; location: string; cron_hour?: number }>
   eitjeInboxDays: Set<string>
@@ -98,15 +67,12 @@ export async function loadOpsScanContext(
   const locName = new Map(VENUE_STRIP_LOCATIONS.map((v) => [v.locationId, v.locationName]))
   const borkSuffix = resolveBorkAggReadSuffix()
   const borkDaysColl = `bork_business_days${borkSuffix}`
-  const borkHoursColl = `bork_sales_by_hour${borkSuffix}`
-  const borkLocationMatch = [...locIds, ...locIds.map((id) => new ObjectId(id))]
 
   const [
     revenueRows,
     laborRows,
     masterRows,
     borkRows,
-    borkHourlyRows,
     eitjeRows,
     inboxRows,
     inboxUnmapped,
@@ -115,7 +81,7 @@ export async function loadOpsScanContext(
     db
       .collection(DAILY_OPS_SNAPSHOT_COLLECTIONS.revenueSection)
       .find({ businessDate: dateFilter, locationId: { $in: locIds } })
-      .project({ businessDate: 1, locationId: 1, totals: 1, hourly: 1, lastBuiltAt: 1 })
+      .project({ businessDate: 1, locationId: 1, totals: 1 })
       .toArray(),
     db
       .collection(DAILY_OPS_SNAPSHOT_COLLECTIONS.laborSection)
@@ -140,30 +106,14 @@ export async function loadOpsScanContext(
       .collection(borkDaysColl)
       .find({
         business_date: dateFilter,
-        locationId: { $in: borkLocationMatch },
+        locationId: { $in: locIds.map((id) => new ObjectId(id)) },
       })
-      .project({ _id: 1, business_date: 1, locationId: 1, total_revenue_ex_vat: 1, total_revenue: 1 })
-      .toArray(),
-    db
-      .collection(borkHoursColl)
-      .find({
-        business_date: dateFilter,
-        locationId: { $in: borkLocationMatch },
-      })
-      .project({ _id: 1, business_date: 1, locationId: 1, total_revenue_ex_vat: 1, total_revenue: 1 })
+      .project({ business_date: 1, locationId: 1, total_revenue_ex_vat: 1 })
       .toArray(),
     db
       .collection('eitje_time_registration_aggregation')
       .find({ period: dateFilter, locationId: { $in: locIds } })
-      .project({
-        period: 1,
-        locationId: 1,
-        hours: 1,
-        total_hours: 1,
-        team_name: 1,
-        total_cost_loaded: 1,
-        aggregatedAt: 1,
-      })
+      .project({ period: 1, locationId: 1, hours: 1 })
       .toArray(),
     db
       .collection('inbox-bork-basis-report')
@@ -195,22 +145,13 @@ export async function loadOpsScanContext(
   ])
 
   const revenueByKey = new Map<string, { ex: number; inc: number }>()
-  const revenueSnapshotQualityByKey: OpsScanContext['revenueSnapshotQualityByKey'] = new Map()
   for (const r of revenueRows) {
     const bd = String(r.businessDate ?? '')
     const lid = String(r.locationId ?? '')
     const totals = r.totals as { ex_vat?: number; inc_vat?: number } | undefined
-    const ex = Number(totals?.ex_vat ?? 0)
     revenueByKey.set(snapKey(bd, lid), {
-      ex,
+      ex: Number(totals?.ex_vat ?? 0),
       inc: Number(totals?.inc_vat ?? 0),
-    })
-    revenueSnapshotQualityByKey.set(snapKey(bd, lid), {
-      ex,
-      hourlyNonzero: ((r as DailyOpsSnapshotRevenueSection).hourly ?? []).filter(
-        (slot) => Number(slot.revenue?.ex_vat ?? 0) > REV_EPS,
-      ).length,
-      lastBuiltAt: r.lastBuiltAt instanceof Date ? r.lastBuiltAt : null,
     })
   }
 
@@ -228,66 +169,18 @@ export async function loadOpsScanContext(
   )
 
   const borkExByKey = new Map<string, number>()
-  const borkAggregationQualityByKey: OpsScanContext['borkAggregationQualityByKey'] = new Map()
   for (const r of borkRows) {
     const lid =
       r.locationId instanceof ObjectId ? r.locationId.toHexString() : String(r.locationId ?? '')
     if (!locIds.includes(lid)) continue
-    const key = snapKey(String(r.business_date), lid)
-    const ex = Number(r.total_revenue_ex_vat ?? r.total_revenue ?? 0)
-    borkExByKey.set(key, ex)
-    const quality = borkAggregationQualityByKey.get(key) ?? {
-      dayEx: 0,
-      hourlyEx: 0,
-      hourlyRows: 0,
-      latestBorkAt: null,
-    }
-    quality.dayEx += ex
-    const idDate = r._id instanceof ObjectId ? r._id.getTimestamp() : null
-    if (idDate && (!quality.latestBorkAt || idDate > quality.latestBorkAt)) quality.latestBorkAt = idDate
-    borkAggregationQualityByKey.set(key, quality)
-  }
-  for (const r of borkHourlyRows) {
-    const lid =
-      r.locationId instanceof ObjectId ? r.locationId.toHexString() : String(r.locationId ?? '')
-    if (!locIds.includes(lid)) continue
-    const key = snapKey(String(r.business_date), lid)
-    const quality = borkAggregationQualityByKey.get(key) ?? {
-      dayEx: 0,
-      hourlyEx: 0,
-      hourlyRows: 0,
-      latestBorkAt: null,
-    }
-    const ex = Number(r.total_revenue_ex_vat ?? r.total_revenue ?? 0)
-    quality.hourlyEx += ex
-    if (ex > REV_EPS) quality.hourlyRows += 1
-    const idDate = r._id instanceof ObjectId ? r._id.getTimestamp() : null
-    if (idDate && (!quality.latestBorkAt || idDate > quality.latestBorkAt)) quality.latestBorkAt = idDate
-    borkAggregationQualityByKey.set(key, quality)
+    borkExByKey.set(snapKey(String(r.business_date), lid), Number(r.total_revenue_ex_vat ?? 0))
   }
 
   const eitjeHoursByKey = new Map<string, number>()
-  const eitjeAggQualityByKey: OpsScanContext['eitjeAggQualityByKey'] = new Map()
   for (const r of eitjeRows) {
-    const key = snapKey(String(r.period), String(r.locationId))
-    const hours = Number(r.total_hours ?? r.hours ?? 0)
-    if (hours > 0) eitjeHoursByKey.set(key, (eitjeHoursByKey.get(key) ?? 0) + hours)
-    const quality = eitjeAggQualityByKey.get(key) ?? {
-      rows: 0,
-      hours: 0,
-      missingTeamNameRows: 0,
-      missingLoadedCostRows: 0,
-      latestAggregatedAt: null,
-    }
-    quality.rows += 1
-    quality.hours += hours
-    if (String(r.team_name ?? '').trim() === '') quality.missingTeamNameRows += 1
-    if (hours > 0 && typeof r.total_cost_loaded !== 'number') quality.missingLoadedCostRows += 1
-    const aggregatedAt = r.aggregatedAt instanceof Date ? r.aggregatedAt : null
-    if (aggregatedAt && (!quality.latestAggregatedAt || aggregatedAt > quality.latestAggregatedAt)) {
-      quality.latestAggregatedAt = aggregatedAt
-    }
-    eitjeAggQualityByKey.set(key, quality)
+    const hours = Number(r.hours ?? 0)
+    if (hours <= 0) continue
+    eitjeHoursByKey.set(snapKey(String(r.period), String(r.locationId)), hours)
   }
 
   const inboxByKey = new Map<string, BasisReportData[]>()
@@ -303,24 +196,18 @@ export async function loadOpsScanContext(
     eitjeInboxRows.map((r) => snapKey(String(r.date ?? ''), String(r.location_id ?? ''))),
   )
 
-  const businessDates = [...eachBusinessDate(startDate, endDate)]
-
   return {
     startDate,
     endDate,
-    businessDates,
     openBusinessDate: amsterdamOpenRegisterBusinessDateYmd(),
     locIds,
     locName,
     revenueByKey,
-    revenueSnapshotQualityByKey,
     laborKeys,
     laborByKey,
     masterKeys,
     borkExByKey,
-    borkAggregationQualityByKey,
     eitjeHoursByKey,
-    eitjeAggQualityByKey,
     inboxByKey,
     inboxUnmapped: inboxUnmapped as OpsScanContext['inboxUnmapped'],
     eitjeInboxDays,

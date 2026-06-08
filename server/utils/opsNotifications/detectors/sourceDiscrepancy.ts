@@ -18,7 +18,6 @@ export function detectSourceDiscrepancyNotifications(ctx: OpsScanContext): OpsNo
 
   for (const key of keys) {
     const [businessDate, locationId] = key.split(':::') as [string, string]
-    if (businessDate === ctx.openBusinessDate) continue
     const name = ctx.locName.get(locationId) ?? locationId
     const borkEx = ctx.borkExByKey.get(key) ?? 0
     const inboxRows = ctx.inboxByKey.get(key) ?? []

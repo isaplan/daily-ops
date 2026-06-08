@@ -14,7 +14,6 @@ export function detectCronPipelineNotifications(ctx: OpsScanContext): OpsNotific
   for (const [key, borkEx] of ctx.borkExByKey) {
     if (borkEx <= REV_EPS) continue
     const [businessDate, locationId] = key.split(':::') as [string, string]
-    if (businessDate === ctx.openBusinessDate) continue
     const name = ctx.locName.get(locationId) ?? locationId
     const rows = ctx.inboxByKey.get(key) ?? []
 
@@ -54,7 +53,6 @@ export function detectCronPipelineNotifications(ctx: OpsScanContext): OpsNotific
   for (const [key, hours] of ctx.eitjeHoursByKey) {
     if (ctx.eitjeInboxDays.has(key)) continue
     const [businessDate, locationId] = key.split(':::') as [string, string]
-    if (businessDate === ctx.openBusinessDate) continue
     items.push(
       buildNotificationItem({
         kind: 'eitje_hours_inbox_missing',
