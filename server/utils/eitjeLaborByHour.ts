@@ -94,7 +94,7 @@ export type LaborByBusinessDateHourBucket = {
   hours: number
 }
 
-function allocateShiftLabor (
+export function allocateShiftLabor (
   buckets: Map<string, LaborByBusinessDateHourBucket>,
   businessDate: string,
   shiftStart: Date,

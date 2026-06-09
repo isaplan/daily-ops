@@ -143,6 +143,10 @@
                 </div>
                 <div class="flex items-center gap-2">
                   <UIcon name="i-lucide-check-circle" class="h-3 w-3 text-green-600" />
+                  <span class="text-gray-600">check_ins</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <UIcon name="i-lucide-check-circle" class="h-3 w-3 text-green-600" />
                   <span class="text-gray-600">planning_shifts</span>
                 </div>
                 <div class="flex items-center gap-2">

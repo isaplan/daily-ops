@@ -3,7 +3,7 @@
  * @created: 2026-06-07T00:00:00.000Z
  * @last-modified: 2026-06-08T00:00:00.000Z
  * @description: Shift start/end labels for venue-strip KPI staff drawers (Eitje raw + inbox fallback)
- * @last-fix: [2026-06-08] Open shifts on register-today: end "—", hours = start → now on venue strip GET
+ * @last-fix: [2026-06-09] Active shift = end missing or end in future (Eitje planned end ≠ clock-out)
  * @adr-ref: ADR-004
  *
  * @exports-to:
@@ -13,6 +13,7 @@
 import { ObjectId, type Db } from 'mongodb'
 import type { VenueStripWorkerLineDto } from '~/types/daily-ops-dashboard'
 import { amsterdamOpenRegisterBusinessDateYmd, calendarYmdInAmsterdam } from '~/utils/dailyOpsBusinessDate'
+import { isEitjeShiftClockedOut } from '~/utils/dailyOpsOpenShiftLabor'
 import { VENUE_STRIP_LOCATIONS } from './constants'
 
 const AMSTERDAM_TZ = 'Europe/Amsterdam'
@@ -28,6 +29,8 @@ type ShiftRow = {
   userId: string
   userName: string
   teamName: string
+  /** Eitje `type.name` e.g. gewerkte_uren, ziek, verlof. */
+  shiftType: string
   shiftStart: Date | null
   shiftEnd: Date | null
   hasRawEnd: boolean
@@ -253,14 +256,17 @@ async function fetchEitjeShiftRows(
     if (!locationId || !locationIdSet.has(locationId)) continue
 
     const rawEnd = shiftEndFromRaw(raw)
+    const now = new Date()
+    const clockedOut = isEitjeShiftClockedOut(rawEnd, now)
     rows.push({
       locationId,
       userId: String(extracted.userId ?? raw.user_id ?? (raw.user as { id?: unknown } | undefined)?.id ?? ''),
       userName: String(raw.user_name ?? (raw.user as { name?: unknown } | undefined)?.name ?? extracted.userName ?? ''),
       teamName: String((raw.team as { name?: unknown } | undefined)?.name ?? raw.team_name ?? extracted.teamName ?? ''),
+      shiftType: String((raw.type as { name?: unknown } | undefined)?.name ?? ''),
       shiftStart,
-      shiftEnd: rawEnd,
-      hasRawEnd: rawEnd != null,
+      shiftEnd: clockedOut ? rawEnd : null,
+      hasRawEnd: clockedOut,
       hours: Number(extracted.hours ?? raw.hours ?? raw.hours_worked ?? 0),
     })
   }

@@ -3,7 +3,7 @@
  * @created: 2026-05-28T00:00:00.000Z
  * @last-modified: 2026-06-07T00:00:00.000Z
  * @description: Venue-strip labor bucket resolution from snapshot labor sections
- * @last-fix: [2026-06-08] Open-shift hours overlay on today (start → now) + labor totals refresh
+ * @last-fix: [2026-06-09] Open-shift overlay uses check_ins + member cost_per_hour for live loaded cost
  * @adr-ref: ADR-004
  */
 
@@ -12,13 +12,15 @@ import type { VenueStripCardDto, VenueStripLaborRowDto, VenueStripTeamBucket, Ve
 import type { DailyOpsSnapshotLaborSection } from '~/types/daily-ops-snapshot'
 import {
   enrichSnapshotLaborWorkersFromMembers,
-  loadMemberCompensationByShiftUserIds,
+  loadMemberCompensationForStaffRows,
+  type MemberCompensationLookup,
 } from '../eitjeAggCompensationEnrich'
 import { amsterdamOpenRegisterBusinessDateYmd } from '~/utils/dailyOpsBusinessDate'
 import { allocateOperationalTeamLabor, type VenueLaborSlice } from '../eitjeVenueLaborRollup'
 import { bucketTeamFromName } from '../dailyOpsTeamBucket'
 import { workersFromSnapshot } from '../dailyOpsVenueStripWorkers'
 import { enrichWorkersWithShiftTimesFromMaps, type WorkerShiftTimeMaps } from './workerShiftTimes'
+import type { CheckInRow } from './checkIns'
 import { applyOpenShiftLaborOverlay, laborTotalsFromWorkers } from './openShiftLaborOverlay'
 
 export type VenueStripLaborBundle = {
@@ -138,17 +140,20 @@ export async function resolveVenueStripLabor(
   businessDate: string,
   locationId: string,
   shiftTimeMaps?: WorkerShiftTimeMaps,
+  checkInRows?: CheckInRow[],
 ): Promise<VenueStripLaborBundle> {
   await enrichSnapshotLaborWorkersFromMembers(db, snapLabor?.workers as Array<Record<string, unknown>> | undefined)
   const openRegister = amsterdamOpenRegisterBusinessDateYmd()
-  const memberComp =
-    businessDate === openRegister && shiftTimeMaps
-      ? await loadMemberCompensationByShiftUserIds(
-          db,
-          shiftTimeMaps.eitjeRows
+  const memberComp: MemberCompensationLookup | undefined =
+    businessDate === openRegister && (shiftTimeMaps || (checkInRows?.length ?? 0) > 0)
+      ? await loadMemberCompensationForStaffRows(db, [
+          ...(shiftTimeMaps?.eitjeRows ?? [])
             .filter((r) => r.locationId === locationId && !r.hasRawEnd)
-            .map((r) => r.userId),
-        )
+            .map((r) => ({ userId: r.userId, userName: r.userName })),
+          ...(checkInRows ?? [])
+            .filter((r) => r.locationId === locationId)
+            .map((r) => ({ userId: r.userId, userName: r.userName })),
+        ])
       : undefined
   const workerBuckets: Record<VenueStripTeamBucket, Set<string>> = {
     keuken: new Set(),
@@ -169,6 +174,7 @@ export async function resolveVenueStripLabor(
         businessDate,
         shiftTimeMaps,
         memberComp,
+        checkInRows,
       )
       out = enrichWorkersWithShiftTimesFromMaps(overlaid, locationId, businessDate, shiftTimeMaps)
       if (adjusted) {

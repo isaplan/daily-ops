@@ -1,0 +1,17 @@
+PRIORITY: In daily-ops, `.cursor/rules/agent-rules.mdc` wins for output length and workflow. User Rules = coding style + execution only — never long prose, git/PR narration, or file dumps unless I ask.
+
+Stack: Nuxt 3 · Vue 3 · TypeScript · Tailwind · Shadcn Vue · Radix Vue · VueUse · MongoDB · DigitalOcean
+
+Vue / Nuxt (style only — brevity lives in agent-rules)
+- Composition API + <script setup>; types not interfaces; const objects not enums
+- PascalCase components, camelCase composables, kebab-case dirs
+- ref / reactive / computed; composables for reuse; no Pinia (useState + composables)
+- Shadcn + Radix + Tailwind; Nuxt auto-imports; useFetch / useAsyncData; server logic in server/utils|services
+- createModuleLogger(); no console.log in prod; minimal diffs; reuse existing code
+
+When I ask (not before)
+- Git commit: HEREDOC message, no --no-verify, no amend unless allowed; never commit unless I ask
+- PR: use gh; never force-push main
+
+Execution
+- Real shell — run commands yourself; follow tool/skill instructions

@@ -2,7 +2,7 @@
  * @registry-id: dailyOpsSnapshotAggregateLaborForRange
  * @created: 2026-05-13T00:00:00.000Z
  * @last-modified: 2026-06-07T00:00:00.000Z
- * @last-fix: [2026-06-07] Live Eitje path uses open register business_date (ADR-010), not UTC ISO
+ * @last-fix: [2026-06-09] Supplement live Eitje agg with check_ins loaded cost on open register day
  *   Prior: [2026-06-05] For today: read live eitje_time_registration_aggregation (real-time labor). For yesterday+: read snapshot (sealed).
  * @adr-ref: ADR-010
  *
@@ -19,6 +19,12 @@
 
 import type { Db } from 'mongodb'
 import { amsterdamOpenRegisterBusinessDateYmd } from '~/utils/dailyOpsBusinessDate'
+import { elapsedOpenShiftHours, loadedCostFromCph } from '~/utils/dailyOpsOpenShiftLabor'
+import {
+  loadMemberCompensationForStaffRows,
+  resolveMemberCompensationHit,
+} from '../eitjeAggCompensationEnrich'
+import { fetchVenueStripCheckIns } from '../venueStrip/checkIns'
 
 const DEBUG = typeof process.env.DEBUG === 'string' && process.env.DEBUG.includes('snapshot:labor-agg')
 
@@ -129,6 +135,32 @@ export async function aggregateLaborForRange(
       acc[key].wages += Number(t.wage_cost ?? 0)
       acc[key].loaded += Number(t.loaded_cost ?? 0)
       acc[key].hours += Number(t.hours ?? 0)
+    }
+  }
+
+  if (useLiveEitje) {
+    const checkIns = await fetchVenueStripCheckIns(
+      db,
+      openRegister,
+      ctx.locationId ? [ctx.locationId] : undefined,
+    )
+    const comp = await loadMemberCompensationForStaffRows(db, checkIns)
+    const now = new Date()
+    for (const row of checkIns) {
+      if (ctx.locationId && row.locationId !== ctx.locationId) continue
+      const hours = elapsedOpenShiftHours(row.checkInStart, now)
+      if (hours <= 0) continue
+      const hit = resolveMemberCompensationHit(row.userId, row.userName, comp)
+      const loaded = loadedCostFromCph(hours, hit?.costPerHour ?? 0)
+      const wages = loadedCostFromCph(hours, hit?.hourlyRate ?? 0)
+      if (loaded <= 0 && wages <= 0) continue
+      totalWages += wages
+      totalLoaded += loaded
+      totalHours += hours
+      const key = bucketTeam(row.teamName)
+      acc[key].wages += wages
+      acc[key].loaded += loaded
+      acc[key].hours += hours
     }
   }
 

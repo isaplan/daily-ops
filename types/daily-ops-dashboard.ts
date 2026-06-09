@@ -357,6 +357,24 @@ export type VenueStripContractRowDto = {
   loaded: number
 }
 
+/** Clocked-in staff with no end time on the open register business day. */
+export type VenueStripActiveWorkerRowDto = {
+  userId: string
+  userName: string
+  teamName: string
+  /** Amsterdam HH:MM clock-in. */
+  startLabel: string
+  /** Elapsed hours from clock-in until now. */
+  hoursWorked: number
+  /** Loaded employer cost so far (cost_per_hour × hours). */
+  wages: number
+}
+
+export type VenueStripActiveWorkersDto = {
+  workers: number
+  rows: VenueStripActiveWorkerRowDto[]
+}
+
 /** Per-person line for KPI gewerkte drawers (Afwas may appear twice after 50/50 split). */
 export type VenueStripWorkerLineDto = {
   userId: string
@@ -395,6 +413,8 @@ export type VenueStripCardDto = {
   }
   /** Staff lines for gewerkte KPI drawers, same source as labor totals. */
   workers: VenueStripWorkerLineDto[]
+  /** Open Eitje shifts (today only): clocked in, not yet clocked out. */
+  active: VenueStripActiveWorkersDto
   productivity: {
     totalPerHour: number | null
     keukenPerHour: number | null

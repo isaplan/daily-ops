@@ -11,6 +11,21 @@ import { snapshotRound2 } from './shared'
 
 export type SnapshotLaborByBusinessDateHourBucket = { loadedCost: number; hours: number }
 
+export function mergeLaborHourMaps (
+  base: Map<string, SnapshotLaborByBusinessDateHourBucket>,
+  overlay: Map<string, { loadedCost: number; hours: number }>,
+): Map<string, SnapshotLaborByBusinessDateHourBucket> {
+  const out = new Map(base)
+  for (const [key, row] of overlay) {
+    const prev = out.get(key) ?? { loadedCost: 0, hours: 0 }
+    out.set(key, {
+      loadedCost: snapshotRound2(prev.loadedCost + row.loadedCost),
+      hours: snapshotRound2(prev.hours + row.hours),
+    })
+  }
+  return out
+}
+
 export function laborByLocHourFromSnapshots(
   labor: DailyOpsSnapshotLaborSection[],
 ): Map<string, SnapshotLaborByBusinessDateHourBucket> {

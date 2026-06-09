@@ -1,8 +1,9 @@
 /**
  * @registry-id: dailyOpsVenueStripOpenShiftLabor
  * @created: 2026-06-08T00:00:00.000Z
- * @last-modified: 2026-06-09T00:00:00.000Z
- * @description: Today-only overlay — recalc hours/wages for open Eitje shifts (start → now)
+ * @last-modified: 2026-06-09T20:00:00.000Z
+ * @description: Today-only overlay — recalc hours/wages for open check_ins (start → now)
+ * @last-fix: [2026-06-09] check_ins SSOT for open-register floor staff + member cost_per_hour
  * @adr-ref: ADR-004, ADR-010
  *
  * @exports-to:
@@ -16,8 +17,10 @@ import {
   loadedCostFromCph,
   scaleLoadedCostForHours,
 } from '~/utils/dailyOpsOpenShiftLabor'
-import type { MemberCompensationHit } from '../eitjeAggCompensationEnrich'
+import type { MemberCompensationLookup } from '../eitjeAggCompensationEnrich'
+import { resolveMemberCompensationHit } from '../eitjeAggCompensationEnrich'
 import { expandWorkerLineForTeam } from '../dailyOpsVenueStripWorkers'
+import type { CheckInRow } from './checkIns'
 import type { WorkerShiftTimeMaps } from './workerShiftTimes'
 import { findShiftSlot } from './workerShiftTimes'
 
@@ -30,17 +33,27 @@ function isOperationalTeam(teamName: string): boolean {
   return n === 'keuken' || n === 'bediening' || n === 'afwas'
 }
 
+function costPerHourFor(
+  userId: string,
+  userName: string,
+  memberComp?: MemberCompensationLookup,
+): number {
+  if (!memberComp) return 0
+  return resolveMemberCompensationHit(userId, userName, memberComp)?.costPerHour ?? 0
+}
+
 function applyOpenHoursToLine(
   worker: VenueStripWorkerLineDto,
   startAt: Date,
   now: Date,
-  costPerHour?: number,
+  memberComp?: MemberCompensationLookup,
 ): VenueStripWorkerLineDto {
   const nextHours = elapsedOpenShiftHours(startAt, now)
   if (nextHours <= 0) return worker
+  const cph = costPerHourFor(worker.userId, worker.userName, memberComp)
   let nextWages = scaleLoadedCostForHours(worker.hours, worker.wages, nextHours)
-  if (nextWages <= 0 && costPerHour != null && costPerHour > 0) {
-    nextWages = loadedCostFromCph(nextHours, costPerHour)
+  if (nextWages <= 0 && cph > 0) {
+    nextWages = loadedCostFromCph(nextHours, cph)
   }
   return {
     ...worker,
@@ -50,8 +63,23 @@ function applyOpenHoursToLine(
   }
 }
 
+function findCheckInForWorker(
+  checkInRows: CheckInRow[],
+  locationId: string,
+  userId: string,
+  userName: string,
+  teamName: string,
+): CheckInRow | undefined {
+  const key = workerKey(userId, userName, teamName)
+  return checkInRows.find(
+    (row) =>
+      row.locationId === locationId &&
+      workerKey(row.userId, row.userName, row.teamName) === key,
+  )
+}
+
 /**
- * For the open register business day: bump hours/wages on open shifts and add
+ * For the open register business day: bump hours/wages on open check_ins and add
  * staff who clocked in but are missing from the snapshot (hours were 0 at last build).
  */
 export function applyOpenShiftLaborOverlay(
@@ -59,7 +87,8 @@ export function applyOpenShiftLaborOverlay(
   locationId: string,
   businessDate: string,
   maps: WorkerShiftTimeMaps,
-  memberComp?: Map<string, MemberCompensationHit>,
+  memberComp?: MemberCompensationLookup,
+  checkInRows: CheckInRow[] = [],
 ): { workers: VenueStripWorkerLineDto[]; adjusted: boolean } {
   const openRegister = amsterdamOpenRegisterBusinessDateYmd()
   if (businessDate !== openRegister) {
@@ -69,9 +98,15 @@ export function applyOpenShiftLaborOverlay(
   const now = new Date()
   const seen = new Set<string>()
   let adjusted = false
+  const venueCheckIns = checkInRows.filter((r) => r.locationId === locationId)
 
   const updated = workers.map((worker) => {
     seen.add(workerKey(worker.userId, worker.userName, worker.teamName))
+    const checkIn = findCheckInForWorker(venueCheckIns, locationId, worker.userId, worker.userName, worker.teamName)
+    if (checkIn?.checkInStart) {
+      adjusted = true
+      return applyOpenHoursToLine(worker, checkIn.checkInStart, now, memberComp)
+    }
     const { eitje } = findShiftSlot(
       maps.eitje,
       maps.inbox,
@@ -82,18 +117,18 @@ export function applyOpenShiftLaborOverlay(
     )
     if (!eitje?.startAt || eitje.hasRawEnd) return worker
     adjusted = true
-    return applyOpenHoursToLine(worker, eitje.startAt, now, memberComp?.get(worker.userId)?.costPerHour)
+    return applyOpenHoursToLine(worker, eitje.startAt, now, memberComp)
   })
 
-  for (const row of maps.eitjeRows) {
-    if (row.locationId !== locationId || row.hasRawEnd || !row.shiftStart) continue
+  for (const row of venueCheckIns) {
+    if (!row.checkInStart) continue
     const key = workerKey(row.userId, row.userName, row.teamName)
     if (seen.has(key)) continue
 
-    const hours = elapsedOpenShiftHours(row.shiftStart, now)
+    const hours = elapsedOpenShiftHours(row.checkInStart, now)
     if (hours <= 0) continue
 
-    const cph = memberComp?.get(row.userId)?.costPerHour ?? 0
+    const cph = costPerHourFor(row.userId, row.userName, memberComp)
     const loaded = loadedCostFromCph(hours, cph)
     const operational = isOperationalTeam(row.teamName)
     const lines = expandWorkerLineForTeam(row.userId, row.userName, row.teamName, hours, loaded, operational)

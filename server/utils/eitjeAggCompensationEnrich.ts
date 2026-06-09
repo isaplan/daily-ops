@@ -131,6 +131,34 @@ export async function loadMemberCompensationByNames (
   return map
 }
 
+export type MemberCompensationLookup = {
+  byUserId: Map<string, MemberCompensationHit>
+  byName: Map<string, MemberCompensationHit>
+}
+
+/** Member wages for check-ins / active staff (userId + name fallback). */
+export async function loadMemberCompensationForStaffRows (
+  db: Db,
+  rows: Array<{ userId: string; userName: string }>,
+): Promise<MemberCompensationLookup> {
+  const [byUserId, byName] = await Promise.all([
+    loadMemberCompensationByShiftUserIds(db, rows.map((r) => r.userId)),
+    loadMemberCompensationByNames(db, rows.map((r) => r.userName)),
+  ])
+  return { byUserId, byName }
+}
+
+export function resolveMemberCompensationHit (
+  userId: string,
+  userName: string,
+  lookup: MemberCompensationLookup,
+): MemberCompensationHit | undefined {
+  const byId = lookup.byUserId.get(userId.trim())
+  if (byId) return byId
+  const norm = normPersonName(userName)
+  return norm ? lookup.byName.get(norm) : undefined
+}
+
 function rowNeedsEnrichment (row: Record<string, unknown>): boolean {
   const hours = Number(row.total_hours ?? row.hours ?? 0)
   if (hours <= 0) return false

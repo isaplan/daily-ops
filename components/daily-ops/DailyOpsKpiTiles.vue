@@ -1,11 +1,11 @@
 <template>
   <section class="min-w-0">
     <div v-if="pending" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-8">
-      <USkeleton v-for="i in 11" :key="i" class="h-24 w-full rounded-lg" />
+      <USkeleton v-for="i in 12" :key="i" class="h-24 w-full rounded-lg" />
     </div>
 
     <div v-else-if="!pending && !totals" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-8">
-      <USkeleton v-for="i in 11" :key="i" class="h-24 w-full rounded-lg" />
+      <USkeleton v-for="i in 12" :key="i" class="h-24 w-full rounded-lg" />
     </div>
 
     <div
@@ -79,6 +79,7 @@ type KpiTileId =
   | 'labor'
   | 'laborPct'
   | 'productivity'
+  | 'active'
   | 'gewerkt'
   | 'gewerktKeuken'
   | 'gewerktBediening'
@@ -199,6 +200,7 @@ const totals = computed(() => {
   let keukenHours = 0
   let bedieningHours = 0
   let otherHours = 0
+  let activeWorkers = 0
   for (const v of list) {
     revenue += v.revenue.total
     laborAllLoaded += v.labor.all.loaded
@@ -208,6 +210,7 @@ const totals = computed(() => {
     keukenHours += v.labor.keuken.hours
     bedieningHours += v.labor.bediening.hours
     otherHours += v.labor.other?.hours ?? 0
+    activeWorkers += v.active?.workers ?? 0
   }
   const laborGewerktPct = revenue > 0 ? (laborGewerktLoaded / revenue) * 100 : null
   const laborAllPct = revenue > 0 ? (laborAllLoaded / revenue) * 100 : null
@@ -227,6 +230,7 @@ const totals = computed(() => {
     keukenHours,
     bedieningHours,
     otherHours,
+    activeWorkers,
   }
 })
 
@@ -238,6 +242,12 @@ const tiles = computed(() => {
     { id: 'labor' as const, label: 'Total Labor Cost', display: formatEurWhole(t.laborGewerktLoaded), opensDrawer: true },
     { id: 'laborPct' as const, label: 'Labor Percentage', display: formatPctWhole(t.laborPct), opensDrawer: true },
     { id: 'productivity' as const, label: 'Labor Productivity', display: formatEurPerHourWhole(t.productivity), opensDrawer: true },
+    {
+      id: 'active' as const,
+      label: 'Active',
+      display: String(t.activeWorkers),
+      opensDrawer: true,
+    },
     {
       id: 'gewerkt' as const,
       label: 'All uren',
@@ -373,6 +383,34 @@ function staffForVenue (venue: VenueStripCardDto, filter: GewerktStaffFilter | '
       hours: formatHoursWhole(w.hours),
       wages: formatEurWhole(w.wages),
     }))
+}
+
+function venueSectionsForActive (): KpiDrawerVenueSection[] {
+  return venues.value.map((v: VenueStripCardDto) => ({
+    locationName: v.locationName,
+    cells: [
+      String(v.active?.workers ?? 0),
+      formatHoursWhole(
+        (v.active?.rows ?? []).reduce((sum, row) => sum + row.hoursWorked, 0),
+      ),
+      formatEurWhole(
+        (v.active?.rows ?? []).reduce((sum, row) => sum + row.wages, 0),
+      ),
+    ],
+    staff: (v.active?.rows ?? []).map((row) => ({
+      name: row.userName,
+      team: row.teamName,
+      startLabel: row.startLabel,
+      endLabel: 'Active',
+      hours: formatHoursWhole(row.hoursWorked),
+      wages: row.wages > 0 ? formatEurWhole(row.wages) : '—',
+    })),
+    staffColumns: {
+      hours: 'Hours worked',
+      end: 'Status',
+      wages: 'Cost',
+    },
+  }))
 }
 
 function venueSectionsForGewerkt (
@@ -544,6 +582,44 @@ const drawerContent = computed(() => {
             formatEurPerHourWhole(v.productivity.totalPerHour),
           ],
         })),
+      }
+    case 'active':
+      return {
+        title: 'Active',
+        intro:
+          'Operational staff currently on the floor: Eitje check_ins (clock-in with start time, no clock-out yet). Excludes Ziek, Verlof, and Vakantie. Refreshes on each page load for today via live API.',
+        summaryRows: [
+          { label: 'Combined active workers', value: String(t.activeWorkers) },
+          {
+            label: 'Combined hours worked (so far)',
+            value: formatHoursWhole(
+              venues.value.reduce(
+                (sum: number, v: VenueStripCardDto) =>
+                  sum + (v.active?.rows ?? []).reduce(
+                    (rowSum: number, row) => rowSum + row.hoursWorked,
+                    0,
+                  ),
+                0,
+              ),
+            ),
+          },
+          {
+            label: 'Combined loaded cost (so far)',
+            value: formatEurWhole(
+              venues.value.reduce(
+                (sum: number, v: VenueStripCardDto) =>
+                  sum + (v.active?.rows ?? []).reduce(
+                    (rowSum: number, row) => rowSum + row.wages,
+                    0,
+                  ),
+                0,
+              ),
+            ),
+          },
+        ],
+        venueColumns: ['Active workers', 'Hours worked (so far)', 'Loaded cost (so far)'],
+        venueRows: [],
+        venueSections: venueSectionsForActive(),
       }
     case 'gewerkt':
       return {

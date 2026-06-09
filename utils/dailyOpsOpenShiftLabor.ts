@@ -11,6 +11,15 @@
  * ✓ server/utils/venueStrip/openShiftLaborOverlay.ts
  */
 
+/**
+ * True when Eitje shift has a real clock-out in the past.
+ * Eitje often sends a planned `end` in the future while staff are still working — that is NOT clocked out.
+ */
+export function isEitjeShiftClockedOut(endAt: Date | null | undefined, now: Date = new Date()): boolean {
+  if (!endAt || Number.isNaN(endAt.getTime())) return false
+  return endAt.getTime() <= now.getTime()
+}
+
 /** Elapsed worked hours from shift start until `now`, minus break minutes. */
 export function elapsedOpenShiftHours(
   startAt: Date,

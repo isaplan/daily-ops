@@ -1,9 +1,9 @@
 /**
  * @registry-id: dailyOpsVenueStripSnapshotBatch
  * @created: 2026-05-28T00:00:00.000Z
- * @last-modified: 2026-06-07T01:00:00.000Z
+ * @last-modified: 2026-06-09T16:00:00.000Z
  * @description: Batch snapshot reads + venue card assembly for venue strip
- * @last-fix: [2026-06-08] Snapshot-only revenue on GET (remove liveRevenue patch, ADR-004)
+ * @last-fix: [2026-06-09] check_ins overlay + member comp for live loaded cost on Active KPI
  * @adr-ref: ADR-004, ADR-010
  */
 
@@ -17,6 +17,9 @@ import {
 } from '~/types/daily-ops-snapshot'
 import type { DailyOpsMetricsContext } from '../dailyOpsMetrics/context'
 import { VENUE_STRIP_LOCATIONS } from './constants'
+import { buildVenueActiveWorkers } from './activeWorkers'
+import type { CheckInRow } from './checkIns'
+import { loadMemberCompensationForStaffRows } from '../eitjeAggCompensationEnrich'
 import { enrichLaborWithPct, productivityPerHour, resolveVenueStripLabor } from './labor'
 import { contractsByTeamFromSnapshot, revenueFromSnapshotSections } from './revenue'
 import type { WorkerShiftTimeMaps } from './workerShiftTimes'
@@ -60,6 +63,7 @@ export async function buildVenueStripCardFromSnapshots(
   venue: { locationId: string; locationName: string },
   batch: VenueStripSnapshotBatch,
   shiftTimeMaps: WorkerShiftTimeMaps,
+  checkInRows: CheckInRow[],
 ): Promise<VenueStripCardDto> {
   const snapRev = batch.revenueByLoc.get(venue.locationId) ?? null
   const snapLabor = batch.laborByLoc.get(venue.locationId) ?? null
@@ -80,12 +84,14 @@ export async function buildVenueStripCardFromSnapshots(
   const headlineTotal = revenue.total
   const locationName = snapLabor?.locationName ?? snapRev?.locationName ?? venue.locationName
 
-  const [laborBundle, contractsByTeam] = await Promise.all([
-    resolveVenueStripLabor(db, snapLabor, ctx.startDate, venue.locationId, shiftTimeMaps),
+  const [laborBundle, contractsByTeam, memberComp] = await Promise.all([
+    resolveVenueStripLabor(db, snapLabor, ctx.startDate, venue.locationId, shiftTimeMaps, checkInRows),
     Promise.resolve(contractsByTeamFromSnapshot(snapLabor)),
+    loadMemberCompensationForStaffRows(db, checkInRows),
   ])
 
   const laborWithPct = enrichLaborWithPct(laborBundle.labor, headlineTotal)
+  const active = buildVenueActiveWorkers(venue.locationId, ctx.startDate, checkInRows, memberComp)
 
   return {
     locationId: venue.locationId,
@@ -93,6 +99,7 @@ export async function buildVenueStripCardFromSnapshots(
     revenue,
     labor: laborWithPct,
     workers: laborBundle.workers,
+    active,
     productivity: {
       totalPerHour: productivityPerHour(headlineTotal, laborWithPct.gewerkt.hours),
       keukenPerHour: productivityPerHour(revenue.food, laborWithPct.keuken.hours),

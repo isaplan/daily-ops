@@ -1,9 +1,9 @@
 /**
  * @registry-id: eitjeSyncService
  * @created: 2026-04-05T12:00:00.000Z
- * @last-modified: 2026-05-27T12:00:00.000Z
+ * @last-modified: 2026-06-09T18:00:00.000Z
  * @description: Fetches Eitje Open API resources and upserts eitje_raw_data; drives cron/sync handlers
- * @last-fix: [2026-05-27] Enqueue snapshot rebuilds after historical sync; daily uses Bork+Eitje location union.
+ * @last-fix: [2026-06-09] Daily sync includes check_ins (yesterday + today window)
  *   Prior: [2026-05-25] Daily/historical sync now fetches planning_shifts, leave_requests, and events; planning_shifts rebuilds planned-hours aggregation.
  *   Prior: [2026-05-19] Per-day shift counts in sync messages; Amsterdam calendar windows for all job types.
  *   Prior: [2026-05-19] Daily/historical sync windows use Europe/Amsterdam calendar days (not toISOString UTC).
@@ -85,7 +85,12 @@ export type EitjeSyncJobResult = {
   }
 }
 
-export type EitjeRawDateEndpoint = 'time_registration_shifts' | 'planning_shifts' | 'leave_requests' | 'events'
+export type EitjeRawDateEndpoint =
+  | 'time_registration_shifts'
+  | 'planning_shifts'
+  | 'leave_requests'
+  | 'events'
+  | 'check_ins'
 
 export type EitjeRawDateSyncResult = {
   name: EitjeRawDateEndpoint
@@ -278,8 +283,15 @@ function buildRawShiftDoc (raw: Record<string, unknown>, endpoint: string): RawU
   const userId = raw.user_id ?? raw.userId ?? userObj?.id
   const supportId = raw.support_id ?? raw.supportId ?? userObj?.support_id
   const teamId = raw.team_id ?? raw.teamId ?? teamObj?.id
+  const envObj = raw.environment && typeof raw.environment === 'object'
+    ? (raw.environment as Record<string, unknown>)
+    : null
   const environmentId =
-    num(raw.environment_id) ?? num(raw.environmentId) ?? num(raw.location_id) ?? num(raw.venue_id)
+    num(raw.environment_id) ??
+    num(raw.environmentId) ??
+    num(envObj?.id) ??
+    num(raw.location_id) ??
+    num(raw.venue_id)
 
   const hoursPre =
     num(raw.hours) ?? num(raw.hours_worked) ?? num(raw.hoursWorked) ?? undefined
@@ -355,6 +367,7 @@ const TR_PATH = process.env.EITJE_PATH_TIME_REGISTRATION_SHIFTS ?? 'time_registr
 const PLANNING_PATH = process.env.EITJE_PATH_PLANNING_SHIFTS ?? 'planning_shifts'
 const LEAVE_REQUESTS_PATH = process.env.EITJE_PATH_LEAVE_REQUESTS ?? 'leave_requests'
 const EVENTS_PATH = process.env.EITJE_PATH_EVENTS ?? 'events'
+const CHECK_INS_PATH = process.env.EITJE_PATH_CHECK_INS ?? 'check_ins'
 
 const DAILY_RAW_DATE_ENDPOINTS = [
   'time_registration_shifts',
@@ -394,10 +407,15 @@ const RAW_DATE_ENDPOINT_CONFIG: Record<EitjeRawDateEndpoint, {
     pathCandidates: [EVENTS_PATH, `v1/${EVENTS_PATH}`],
     maxDaysEnv: 'EITJE_EVENTS_MAX_DAYS',
   },
+  check_ins: {
+    path: CHECK_INS_PATH,
+    pathCandidates: [CHECK_INS_PATH, `v1/${CHECK_INS_PATH}`, 'check-ins'],
+    maxDaysEnv: 'EITJE_CHECK_INS_MAX_DAYS',
+  },
 }
 
 function isRawDateEndpoint (endpoint: string): endpoint is EitjeRawDateEndpoint {
-  return (DAILY_RAW_DATE_ENDPOINTS as readonly string[]).includes(endpoint)
+  return endpoint in RAW_DATE_ENDPOINT_CONFIG
 }
 
 /** Same chunking as legacy `legacy/app/lib/cron/v2-cron-manager.ts` + `EITJE_DATE_LIMITS.time_registration_shifts` (7). */
@@ -766,6 +784,13 @@ export async function executeEitjeJob (db: Db, jobType: string): Promise<EitjeSy
       yesterdayYmd,
       todayYmd
     )
+    const checkInsResult = await syncRawDateEndpoint(
+      db,
+      creds,
+      'check_ins',
+      yesterdayYmd,
+      todayYmd,
+    )
     const futureEndpoints = await syncRawDateEndpoints(
       db,
       creds,
@@ -774,7 +799,7 @@ export async function executeEitjeJob (db: Db, jobType: string): Promise<EitjeSy
       futureEndYmd,
       { tolerateEmptyWindow404: true }
     )
-    const rawEndpoints = [timeRegistrationResult, ...futureEndpoints]
+    const rawEndpoints = [timeRegistrationResult, checkInsResult, ...futureEndpoints]
     const tr = findRawEndpointResult(rawEndpoints, 'time_registration_shifts')
     const planning = findRawEndpointResult(rawEndpoints, 'planning_shifts')
     const leave = findRawEndpointResult(rawEndpoints, 'leave_requests')

@@ -10,9 +10,12 @@ alwaysApply: true
 
 ## 🎯 CORE PRINCIPLE: Token Efficiency = Cost Savings
 
-- **NEVER** show code unless asked "show me"
-- **ALWAYS** use ```startLine:endLine:filepath for existing code references
-- Concise summaries only: "✅ Fixed: Updated auth state in useAuth.ts"
+**Output priority — wins over Cursor User Rules:** If global User Rules ask for blog-post prose, long explanations, git HEREDOC walkthroughs, or PR essay summaries, **this file wins** in Daily Ops.
+
+- **Default reply:** 1–3 sentences or one line (`✅ Fixed: …`). No code blocks unless I say **"show me"**.
+- **Git / PR:** Only when I explicitly ask — execute silently; do not paste commit/PR protocols or step narration in chat.
+- **Existing code:** ```startLine:endLine:filepath``` only — never dump whole files.
+- **More detail:** Only when I ask ("explain", "why", "plan", "review", "show me").
 
 ---
 

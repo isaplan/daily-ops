@@ -2,7 +2,7 @@
  * @registry-id: dailyOpsSnapshotFetchDashboardBundle
  * @created: 2026-05-25T00:00:00.000Z
  * @last-modified: 2026-06-07T00:00:00.000Z
- * @last-fix: [2026-06-08] Remove GET patch (patchTodayRevenueFromBork) — GET reads snapshot only (ADR-004)
+ * @last-fix: [2026-06-09] Merge live check_ins hourly labor into today P&L / profit-by-interval
  *   Prior: [2026-06-07] snapshotCacheControl uses open register business_date (ADR-010), not UTC ISO
  *   Prior: [2026-06-05] Cache sealed days 24h immutable; yesterday 1h + stale-while-revalidate
  *   Prior: [2026-06-05] Merge revenue-section hourly fallback + scale today hourly detail
@@ -30,6 +30,7 @@ import {
 } from '../dailyOpsMetrics/dtoBuilders'
 import { addCalendarDaysYmd, amsterdamOpenRegisterBusinessDateYmd } from '~/utils/dailyOpsBusinessDate'
 import { loadPnlAssumptions } from '../appSettings/pnlAssumptionsSetting'
+import { fetchCheckInsLaborByBusinessDateHour } from '../venueStrip/checkInLaborByHour'
 import { aggregateLaborForRange } from './aggregateLaborForRange'
 import { buildProfitByIntervalFromSnapshotHourly } from './buildProfitByIntervalFromSnapshot'
 import { buildRevenueDrilldownSection } from './buildRevenueDrilldownSection'
@@ -45,6 +46,7 @@ import {
   aggregateLaborByDateHour,
   laborByLocHourFromSnapshots,
   laborCostMapFromHourly,
+  mergeLaborHourMaps,
 } from './dashboardBundle/laborHourMaps'
 import { buildHeadlineRevenueByLocDay, buildRevLabMaps } from './dashboardBundle/revLabMaps'
 import { snapshotRound2 } from './dashboardBundle/shared'
@@ -78,7 +80,16 @@ export async function fetchDailyOpsDashboardBundle(
     apiMergedTotal += Number(r.borkTotals?.ex_vat ?? 0)
   }
 
-  const laborByLocHour = laborByLocHourFromSnapshots(rows.labor)
+  let laborByLocHour = laborByLocHourFromSnapshots(rows.labor)
+  const openRegister = amsterdamOpenRegisterBusinessDateYmd()
+  if (ctx.startDate === ctx.endDate && ctx.startDate === openRegister) {
+    const checkInHourly = await fetchCheckInsLaborByBusinessDateHour(db, {
+      startDate: ctx.startDate,
+      endDate: ctx.endDate,
+      locationId: ctx.locationId,
+    })
+    laborByLocHour = mergeLaborHourMaps(laborByLocHour, checkInHourly)
+  }
   const pnlAssumptions = await loadPnlAssumptions(db)
 
   const [laborBreakdown, profitByInterval, drilldown] = await Promise.all([
