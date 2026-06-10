@@ -1,10 +1,18 @@
 import { resolveDailyOpsPeriod } from '~/utils/dailyOpsPeriod'
-import { DAILY_OPS_PERIOD_IDS, DAILY_OPS_ROLLING_DAY_PERIOD_IDS, type DailyOpsPeriodId } from '~/types/daily-ops-dashboard'
+import { DAILY_OPS_PERIOD_IDS, DAILY_OPS_RANGE_PERIOD_IDS, DAILY_OPS_ROLLING_DAY_PERIOD_IDS, type DailyOpsPeriodId } from '~/types/daily-ops-dashboard'
 import { amsterdamOpenRegisterBusinessDateYmd, AMSTERDAM_TZ } from '~/utils/dailyOpsBusinessDate'
 
 export type DailyOpsNavKey = 'overview' | 'revenue' | 'productivity' | 'workload' | 'products' | 'insights' | 'inbox'
 
 const PERIOD_SET = new Set<string>(DAILY_OPS_PERIOD_IDS)
+const RANGE_PERIOD_LABELS: Partial<Record<DailyOpsPeriodId, string>> = {
+  'this-week': 'This week',
+  'last-week': 'Last week',
+  'this-month': 'This month',
+  'last-month': 'Last month',
+  'this-year': 'This year',
+  'last-year': 'Last year',
+}
 
 export function useDailyOpsDashboardRoute() {
   const route = useRoute()
@@ -50,7 +58,10 @@ export function useDailyOpsDashboardRoute() {
   }
 
   function setPeriod(next: DailyOpsPeriodId) {
-    router.replace({ path: route.path, query: { ...route.query, period: next } })
+    router.replace({
+      path: route.path,
+      query: { ...route.query, period: next, anchor: openRegisterYmd.value },
+    })
   }
 
   function setLocation(id: string | null) {
@@ -94,10 +105,11 @@ export function useDailyOpsDashboardRoute() {
       const weekday = new Intl.DateTimeFormat('en-GB', { weekday: 'long', timeZone: AMSTERDAM_TZ }).format(dayRef)
       return `${weekday} (register day): ${fmt.format(dayRef)} · Amsterdam`
     }
-    if (period.value === 'this-week') {
-      return `This week: ${r.startDate} → ${r.endDate} · Amsterdam`
+    if ((DAILY_OPS_RANGE_PERIOD_IDS as readonly string[]).includes(period.value)) {
+      const label = RANGE_PERIOD_LABELS[period.value] ?? period.value
+      return `${label}: ${r.startDate} → ${r.endDate} · Amsterdam`
     }
-    return `Last week: ${r.startDate} → ${r.endDate} · Amsterdam`
+    return `Today (register day): ${fmt.format(dayRef)} · Amsterdam`
   })
 
   return {

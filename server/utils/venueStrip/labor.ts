@@ -91,6 +91,75 @@ function finalizeVenueLaborRow(row: VenueStripLaborRowDto): void {
   row.laborPctOfRevenue = null
 }
 
+/** Sync labor block from a snapshot labor section (range rollups — no live check-in overlay). */
+export function laborBlockFromSnapshotSection(doc: DailyOpsSnapshotLaborSection | null): VenueStripCardDto['labor'] {
+  const labor = emptyLaborBlock()
+  if (!doc) return labor
+
+  const workerBuckets: Record<VenueStripTeamBucket, Set<string>> = {
+    keuken: new Set(),
+    bediening: new Set(),
+    other: new Set(),
+  }
+  for (const w of doc.workers ?? []) {
+    const bucket = bucketTeamFromName(String(w.teamName ?? ''))
+    const uid = String(w.userId ?? '')
+    if (uid) workerBuckets[bucket].add(uid)
+  }
+
+  if (doc.operational) {
+    labor.all = laborRowFromCostPair(
+      doc.totals,
+      new Set([...workerBuckets.keuken, ...workerBuckets.bediening, ...workerBuckets.other]).size,
+    )
+    labor.gewerkt = laborRowFromCostPair(
+      doc.operational.gewerkt,
+      new Set([...workerBuckets.keuken, ...workerBuckets.bediening]).size,
+    )
+    labor.keuken = laborRowFromCostPair(doc.operational.keuken, workerBuckets.keuken.size)
+    labor.bediening = laborRowFromCostPair(doc.operational.bediening, workerBuckets.bediening.size)
+    finalizeLaborOther(labor, [])
+    return labor
+  }
+
+  for (const t of doc.teams ?? []) {
+    const gHours = Number(t.gewerkt?.hours ?? t.hours ?? 0)
+    if (gHours <= 0) continue
+    const slice: VenueLaborSlice = {
+      hours: gHours,
+      wages: Number(t.gewerkt?.wage_cost ?? 0),
+      loaded: Number(t.gewerkt?.loaded_cost ?? 0),
+    }
+    const alloc = allocateOperationalTeamLabor(String(t.teamName ?? ''), slice)
+    addVenueLaborSlice(labor.keuken, alloc.keuken)
+    addVenueLaborSlice(labor.bediening, alloc.bediening)
+  }
+
+  labor.all = {
+    hours: round2(Number(doc.totals?.hours ?? 0)),
+    wages: round2(Number(doc.totals?.wage_cost ?? 0)),
+    loaded: round2(Number(doc.totals?.loaded_cost ?? 0)),
+    workers: new Set([...workerBuckets.keuken, ...workerBuckets.bediening, ...workerBuckets.other]).size,
+    laborPctOfRevenue: null,
+  }
+
+  const gewTotals = doc.totals_gewerkt
+  labor.gewerkt = {
+    hours: round2(Number(gewTotals?.hours ?? labor.keuken.hours + labor.bediening.hours)),
+    wages: round2(Number(gewTotals?.wage_cost ?? labor.keuken.wages + labor.bediening.wages)),
+    loaded: round2(Number(gewTotals?.loaded_cost ?? labor.keuken.loaded + labor.bediening.loaded)),
+    workers: new Set([...workerBuckets.keuken, ...workerBuckets.bediening]).size,
+    laborPctOfRevenue: null,
+  }
+
+  labor.keuken.workers = workerBuckets.keuken.size
+  labor.bediening.workers = workerBuckets.bediening.size
+  finalizeVenueLaborRow(labor.keuken)
+  finalizeVenueLaborRow(labor.bediening)
+  finalizeLaborOther(labor, [])
+  return labor
+}
+
 function laborRowFromCostPair(
   pair: { hours: number; wage_cost: number; loaded_cost: number },
   workers = 0,

@@ -17,6 +17,7 @@ import { resolve } from 'node:path'
 import type { DailyOpsMetricsContext } from '../dailyOpsMetrics/context'
 import { addCalendarDaysYmd, amsterdamOpenRegisterBusinessDateYmd } from '~/utils/dailyOpsBusinessDate'
 import { fetchDailyOpsDashboardBundle } from './fetchDashboardBundle'
+import { buildVenueStripResponse } from '../dailyOpsVenueStrip'
 
 const CACHE_DIR = resolve(process.cwd(), '.cache/daily-ops-bundles/daily')
 
@@ -44,6 +45,9 @@ export async function preGenerateBundleForDate(
     }
 
     const bundle = await fetchDailyOpsDashboardBundle(db, ctx)
+    if (locationId === 'all') {
+      bundle.venueStrip = await buildVenueStripResponse(db, ctx)
+    }
     const json = JSON.stringify(bundle, null, 0)
 
     await mkdir(CACHE_DIR, { recursive: true })

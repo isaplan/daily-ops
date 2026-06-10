@@ -17,12 +17,6 @@ import type { DailyOpsAttendanceKpisDto } from '~/types/daily-ops-dashboard'
 export default defineEventHandler(async (event): Promise<DailyOpsAttendanceKpisDto> => {
   const ctx = parseDailyOpsMetricsQuery(getQuery(event) as Record<string, unknown>)
   setResponseHeader(event, 'Cache-Control', 'no-store')
-  if (ctx.startDate !== ctx.endDate) {
-    throw createError({
-      statusCode: 400,
-      message: 'Attendance KPI drawers require a single business day.',
-    })
-  }
 
   const db = await getDb()
   return fetchDailyOpsAttendanceKpis(db, ctx)

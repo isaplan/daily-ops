@@ -1,9 +1,9 @@
 /**
  * @registry-id: dailyOpsPeriodResolver
  * @created: 2026-05-19T00:00:00.000Z
- * @last-modified: 2026-06-07T00:00:00.000Z
+ * @last-modified: 2026-06-10T00:00:00.000Z
  * @description: Resolves Daily Ops dashboard periods to register business_date ranges
- * @last-fix: [2026-06-07] Document ADR-010 — today/yesterday use open register day, not ISO calendar
+ * @last-fix: [2026-06-10] Add this-month/last-month/this-year/last-year range periods
  * @adr-ref: ADR-010
  *
  * @exports-to:
@@ -29,6 +29,10 @@ const DAILY_OPS_PERIODS: readonly DailyOpsPeriodId[] = [
   'd7',
   'this-week',
   'last-week',
+  'this-month',
+  'last-month',
+  'this-year',
+  'last-year',
 ]
 
 /** Days before the open register day (today = 0). */
@@ -82,6 +86,11 @@ function addDaysUtc(d: Date, days: number): Date {
   return x
 }
 
+/** Cap inclusive end to the open register day (no future business dates). */
+function capEndToOpenRegister(endYmd: string, openRegister: string): string {
+  return endYmd > openRegister ? openRegister : endYmd
+}
+
 /**
  * Resolves a dashboard period to inclusive business_date range (YYYY-MM-DD).
  * Single-day tabs use the open Amsterdam register day at `now` (08:00 boundary), not UTC calendar.
@@ -106,11 +115,47 @@ export function resolveDailyOpsPeriod(
   if (period === 'this-week') {
     const start = startOfIsoWeekUtc(anchorDate)
     const end = addDaysUtc(start, 6)
-    return { period, startDate: utcYmd(start), endDate: utcYmd(end) }
+    return {
+      period,
+      startDate: utcYmd(start),
+      endDate: capEndToOpenRegister(utcYmd(end), openRegister),
+    }
+  }
+  if (period === 'last-week') {
+    const thisStart = startOfIsoWeekUtc(anchorDate)
+    const lastStart = addDaysUtc(thisStart, -7)
+    const lastEnd = addDaysUtc(thisStart, -1)
+    return { period, startDate: utcYmd(lastStart), endDate: utcYmd(lastEnd) }
   }
 
-  const thisStart = startOfIsoWeekUtc(anchorDate)
-  const lastStart = addDaysUtc(thisStart, -7)
-  const lastEnd = addDaysUtc(thisStart, -1)
-  return { period, startDate: utcYmd(lastStart), endDate: utcYmd(lastEnd) }
+  const year = anchorDate.getUTCFullYear()
+  const month = anchorDate.getUTCMonth()
+
+  if (period === 'this-month') {
+    const start = new Date(Date.UTC(year, month, 1))
+    const end = new Date(Date.UTC(year, month + 1, 0))
+    return {
+      period,
+      startDate: utcYmd(start),
+      endDate: capEndToOpenRegister(utcYmd(end), openRegister),
+    }
+  }
+  if (period === 'last-month') {
+    const start = new Date(Date.UTC(year, month - 1, 1))
+    const end = new Date(Date.UTC(year, month, 0))
+    return { period, startDate: utcYmd(start), endDate: utcYmd(end) }
+  }
+  if (period === 'this-year') {
+    return {
+      period,
+      startDate: `${year}-01-01`,
+      endDate: openRegister,
+    }
+  }
+  if (period === 'last-year') {
+    return { period, startDate: `${year - 1}-01-01`, endDate: `${year - 1}-12-31` }
+  }
+
+  const ymd = addCalendarDaysYmd(openRegister, 0)
+  return { period: 'today', startDate: ymd, endDate: ymd }
 }

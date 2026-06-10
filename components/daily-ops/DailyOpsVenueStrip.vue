@@ -6,7 +6,7 @@
       </h2>
 
       <div
-        v-if="isSingleDayPeriod && data?.venues?.length"
+        v-if="hasVenues"
         class="hidden md:flex lg:hidden"
       >
         <UiPillTabs
@@ -18,7 +18,7 @@
       </div>
 
       <div
-        v-if="isSingleDayPeriod && data?.venues?.length"
+        v-if="hasVenues"
         class="flex md:hidden"
       >
         <UiPillTabs
@@ -31,15 +31,7 @@
     </div>
 
     <UAlert
-      v-if="!isSingleDayPeriod"
-      color="neutral"
-      variant="soft"
-      title="Venue comparison"
-      description="Available for single-day periods (Today through the rolling week). Multi-day week/month views are planned."
-    />
-
-    <UAlert
-      v-else-if="fetchError"
+      v-if="fetchError"
       color="error"
       variant="soft"
       title="Could not load venue strip"
@@ -47,15 +39,23 @@
     />
 
     <div
-      v-else-if="isSingleDayPeriod && pending"
+      v-else-if="pending"
       class="grid gap-4 lg:grid-cols-3"
     >
       <USkeleton v-for="i in 3" :key="i" class="h-96 w-full rounded-lg" />
     </div>
 
+    <UAlert
+      v-else-if="!hasVenues"
+      color="neutral"
+      variant="soft"
+      title="No venue data"
+      description="No snapshot data for this period yet. Try a shorter range or rebuild snapshots."
+    />
+
     <!-- Desktop Grid (lg+) -->
     <div
-      v-if="isSingleDayPeriod && data?.venues?.length"
+      v-if="hasVenues"
       class="hidden lg:grid min-w-0 gap-4 lg:grid-cols-3"
     >
       <UCard
@@ -164,7 +164,7 @@
     </div>
 
     <!-- Medium Carousel (md, 2 visible + 1 to slide) -->
-    <div v-if="isSingleDayPeriod && data?.venues?.length" class="hidden md:block lg:hidden">
+    <div v-if="hasVenues" class="hidden md:block lg:hidden">
       <div
         class="flex touch-pan-y overscroll-x-contain overflow-hidden rounded-lg"
         @pointerdown="startSwipe"
@@ -286,7 +286,7 @@
 
 
     <!-- Small Carousel (sm and below, 1 visible) -->
-    <div v-if="isSingleDayPeriod && data?.venues?.length" class="md:hidden">
+    <div v-if="hasVenues" class="md:hidden">
       <div
         class="flex touch-pan-y overscroll-x-contain overflow-hidden rounded-lg"
         @pointerdown="startSwipe"
@@ -466,10 +466,14 @@ function formatPct (value: number): string {
   return `${Math.round(value)}%`
 }
 
-const isSingleDayPeriod = computed(() => {
-  const r = resolveDailyOpsPeriod(props.period, props.anchor ?? undefined)
-  return r.startDate === r.endDate
-})
+const RANGE_PERIOD_LABELS: Partial<Record<DailyOpsPeriodId, string>> = {
+  'this-week': 'This week',
+  'last-week': 'Last week',
+  'this-month': 'This month',
+  'last-month': 'Last month',
+  'this-year': 'This year',
+  'last-year': 'Last year',
+}
 
 const periodLabel = computed(() => {
   if (props.period === 'today') return 'Today'
@@ -478,7 +482,7 @@ const periodLabel = computed(() => {
     const r = resolveDailyOpsPeriod(props.period, props.anchor ?? undefined)
     return weekdayShortForYmd(r.startDate)
   }
-  return props.period
+  return RANGE_PERIOD_LABELS[props.period] ?? props.period
 })
 
 const stripQuery = computed(() => {
@@ -493,14 +497,14 @@ const cacheKey = computed(
 
 const { data, pending, error: fetchError } = useAsyncData(
   cacheKey,
-  async (): Promise<VenueStripResponseDto | null> => {
-    if (!isSingleDayPeriod.value) return null
-    return await $fetch<VenueStripResponseDto>('/api/daily-ops/metrics/venue-strip', {
+  async (): Promise<VenueStripResponseDto | null> =>
+    await $fetch<VenueStripResponseDto>('/api/daily-ops/metrics/venue-strip', {
       query: stripQuery.value,
-    })
-  },
-  { watch: [cacheKey, isSingleDayPeriod] }
+    }),
+  { watch: [cacheKey] }
 )
+
+const hasVenues = computed(() => (data.value?.venues?.length ?? 0) > 0)
 
 const mediumSlideIndex = computed(() => clampSlideIndex(currentSlide.value, 2))
 const smallSlideIndex = computed(() => clampSlideIndex(currentSlide.value, 1))

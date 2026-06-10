@@ -71,3 +71,26 @@ export async function loadSnapshotDashboardRows(
   ])
   return { masters, revenue, labor, hourly, orderTime, products, tables, workers }
 }
+
+/** Long ranges (>31d): revenue + labor + master only — skips hourly/products drill-down payloads. */
+export async function loadSnapshotDashboardRowsLight(
+  db: Db,
+  ctx: DailyOpsMetricsContext,
+): Promise<SnapshotDashboardRows> {
+  const filter = rangeFilter(ctx)
+  const [masters, revenue, labor] = await Promise.all([
+    db.collection<DailyOpsSnapshotMaster>(DAILY_OPS_SNAPSHOT_COLLECTIONS.master).find(filter).toArray(),
+    db.collection<DailyOpsSnapshotRevenueSection>(DAILY_OPS_SNAPSHOT_COLLECTIONS.revenueSection).find(filter).toArray(),
+    db.collection<DailyOpsSnapshotLaborSection>(DAILY_OPS_SNAPSHOT_COLLECTIONS.laborSection).find(filter).toArray(),
+  ])
+  return {
+    masters,
+    revenue,
+    labor,
+    hourly: [],
+    orderTime: [],
+    products: [],
+    tables: [],
+    workers: [],
+  }
+}

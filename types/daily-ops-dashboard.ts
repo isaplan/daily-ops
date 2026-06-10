@@ -1,4 +1,4 @@
-export const DAILY_OPS_PERIOD_IDS = [
+export const DAILY_OPS_DAY_PERIOD_IDS = [
   'today',
   'yesterday',
   'd2',
@@ -7,8 +7,21 @@ export const DAILY_OPS_PERIOD_IDS = [
   'd5',
   'd6',
   'd7',
+] as const
+
+/** Week/month/year rollups (Daily Ops overview range nav only). */
+export const DAILY_OPS_RANGE_PERIOD_IDS = [
   'this-week',
   'last-week',
+  'this-month',
+  'last-month',
+  'this-year',
+  'last-year',
+] as const
+
+export const DAILY_OPS_PERIOD_IDS = [
+  ...DAILY_OPS_DAY_PERIOD_IDS,
+  ...DAILY_OPS_RANGE_PERIOD_IDS,
 ] as const
 
 /** Rolling single-day periods (offsets 2–7 from anchor). */

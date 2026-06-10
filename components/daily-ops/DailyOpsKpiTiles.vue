@@ -66,7 +66,7 @@ import type {
   VenueStripCardDto,
   VenueStripResponseDto,
 } from '~/types/daily-ops-dashboard'
-import { resolveDailyOpsPeriod } from '~/utils/dailyOpsPeriod'
+import { DAILY_OPS_RANGE_PERIOD_IDS } from '~/types/daily-ops-dashboard'
 import type { KpiDrawerVenueSection } from '~/components/daily-ops/DailyOpsKpiDrawer.vue'
 
 type KpiDrawerSummaryRow = { label: string; value: string }
@@ -96,14 +96,6 @@ const props = defineProps<{
 
 const { formatEurWhole, formatHoursWhole, formatPctWhole, formatEurPerHourWhole } = useDashboardKpiFormat()
 
-const isSingleDayPeriod = computed(() => {
-  const { startDate, endDate } = resolveDailyOpsPeriod(
-    typeof props.period === 'string' ? props.period : 'today',
-    props.anchor ?? undefined
-  )
-  return startDate === endDate
-})
-
 const stripQuery = computed(() => {
   const q: Record<string, string> = { period: props.period }
   if (props.anchor) q.anchor = props.anchor
@@ -131,11 +123,10 @@ function goReconnectGmail(): void {
 const { data: stripData, pending } = useAsyncData(
   cacheKey,
   async (): Promise<VenueStripResponseDto | null> => {
-    if (!isSingleDayPeriod.value) return null
     const params = new URLSearchParams(stripQuery.value).toString()
     return await $fetch<VenueStripResponseDto>(`/api/daily-ops/metrics/venue-strip?${params}`)
   },
-  { watch: [cacheKey, isSingleDayPeriod] }
+  { watch: [cacheKey] }
 )
 
 const venues = computed(() => stripData.value?.venues ?? [])
@@ -152,7 +143,6 @@ function isAttendanceDrawerId (id: KpiTileId | null): id is DailyOpsAttendanceKp
 }
 
 async function loadAttendanceKpis (): Promise<void> {
-  if (!isSingleDayPeriod.value) return
   if (attendancePending.value) return
   if (attendanceData.value && attendanceLoadedForKey.value === cacheKey.value) return
 
@@ -177,10 +167,14 @@ watch(cacheKey, () => {
   attendanceLoadedForKey.value = null
 })
 
+const isRangePeriod = computed(() =>
+  (DAILY_OPS_RANGE_PERIOD_IDS as readonly string[]).includes(props.period),
+)
+
 watch(
-  [isSingleDayPeriod, cacheKey],
+  cacheKey,
   () => {
-    if (isSingleDayPeriod.value) void loadAttendanceKpis()
+    if (!isRangePeriod.value) void loadAttendanceKpis()
   },
   { immediate: true },
 )
@@ -191,46 +185,66 @@ watch(activeDrawer, (id: KpiTileId | null) => {
 
 const totals = computed(() => {
   const list = venues.value
-  if (!list.length) return null
-  let revenue = 0
-  let laborAllLoaded = 0
-  let laborGewerktLoaded = 0
-  let allHours = 0
-  let gewerktHours = 0
-  let keukenHours = 0
-  let bedieningHours = 0
-  let otherHours = 0
-  let activeWorkers = 0
-  for (const v of list) {
-    revenue += v.revenue.total
-    laborAllLoaded += v.labor.all.loaded
-    laborGewerktLoaded += v.labor.gewerkt.loaded
-    allHours += v.labor.all.hours
-    gewerktHours += v.labor.gewerkt.hours
-    keukenHours += v.labor.keuken.hours
-    bedieningHours += v.labor.bediening.hours
-    otherHours += v.labor.other?.hours ?? 0
-    activeWorkers += v.active?.workers ?? 0
+  if (list.length) {
+    let revenue = 0
+    let laborAllLoaded = 0
+    let laborGewerktLoaded = 0
+    let allHours = 0
+    let gewerktHours = 0
+    let keukenHours = 0
+    let bedieningHours = 0
+    let otherHours = 0
+    let activeWorkers = 0
+    for (const v of list) {
+      revenue += v.revenue.total
+      laborAllLoaded += v.labor.all.loaded
+      laborGewerktLoaded += v.labor.gewerkt.loaded
+      allHours += v.labor.all.hours
+      gewerktHours += v.labor.gewerkt.hours
+      keukenHours += v.labor.keuken.hours
+      bedieningHours += v.labor.bediening.hours
+      otherHours += v.labor.other?.hours ?? 0
+      activeWorkers += v.active?.workers ?? 0
+    }
+    const laborGewerktPct = revenue > 0 ? (laborGewerktLoaded / revenue) * 100 : null
+    const productivity = gewerktHours > 0 && revenue > 0 ? revenue / gewerktHours : null
+    return {
+      revenue,
+      laborAllLoaded,
+      laborGewerktLoaded,
+      laborAllWages: laborAllLoaded,
+      laborGewerktWages: laborGewerktLoaded,
+      laborGewerktPct,
+      laborAllPct: revenue > 0 ? (laborAllLoaded / revenue) * 100 : null,
+      laborPct: laborGewerktPct,
+      productivity,
+      allHours,
+      gewerktHours,
+      keukenHours,
+      bedieningHours,
+      otherHours,
+      activeWorkers,
+    }
   }
-  const laborGewerktPct = revenue > 0 ? (laborGewerktLoaded / revenue) * 100 : null
-  const laborAllPct = revenue > 0 ? (laborAllLoaded / revenue) * 100 : null
-  const productivity = gewerktHours > 0 && revenue > 0 ? revenue / gewerktHours : null
+
+  const s = props.summary?.summary
+  if (!s) return null
   return {
-    revenue,
-    laborAllLoaded,
-    laborGewerktLoaded,
-    laborAllWages: laborAllLoaded,
-    laborGewerktWages: laborGewerktLoaded,
-    laborGewerktPct,
-    laborAllPct,
-    laborPct: laborGewerktPct,
-    productivity,
-    allHours,
-    gewerktHours,
-    keukenHours,
-    bedieningHours,
-    otherHours,
-    activeWorkers,
+    revenue: s.totalRevenue,
+    laborAllLoaded: s.totalLaborCost,
+    laborGewerktLoaded: s.totalLaborCost,
+    laborAllWages: s.totalLaborCost,
+    laborGewerktWages: s.totalLaborCost,
+    laborGewerktPct: s.laborCostPctOfRevenue,
+    laborAllPct: s.laborCostPctOfRevenue,
+    laborPct: s.laborCostPctOfRevenue,
+    productivity: s.revenuePerLaborHour,
+    allHours: s.totalLaborHours,
+    gewerktHours: s.totalLaborHours,
+    keukenHours: 0,
+    bedieningHours: 0,
+    otherHours: 0,
+    activeWorkers: 0,
   }
 })
 
@@ -258,8 +272,8 @@ const tiles = computed(() => {
     { id: 'gewerktBediening' as const, label: 'Gewerkte uren · Bediening', display: formatHoursWhole(t.bedieningHours), opensDrawer: true },
     { id: 'gewerktOverig' as const, label: 'Gewerkte uren · Overig', display: formatHoursWhole(t.otherHours), opensDrawer: true },
     { id: 'planned' as const, label: 'Plannend → Actual', display: formatPlannedToActualTile(), opensDrawer: true },
-    { id: 'leave' as const, label: 'Verlof', display: formatAttendanceTileHours('leave'), opensDrawer: true },
-    { id: 'sick' as const, label: 'Ziek', display: formatAttendanceTileHours('sick'), opensDrawer: true },
+    { id: 'leave' as const, label: 'Verlof', display: formatAttendanceTileWorkers('leave'), opensDrawer: true },
+    { id: 'sick' as const, label: 'Ziek', display: formatAttendanceTileWorkers('sick'), opensDrawer: true },
   ]
 })
 
@@ -281,6 +295,13 @@ function formatAttendanceTileHours (kind: DailyOpsAttendanceKpiKind): string {
   if (total != null) return formatHoursWhole(total)
   if (attendancePending.value) return '…'
   return '0 h'
+}
+
+function formatAttendanceTileWorkers (kind: 'leave' | 'sick'): string {
+  const block = attendanceData.value?.[kind]
+  if (block != null) return String(block.workers)
+  if (attendancePending.value) return '…'
+  return '0'
 }
 
 function plannedActualRowsTotalHours (): number | null {

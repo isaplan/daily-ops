@@ -8,18 +8,25 @@
  *
  * @exports-to:
  * ✓ scripts/pregenerate-dashboard-bundles.ts
+ * ✓ server/api/daily-ops/metrics/bundle.get.ts
  */
 
 import { readFile, writeFile, mkdir, readdir } from 'node:fs/promises'
 import { resolve } from 'node:path'
-import { addCalendarDaysYmd } from '~/utils/dailyOpsBusinessDate'
+import { addCalendarDaysYmd, amsterdamOpenRegisterBusinessDateYmd } from '~/utils/dailyOpsBusinessDate'
+import type { DailyOpsMetricsContext } from '../dailyOpsMetrics/context'
+import { enumerateUtcDatesInclusive } from '../dailyOpsMetrics/context'
 import {
   aggregateDailyBundles,
+  enumerateMonthKeys,
   getIsoWeek,
   getMonthKey,
   getYearKey,
   getWeekStart,
   getWeekEnd,
+  monthEndYmd,
+  maxYmd,
+  minYmd,
 } from './aggregateDailyBundles'
 import type { DailyOpsDashboardBundleDto } from './fetchDashboardBundle'
 
@@ -44,6 +51,125 @@ async function readCachedBundle(path: string): Promise<DailyOpsDashboardBundleDt
 async function writeCachedBundle(path: string, bundle: DailyOpsDashboardBundleDto): Promise<void> {
   await mkdir(resolve(path, '..'), { recursive: true })
   await writeFile(path, JSON.stringify(bundle, null, 0), 'utf-8')
+}
+
+async function loadDailyBundlesInRange(
+  startDate: string,
+  endDate: string,
+  locationId: string,
+): Promise<DailyOpsDashboardBundleDto[]> {
+  const dailyDir = resolve(CACHE_ROOT, 'daily')
+  let files: string[]
+  try {
+    files = await readdir(dailyDir)
+  }
+  catch {
+    return []
+  }
+  const suffix = `-${locationId}.json`
+  const bundles: DailyOpsDashboardBundleDto[] = []
+  for (const file of files) {
+    if (!file.endsWith(suffix)) continue
+    const ymd = file.slice(0, 10)
+    if (ymd < startDate || ymd > endDate) continue
+    const hit = await readCachedBundle(resolve(dailyDir, file))
+    if (hit) bundles.push(hit)
+  }
+  bundles.sort((a, b) =>
+    (a.summary?.range?.startDate ?? '').localeCompare(b.summary?.range?.startDate ?? ''),
+  )
+  return bundles
+}
+
+/** Try pre-generated cache (daily → weekly → monthly → yearly → composed). */
+export async function loadCachedDashboardBundle(
+  ctx: DailyOpsMetricsContext,
+): Promise<DailyOpsDashboardBundleDto | null> {
+  const locationId = ctx.locationId ?? 'all'
+  const { startDate, endDate } = ctx
+  const openRegister = amsterdamOpenRegisterBusinessDateYmd()
+  const yesterday = addCalendarDaysYmd(openRegister, -1)
+
+  if (startDate === endDate && endDate < openRegister) {
+    return readCachedBundle(cachePath('daily', startDate, locationId))
+  }
+  if (startDate === endDate) return null
+
+  const weekStart = getWeekStart(startDate)
+  const weekEnd = getWeekEnd(startDate)
+  if (startDate === weekStart && endDate === weekEnd) {
+    const hit = await readCachedBundle(cachePath('weekly', getIsoWeek(startDate), locationId))
+    if (hit) return hit
+  }
+
+  const monthKey = getMonthKey(startDate)
+  const monthEnd = monthEndYmd(monthKey)
+  if (startDate === `${monthKey}-01` && endDate === monthEnd) {
+    const hit = await readCachedBundle(cachePath('monthly', monthKey, locationId))
+    if (hit) return hit
+  }
+
+  const yearKey = getYearKey(startDate)
+  if (startDate === `${yearKey}-01-01` && endDate === `${yearKey}-12-31` && endDate <= yesterday) {
+    const hit = await readCachedBundle(cachePath('yearly', yearKey, locationId))
+    if (hit) return hit
+  }
+
+  const monthParts: DailyOpsDashboardBundleDto[] = []
+  for (const mk of enumerateMonthKeys(startDate, endDate)) {
+    const mStart = `${mk}-01`
+    const mEnd = monthEndYmd(mk)
+    const sliceStart = maxYmd(mStart, startDate)
+    const sliceEnd = minYmd(mEnd, endDate)
+
+    if (sliceStart === mStart && sliceEnd === mEnd) {
+      const monthly = await readCachedBundle(cachePath('monthly', mk, locationId))
+      if (monthly) {
+        monthParts.push(monthly)
+        continue
+      }
+    }
+
+    const sliceDays = enumerateUtcDatesInclusive(sliceStart, sliceEnd).length
+    if (sliceDays > 31) continue
+
+    const dailies = await loadDailyBundlesInRange(sliceStart, sliceEnd, locationId)
+    if (dailies.length > 0) {
+      monthParts.push(
+        aggregateDailyBundles(dailies, {
+          startDate: sliceStart,
+          endDate: sliceEnd,
+          label: mk,
+        }),
+      )
+    }
+  }
+
+  if (monthParts.length === 0) return null
+  if (monthParts.length === 1) {
+    const only = monthParts[0]!
+    only.summary.range = { period: ctx.period, startDate, endDate }
+    only.revenue.range = { period: ctx.period, startDate, endDate }
+    only.labor.range = { period: ctx.period, startDate, endDate }
+    if (only.venueStrip) {
+      only.venueStrip.range = { period: ctx.period, startDate, endDate }
+    }
+    return only
+  }
+
+  return aggregateDailyBundles(monthParts, {
+    startDate,
+    endDate,
+    label: ctx.period,
+  })
+}
+
+/** Venue strip from the same smart JSON cascade as dashboard bundle. */
+export async function loadCachedVenueStrip(
+  ctx: DailyOpsMetricsContext,
+): Promise<VenueStripResponseDto | null> {
+  const bundle = await loadCachedDashboardBundle(ctx)
+  return bundle?.venueStrip ?? null
 }
 
 /** Generate weekly bundle from 7 daily bundles. */

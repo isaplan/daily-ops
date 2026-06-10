@@ -12,18 +12,19 @@
 import { getDb } from '../../../utils/db'
 import { parseDailyOpsMetricsQuery } from '../../../utils/dailyOpsMetrics/context'
 import { buildVenueStripResponse } from '../../../utils/dailyOpsVenueStrip'
-import { snapshotCacheControl } from '../../../utils/dailyOpsSnapshot/fetchDashboardBundle'
 import type { VenueStripResponseDto } from '~/types/daily-ops-dashboard'
+import { loadCachedVenueStrip } from '../../../utils/dailyOpsSnapshot/cacheCascade'
+import { snapshotCacheControl } from '../../../utils/dailyOpsSnapshot/fetchDashboardBundle'
 
 export default defineEventHandler(async (event): Promise<VenueStripResponseDto> => {
   const q = getQuery(event) as Record<string, unknown>
   const ctx = parseDailyOpsMetricsQuery(q)
   setResponseHeader(event, 'Cache-Control', snapshotCacheControl(ctx))
-  if (ctx.startDate !== ctx.endDate) {
-    throw createError({
-      statusCode: 400,
-      message: 'Venue strip requires a single calendar day (today, yesterday, or rolling weekday).',
-    })
+
+  const cached = await loadCachedVenueStrip(ctx)
+  if (cached) {
+    console.info(`[venue-strip:cache] HIT ${ctx.startDate}..${ctx.endDate}`)
+    return cached
   }
 
   const db = await getDb()

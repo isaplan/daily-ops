@@ -1,5 +1,5 @@
 <template>
-  <DailyOpsDashboardShell>
+  <DailyOpsDashboardShell show-range-period-nav>
     <div class="min-w-0 space-y-8">
       <header class="space-y-2">
         <h1 class="text-[38px] font-extrabold leading-tight tracking-[-0.02em] text-gray-900">
@@ -14,7 +14,6 @@
       </header>
 
       <DailyOpsKpiTiles
-        v-if="isSingleDayDashboardPeriod"
         :period="period"
         :anchor="anchor"
         :summary="summary"
@@ -28,7 +27,7 @@
         <USkeleton v-for="i in 4" :key="i" class="h-28 w-full rounded-lg" />
       </div>
 
-      <template v-else-if="summary && revenue && labor">
+      <template v-else-if="summary">
 
         <DailyOpsProductivitySummary
           v-if="isProductivityView"
@@ -36,11 +35,9 @@
           @select-contract="selectContract"
         />
 
-
         <DailyOpsRevenueMetricsSection :period="period" />
 
-
-        <DailyOpsProductivityLaborSection v-if="isProductivityView" :labor="labor" />
+        <DailyOpsProductivityLaborSection v-if="isProductivityView && labor" :labor="labor" />
 
         <p class="text-xs text-gray-400">
           Range: {{ summary.range.startDate }} → {{ summary.range.endDate }} ({{ summary.range.period }}) · Dashboard metrics
@@ -77,7 +74,6 @@
 </template>
 
 <script setup lang="ts">
-import { resolveDailyOpsPeriod } from '~/utils/dailyOpsPeriod'
 import WorkerDetailsDrawer from '~/components/daily-ops/WorkerDetailsDrawer.vue'
 
 const props = withDefaults(
@@ -99,12 +95,10 @@ type LocationRow = { _id: string; name: string; abbreviation?: string }
 
 const { dashboardQuery, contextHeadline, locationId, period, anchor } = useDailyOpsDashboardRoute()
 
-const isSingleDayDashboardPeriod = computed(() => {
-  const r = resolveDailyOpsPeriod(period.value, anchor.value ?? undefined)
-  return r.startDate === r.endDate
-})
-
-const { data: locationsRes } = useFetch<{ success: boolean; data: LocationRow[] }>('/api/daily-ops/locations')
+const { data: locationsRes } = useFetch<{ success: boolean; data: LocationRow[] }>(
+  '/api/daily-ops/locations',
+  { key: 'daily-ops-locations' },
+)
 
 const locationTitle = computed(() => {
   if (!locationId.value) return 'All Locations'

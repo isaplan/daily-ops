@@ -1,9 +1,9 @@
 /**
  * @registry-id: dailyOpsVenueStripSnapshotBatch
  * @created: 2026-05-28T00:00:00.000Z
- * @last-modified: 2026-06-09T16:00:00.000Z
+ * @last-modified: 2026-06-10T00:00:00.000Z
  * @description: Batch snapshot reads + venue card assembly for venue strip
- * @last-fix: [2026-06-09] check_ins overlay + member comp for live loaded cost on Active KPI
+ * @last-fix: [2026-06-10] Range batch loader for multi-day venue strip rollups
  * @adr-ref: ADR-004, ADR-010
  */
 
@@ -55,6 +55,63 @@ export async function loadVenueStripSnapshotBatch(
     laborByLoc: new Map(laborDocs.map((d) => [d.locationId, d])),
     productsByLoc: new Map(productDocs.map((d) => [d.locationId, d])),
   }
+}
+
+function batchFromDocs(
+  revenueDocs: DailyOpsSnapshotRevenueSection[],
+  laborDocs: DailyOpsSnapshotLaborSection[],
+  productDocs: DailyOpsSnapshotRevenueProductsSection[],
+): VenueStripSnapshotBatch {
+  return {
+    revenueByLoc: new Map(revenueDocs.map((d) => [d.locationId, d])),
+    laborByLoc: new Map(laborDocs.map((d) => [d.locationId, d])),
+    productsByLoc: new Map(productDocs.map((d) => [d.locationId, d])),
+  }
+}
+
+/** Batch-load snapshot sections for every day in an inclusive business_date range. */
+export async function loadVenueStripSnapshotBatchesForRange(
+  db: Db,
+  startDate: string,
+  endDate: string,
+): Promise<Map<string, VenueStripSnapshotBatch>> {
+  const locationIds = VENUE_STRIP_LOCATIONS.map((v) => v.locationId)
+  const filter = {
+    businessDate: { $gte: startDate, $lte: endDate },
+    locationId: { $in: locationIds },
+  }
+  const [revenueDocs, laborDocs, productDocs] = await Promise.all([
+    db
+      .collection<DailyOpsSnapshotRevenueSection>(DAILY_OPS_SNAPSHOT_COLLECTIONS.revenueSection)
+      .find(filter)
+      .toArray(),
+    db
+      .collection<DailyOpsSnapshotLaborSection>(DAILY_OPS_SNAPSHOT_COLLECTIONS.laborSection)
+      .find(filter)
+      .toArray(),
+    db
+      .collection<DailyOpsSnapshotRevenueProductsSection>(DAILY_OPS_SNAPSHOT_COLLECTIONS.revenueProductsSection)
+      .find(filter)
+      .toArray(),
+  ])
+
+  const dates = new Set<string>()
+  for (const d of revenueDocs) dates.add(d.businessDate)
+  for (const d of laborDocs) dates.add(d.businessDate)
+  for (const d of productDocs) dates.add(d.businessDate)
+
+  const out = new Map<string, VenueStripSnapshotBatch>()
+  for (const date of dates) {
+    out.set(
+      date,
+      batchFromDocs(
+        revenueDocs.filter((d) => d.businessDate === date),
+        laborDocs.filter((d) => d.businessDate === date),
+        productDocs.filter((d) => d.businessDate === date),
+      ),
+    )
+  }
+  return out
 }
 
 export async function buildVenueStripCardFromSnapshots(

@@ -17,6 +17,7 @@ import type {
   DailyOpsAttendanceVenueDto,
 } from '../../types/daily-ops-dashboard'
 import type { DailyOpsMetricsContext } from './dailyOpsMetrics/context'
+import { enumerateUtcDatesInclusive } from './dailyOpsMetrics/context'
 import { VENUE_STRIP_LOCATIONS } from './venueStrip/constants'
 import { EITJE_HOURS_ADD_FIELDS } from './eitjeHours'
 import { addCalendarDaysYmd } from '~/utils/dailyOpsBusinessDate'
@@ -295,7 +296,44 @@ async function fetchLeaveRows(db: Db, businessDate: string): Promise<AttendanceR
     .filter((row) => row.hours > 0)
 }
 
-export async function fetchDailyOpsAttendanceKpis(
+function mergeBlocks(
+  a: DailyOpsAttendanceKpiBlockDto,
+  b: DailyOpsAttendanceKpiBlockDto,
+): DailyOpsAttendanceKpiBlockDto {
+  const venues = new Map<string, DailyOpsAttendanceVenueDto>()
+  for (const venue of [...a.venues, ...b.venues]) {
+    const existing = venues.get(venue.locationId)
+    if (!existing) {
+      venues.set(venue.locationId, { ...venue, rows: [...venue.rows] })
+      continue
+    }
+    existing.rows.push(...venue.rows)
+    existing.hours = round2(existing.hours + venue.hours)
+    existing.loaded = round2(existing.loaded + venue.loaded)
+    existing.workers += venue.workers
+  }
+  const venueList = Array.from(venues.values())
+  return {
+    workers: a.workers + b.workers,
+    hours: round2(a.hours + b.hours),
+    loaded: round2(a.loaded + b.loaded),
+    venues: venueList,
+  }
+}
+
+function mergeAttendanceKpis(
+  a: DailyOpsAttendanceKpisDto,
+  b: DailyOpsAttendanceKpisDto,
+): DailyOpsAttendanceKpisDto {
+  return {
+    range: a.range,
+    planned: mergeBlocks(a.planned, b.planned),
+    leave: mergeBlocks(a.leave, b.leave),
+    sick: mergeBlocks(a.sick, b.sick),
+  }
+}
+
+async function fetchDailyOpsAttendanceKpisSingleDay(
   db: Db,
   ctx: DailyOpsMetricsContext,
 ): Promise<DailyOpsAttendanceKpisDto> {
@@ -314,5 +352,42 @@ export async function fetchDailyOpsAttendanceKpis(
     planned: buildBlock(plannedRows),
     leave: buildBlock(leaveRows),
     sick: buildBlock(sickRows),
+  }
+}
+
+export async function fetchDailyOpsAttendanceKpis(
+  db: Db,
+  ctx: DailyOpsMetricsContext,
+): Promise<DailyOpsAttendanceKpisDto> {
+  if (ctx.startDate === ctx.endDate) {
+    return fetchDailyOpsAttendanceKpisSingleDay(db, ctx)
+  }
+
+  const dates = enumerateUtcDatesInclusive(ctx.startDate, ctx.endDate)
+  const batchSize = 14
+  let merged: DailyOpsAttendanceKpisDto | null = null
+
+  for (let i = 0; i < dates.length; i += batchSize) {
+    const chunk = dates.slice(i, i + batchSize)
+    const days = await Promise.all(
+      chunk.map((date) =>
+        fetchDailyOpsAttendanceKpisSingleDay(db, { ...ctx, startDate: date, endDate: date }),
+      ),
+    )
+    for (const day of days) {
+      merged = merged
+        ? mergeAttendanceKpis(merged, day)
+        : {
+            ...day,
+            range: { period: ctx.period, startDate: ctx.startDate, endDate: ctx.endDate },
+          }
+    }
+  }
+
+  return merged ?? {
+    range: { period: ctx.period, startDate: ctx.startDate, endDate: ctx.endDate },
+    planned: buildBlock([]),
+    leave: buildBlock([]),
+    sick: buildBlock([]),
   }
 }

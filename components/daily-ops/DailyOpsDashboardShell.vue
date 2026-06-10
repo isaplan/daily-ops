@@ -26,22 +26,45 @@
 
         <div v-if="!hideOpsPeriodNav" class="flex w-full min-w-0 justify-end">
           <nav
+            ref="periodNavEl"
             aria-label="Daily Ops period"
             class="scrollbar-hide inline-flex w-9/12 min-w-0 shrink-0 flex-nowrap items-center gap-1 overflow-x-auto rounded-md border-2 border-gray-900 bg-white p-1 sm:w-10/12 md:w-auto"
           >
-            <NuxtLink
+            <button
               v-for="opt in periodOptions"
               :key="opt.id"
-              :to="{ path: route.path, query: periodLinkQuery(opt.id) }"
-              replace
-              prefetch
-              class="inline-flex shrink-0 rounded px-3 py-1.5 text-sm font-semibold no-underline transition-colors"
-              :class="period === opt.id
+              type="button"
+              class="inline-flex shrink-0 rounded px-3 py-1.5 text-sm font-semibold transition-colors"
+              :class="isDayPeriodActive(opt.id)
                 ? 'bg-gray-900 text-white'
                 : 'text-gray-700 hover:bg-gray-100'"
+              :aria-current="isDayPeriodActive(opt.id) ? 'page' : undefined"
+              @click="setPeriod(opt.id)"
             >
               {{ opt.label }}
-            </NuxtLink>
+            </button>
+          </nav>
+        </div>
+
+        <div v-if="showRangePeriodNav && !hideOpsPeriodNav" class="flex w-full min-w-0 justify-end">
+          <nav
+            aria-label="Daily Ops range period"
+            :style="rangeNavWidthPx > 0 ? { width: `${rangeNavWidthPx}px` } : undefined"
+            class="scrollbar-hide inline-flex min-w-0 shrink-0 flex-nowrap items-center gap-1 overflow-x-auto rounded-md border-2 border-gray-900 bg-white p-1"
+          >
+            <button
+              v-for="opt in rangePeriodOptions"
+              :key="opt.id"
+              type="button"
+              class="inline-flex shrink-0 rounded px-3 py-1.5 text-sm font-semibold transition-colors"
+              :class="isRangePeriodActive(opt.id)
+                ? 'bg-gray-900 text-white'
+                : 'text-gray-700 hover:bg-gray-100'"
+              :aria-current="isRangePeriodActive(opt.id) ? 'page' : undefined"
+              @click="setPeriod(opt.id)"
+            >
+              {{ opt.label }}
+            </button>
           </nav>
         </div>
 
@@ -86,8 +109,23 @@
 
 <script setup lang="ts">
 import type { DailyOpsPeriodId } from '~/types/daily-ops-dashboard'
+import {
+  DAILY_OPS_DAY_PERIOD_IDS,
+  DAILY_OPS_RANGE_PERIOD_IDS,
+} from '~/types/daily-ops-dashboard'
 import { addCalendarDaysYmd, amsterdamOpenRegisterBusinessDateYmd } from '~/utils/dailyOpsBusinessDate'
 import { weekdayShortForYmd } from '~/utils/inbox/importTableQuickDates'
+
+const props = withDefaults(
+  defineProps<{
+    /** Week/month/year range nav — Daily Ops overview page only. */
+    showRangePeriodNav?: boolean
+  }>(),
+  { showRangePeriodNav: false },
+)
+
+const DAY_PERIOD_SET = new Set<string>(DAILY_OPS_DAY_PERIOD_IDS)
+const RANGE_PERIOD_SET = new Set<string>(DAILY_OPS_RANGE_PERIOD_IDS)
 
 type LocationRow = { _id: string; name: string; abbreviation?: string; chartColor?: string }
 
@@ -116,12 +154,20 @@ const route = useRoute()
 
 const sectionNavEl = ref<HTMLElement | null>(null)
 const sectionNavWidthPx = ref(0)
+const periodNavEl = ref<HTMLElement | null>(null)
+const rangeNavWidthPx = ref(0)
 
 function measureSectionNavWidth() {
   sectionNavWidthPx.value = sectionNavEl.value?.offsetWidth ?? 0
 }
 
+function measurePeriodNavWidth() {
+  const w = periodNavEl.value?.offsetWidth ?? 0
+  rangeNavWidthPx.value = w > 0 ? Math.round(w * 0.8) : 0
+}
+
 let sectionNavResizeObserver: ResizeObserver | undefined
+let periodNavResizeObserver: ResizeObserver | undefined
 
 onMounted(() => {
   measureSectionNavWidth()
@@ -129,10 +175,16 @@ onMounted(() => {
     sectionNavResizeObserver = new ResizeObserver(measureSectionNavWidth)
     sectionNavResizeObserver.observe(sectionNavEl.value)
   }
+  measurePeriodNavWidth()
+  if (typeof ResizeObserver !== 'undefined' && periodNavEl.value) {
+    periodNavResizeObserver = new ResizeObserver(measurePeriodNavWidth)
+    periodNavResizeObserver.observe(periodNavEl.value)
+  }
 })
 
 onUnmounted(() => {
   sectionNavResizeObserver?.disconnect()
+  periodNavResizeObserver?.disconnect()
 })
 
 provide('dailyOpsSectionNavWidthPx', sectionNavWidthPx)
@@ -143,8 +195,12 @@ const isRevenueRoute = computed(() => route.path.includes('/daily-ops/revenue'))
 const revenueNavV2 = (useRuntimeConfig() as any).public?.revenueNavVersion === 'v2'
 
 watch(isRevenueRoute, () => {
-  nextTick(measureSectionNavWidth)
+  nextTick(() => {
+    measureSectionNavWidth()
+    measurePeriodNavWidth()
+  })
 })
+watch(() => props.showRangePeriodNav, () => nextTick(measurePeriodNavWidth))
 const hideOpsPeriodNav = computed(() => isRevenueRoute.value)
 
 const {
@@ -152,6 +208,7 @@ const {
   locationId,
   dashboardQuery,
   activeNav,
+  setPeriod,
   setLocation,
 } = useDailyOpsDashboardRoute()
 
@@ -171,11 +228,23 @@ const periodOptions = computed((): { id: DailyOpsPeriodId; label: string }[] => 
   ]
 })
 
-function periodLinkQuery (nextPeriod: DailyOpsPeriodId): Record<string, string> {
-  const q: Record<string, string> = { period: nextPeriod, anchor: anchorYmd.value }
-  const loc = route.query.location
-  if (typeof loc === 'string' && loc.length > 0) q.location = loc
-  return q
+watch(periodOptions, () => nextTick(measurePeriodNavWidth))
+
+const rangePeriodOptions: { id: DailyOpsPeriodId; label: string }[] = [
+  { id: 'this-week', label: 'This week' },
+  { id: 'last-week', label: 'Last week' },
+  { id: 'this-month', label: 'This month' },
+  { id: 'last-month', label: 'Last month' },
+  { id: 'this-year', label: 'This year' },
+  { id: 'last-year', label: 'Last year' },
+]
+
+function isDayPeriodActive(id: DailyOpsPeriodId): boolean {
+  return period.value === id && DAY_PERIOD_SET.has(period.value)
+}
+
+function isRangePeriodActive(id: DailyOpsPeriodId): boolean {
+  return period.value === id && RANGE_PERIOD_SET.has(period.value)
 }
 
 const navItems = computed(() => {

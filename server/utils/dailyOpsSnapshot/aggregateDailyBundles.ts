@@ -12,6 +12,8 @@
 
 import type { DailyOpsDashboardBundleDto } from './fetchDashboardBundle'
 import { addCalendarDaysYmd } from '~/utils/dailyOpsBusinessDate'
+import type { VenueStripResponseDto } from '~/types/daily-ops-dashboard'
+import { mergeVenueStripResponses } from '../venueStrip/mergeCards'
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100
@@ -48,6 +50,24 @@ export function aggregateDailyBundles(
 
   // Use first bundle as template, override aggregated values
   const first = dailyBundles[0]!
+  const stripParts = dailyBundles
+    .map((b) => b.venueStrip)
+    .filter((s): s is VenueStripResponseDto => !!s?.venues?.length)
+
+  let venueStrip: VenueStripResponseDto | undefined
+  if (stripParts.length === 1) {
+    venueStrip = {
+      ...stripParts[0]!,
+      range: { period: period.label ?? 'custom', startDate: period.startDate, endDate: period.endDate },
+    }
+  }
+  else if (stripParts.length > 1) {
+    venueStrip = mergeVenueStripResponses(stripParts, {
+      period: period.label ?? 'custom',
+      startDate: period.startDate,
+      endDate: period.endDate,
+    })
+  }
 
   return {
     summary: {
@@ -89,6 +109,7 @@ export function aggregateDailyBundles(
         hours: round2(totalLaborHours),
       },
     },
+    venueStrip,
   }
 }
 
@@ -131,4 +152,32 @@ export function getWeekStart(ymd: string): string {
 /** ISO week end (Sunday) for a business_date YMD. */
 export function getWeekEnd(ymd: string): string {
   return addCalendarDaysYmd(getWeekStart(ymd), 6)
+}
+
+export function monthEndYmd(monthKey: string): string {
+  const [y, m] = monthKey.split('-').map(Number)
+  const lastDay = new Date(Date.UTC(y!, m!, 0)).getUTCDate()
+  return `${monthKey}-${String(lastDay).padStart(2, '0')}`
+}
+
+export function maxYmd(a: string, b: string): string {
+  return a >= b ? a : b
+}
+
+export function minYmd(a: string, b: string): string {
+  return a <= b ? a : b
+}
+
+/** List YYYY-MM keys from startDate through endDate inclusive. */
+export function enumerateMonthKeys(startDate: string, endDate: string): string[] {
+  const out: string[] = []
+  let cursor = getMonthKey(startDate)
+  const endMonth = getMonthKey(endDate)
+  while (cursor <= endMonth) {
+    out.push(cursor)
+    const [y, m] = cursor.split('-').map(Number)
+    const next = m === 12 ? `${y! + 1}-01` : `${y}-${String(m! + 1).padStart(2, '0')}`
+    cursor = next
+  }
+  return out
 }

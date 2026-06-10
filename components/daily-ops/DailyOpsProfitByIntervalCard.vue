@@ -1,8 +1,5 @@
 <template>
-  <section
-    v-if="hasData"
-    class="min-w-0 space-y-3"
-  >
+  <section class="min-w-0 space-y-3">
     <div class="flex flex-wrap items-center justify-between gap-3">
       <h2 class="min-w-0 text-sm font-semibold uppercase tracking-wide text-gray-600">
         Profit by time of day ({{ periodTitle }})
@@ -170,7 +167,15 @@
       </div>
     </div>
 
-    <p class="text-[11px] leading-snug text-gray-500">
+    <UAlert
+      v-if="!hasData"
+      color="neutral"
+      variant="soft"
+      title="No interval data yet"
+      :description="data.estimatesNote || 'Snapshot data for this period is still building.'"
+    />
+
+    <p v-if="hasData" class="text-[11px] leading-snug text-gray-500">
       {{ data.estimatesNote }}
       <span class="text-gray-400"> · </span>
       Each donut shows <span class="font-medium text-gray-700">estimated profit by time of day</span> (Lunch, Afternoon, Dinner, Late Night).
@@ -324,6 +329,10 @@ const periodTitle = computed(() => {
   if (props.period === 'yesterday') return 'Yesterday'
   if (props.period === 'this-week') return 'This week'
   if (props.period === 'last-week') return 'Last week'
+  if (props.period === 'this-month') return 'This month'
+  if (props.period === 'last-month') return 'Last month'
+  if (props.period === 'this-year') return 'This year'
+  if (props.period === 'last-year') return 'Last year'
   return props.period
 })
 

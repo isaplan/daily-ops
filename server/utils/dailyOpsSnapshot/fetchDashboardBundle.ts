@@ -20,10 +20,13 @@
 import type { Db } from 'mongodb'
 import type {
   DailyOpsLaborMetricsDto,
+  DailyOpsProfitByIntervalDto,
   DailyOpsRevenueBreakdownDto,
   DailyOpsSummaryDto,
+  VenueStripResponseDto,
 } from '~/types/daily-ops-dashboard'
 import type { DailyOpsMetricsContext } from '../dailyOpsMetrics/context'
+import { enumerateUtcDatesInclusive } from '../dailyOpsMetrics/context'
 import {
   buildDailyOpsRevenueBreakdownDto,
   buildDailyOpsSummaryDto,
@@ -41,7 +44,7 @@ import {
   mergeHourlySnapshotSections,
 } from './dashboardBundle/hourBundle'
 import { contractRollupsFromSnapshotLabor } from './dashboardBundle/laborContractRollups'
-import { loadSnapshotDashboardRows } from './dashboardBundle/loadSnapshotRows'
+import { loadSnapshotDashboardRows, loadSnapshotDashboardRowsLight } from './dashboardBundle/loadSnapshotRows'
 import {
   aggregateLaborByDateHour,
   laborByLocHourFromSnapshots,
@@ -56,6 +59,74 @@ export type DailyOpsDashboardBundleDto = {
   summary: DailyOpsSummaryDto
   revenue: DailyOpsRevenueBreakdownDto
   labor: DailyOpsLaborMetricsDto
+  /** 3-venue strip (locationId=all daily files only; aggregated on week/month/year). */
+  venueStrip?: VenueStripResponseDto
+}
+
+const EMPTY_PROFIT_BY_INTERVAL: DailyOpsProfitByIntervalDto = {
+  estimatesNote: 'Profit-by-interval omitted for long ranges (>31 days).',
+  dates: [],
+  cells: [],
+}
+
+const EMPTY_PROFIT_HOUR: DailyOpsRevenueBreakdownDto['mostProfitableHour'] = {
+  hourLabel: '—',
+  date: '',
+  hour: 0,
+  revenue: 0,
+  laborCost: 0,
+  cogsCost: 0,
+  fixedCost: 0,
+  profit: 0,
+  estimatesNote: 'Hourly profit omitted for long ranges (>31 days).',
+}
+
+/** Fast path for year-scale ranges — summary + labor rollups only. */
+export async function fetchDashboardBundleLight(
+  db: Db,
+  ctx: DailyOpsMetricsContext,
+): Promise<DailyOpsDashboardBundleDto> {
+  const rows = await loadSnapshotDashboardRowsLight(db, ctx)
+  const snapshotContracts = contractRollupsFromSnapshotLabor(rows.labor)
+  const { revMap, labMap, revByDateLocation } = buildRevLabMaps(rows.masters, rows.revenue, rows.labor)
+
+  let apiMergedTotal = 0
+  for (const r of rows.revenue) {
+    apiMergedTotal += Number(r.borkTotals?.ex_vat ?? 0)
+  }
+
+  const laborBreakdown = await aggregateLaborForRange(db, {
+    startDate: ctx.startDate,
+    endDate: ctx.endDate,
+    locationId: ctx.locationId,
+  })
+
+  const summary = buildDailyOpsSummaryDto(ctx, revMap, labMap, {
+    apiBusinessDaysTotal: snapshotRound2(apiMergedTotal),
+    inboxBasisExVat: null,
+  })
+  if (laborBreakdown.coverage.daysFound > 0) {
+    summary.summary.laborBreakdown = laborBreakdown
+  }
+
+  const revenue: DailyOpsRevenueBreakdownDto = {
+    range: {
+      period: ctx.period,
+      startDate: ctx.startDate,
+      endDate: ctx.endDate,
+    },
+    revenueByCategory: [],
+    revenueByTimePeriod: [],
+    mostProfitableHour: EMPTY_PROFIT_HOUR,
+    profitByInterval: EMPTY_PROFIT_BY_INTERVAL,
+  }
+
+  const labor = assembleLaborFromSnapshots(ctx, rows, revMap, labMap, revByDateLocation, {
+    hoursCostByContractType: snapshotContracts.hoursCostByContractType,
+    contractTypeByDay: snapshotContracts.contractTypeByDay,
+  })
+
+  return { summary, revenue, labor }
 }
 
 /** Snapshot-only dashboard bundle — single coordinated read (ADR-004). */
@@ -63,6 +134,11 @@ export async function fetchDailyOpsDashboardBundle(
   db: Db,
   ctx: DailyOpsMetricsContext,
 ): Promise<DailyOpsDashboardBundleDto> {
+  const rangeDays = enumerateUtcDatesInclusive(ctx.startDate, ctx.endDate).length
+  if (rangeDays > 31) {
+    return fetchDashboardBundleLight(db, ctx)
+  }
+
   const rows = await loadSnapshotDashboardRows(db, ctx)
   const snapshotContracts = contractRollupsFromSnapshotLabor(rows.labor)
   const { revMap, labMap, revByDateLocation, laborByLocDay } = buildRevLabMaps(
