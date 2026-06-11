@@ -254,8 +254,8 @@ const navItems = computed(() => {
     { key: 'revenue' as const, label: 'Revenue', path: `${prefix}/revenue` },
     { key: 'productivity' as const, label: 'Productivity', path: `${prefix}/productivity` },
     { key: 'products' as const, label: 'Products', path: `${prefix}/products` },
+    { key: 'staff' as const, label: 'Staff', path: `${prefix}/staff` },
     { key: 'insights' as const, label: 'Insights', path: `${prefix}/insights` },
-    { key: 'inbox' as const, label: 'Inbox', path: `${prefix}/inbox` },
   ]
 })
 

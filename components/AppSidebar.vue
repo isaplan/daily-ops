@@ -427,7 +427,6 @@ const isDailyOpsDashboard = computed(() => {
   ]
   return dash.includes(p)
 })
-const isWorkersPage = computed(() => route.path === '/daily-ops/workers' || route.path === '/daily-ops/workers/')
 const isEitjeApi = computed(() => route.path === '/daily-ops/settings/eitje-api')
 const isBorkApi = computed(() => route.path === '/daily-ops/settings/bork-api')
 const isHoursSection = computed(() => route.path.startsWith('/daily-ops/hours'))

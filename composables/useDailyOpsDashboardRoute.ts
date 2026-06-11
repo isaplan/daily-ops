@@ -2,7 +2,7 @@ import { resolveDailyOpsPeriod } from '~/utils/dailyOpsPeriod'
 import { DAILY_OPS_PERIOD_IDS, DAILY_OPS_RANGE_PERIOD_IDS, DAILY_OPS_ROLLING_DAY_PERIOD_IDS, type DailyOpsPeriodId } from '~/types/daily-ops-dashboard'
 import { amsterdamOpenRegisterBusinessDateYmd, AMSTERDAM_TZ } from '~/utils/dailyOpsBusinessDate'
 
-export type DailyOpsNavKey = 'overview' | 'revenue' | 'productivity' | 'workload' | 'products' | 'insights' | 'inbox'
+export type DailyOpsNavKey = 'overview' | 'revenue' | 'productivity' | 'workload' | 'products' | 'staff' | 'insights' | 'inbox'
 
 const PERIOD_SET = new Set<string>(DAILY_OPS_PERIOD_IDS)
 const RANGE_PERIOD_LABELS: Partial<Record<DailyOpsPeriodId, string>> = {
@@ -77,6 +77,7 @@ export function useDailyOpsDashboardRoute() {
     if (path.startsWith('/daily-ops/productivity')) return 'productivity'
     if (path.startsWith('/daily-ops/workload')) return 'workload'
     if (path.startsWith('/daily-ops/products')) return 'products'
+    if (path.startsWith('/daily-ops/staff')) return 'staff'
     if (path.startsWith('/daily-ops/insights')) return 'insights'
     if (path.startsWith('/daily-ops/inbox')) return 'inbox'
     return 'overview'
