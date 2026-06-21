@@ -168,6 +168,14 @@
     </div>
 
     <UAlert
+      v-if="coverageAlert"
+      color="warning"
+      variant="soft"
+      title="Partial period data"
+      :description="coverageAlert"
+    />
+
+    <UAlert
       v-if="!hasData"
       color="neutral"
       variant="soft"
@@ -212,6 +220,10 @@ const props = defineProps<{
 
 const hasData = computed(
   () => Array.isArray(props.data?.cells) && props.data.cells.length > 0,
+)
+
+const coverageAlert = computed(
+  () => props.data?.coverageNote ?? null,
 )
 
 const viewMode = ref<'cards' | 'chart'>('chart')

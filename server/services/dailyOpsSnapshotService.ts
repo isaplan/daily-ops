@@ -1,10 +1,10 @@
 /**
  * @registry-id: dailyOpsSnapshotService
  * @created: 2026-05-13T00:00:00.000Z
- * @last-modified: 2026-06-05T17:50:00.000Z
- * @last-fix: [2026-06-05] Pre-generate bundle JSON cache after snapshot builds complete
- *   Prior: [2026-06-05] Guard: preserve sealed fat sections when Bork data is purged; scale workers/tables to headline
- * @adr-ref: ADR-004, ADR-006
+ * @last-modified: 2026-06-18T00:00:00.000Z
+ * @last-fix: [2026-06-18] Reopen sealed snapshots when warm tier is newer; preserve revenue hourly on rewrite
+ *   Prior: [2026-06-05] Pre-generate bundle JSON cache after snapshot builds complete
+ * @adr-ref: ADR-004, ADR-006, ADR-007
  *
  * @architecture:
  *   - No raw data reads — aggregated collections only (bork_business_days, bork_sales_by_hour,
@@ -30,6 +30,12 @@ import { getDb } from '../utils/db'
 import {
   DAILY_OPS_SNAPSHOT_COLLECTIONS,
   type DailyOpsSnapshotMaster,
+  type DailyOpsSnapshotRevenueByOrderTimeSection,
+  type DailyOpsSnapshotRevenueHourlySection,
+  type DailyOpsSnapshotRevenueProductsSection,
+  type DailyOpsSnapshotRevenueSection,
+  type DailyOpsSnapshotRevenueTablesSection,
+  type DailyOpsSnapshotRevenueWorkersSection,
 } from '../../types/daily-ops-snapshot'
 import { buildRevenueSection } from '../utils/dailyOpsSnapshot/buildRevenueSection'
 import { buildRevenueHourlySection } from '../utils/dailyOpsSnapshot/buildRevenueHourlySection'
@@ -47,11 +53,112 @@ import {
 } from '../utils/dailyOpsRevenue/revenueBenchmark'
 import { runPostSealRetention } from '../utils/dailyOpsBlob/runPostSealRetention'
 import { preGenerateBundleForDate, preGenerateBundlesForRange } from '../utils/dailyOpsSnapshot/preGenerateBundleCache'
+import type { SourcesFingerprint } from '../utils/dailyOpsSnapshot/resolveSources'
 
 const runtimeProcess = globalThis as typeof globalThis & {
   process?: { env?: Record<string, string | undefined> }
 }
 const DEBUG = String(runtimeProcess.process?.env?.DEBUG ?? '').includes('snapshot:build')
+
+function sumHourlyExVat(slots: DailyOpsSnapshotRevenueSection['hourly'] | undefined): number {
+  return (slots ?? []).reduce((sum, slot) => sum + Number(slot.revenue?.ex_vat ?? 0), 0)
+}
+
+function sourcesNewerThanBuild(
+  sources: SourcesFingerprint,
+  lastBuiltAt: Date | string | null | undefined,
+): boolean {
+  if (!lastBuiltAt) return false
+  const builtMs = new Date(lastBuiltAt).getTime()
+  for (const fp of [sources.bork, sources.eitje, sources.inbox]) {
+    const syncMs = fp.lastSyncAt ? new Date(fp.lastSyncAt).getTime() : 0
+    if (syncMs > builtMs) return true
+  }
+  return false
+}
+
+async function preserveSealedFatSections(
+  db: Db,
+  filter: { businessDate: string; locationId: string },
+  sections: {
+    revenue: DailyOpsSnapshotRevenueSection
+    revenueHourly: DailyOpsSnapshotRevenueHourlySection
+    revenueProducts: DailyOpsSnapshotRevenueProductsSection
+    revenueTables: DailyOpsSnapshotRevenueTablesSection
+    revenueWorkers: DailyOpsSnapshotRevenueWorkersSection
+    revenueByOrderTime: DailyOpsSnapshotRevenueByOrderTimeSection
+  },
+  flags: {
+    hourlyHasData: boolean
+    productsHasData: boolean
+    tablesHasData: boolean
+    workersHasData: boolean
+    orderTimeHasData: boolean
+  },
+): Promise<typeof sections> {
+  const [existingRev, existingHourly, existingProducts, existingTables, existingWorkers, existingOrderTime] =
+    await Promise.all([
+      flags.hourlyHasData
+        ? null
+        : db.collection<DailyOpsSnapshotRevenueSection>(DAILY_OPS_SNAPSHOT_COLLECTIONS.revenueSection).findOne(filter),
+      flags.hourlyHasData
+        ? null
+        : db
+            .collection<DailyOpsSnapshotRevenueHourlySection>(DAILY_OPS_SNAPSHOT_COLLECTIONS.revenueHourlySection)
+            .findOne(filter),
+      flags.productsHasData
+        ? null
+        : db
+            .collection<DailyOpsSnapshotRevenueProductsSection>(DAILY_OPS_SNAPSHOT_COLLECTIONS.revenueProductsSection)
+            .findOne(filter),
+      flags.tablesHasData
+        ? null
+        : db.collection<DailyOpsSnapshotRevenueTablesSection>(DAILY_OPS_SNAPSHOT_COLLECTIONS.revenueTablesSection).findOne(filter),
+      flags.workersHasData
+        ? null
+        : db
+            .collection<DailyOpsSnapshotRevenueWorkersSection>(DAILY_OPS_SNAPSHOT_COLLECTIONS.revenueWorkersSection)
+            .findOne(filter),
+      flags.orderTimeHasData
+        ? null
+        : db
+            .collection<DailyOpsSnapshotRevenueByOrderTimeSection>(
+              DAILY_OPS_SNAPSHOT_COLLECTIONS.revenueByOrderTimeSection,
+            )
+            .findOne(filter),
+    ])
+
+  const out = { ...sections }
+
+  if (existingRev && sumHourlyExVat(out.revenue.hourly) <= 0 && sumHourlyExVat(existingRev.hourly) > 0) {
+    out.revenue = {
+      ...out.revenue,
+      hourly: existingRev.hourly,
+      orderHourly: existingRev.orderHourly,
+    }
+  }
+  if (existingHourly && sumHourlyExVat(out.revenueHourly.hourly) <= 0 && sumHourlyExVat(existingHourly.hourly) > 0) {
+    out.revenueHourly = {
+      ...out.revenueHourly,
+      hourly: existingHourly.hourly,
+      orderHourly: existingHourly.orderHourly,
+    }
+  }
+  if (existingProducts && !flags.productsHasData) {
+    out.revenueProducts = { ...out.revenueProducts, ...existingProducts, lastBuiltAt: new Date() }
+  }
+  if (existingTables && !flags.tablesHasData) {
+    out.revenueTables = { ...out.revenueTables, ...existingTables, lastBuiltAt: new Date() }
+  }
+  if (existingWorkers && !flags.workersHasData) {
+    out.revenueWorkers = { ...out.revenueWorkers, ...existingWorkers, lastBuiltAt: new Date() }
+  }
+  if (existingOrderTime && !flags.orderTimeHasData) {
+    out.revenueByOrderTime = { ...out.revenueByOrderTime, ...existingOrderTime, lastBuiltAt: new Date() }
+  }
+
+  return out
+}
 
 async function resolveLocationName(db: Db, locationId: string): Promise<string> {
   if (!ObjectId.isValid(locationId)) return ''
@@ -78,6 +185,8 @@ async function listLocationIdsForDate(db: Db, businessDate: string): Promise<str
 export type BuildSnapshotInput = {
   businessDate: string
   locationId?: string
+  /** Backfill / cron rebuilds: refresh fat sections when warm tier is newer than last build. */
+  forceReopenSealed?: boolean
 }
 
 export type BuildSnapshotResult = {
@@ -111,10 +220,10 @@ export async function buildDailyOpsSnapshot(input: BuildSnapshotInput): Promise<
       const alreadySealed = (existingMaster as { status?: string } | null)?.status === 'final'
 
       // Build revenue first so headline is available for worker/table scaling.
-      const revenue = await buildRevenueSection(db, buildInput)
+      let revenue = await buildRevenueSection(db, buildInput)
       const headlineExVat = revenue.totals.ex_vat
 
-      const [labor, sources, revenueHourly, revenueProducts, revenueTables, revenueWorkers, revenueByOrderTime] =
+      let [labor, sources, revenueHourly, revenueProducts, revenueTables, revenueWorkers, revenueByOrderTime] =
         await Promise.all([
           buildLaborSection(db, buildInput),
           resolveSources(db, businessDate, locationId),
@@ -124,6 +233,39 @@ export async function buildDailyOpsSnapshot(input: BuildSnapshotInput): Promise<
           buildRevenueWorkersSection(db, buildInput, headlineExVat),
           buildRevenueByOrderTimeSection(db, buildInput),
         ])
+
+      const warmTierNewer = sourcesNewerThanBuild(sources, existingMaster?.lastBuiltAt)
+      const reopenSealed = Boolean(input.forceReopenSealed || warmTierNewer)
+
+      let hourlyHasData = revenueHourly.hourly.some((s) => s.revenue.ex_vat > 0)
+        || (revenueHourly.orderHourly ?? []).some((s) => s.revenue.ex_vat > 0)
+      let productsHasData = revenueProducts.categories.length > 0 || revenueProducts.products.length > 0
+      let tablesHasData = revenueTables.tables.length > 0
+      let workersHasData = revenueWorkers.workers.length > 0
+      let orderTimeHasData = revenueByOrderTime.hourly.some((s) => s.revenue.ex_vat > 0)
+
+      if (alreadySealed && !reopenSealed) {
+        const preserved = await preserveSealedFatSections(
+          db,
+          { businessDate, locationId },
+          { revenue, revenueHourly, revenueProducts, revenueTables, revenueWorkers, revenueByOrderTime },
+          { hourlyHasData, productsHasData, tablesHasData, workersHasData, orderTimeHasData },
+        )
+        revenue = preserved.revenue
+        revenueHourly = preserved.revenueHourly
+        revenueProducts = preserved.revenueProducts
+        revenueTables = preserved.revenueTables
+        revenueWorkers = preserved.revenueWorkers
+        revenueByOrderTime = preserved.revenueByOrderTime
+
+        hourlyHasData = revenueHourly.hourly.some((s) => s.revenue.ex_vat > 0)
+          || (revenueHourly.orderHourly ?? []).some((s) => s.revenue.ex_vat > 0)
+        productsHasData = revenueProducts.categories.length > 0 || revenueProducts.products.length > 0
+        tablesHasData = revenueTables.tables.length > 0
+        workersHasData = revenueWorkers.workers.length > 0
+        orderTimeHasData = revenueByOrderTime.hourly.some((s) => s.revenue.ex_vat > 0)
+      }
+
       const cards = buildCards(revenue, labor)
 
       // Snapshot is "sealed" (final) when we have a morning final Basis report (cron 7 or 8).
@@ -151,22 +293,13 @@ export async function buildDailyOpsSnapshot(input: BuildSnapshotInput): Promise<
         sealedAt: sealed ? new Date() : null,
       }
 
-      // For fat Bork sections (hourly, products, tables, workers, orderTime):
-      // if this day is already sealed AND the new build produced no data
-      // (Bork slices were purged per ADR-006), skip the upsert to preserve
-      // the original data that was saved before purge.
-      const hourlyHasData = revenueHourly.hourly.some((s) => s.revenue.ex_vat > 0)
-        || (revenueHourly.orderHourly ?? []).some((s) => s.revenue.ex_vat > 0)
-      const productsHasData = revenueProducts.categories.length > 0 || revenueProducts.products.length > 0
-      const tablesHasData = revenueTables.tables.length > 0
-      const workersHasData = revenueWorkers.workers.length > 0
-      const orderTimeHasData = revenueByOrderTime.hourly.some((s) => s.revenue.ex_vat > 0)
-
-      const writeHourly = !alreadySealed || hourlyHasData
-      const writeProducts = !alreadySealed || productsHasData
-      const writeTables = !alreadySealed || tablesHasData
-      const writeWorkers = !alreadySealed || workersHasData
-      const writeOrderTime = !alreadySealed || orderTimeHasData
+      // For fat Bork sections: skip upsert when sealed and new build is empty (Bork purged).
+      // Reopen path (warm tier newer / forceReopenSealed) writes when new data exists.
+      const writeHourly = !alreadySealed || hourlyHasData || (reopenSealed && hourlyHasData)
+      const writeProducts = !alreadySealed || productsHasData || (reopenSealed && productsHasData)
+      const writeTables = !alreadySealed || tablesHasData || (reopenSealed && tablesHasData)
+      const writeWorkers = !alreadySealed || workersHasData || (reopenSealed && workersHasData)
+      const writeOrderTime = !alreadySealed || orderTimeHasData || (reopenSealed && orderTimeHasData)
 
       const filter = { businessDate, locationId }
       await Promise.all([
@@ -221,6 +354,7 @@ export async function buildDailyOpsSnapshotRange(input: {
   startDate: string
   endDate: string
   locationId?: string
+  forceReopenSealed?: boolean
 }): Promise<{ built: number; errors: number }> {
   const db = await getDb()
   let built = 0
@@ -228,7 +362,11 @@ export async function buildDailyOpsSnapshotRange(input: {
   const locationIds: string[] = []
   let cursor = input.startDate
   while (cursor <= input.endDate) {
-    const r = await buildDailyOpsSnapshot({ businessDate: cursor, locationId: input.locationId })
+    const r = await buildDailyOpsSnapshot({
+      businessDate: cursor,
+      locationId: input.locationId,
+      forceReopenSealed: input.forceReopenSealed ?? true,
+    })
     built += r.built.length
     errors += r.errors.length
     for (const { locationId } of r.built) {

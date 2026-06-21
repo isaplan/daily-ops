@@ -50,6 +50,8 @@ Append-only log of locked decisions. When changing behavior that contradicts an 
 
 **Decision:** Daily Ops home and bundle metrics read `daily_ops_snapshot` + `daily_ops_snapshot_section_*` only. UI performs no aggregation math on raw or inbox collections.
 
+**Amendment (2026-06-18):** Headline **totals** (revenue, labor hours, labor cost) must reconcile across KPI tiles, venue strip, and profit-by-time-of-day for any period. Hourly *shape* may differ ≤10% for visualization; rolled-up totals may not.
+
 **Consequences:** Snapshot rebuilds are event-driven (Bork/Eitje sync, inbox seal). Writers never read raw collections.
 
 ---
@@ -114,6 +116,12 @@ Additionally, the workers and tables sections stored raw Bork numbers without ap
 - Workers and tables totals now reconcile with the Inbox headline revenue.
 - Year-to-date backfill via the new endpoint refreshes revenue section + labor section without touching already-good hourly/products/tables/workers data on sealed days.
 
+**Amendment (2026-06-18):**
+
+4. **Reopen on fresher warm tier:** When `sources.*.lastSyncAt` is newer than `master.lastBuiltAt`, or `forceReopenSealed` is set (cron backfill / range rebuild), fat sections may be rewritten if the new build has data.
+5. **Preserve on empty rewrite:** When sealed and warm tier is not newer, copy existing fat sections into the new build before write — including `revenueSection.hourly` (was being wiped while `revenueHourly` was preserved).
+6. **Totals invariant:** Profit-by-interval period totals must reconcile with headline revenue/labor (see ADR-004 amendment).
+
 ---
 
 ## ADR-008 — Cascading JSON Cache for Instant Historical Loads
@@ -143,6 +151,11 @@ API endpoint (`bundle.get.ts`) intelligently serves from the appropriate cache l
 - Additional disk usage: ~500KB per 30 days (daily) + ~50KB (aggregated levels)
 - Cache must be regenerated if historical snapshots are backfilled
 - Complex queries (non-standard ranges) still require dynamic aggregation
+
+**Amendment (2026-06-18):**
+- Weekly/monthly/yearly aggregation **must merge** `profitByInterval` and `drilldown` (top-10, spaces, hourly) from daily bundles (never null totals while headline exists).
+- Composed bundles include `snapshotCoverage` (`daysFound`, `missingDates[]`) and UI warning when partial.
+- `bundle.get.ts` rejects cached bundles where profit-by-interval is empty but headline revenue > 0 (falls back to live Mongo read).
 
 **Implementation:**
 - `server/utils/dailyOpsSnapshot/aggregateDailyBundles.ts` — Aggregation math

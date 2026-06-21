@@ -10,7 +10,10 @@
  *   pnpm snapshots:backfill:daily-ops -- --start 2024-01-01 --end 2026-05-24
  *   pnpm snapshots:backfill:daily-ops -- --days 30         # optional shortcut only
  *   pnpm snapshots:backfill:daily-ops -- --dry-run
- *   pnpm snapshots:backfill:daily-ops -- --force   # rebuild even if labor already v3
+ *   pnpm snapshots:backfill:daily-ops -- --force   # rewrite all days + refresh JSON cache
+ *
+ * Full rewrite (now → oldest, snapshots + daily/weekly/monthly/yearly JSON):
+ *   npx tsx scripts/backfill-daily-ops-full-snapshots.ts -- --force
  *
  * Skips venue-days where labor section already has laborBuildVersion=3 and hourly Eitje buckets.
  *
@@ -22,7 +25,9 @@
 
 import { getDb } from '../server/utils/db'
 import { buildDailyOpsSnapshot } from '../server/services/dailyOpsSnapshotService'
-import { VENUE_STRIP_LOCATIONS } from '../server/utils/dailyOpsVenueStrip'
+import { cascadeGenerate } from '../server/utils/dailyOpsSnapshot/cacheCascade'
+import { preGenerateBundlesForRange } from '../server/utils/dailyOpsSnapshot/preGenerateBundleCache'
+import { VENUE_STRIP_LOCATIONS } from '../server/utils/venueStrip/constants'
 import {
   addCalendarDaysYmd,
   amsterdamOpenRegisterBusinessDateYmd,
@@ -241,7 +246,7 @@ async function run() {
     const businessDate = dates[i]!
 
     if (allLocations) {
-      const r = await buildDailyOpsSnapshot({ businessDate })
+      const r = await buildDailyOpsSnapshot({ businessDate, forceReopenSealed: force })
       built += r.built.length
       errors += r.errors.length
       for (const e of r.errors) {
@@ -266,7 +271,7 @@ async function run() {
       }
 
       try {
-        const r = await buildDailyOpsSnapshot({ businessDate, locationId })
+        const r = await buildDailyOpsSnapshot({ businessDate, locationId, forceReopenSealed: force })
         if (r.errors.length > 0) {
           errors += r.errors.length
           console.error(`[daily-ops:snapshot:backfill] FAIL ${label}: ${r.errors[0]!.error}`)
@@ -304,6 +309,17 @@ async function run() {
   console.log(
     `[daily-ops:snapshot:backfill] done in ${sec}s | built=${built} skipped=${skipped} errors=${errors}`,
   )
+
+  if (force && built > 0) {
+    const jsonLocationIds = ['all', ...DAILY_OPS_LOCATION_IDS]
+    console.log(`[daily-ops:snapshot:backfill] JSON cache ${startDate}..${endDate} …`)
+    const jsonResult = await preGenerateBundlesForRange(db, startDate, endDate, jsonLocationIds)
+    const cascade = await cascadeGenerate(startDate, endDate, jsonLocationIds)
+    console.log(
+      `[daily-ops:snapshot:backfill] JSON done | daily=${jsonResult.generated} weekly=${cascade.weekly} monthly=${cascade.monthly} yearly=${cascade.yearly}`,
+    )
+  }
+
   process.exit(errors > 0 ? 1 : 0)
 }
 

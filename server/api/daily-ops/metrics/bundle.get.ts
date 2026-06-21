@@ -1,9 +1,11 @@
 /**
  * @registry-id: dailyOpsMetricsBundle
  * @created: 2026-05-18T00:00:00.000Z
- * @last-modified: 2026-06-10T00:00:00.000Z
+ * @last-modified: 2026-06-18T00:00:00.000Z
  * @description: Single dashboard metrics bundle — snapshot read only (ADR-004). Serves pre-generated JSON for sealed days.
- * @last-fix: [2026-06-10] Smart cache compose for YTD/year; cap partial periods via period resolver
+ * @last-fix: [2026-06-20] Reject stale cache when drilldown or profit-by-interval missing
+ *   Prior: [2026-06-18] Reject stale cache when profit-by-interval missing; fallback to live snapshot build
+ *   Prior: [2026-06-10] Smart cache compose for YTD/year; cap partial periods via period resolver
  *   Prior: [2026-06-05] Check pre-generated bundle cache first (instant page loads)
  * @adr-ref: ADR-004
  *
@@ -18,13 +20,14 @@ import {
   snapshotCacheControl,
 } from '../../../utils/dailyOpsSnapshot/fetchDashboardBundle'
 import { loadCachedDashboardBundle } from '../../../utils/dailyOpsSnapshot/cacheCascade'
+import { bundleDashboardSectionsIncomplete } from '../../../utils/dailyOpsSnapshot/bundleInvariant'
 
 export default defineEventHandler(async (event) => {
   const ctx = parseDailyOpsMetricsQuery(getQuery(event) as Record<string, unknown>)
   setResponseHeader(event, 'Cache-Control', snapshotCacheControl(ctx))
 
   const cached = await loadCachedDashboardBundle(ctx)
-  if (cached) {
+  if (cached && !bundleDashboardSectionsIncomplete(cached)) {
     console.info(
       `[bundle:cache] HIT [composed] ${ctx.startDate}..${ctx.endDate} ${ctx.locationId ?? 'all'}`,
     )
@@ -33,6 +36,11 @@ export default defineEventHandler(async (event) => {
       revenue: cached.revenue,
       labor: cached.labor,
     }
+  }
+  if (cached && bundleDashboardSectionsIncomplete(cached)) {
+    console.warn(
+      `[bundle:cache] STALE sections ${ctx.startDate}..${ctx.endDate} ${ctx.locationId ?? 'all'} — live rebuild`,
+    )
   }
 
   const db = await getDb()

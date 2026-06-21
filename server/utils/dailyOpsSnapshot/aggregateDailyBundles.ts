@@ -1,10 +1,12 @@
 /**
  * @registry-id: dailyOpsAggregateBundles
  * @created: 2026-06-05T18:48:00.000Z
- * @last-modified: 2026-06-07T00:00:00.000Z
+ * @last-modified: 2026-06-20T00:00:00.000Z
  * @description: Aggregate multiple daily dashboard bundles into weekly/monthly/yearly totals
- * @last-fix: [2026-06-07] Week bounds via addCalendarDaysYmd (ADR-010)
- * @adr-ref: ADR-004, ADR-010
+ * @last-fix: [2026-06-20] Merge revenue drilldown (top-10, spaces, hourly) into period bundles
+ *   Prior: [2026-06-18] Merge profit-by-interval + snapshot coverage; stop nulling interval totals
+ *   Prior: [2026-06-07] Week bounds via addCalendarDaysYmd (ADR-010)
+ * @adr-ref: ADR-004, ADR-008, ADR-010
  *
  * @exports-to:
  * ✓ server/utils/dailyOpsSnapshot/cacheCascade.ts
@@ -14,6 +16,9 @@ import type { DailyOpsDashboardBundleDto } from './fetchDashboardBundle'
 import { addCalendarDaysYmd } from '~/utils/dailyOpsBusinessDate'
 import type { VenueStripResponseDto } from '~/types/daily-ops-dashboard'
 import { mergeVenueStripResponses } from '../venueStrip/mergeCards'
+import { coverageFromDailyBundles, formatCoverageNote } from './bundleCoverage'
+import { mergeProfitByIntervalDtos } from './mergeProfitByInterval'
+import { mergeDrilldownDtos } from './mergeDrilldown'
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100
@@ -69,9 +74,25 @@ export function aggregateDailyBundles(
     })
   }
 
+  const snapshotCoverage = coverageFromDailyBundles(dailyBundles, period.startDate, period.endDate)
+  const coverageNote = formatCoverageNote(snapshotCoverage)
+  const profitByInterval = mergeProfitByIntervalDtos(
+    dailyBundles.map((b) => b.revenue?.profitByInterval),
+  )
+  if (coverageNote) {
+    profitByInterval.coverageNote = coverageNote
+    profitByInterval.estimatesNote = `${profitByInterval.estimatesNote} ${coverageNote}`
+  }
+
+  const drilldown = mergeDrilldownDtos(
+    dailyBundles.map((b) => b.revenue?.drilldown),
+    { coverageNote, multiDayRange: period.startDate !== period.endDate },
+  )
+
   return {
     summary: {
       ...first.summary,
+      snapshotCoverage,
       range: {
         period: 'custom' as any,
         startDate: period.startDate,
@@ -95,10 +116,9 @@ export function aggregateDailyBundles(
         startDate: period.startDate,
         endDate: period.endDate,
       },
-      // For multi-day: clear detailed breakdowns, keep only totals
-      todayExtras: null,
-      profitByInterval: null,
-      drilldown: null,
+      todayExtras: undefined,
+      profitByInterval,
+      drilldown,
     },
     labor: {
       ...first.labor,

@@ -54,6 +54,7 @@ import {
 import { buildHeadlineRevenueByLocDay, buildRevLabMaps } from './dashboardBundle/revLabMaps'
 import { snapshotRound2 } from './dashboardBundle/shared'
 import { buildTodayExtrasFromHourBundle } from './dashboardBundle/todayRevenueDetail'
+import { coverageFromSnapshotMasters, formatCoverageNote } from './bundleCoverage'
 
 export type DailyOpsDashboardBundleDto = {
   summary: DailyOpsSummaryDto
@@ -168,7 +169,11 @@ export async function fetchDailyOpsDashboardBundle(
   }
   const pnlAssumptions = await loadPnlAssumptions(db)
 
-  const [laborBreakdown, profitByInterval, drilldown] = await Promise.all([
+  const snapshotCoverage =
+    ctx.startDate !== ctx.endDate ? coverageFromSnapshotMasters(ctx, rows.masters) : undefined
+  const coverageNote = snapshotCoverage ? formatCoverageNote(snapshotCoverage) : null
+
+  const [laborBreakdown, profitByIntervalRaw, drilldown] = await Promise.all([
     aggregateLaborForRange(db, {
       startDate: ctx.startDate,
       endDate: ctx.endDate,
@@ -195,12 +200,21 @@ export async function fetchDailyOpsDashboardBundle(
     }, pnlAssumptions),
   ])
 
+  const profitByInterval = { ...profitByIntervalRaw }
+  if (coverageNote) {
+    profitByInterval.coverageNote = coverageNote
+    profitByInterval.estimatesNote = `${profitByInterval.estimatesNote} ${coverageNote}`
+  }
+
   const summary = buildDailyOpsSummaryDto(ctx, revMap, labMap, {
     apiBusinessDaysTotal: snapshotRound2(apiMergedTotal),
     inboxBasisExVat: null,
   })
   if (laborBreakdown.coverage.daysFound > 0) {
     summary.summary.laborBreakdown = laborBreakdown
+  }
+  if (snapshotCoverage) {
+    summary.snapshotCoverage = snapshotCoverage
   }
 
   const laborByDateHour = aggregateLaborByDateHour(laborCostMapFromHourly(laborByLocHour))

@@ -60,8 +60,17 @@ export type DailyOpsLaborBreakdownDto = {
   }
 }
 
+/** Multi-day ranges: which business_dates have snapshot rows in the requested period. */
+export type DailyOpsSnapshotCoverageDto = {
+  daysExpected: number
+  daysFound: number
+  missingDates: string[]
+}
+
 export type DailyOpsSummaryDto = {
   range: DailyOpsRangeDto
+  /** Present when period spans multiple days or a day snapshot is missing. */
+  snapshotCoverage?: DailyOpsSnapshotCoverageDto
   summary: {
     totalRevenue: number
     totalLaborCost: number
@@ -119,6 +128,8 @@ export type DailyOpsProfitByIntervalDto = {
   estimatesNote: string
   dates: string[]
   cells: DailyOpsProfitIntervalCellDto[]
+  /** Human-readable gap note when period is partial (missing snapshot days). */
+  coverageNote?: string | null
 }
 
 export type DailyOpsHourlyRevenueLocationDto = {
@@ -488,4 +499,28 @@ export type DailyOpsAttendanceKpisDto = {
   planned: DailyOpsAttendanceKpiBlockDto
   leave: DailyOpsAttendanceKpiBlockDto
   sick: DailyOpsAttendanceKpiBlockDto
+}
+
+export type DailyOpsContractHoursVarianceSeverity = 'warning' | 'critical'
+
+export type DailyOpsContractHoursVarianceRowDto = {
+  memberId: string
+  userName: string
+  teamName: string
+  contractType: string | null
+  workedHours: number
+  contractHours: number
+  deltaHours: number
+  verlofHours: number | null
+  baselineSnapshotDate: string | null
+  severity: DailyOpsContractHoursVarianceSeverity
+}
+
+export type DailyOpsContractHoursVarianceDto = {
+  range: { startDate: string; endDate: string }
+  weeks: number
+  thresholdHours: number
+  criticalHours: number
+  workers: number
+  rows: DailyOpsContractHoursVarianceRowDto[]
 }

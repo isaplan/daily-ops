@@ -21,6 +21,14 @@
 
       <DailyOpsVenueStrip :period="period" :anchor="anchor" />
 
+      <UAlert
+        v-if="snapshotCoverageAlert"
+        color="warning"
+        variant="soft"
+        title="Partial period — missing snapshot days"
+        :description="snapshotCoverageAlert"
+      />
+
       <UAlert v-if="error" color="error" variant="soft" title="Could not load dashboard" :description="String(error)" />
 
       <div v-if="pending" class="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -111,6 +119,14 @@ const { summary: summaryRef, revenue: revenueRef, labor: laborRef, pending, erro
 const summary = computed(() => summaryRef.value ?? null)
 const revenue = computed(() => revenueRef.value ?? null)
 const labor = computed(() => laborRef.value ?? null)
+
+const snapshotCoverageAlert = computed(() => {
+  const cov = summary.value?.snapshotCoverage
+  if (!cov?.missingDates?.length) return null
+  const preview = cov.missingDates.slice(0, 8).join(', ')
+  const more = cov.missingDates.length > 8 ? ` (+${cov.missingDates.length - 8} more)` : ''
+  return `${cov.daysFound}/${cov.daysExpected} days loaded. Missing: ${preview}${more}. Run snapshot backfill for those dates.`
+})
 
 const {
   selectedTeam,

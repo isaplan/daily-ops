@@ -189,7 +189,12 @@ function computeCell(
   if (isSealedPastDay && dayRevenue > 0) {
     const dayHours = dayLaborHoursForLocation(laborByLocHour, date, locationId)
     const intervalHours = intervalLaborHours(laborByLocHour, date, locationId, intervalKey)
-    const share = dayHours > 0 ? intervalHours / dayHours : 0
+    const share =
+      dayHours > 0
+        ? intervalHours / dayHours
+        : dayRevenue > 0
+          ? revenue / dayRevenue
+          : 0
     const dayPnl = dayPnlFromHeadline(dayRevenue, dayLoadedLabor, foodShare, profitDefaults)
     return {
       date,

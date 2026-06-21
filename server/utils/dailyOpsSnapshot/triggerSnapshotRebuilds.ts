@@ -77,7 +77,12 @@ export async function rebuildSnapshotsForBusinessDateRange(
   endDate: string,
   locationId?: string,
 ): Promise<{ built: number; errors: number }> {
-  const { built, errors } = await buildDailyOpsSnapshotRange({ startDate, endDate, locationId })
+  const { built, errors } = await buildDailyOpsSnapshotRange({
+    startDate,
+    endDate,
+    locationId,
+    forceReopenSealed: true,
+  })
   console.info(
     `[snapshot:trigger] materialized ${built} snapshot(s), errors=${errors}, business_date ${startDate}..${endDate}`,
   )
