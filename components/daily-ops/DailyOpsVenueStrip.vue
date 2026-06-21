@@ -1,32 +1,63 @@
 <template>
   <section class="min-w-0 space-y-3">
-    <div class="flex items-center justify-between gap-3">
+    <div class="flex flex-wrap items-center justify-between gap-3">
       <h2 class="min-w-0 text-sm font-semibold uppercase tracking-wide text-gray-600">
         Locations ({{ periodLabel }})
       </h2>
 
-      <div
-        v-if="hasVenues"
-        class="hidden md:flex lg:hidden"
-      >
-        <UiPillTabs
-          :model-value="mediumSlideIndex"
-          :options="mediumVenuePillOptions"
-          aria-label="Select venue slide"
-          @update:model-value="goToPillSlide($event, 2)"
-        />
-      </div>
+      <div class="flex shrink-0 flex-wrap items-center gap-2">
+        <div
+          v-if="hasVenues"
+          class="hidden md:flex lg:hidden"
+        >
+          <UiPillTabs
+            :model-value="mediumSlideIndex"
+            :options="mediumVenuePillOptions"
+            aria-label="Select venue slide"
+            @update:model-value="goToPillSlide($event, 2)"
+          />
+        </div>
 
-      <div
-        v-if="hasVenues"
-        class="flex md:hidden"
-      >
-        <UiPillTabs
-          :model-value="smallSlideIndex"
-          :options="smallVenuePillOptions"
-          aria-label="Select venue slide"
-          @update:model-value="goToPillSlide($event, 1)"
-        />
+        <div
+          v-if="hasVenues"
+          class="flex md:hidden"
+        >
+          <UiPillTabs
+            :model-value="smallSlideIndex"
+            :options="smallVenuePillOptions"
+            aria-label="Select venue slide"
+            @update:model-value="goToPillSlide($event, 1)"
+          />
+        </div>
+
+        <div
+          class="relative z-0 inline-flex shrink-0 items-center gap-1 rounded-md border-2 border-gray-900 bg-white p-0.5"
+          role="group"
+          aria-label="Venue strip view"
+        >
+          <button
+            type="button"
+            class="inline-flex items-center justify-center rounded px-3 py-1.5 text-sm font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900"
+            :class="viewMode === 'overview' ? 'bg-gray-900 text-white' : 'text-gray-700 hover:bg-gray-100'"
+            :aria-pressed="viewMode === 'overview'"
+            title="Venue overview"
+            @click="viewMode = 'overview'"
+          >
+            <UIcon name="i-lucide-gauge" class="size-4" aria-hidden="true" />
+            <span class="sr-only">Overview</span>
+          </button>
+          <button
+            type="button"
+            class="inline-flex items-center justify-center rounded px-3 py-1.5 text-sm font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900"
+            :class="viewMode === 'detail' ? 'bg-gray-900 text-white' : 'text-gray-700 hover:bg-gray-100'"
+            :aria-pressed="viewMode === 'detail'"
+            title="Venue detail"
+            @click="viewMode = 'detail'"
+          >
+            <UIcon name="i-lucide-list" class="size-4" aria-hidden="true" />
+            <span class="sr-only">Detail</span>
+          </button>
+        </div>
       </div>
     </div>
 
@@ -53,9 +84,31 @@
       description="No snapshot data for this period yet. Try a shorter range or rebuild snapshots."
     />
 
-    <!-- Desktop Grid (lg+) -->
+    <!-- Overview — Desktop Grid (lg+) -->
     <div
       v-if="hasVenues"
+      v-show="viewMode === 'overview'"
+      class="hidden lg:grid min-w-0 gap-4 lg:grid-cols-3"
+    >
+      <div
+        v-for="venue in data.venues"
+        :key="`overview-${venue.locationId}`"
+        class="min-w-0 space-y-2"
+      >
+        <h3
+          class="text-base font-bold text-gray-900"
+          :style="{ color: chartColorFor(venue.locationId) }"
+        >
+          {{ venue.locationName }}
+        </h3>
+        <DailyOpsVenueStripOverviewCard :venue="venue" :show-active="showActiveCounts" />
+      </div>
+    </div>
+
+    <!-- Detail — Desktop Grid (lg+) -->
+    <div
+      v-if="hasVenues"
+      v-show="viewMode === 'detail'"
       class="hidden lg:grid min-w-0 gap-4 lg:grid-cols-3"
     >
       <UCard
@@ -163,8 +216,38 @@
       </UCard>
     </div>
 
-    <!-- Medium Carousel (md, 2 visible + 1 to slide) -->
-    <div v-if="hasVenues" class="hidden md:block lg:hidden">
+    <!-- Overview — Medium Carousel (md, 2 visible + 1 to slide) -->
+    <div v-if="hasVenues" v-show="viewMode === 'overview'" class="hidden md:block lg:hidden">
+      <div
+        class="flex touch-pan-y overscroll-x-contain overflow-hidden rounded-lg"
+        @pointerdown="startSwipe"
+        @pointerup="finishSwipe($event, 2)"
+        @pointercancel="resetSwipe"
+        @wheel="handleWheel($event, 2)"
+      >
+        <div
+          class="flex w-full shrink-0 gap-4 transition-transform duration-300 ease-out"
+          :style="{ transform: mediumTrackTransform }"
+        >
+          <div
+            v-for="venue in data.venues"
+            :key="`overview-md-${venue.locationId}`"
+            class="min-w-0 basis-[calc((100%-1rem)/2)] shrink-0 space-y-2"
+          >
+            <h3
+              class="text-base font-bold text-gray-900"
+              :style="{ color: chartColorFor(venue.locationId) }"
+            >
+              {{ venue.locationName }}
+            </h3>
+            <DailyOpsVenueStripOverviewCard :venue="venue" :show-active="showActiveCounts" />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Detail — Medium Carousel (md, 2 visible + 1 to slide) -->
+    <div v-if="hasVenues" v-show="viewMode === 'detail'" class="hidden md:block lg:hidden">
       <div
         class="flex touch-pan-y overscroll-x-contain overflow-hidden rounded-lg"
         @pointerdown="startSwipe"
@@ -285,8 +368,38 @@
     </div>
 
 
-    <!-- Small Carousel (sm and below, 1 visible) -->
-    <div v-if="hasVenues" class="md:hidden">
+    <!-- Overview — Small Carousel (sm and below, 1 visible) -->
+    <div v-if="hasVenues" v-show="viewMode === 'overview'" class="md:hidden">
+      <div
+        class="flex touch-pan-y overscroll-x-contain overflow-hidden rounded-lg"
+        @pointerdown="startSwipe"
+        @pointerup="finishSwipe($event, 1)"
+        @pointercancel="resetSwipe"
+        @wheel="handleWheel($event, 1)"
+      >
+        <div
+          class="flex w-full shrink-0 gap-4 transition-transform duration-300 ease-out"
+          :style="{ transform: smallTrackTransform }"
+        >
+          <div
+            v-for="venue in data.venues"
+            :key="`overview-sm-${venue.locationId}`"
+            class="w-full shrink-0 space-y-2"
+          >
+            <h3
+              class="text-base font-bold text-gray-900"
+              :style="{ color: chartColorFor(venue.locationId) }"
+            >
+              {{ venue.locationName }}
+            </h3>
+            <DailyOpsVenueStripOverviewCard :venue="venue" :show-active="showActiveCounts" />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Detail — Small Carousel (sm and below, 1 visible) -->
+    <div v-if="hasVenues" v-show="viewMode === 'detail'" class="md:hidden">
       <div
         class="flex touch-pan-y overscroll-x-contain overflow-hidden rounded-lg"
         @pointerdown="startSwipe"
@@ -433,6 +546,9 @@ function venueCardBorderStyle(locationId: string) {
 type VenuePillOption = { value: number; label: string; key: string }
 type PillTabValue = string | number
 
+type VenueStripViewMode = 'overview' | 'detail'
+
+const viewMode = ref<VenueStripViewMode>('overview')
 const currentSlide = ref(0)
 const swipeStartX = ref<number | null>(null)
 const swipeStartY = ref<number | null>(null)
@@ -505,6 +621,7 @@ const { data, pending, error: fetchError } = useAsyncData(
 )
 
 const hasVenues = computed(() => (data.value?.venues?.length ?? 0) > 0)
+const showActiveCounts = computed(() => props.period === 'today')
 
 const mediumSlideIndex = computed(() => clampSlideIndex(currentSlide.value, 2))
 const smallSlideIndex = computed(() => clampSlideIndex(currentSlide.value, 1))
