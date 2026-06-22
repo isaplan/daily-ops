@@ -155,6 +155,32 @@
             <li><NuxtLink to="/daily-ops/inbox/product-catalog" :class="navLinkClass(route.path === '/daily-ops/inbox/product-catalog')">Product catalog</NuxtLink></li>
           </ul>
         </li>
+        <li>
+          <UTooltip v-if="collapsed" text="Finance" :popper="{ placement: 'right' }">
+            <UDropdownMenu :items="financeDropdownItems" :popper="{ placement: 'right-start' }">
+              <button
+                type="button"
+                :class="navLinkClass(isFinanceSection)"
+                class="w-full flex items-center"
+              >
+                <UIcon name="i-lucide-chart-line" class="size-5 shrink-0" />
+              </button>
+            </UDropdownMenu>
+          </UTooltip>
+          <button v-else
+            type="button"
+            :class="navLinkClass(isFinanceSection)"
+            class="w-full flex items-center"
+            @click="isFinanceOpen = !isFinanceOpen"
+          >
+            <UIcon name="i-lucide-chart-line" class="size-4 shrink-0" />
+            <span class="flex-1 text-left">Finance</span>
+            <UIcon name="i-lucide-chevron-right" :class="['size-4 shrink-0 transition-transform', isFinanceOpen && 'rotate-90']" />
+          </button>
+          <ul v-if="!collapsed && isFinanceOpen" class="mt-1 ml-4 space-y-0.5 border-l border-gray-200 pl-3">
+            <li><NuxtLink to="/daily-ops/finance/pnl" :class="navLinkClass(route.path === '/daily-ops/finance/pnl')">P&L</NuxtLink></li>
+          </ul>
+        </li>
         <!-- Settings -->
         <li>
           <UTooltip v-if="collapsed" text="Eitje API" :popper="{ placement: 'right' }">
@@ -389,6 +415,13 @@ const inboxDropdownItems = computed(() => [
   }],
 ])
 
+const financeDropdownItems = computed(() => [
+  [{
+    label: 'P&L',
+    to: '/daily-ops/finance/pnl',
+  }],
+])
+
 const isDashboard = computed(() => route.path === '/' || route.path === '')
 const isAllNotes = computed(() => route.path === '/notes/all')
 const isTodos = computed(() => route.path === '/notes/todos')
@@ -408,6 +441,7 @@ const isDesignSystemUsed = computed(() => route.path === '/design-system-used')
 const isHoursOpen = ref(false)
 const isSalesOpen = ref(false)
 const isInboxOpen = ref(false)
+const isFinanceOpen = ref(false)
 const isDailyOpsDashboard = computed(() => {
   const p = route.path.replace(/\/$/, '') || '/'
   if (
@@ -430,6 +464,7 @@ const isDailyOpsDashboard = computed(() => {
 const isEitjeApi = computed(() => route.path === '/daily-ops/settings/eitje-api')
 const isBorkApi = computed(() => route.path === '/daily-ops/settings/bork-api')
 const isHoursSection = computed(() => route.path.startsWith('/daily-ops/hours'))
+const isFinanceSection = computed(() => route.path.startsWith('/daily-ops/finance'))
 
 const normalizedPath = computed(() => (route.path.replace(/\/$/, '') || '/') as string)
 const isSalesSection = computed(
@@ -449,6 +484,7 @@ watch(() => route.path, (path: string) => {
     isSalesOpen.value = true
   }
   if (path.startsWith('/daily-ops/inbox')) isInboxOpen.value = true
+  if (path.startsWith('/daily-ops/finance')) isFinanceOpen.value = true
 }, { immediate: true })
 
 function navLinkClass(active: boolean) {
