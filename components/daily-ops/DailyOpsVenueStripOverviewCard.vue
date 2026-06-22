@@ -40,24 +40,26 @@ const props = defineProps<{
   showActive: boolean
 }>()
 
-const { formatEurWhole, formatEurPerHourWhole } = useDashboardKpiFormat()
+const { formatEurWhole, formatEurPerHourWhole, formatPctWhole } = useDashboardKpiFormat()
 
 function laborTile (
   id: string,
   label: string,
   loaded: number,
+  laborPctOfRevenue: number | null,
   productivity: number | null,
 ): OverviewTile {
+  const pct = formatPctWhole(laborPctOfRevenue)
+  const perHour = formatEurPerHourWhole(productivity)
   return {
     id,
     label,
     primary: formatEurWhole(loaded),
-    secondary: formatEurPerHourWhole(productivity),
+    secondary: pct !== '—' ? `${pct} rev · ${perHour}` : perHour,
   }
 }
 
 const activeDisplay = computed(() => {
-  if (!props.showActive) return '—'
   const rows = props.venue.active?.rows ?? []
   let keuken = 0
   let bediening = 0
@@ -70,39 +72,49 @@ const activeDisplay = computed(() => {
   return `${total} · ${keuken} · ${bediening}`
 })
 
-const tiles = computed((): OverviewTile[] => [
-  {
-    id: 'revenue',
-    label: 'Revenue',
-    primary: formatEurWhole(props.venue.revenue.total),
-    details: [
-      `Keuken ${formatEurWhole(props.venue.revenue.food)}`,
-      `Bediening ${formatEurWhole(props.venue.revenue.beverage)}`,
-    ],
-  },
-  laborTile(
-    'labor-all',
-    'Labor All',
-    props.venue.labor.all.loaded,
-    props.venue.productivity.totalPerHour,
-  ),
-  laborTile(
-    'labor-keuken',
-    'Labor Keuken',
-    props.venue.labor.keuken.loaded,
-    props.venue.productivity.keukenPerHour,
-  ),
-  laborTile(
-    'labor-bediening',
-    'Labor Bediening',
-    props.venue.labor.bediening.loaded,
-    props.venue.productivity.bedieningPerHour,
-  ),
-  {
-    id: 'active',
-    label: 'Active',
-    primary: activeDisplay.value,
-    secondary: props.showActive ? 'Total · Keuken · Bediening' : undefined,
-  },
-])
+const tiles = computed((): OverviewTile[] => {
+  const base: OverviewTile[] = [
+    {
+      id: 'revenue',
+      label: 'Revenue',
+      primary: formatEurWhole(props.venue.revenue.total),
+      details: [
+        `Keuken ${formatEurWhole(props.venue.revenue.food)}`,
+        `Bediening ${formatEurWhole(props.venue.revenue.beverage)}`,
+      ],
+    },
+    laborTile(
+      'labor-all',
+      'Labor All',
+      props.venue.labor.all.loaded,
+      props.venue.labor.all.laborPctOfRevenue,
+      props.venue.productivity.totalPerHour,
+    ),
+    laborTile(
+      'labor-keuken',
+      'Labor Keuken',
+      props.venue.labor.keuken.loaded,
+      props.venue.labor.keuken.laborPctOfRevenue,
+      props.venue.productivity.keukenPerHour,
+    ),
+    laborTile(
+      'labor-bediening',
+      'Labor Bediening',
+      props.venue.labor.bediening.loaded,
+      props.venue.labor.bediening.laborPctOfRevenue,
+      props.venue.productivity.bedieningPerHour,
+    ),
+  ]
+
+  if (props.showActive) {
+    base.push({
+      id: 'active',
+      label: 'Active',
+      primary: activeDisplay.value,
+      secondary: 'Total · Keuken · Bediening',
+    })
+  }
+
+  return base
+})
 </script>
