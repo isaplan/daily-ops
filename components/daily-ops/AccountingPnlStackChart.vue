@@ -23,7 +23,7 @@
       <svg
         ref="svgRef"
         :width="svgWidth"
-        :height="height"
+        :height="svgHeight"
         class="font-sans"
         role="img"
         :aria-label="ariaLabel"
@@ -82,12 +82,16 @@ const props = withDefaults(
     monthGrid?: AccountingPnlMonthGridDto | null
     activeVenueIds?: AccountingPnlVenueId[]
     valueMode?: PnlValueMode
+    width?: number
+    height?: number
   }>(),
   {
     yearGrid: null,
     monthGrid: null,
     activeVenueIds: () => ['vkb', 'bea', 'lat'],
     valueMode: 'amount',
+    width: 1536,
+    height: 360,
   },
 )
 
@@ -95,7 +99,7 @@ const containerRef = ref<HTMLElement | null>(null)
 const svgRef = ref<SVGSVGElement | null>(null)
 const containerWidth = ref(720)
 
-const height = 360
+const svgHeight = computed(() => props.height)
 const margin = { top: 12, right: 16, bottom: 52, left: 56 }
 
 const activeVenueSet = computed(() => new Set(props.activeVenueIds))

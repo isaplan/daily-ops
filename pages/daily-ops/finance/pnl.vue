@@ -97,15 +97,24 @@
       :value-mode="valueMode"
     />
 
-    <DailyOpsAccountingPnlStackChart
+    <DailyOpsChartExpandShell
       v-else-if="displayMode === 'graph' && hasGraphData"
-      :layout="viewMode"
-      :period-label="graphPeriodLabel"
-      :year-grid="yearGrid"
-      :month-grid="monthGrid"
-      :active-venue-ids="activeVenueIdList"
-      :value-mode="valueMode"
-    />
+      :title="`P&L ${viewMode === 'year' ? 'by Venue' : 'by Month'}`"
+      :subtitle="graphPeriodLabel"
+    >
+      <template #default="{ width, height }">
+        <DailyOpsAccountingPnlStackChart
+          :layout="viewMode"
+          :period-label="graphPeriodLabel"
+          :year-grid="yearGrid"
+          :month-grid="monthGrid"
+          :active-venue-ids="activeVenueIdList"
+          :value-mode="valueMode"
+          :width="width"
+          :height="height"
+        />
+      </template>
+    </DailyOpsChartExpandShell>
 
     <UAlert
       v-else-if="!pending"
