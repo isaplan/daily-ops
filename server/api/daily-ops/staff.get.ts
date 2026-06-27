@@ -6,7 +6,7 @@
  * @last-fix: [2026-06-10] Re-export eitje-staff handler
  *
  * @exports-to:
- * ✓ pages/daily-ops/staff.vue
+ * ✓ pages/daily-ops/staff/index.vue
  */
 
 export { default } from './eitje-staff.get'

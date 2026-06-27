@@ -60,11 +60,12 @@ if (enableNitroScheduled && !disableInboxSchedule) {
 }
 if (enableNitroScheduled && !disableIntegrationsSchedule) {
   /**
-   * Bork + Eitje **morning maintenance** (06:00): master + historical (through yesterday).
-   * Bork + Eitje **daily** (`daily-data`): per-weekday Amsterdam hours — SSOT:
+   * Bork + Eitje **morning maintenance** (06:00): master + 7d historical (through yesterday).
+   * **Monthly** (1st 06:30): 31d historical. Daily `daily-data`: per-weekday Amsterdam hours — SSOT:
    * `utils/integrations/borkEitjeDailyCronSchedule.ts`
    */
   scheduledTasks['0 6 * * *'] = ['integrations:bork-eitje-morning-maintenance']
+  scheduledTasks['30 6 1 * *'] = ['integrations:bork-eitje-historical-monthly']
   Object.assign(scheduledTasks, buildBorkEitjeDailyNitroCronEntries())
 }
 if (enableNitroScheduled && enableOpsAutoRetry) {

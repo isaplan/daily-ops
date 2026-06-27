@@ -1,8 +1,9 @@
 /**
  * @registry-id: useDailyOpsRevenueNavV2
  * @created: 2026-06-08T00:00:00.000Z
- * @last-modified: 2026-06-08T00:00:00.000Z
+ * @last-modified: 2026-06-24T00:00:00.000Z
  * @description: Revenue Nav V2 — URL-synced mode/slot/compare state (ADR-011)
+ * @last-fix: [2026-06-24] Strip legacy V1 period query keys on nav push
  * @adr-ref: ADR-011, ADR-010
  *
  * @exports-to:
@@ -113,6 +114,18 @@ export function useDailyOpsRevenueNavV2() {
   }
 
   // --- Internal push ---
+  const LEGACY_REVENUE_QUERY_KEYS = [
+    'period',
+    'compareTo',
+    'comparePeriod',
+    'compareLocation',
+    'compareStartDate',
+    'compareEndDate',
+    'startDate',
+    'endDate',
+    'anchor',
+  ] as const
+
   function push(patch: Partial<RevenueNavV2Query>) {
     const current = query.value
     const next: Record<string, string | undefined> = {
@@ -137,7 +150,9 @@ export function useDailyOpsRevenueNavV2() {
     const pick = patch.pick !== undefined ? patch.pick : current.pick
     if (pick) next.pick = pick
 
-    router.push({ query: next })
+    const merged = { ...route.query } as Record<string, string | string[] | undefined>
+    for (const key of LEGACY_REVENUE_QUERY_KEYS) delete merged[key]
+    router.push({ query: { ...merged, ...next } })
   }
 
   return {

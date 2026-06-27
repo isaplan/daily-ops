@@ -1,7 +1,8 @@
 /**
  * @registry-id: borkSyncService
  * @created: 2026-04-06T12:00:00.000Z
- * @last-modified: 2026-05-20T12:00:00.000Z
+ * @last-modified: 2026-06-24T00:00:00.000Z
+ * @last-fix: [2026-06-24] Snapshot materialization moved into executeBorkJob (sync pipeline tail)
  * @description: Bork/Trivec gateway fetch + bork_raw_data upserts; drives Bork cron/sync; calls V2 aggregation after sync
  * @last-fix: [2026-05-20] Master-data job refreshes unified product_catalog from Bork catalog API.
  *   Prior: [2026-05-19] Clearer V2 line: calendar rebuild window vs register-day rollup counts.
@@ -22,6 +23,11 @@ import { rebuildBorkSalesAggregationV2 } from './borkRebuildAggregationV2Service
 import { syncProductCatalogFromBorkApi } from './productCatalogService'
 import { resolveBorkAggRebuildSuffix } from '../utils/borkAggVersionSuffix'
 import { addCalendarDaysYmd, calendarYmdInAmsterdam } from '~/utils/dailyOpsBusinessDate'
+import {
+  historicalLookbackDaysForJobType,
+  isIntegrationHistoricalJobType,
+} from '~/utils/integrations/historicalJobTypes'
+import { materializeIntegrationPipelineSnapshots } from '../utils/dailyOpsSnapshot/triggerSnapshotRebuilds'
 
 export type BorkLocationSyncResult = {
   locationId: string
@@ -37,16 +43,18 @@ export type BorkSyncJobResult = {
   jobType: string
   message: string
   locations?: BorkLocationSyncResult[]
+  /** Snapshot + JSON materialization after aggregation (sync pipeline tail). */
+  snapshots?: { startDate: string; endDate: string; built: number; errors: number }
 }
 
-const BORK_HISTORICAL_TICKET_DAYS = 30
-const PER_DAY_TICKET_BREAKDOWN_MAX_DAYS = 7
-
 function getDateRangeForJobType (jobType: string): { days: number } {
-  if (jobType === 'historical-data') return { days: BORK_HISTORICAL_TICKET_DAYS }
+  const historicalDays = historicalLookbackDaysForJobType(jobType)
+  if (historicalDays != null) return { days: historicalDays }
   if (jobType === 'daily-data') return { days: 2 }
   return { days: 1 } // master-data: yesterday only (see startDayOffset below)
 }
+
+const PER_DAY_TICKET_BREAKDOWN_MAX_DAYS = 7
 
 function borkCompactToYmd (compact: string): string {
   const s = compact.padStart(8, '0')
@@ -112,10 +120,11 @@ function ticketWindowForJob (jobType: string, now = new Date()): { startYmd: str
     const y = addCalendarDaysYmd(todayYmd, -1)
     return { startYmd: y, endYmd: y }
   }
-  if (jobType === 'historical-data') {
+  const historicalDays = historicalLookbackDaysForJobType(jobType)
+  if (historicalDays != null) {
     const endYmd = addCalendarDaysYmd(todayYmd, -1)
     return {
-      startYmd: addCalendarDaysYmd(endYmd, -(BORK_HISTORICAL_TICKET_DAYS - 1)),
+      startYmd: addCalendarDaysYmd(endYmd, -(historicalDays - 1)),
       endYmd,
     }
   }
@@ -142,7 +151,7 @@ function formatBorkRawSyncMessage (input: {
     msg += `; tickets: ${formatPerDayTicketBreakdown(ticketsByDate, startYmd, endYmd)}`
   } else if (totalTickets > 0) {
     msg += `; tickets: ${totalTickets} (${startYmd}…${endYmd})`
-  } else if (jobType === 'historical-data') {
+  } else if (isIntegrationHistoricalJobType(jobType)) {
     msg += ` (${startYmd}…${endYmd})`
   }
   return msg
@@ -232,7 +241,7 @@ async function syncLocationDates (
   const now = new Date()
   const dates: string[] = []
   /** Historical + master skip today; daily-data: i=0 today, i=1 yesterday (Amsterdam). */
-  const startDayOffset = jobType === 'historical-data' || jobType === 'master-data' ? 1 : 0
+  const startDayOffset = isIntegrationHistoricalJobType(jobType) || jobType === 'master-data' ? 1 : 0
 
   const todayYmd = calendarYmdInAmsterdam(now)
   for (let i = startDayOffset; i < startDayOffset + config.days; i++) {
@@ -390,11 +399,12 @@ export async function executeBorkJob (db: Db, jobType: string): Promise<BorkSync
     }
   }
 
-  if (syncOk && jobType === 'historical-data') {
+  if (syncOk && isIntegrationHistoricalJobType(jobType)) {
     try {
       const todayYmd = calendarYmdInAmsterdam(new Date())
       const endStr = addCalendarDaysYmd(todayYmd, -1)
-      const startStr = addCalendarDaysYmd(endStr, -(BORK_HISTORICAL_TICKET_DAYS - 1))
+      const historicalDays = historicalLookbackDaysForJobType(jobType) ?? 7
+      const startStr = addCalendarDaysYmd(endStr, -(historicalDays - 1))
       v2RebuildSuffix = resolveBorkAggRebuildSuffix() ?? '_v2'
       v2CalendarStartYmd = startStr
       v2CalendarEndYmd = endStr
@@ -416,11 +426,25 @@ export async function executeBorkJob (db: Db, jobType: string): Promise<BorkSync
 
   const finalMessage = `${message}${v2Message}${catalogSyncMessage}`
 
+  let snapshots: BorkSyncJobResult['snapshots']
+  if (syncOk && v2AggregationResult && v2CalendarStartYmd && v2CalendarEndYmd) {
+    try {
+      snapshots = await materializeIntegrationPipelineSnapshots(
+        db,
+        v2CalendarStartYmd,
+        v2CalendarEndYmd,
+      )
+    } catch (e) {
+      console.error('[borkSyncService] Snapshot materialization error:', e)
+    }
+  }
+
   return {
     ok: syncOk,
     jobType,
     message: finalMessage,
     locations,
+    snapshots,
   }
 }
 

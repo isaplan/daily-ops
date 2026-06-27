@@ -1,7 +1,8 @@
 /**
  * @registry-id: eitjeSyncService
  * @created: 2026-04-05T12:00:00.000Z
- * @last-modified: 2026-06-09T18:00:00.000Z
+ * @last-modified: 2026-06-24T00:00:00.000Z
+ * @last-fix: [2026-06-24] Await snapshot+JSON materialization after daily/historical; 7d/31d job types
  * @description: Fetches Eitje Open API resources and upserts eitje_raw_data; drives cron/sync handlers
  * @last-fix: [2026-06-09] Daily sync includes check_ins (yesterday + today window)
  *   Prior: [2026-05-25] Daily/historical sync now fetches planning_shifts, leave_requests, and events; planning_shifts rebuilds planned-hours aggregation.
@@ -30,8 +31,9 @@ import {
   rebuildEitjeTimeRegistrationAggregation,
 } from './eitjeRebuildAggregationService'
 import { runEitjeLaborAggIntegrity } from '../utils/eitjeAggIntegrity'
-import { enqueueSnapshotsForBusinessDateRange } from '../utils/dailyOpsSnapshot/triggerSnapshotRebuilds'
+import { materializeIntegrationPipelineSnapshots } from '../utils/dailyOpsSnapshot/triggerSnapshotRebuilds'
 import { addCalendarDaysYmd, calendarYmdInAmsterdam } from '~/utils/dailyOpsBusinessDate'
+import { historicalLookbackDaysForJobType } from '~/utils/integrations/historicalJobTypes'
 import { linkMemberUnifiedUserId } from '../utils/memberEitjeContext'
 import { ObjectId } from 'mongodb'
 import './dailyOpsSnapshotService' // registers snapshot runner — side-effect import
@@ -83,6 +85,7 @@ export type EitjeSyncJobResult = {
       skippedRebuild?: boolean
     }
   }
+  snapshots?: { startDate: string; endDate: string; built: number; errors: number }
 }
 
 export type EitjeRawDateEndpoint =
@@ -862,7 +865,6 @@ export async function executeEitjeJob (db: Db, jobType: string): Promise<EitjeSy
 
     try {
       await syncUnifiedCollectionsFromRawData(db)
-      await enqueueSnapshotsForBusinessDateRange(db, yesterdayYmd, todayYmd)
     } catch (e) {
       agg.error = e instanceof Error ? e.message : String(e)
     } finally {
@@ -883,7 +885,16 @@ export async function executeEitjeJob (db: Db, jobType: string): Promise<EitjeSy
       (agg.leave?.inserted ?? 0) > 0 ||
       (agg.events?.inserted ?? 0) > 0
     const ok = !hasErrors && hasWork
-    
+
+    let snapshots: EitjeSyncJobResult['snapshots']
+    if (ok) {
+      try {
+        snapshots = await materializeIntegrationPipelineSnapshots(db, yesterdayYmd, todayYmd)
+      } catch (e) {
+        console.error('[eitjeSyncService] Snapshot materialization error:', e)
+      }
+    }
+
     return {
       ok,
       jobType,
@@ -900,11 +911,20 @@ export async function executeEitjeJob (db: Db, jobType: string): Promise<EitjeSy
       timeRegistration: tr,
       rawEndpoints,
       aggregation: agg,
+      snapshots,
     }
   }
 
-  // Historical backfill: window ends yesterday only; today is handled by daily-data (scheduled: morning maintenance task)
-  const histDays = envInt('EITJE_HISTORICAL_SYNC_DAYS', 30)
+  const histDays = historicalLookbackDaysForJobType(jobType)
+  if (histDays == null) {
+    return {
+      ok: false,
+      jobType,
+      message: `Unknown Eitje job type: ${jobType}`,
+    }
+  }
+
+  // Historical backfill: window ends yesterday only; today is handled by daily-data
   const { start, end } = dateRangeDaysEndingYesterday(histDays)
 
   const rawEndpoints = await syncRawDateEndpoints(db, creds, DAILY_RAW_DATE_ENDPOINTS, start, end)
@@ -958,16 +978,21 @@ export async function executeEitjeJob (db: Db, jobType: string): Promise<EitjeSy
     agg.integrityDeduped = integrityDeduped
   }
 
-  if (!agg.error) {
-    await enqueueSnapshotsForBusinessDateRange(db, start, end)
-  }
-
   const ok =
     !rawEndpoints.some((result) => result.error) &&
     !agg.error &&
     !Boolean(agg.planning?.error) &&
     !Boolean(agg.leave?.error) &&
     !Boolean(agg.events?.error)
+
+  let snapshots: EitjeSyncJobResult['snapshots']
+  if (ok) {
+    try {
+      snapshots = await materializeIntegrationPipelineSnapshots(db, start, end)
+    } catch (e) {
+      console.error('[eitjeSyncService] Historical snapshot materialization error:', e)
+    }
+  }
 
   return {
     ok,
@@ -988,6 +1013,7 @@ export async function executeEitjeJob (db: Db, jobType: string): Promise<EitjeSy
     timeRegistration: tr,
     rawEndpoints,
     aggregation: agg,
+    snapshots,
   }
 }
 

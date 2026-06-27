@@ -36,7 +36,7 @@ export type RevenueRangeTotals = {
   itemsCount: number
   foodRevenue: number
   beverageRevenue: number
-  leadSource: 'inbox_basis' | 'bork_api' | 'unknown'
+  leadSource: 'inbox_basis' | 'bork_api' | 'datalab_benchmark' | 'unknown'
   /** True when no snapshot revenue rows exist for the requested range. */
   dataGap: boolean
 }
@@ -96,6 +96,7 @@ export async function fetchRevenueRange(
   let borkRevenueExVat = 0
   let itemsCount = 0
   let inboxDays = 0
+  let datalabDays = 0
   for (const r of rows) {
     const doc = r as DailyOpsSnapshotRevenueSection
     revenue += headlineExVatFromSnapshotSection(doc)
@@ -104,6 +105,7 @@ export async function fetchRevenueRange(
     borkRevenueIncVat += Number(doc.borkTotals?.inc_vat ?? 0)
     itemsCount += Number(doc.totals?.quantity ?? doc.borkTotals?.quantity ?? 0)
     if (doc.leadSource === 'inbox') inboxDays++
+    if (doc.leadSource === 'datalab_benchmark') datalabDays++
   }
 
   const foodBev = await sumFoodBevFromProductSnapshots(db, {
@@ -120,7 +122,14 @@ export async function fetchRevenueRange(
     itemsCount,
     foodRevenue: foodBev.food,
     beverageRevenue: foodBev.beverage,
-    leadSource: inboxDays > 0 ? 'inbox_basis' : revenue > 0 ? 'bork_api' : 'unknown',
+    leadSource:
+      inboxDays > 0
+        ? 'inbox_basis'
+        : datalabDays > 0
+          ? 'datalab_benchmark'
+          : revenue > 0
+            ? 'bork_api'
+            : 'unknown',
     dataGap: false,
   }
 }

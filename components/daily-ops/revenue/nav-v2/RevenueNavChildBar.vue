@@ -2,7 +2,7 @@
   <nav
     v-if="options.length"
     :aria-label="`${activeMode} period`"
-    class="scrollbar-hide inline-flex w-max max-w-full min-w-0 shrink-0 flex-nowrap items-center gap-1 overflow-x-auto rounded-md border-2 border-gray-900 bg-white p-1"
+    class="scrollbar-hide inline-flex w-max max-w-full min-w-0 shrink-0 flex-nowrap items-center gap-1 overflow-x-auto overscroll-x-contain rounded-md border-2 border-gray-900 bg-white p-1"
   >
     <button
       v-for="opt in options"

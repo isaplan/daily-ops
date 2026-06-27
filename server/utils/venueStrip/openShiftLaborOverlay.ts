@@ -3,7 +3,7 @@
  * @created: 2026-06-08T00:00:00.000Z
  * @last-modified: 2026-06-09T20:00:00.000Z
  * @description: Today-only overlay — recalc hours/wages for open check_ins (start → now)
- * @last-fix: [2026-06-09] check_ins SSOT for open-register floor staff + member cost_per_hour
+ * @last-fix: [2026-06-23] Afwas person dedup + split-line check-in match (no duplicate drawer rows)
  * @adr-ref: ADR-004, ADR-010
  *
  * @exports-to:
@@ -19,13 +19,33 @@ import {
 } from '~/utils/dailyOpsOpenShiftLabor'
 import type { MemberCompensationLookup } from '../eitjeAggCompensationEnrich'
 import { resolveMemberCompensationHit } from '../eitjeAggCompensationEnrich'
-import { expandWorkerLineForTeam } from '../dailyOpsVenueStripWorkers'
+import {
+  expandWorkerLineForTeam,
+  hasAfwasPersonLines,
+  isAfwasTeamName,
+  normWorkerName,
+} from '../dailyOpsVenueStripWorkers'
 import type { CheckInRow } from './checkIns'
 import type { WorkerShiftTimeMaps } from './workerShiftTimes'
 import { findShiftSlot } from './workerShiftTimes'
 
 function workerKey(userId: string, userName: string, teamName: string): string {
-  return `${userId}|${userName.trim().toLowerCase()}|${teamName.trim().toLowerCase()}`
+  return `${userId}|${normWorkerName(userName)}|${teamName.trim().toLowerCase()}`
+}
+
+function afwasPersonSeenKey(userId: string, userName: string): string {
+  return `afwas-person|${userId}|${normWorkerName(userName)}`
+}
+
+function markSeenLine(seen: Set<string>, worker: VenueStripWorkerLineDto): void {
+  seen.add(workerKey(worker.userId, worker.userName, worker.teamName))
+  if (isAfwasTeamName(worker.teamName)) {
+    seen.add(afwasPersonSeenKey(worker.userId, worker.userName))
+  }
+}
+
+function normTeam(teamName: string): string {
+  return teamName.trim().toLowerCase()
 }
 
 function isOperationalTeam(teamName: string): boolean {
@@ -70,12 +90,17 @@ function findCheckInForWorker(
   userName: string,
   teamName: string,
 ): CheckInRow | undefined {
-  const key = workerKey(userId, userName, teamName)
-  return checkInRows.find(
-    (row) =>
-      row.locationId === locationId &&
-      workerKey(row.userId, row.userName, row.teamName) === key,
-  )
+  const teamNorm = normTeam(teamName)
+  return checkInRows.find((row) => {
+    if (row.locationId !== locationId) return false
+    const samePerson =
+      (userId && row.userId === userId) ||
+      normWorkerName(row.userName) === normWorkerName(userName)
+    if (!samePerson) return false
+    const rowTeam = normTeam(row.teamName)
+    if (rowTeam === teamNorm) return true
+    return rowTeam === 'afwas' && isAfwasTeamName(teamName)
+  })
 }
 
 /**
@@ -101,7 +126,7 @@ export function applyOpenShiftLaborOverlay(
   const venueCheckIns = checkInRows.filter((r) => r.locationId === locationId)
 
   const updated = workers.map((worker) => {
-    seen.add(workerKey(worker.userId, worker.userName, worker.teamName))
+    markSeenLine(seen, worker)
     const checkIn = findCheckInForWorker(venueCheckIns, locationId, worker.userId, worker.userName, worker.teamName)
     if (checkIn?.checkInStart) {
       adjusted = true
@@ -122,6 +147,9 @@ export function applyOpenShiftLaborOverlay(
 
   for (const row of venueCheckIns) {
     if (!row.checkInStart) continue
+    if (normTeam(row.teamName) === 'afwas' && (seen.has(afwasPersonSeenKey(row.userId, row.userName)) || hasAfwasPersonLines(workers, row.userId, row.userName))) {
+      continue
+    }
     const key = workerKey(row.userId, row.userName, row.teamName)
     if (seen.has(key)) continue
 
@@ -134,7 +162,7 @@ export function applyOpenShiftLaborOverlay(
     const lines = expandWorkerLineForTeam(row.userId, row.userName, row.teamName, hours, loaded, operational)
     for (const line of lines) {
       updated.push({ ...line, startLabel: undefined, endLabel: undefined })
-      seen.add(workerKey(line.userId, line.userName, line.teamName))
+      markSeenLine(seen, line)
     }
     adjusted = true
   }

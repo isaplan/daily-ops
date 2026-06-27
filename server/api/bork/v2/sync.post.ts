@@ -25,9 +25,11 @@ export default defineEventHandler(async (event) => {
   const jobType =
     body?.endpoint === 'master' || body?.endpoint === 'master-data'
       ? 'master-data'
-      : body?.endpoint === 'historical-data'
-        ? 'historical-data'
-        : 'daily-data'
+      : body?.endpoint === 'historical-data-31d'
+        ? 'historical-data-31d'
+        : body?.endpoint === 'historical-data-7d' || body?.endpoint === 'historical-data'
+          ? 'historical-data-7d'
+          : 'daily-data'
 
   const result = await executeBorkJob(db, jobType)
   return {

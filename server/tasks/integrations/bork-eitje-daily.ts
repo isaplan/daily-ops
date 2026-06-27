@@ -2,18 +2,15 @@
  * Nitro scheduled task: Bork then Eitje `daily-data` (same order and 30s gap as daily-ops-sync.yml).
  *
  * @registry-id: taskIntegrationsBorkEitjeDaily
- * @last-modified: 2026-06-06T00:40:00.000Z
- * @last-fix: [2026-06-07] Per-weekday Amsterdam cron (SSOT borkEitjeDailyCronSchedule.ts)
- *   Prior: [2026-06-06] Added 22:00 + Fri/Sat 02:00 weekend bonus
+ * @last-modified: 2026-06-24T00:00:00.000Z
+ * @last-fix: [2026-06-24] Snapshot tail handled in executeBorkJob/executeEitjeJob
  * @exports-to: nuxt.config.ts → nitro.scheduledTasks
  */
 
 console.log('[integrations/bork-eitje-daily.ts] Module loaded - this should print on Nitro startup')
 
-import { addCalendarDaysYmd, calendarYmdInAmsterdam } from '~/utils/dailyOpsBusinessDate'
 import { getDb } from '../../utils/db'
 import { runIntegrationCronJob } from '../../services/integrationCronRunner'
-import { rebuildSnapshotsForBusinessDateRange } from '../../utils/dailyOpsSnapshot/triggerSnapshotRebuilds'
 
 const JOB_TYPE = 'daily-data'
 const PAUSE_MS = 30_000
@@ -36,16 +33,11 @@ export default defineTask({
       const eitje = await runIntegrationCronJob(db, 'eitje', JOB_TYPE)
       console.log('[integrations:bork-eitje-daily] Eitje completed')
 
-      const todayYmd = calendarYmdInAmsterdam(new Date())
-      const yesterdayYmd = addCalendarDaysYmd(todayYmd, -1)
-      const snapshots = await rebuildSnapshotsForBusinessDateRange(db, yesterdayYmd, todayYmd)
-
       return {
         result: {
           ok: bork.syncResult.ok && eitje.syncResult.ok,
           bork: bork.syncResult,
           eitje: eitje.syncResult,
-          snapshots,
         },
       }
     } catch (e) {

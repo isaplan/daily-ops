@@ -23,7 +23,7 @@
           title="Table"
           @click="hourlyViewMode = 'table'"
         >
-          <UIcon name="i-lucide-table-2" class="size-4" aria-hidden="true" />
+          <UIcon name="i-lucide-sheet" class="size-4" aria-hidden="true" />
           <span class="sr-only">Table</span>
         </button>
         <button

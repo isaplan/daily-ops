@@ -720,7 +720,7 @@ export type VenueDayBorkTotals = {
 }
 
 export type VenueDayHeadlineRevenue = {
-  leadSource: 'inbox' | 'bork' | 'none'
+  leadSource: 'inbox' | 'bork' | 'datalab_benchmark' | 'none'
   totals: VenueDayBorkTotals
   morningInbox: BasisReportData | null
 }
@@ -797,6 +797,8 @@ export function resolveVenueDayHeadlineRevenue(input: {
   hasBorkDay?: boolean
   /** When Gmail OAuth is broken, ignore inbox rows and use Bork API totals only. */
   forceBorkHeadline?: boolean
+  /** Datalab/register daily export — used when inbox + live Bork agg are missing (pre-2024-11 history). */
+  benchmark?: VenueDayBorkTotals | null
 }): VenueDayHeadlineRevenue {
   const morningInbox = input.forceBorkHeadline
     ? null
@@ -818,6 +820,14 @@ export function resolveVenueDayHeadlineRevenue(input: {
       leadSource: 'bork',
       morningInbox: null,
       totals: input.bork,
+    }
+  }
+  const bench = input.benchmark
+  if (bench && (bench.ex_vat > 0 || bench.inc_vat > 0)) {
+    return {
+      leadSource: 'datalab_benchmark',
+      morningInbox: null,
+      totals: bench,
     }
   }
   return { leadSource: 'none', morningInbox: null, totals: EMPTY_TOTALS }

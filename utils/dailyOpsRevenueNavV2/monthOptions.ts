@@ -1,8 +1,9 @@
 /**
  * @registry-id: revenueNavV2MonthOptions
  * @created: 2026-06-08T00:00:00.000Z
- * @last-modified: 2026-06-08T00:00:00.000Z
+ * @last-modified: 2026-06-24T00:00:00.000Z
  * @description: Generate last 12 month slot options (this-month, last-month, then m-YYYY-MM pills)
+ * @last-fix: [2026-06-24] Fix month pill sequence — start at 2 months ago, not 3
  * @adr-ref: ADR-011
  *
  * @exports-to:
@@ -34,17 +35,19 @@ export type MonthOption = RevenueNavV2SlotOption & {
  */
 export function buildMonthSlotOptions(now = new Date(), count = 10): MonthOption[] {
   const options: MonthOption[] = []
-  // Start 2 months ago (this-month and last-month are separate pills)
   let year = now.getUTCFullYear()
-  let month = now.getUTCMonth() + 1 // 1-based
+  let month = now.getUTCMonth() + 1
 
-  for (let i = 0; i < count; i++) {
+  // this-month + last-month are fixed pills — start rolling list 2 months ago
+  for (let skip = 0; skip < 2; skip++) {
     month -= 1
     if (month < 1) {
       month = 12
       year -= 1
     }
-    if (i < 2) continue // skip last-month (i=0) and the month before (i=1 = offset)
+  }
+
+  for (let i = 0; i < count; i++) {
     const label = `${MONTH_LABELS[month - 1]} ${year}`
     const short = MONTH_LABELS[month - 1]!
     options.push({
@@ -54,6 +57,11 @@ export function buildMonthSlotOptions(now = new Date(), count = 10): MonthOption
       year,
       month,
     })
+    month -= 1
+    if (month < 1) {
+      month = 12
+      year -= 1
+    }
   }
   return options
 }

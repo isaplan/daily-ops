@@ -21,7 +21,12 @@
           </nav>
         </div>
 
-        <DailyOpsRevenueNavV2RevenueAnalyticsNavV2 v-if="isRevenueRoute && revenueNavV2" />
+        <div v-if="isStaffRoute" class="flex w-full min-w-0 justify-end">
+          <StaffNavChildBar />
+        </div>
+
+        <StaffAnalyticsNav v-if="isStaffAnalyticsRoute" />
+        <DailyOpsRevenueNavV2RevenueAnalyticsNavV2 v-else-if="isRevenueRoute && revenueNavV2" />
         <DailyOpsRevenueAnalyticsNav v-else-if="isRevenueRoute" />
 
         <div v-if="!hideOpsPeriodNav" class="flex w-full min-w-0 justify-end">
@@ -115,6 +120,8 @@ import {
 } from '~/types/daily-ops-dashboard'
 import { addCalendarDaysYmd, amsterdamOpenRegisterBusinessDateYmd } from '~/utils/dailyOpsBusinessDate'
 import { weekdayShortForYmd } from '~/utils/inbox/importTableQuickDates'
+import StaffNavChildBar from '~/components/daily-ops/staff/nav/StaffNavChildBar.vue'
+import StaffAnalyticsNav from '~/components/daily-ops/staff/nav/StaffAnalyticsNav.vue'
 
 const props = withDefaults(
   defineProps<{
@@ -190,18 +197,22 @@ onUnmounted(() => {
 provide('dailyOpsSectionNavWidthPx', sectionNavWidthPx)
 
 const isRevenueRoute = computed(() => route.path.includes('/daily-ops/revenue'))
+const isStaffRoute = computed(() => route.path.includes('/daily-ops/staff'))
+const isStaffAnalyticsRoute = computed(() =>
+  route.path.includes('/daily-ops/staff/totals') || route.path.includes('/daily-ops/staff/plusmin'),
+)
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const revenueNavV2 = (useRuntimeConfig() as any).public?.revenueNavVersion === 'v2'
 
-watch(isRevenueRoute, () => {
+watch([isRevenueRoute, isStaffRoute], () => {
   nextTick(() => {
     measureSectionNavWidth()
     measurePeriodNavWidth()
   })
 })
 watch(() => props.showRangePeriodNav, () => nextTick(measurePeriodNavWidth))
-const hideOpsPeriodNav = computed(() => isRevenueRoute.value)
+const hideOpsPeriodNav = computed(() => isRevenueRoute.value || isStaffRoute.value)
 
 const {
   period,

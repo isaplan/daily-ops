@@ -101,7 +101,12 @@
         >
           {{ venue.locationName }}
         </h3>
-        <DailyOpsVenueStripOverviewCard :venue="venue" :show-active="showActiveCounts" />
+        <DailyOpsVenueStripOverviewCard
+          :venue="venue"
+          :show-active="showActiveCounts"
+          :leave-venue="attendanceVenue(venue.locationId, 'leave')"
+          :sick-venue="attendanceVenue(venue.locationId, 'sick')"
+        />
       </div>
     </div>
 
@@ -240,7 +245,12 @@
             >
               {{ venue.locationName }}
             </h3>
-            <DailyOpsVenueStripOverviewCard :venue="venue" :show-active="showActiveCounts" />
+            <DailyOpsVenueStripOverviewCard
+          :venue="venue"
+          :show-active="showActiveCounts"
+          :leave-venue="attendanceVenue(venue.locationId, 'leave')"
+          :sick-venue="attendanceVenue(venue.locationId, 'sick')"
+        />
           </div>
         </div>
       </div>
@@ -392,7 +402,12 @@
             >
               {{ venue.locationName }}
             </h3>
-            <DailyOpsVenueStripOverviewCard :venue="venue" :show-active="showActiveCounts" />
+            <DailyOpsVenueStripOverviewCard
+          :venue="venue"
+          :show-active="showActiveCounts"
+          :leave-venue="attendanceVenue(venue.locationId, 'leave')"
+          :sick-venue="attendanceVenue(venue.locationId, 'sick')"
+        />
           </div>
         </div>
       </div>
@@ -528,6 +543,8 @@ import type {
   VenueStripContractRowDto,
   VenueStripLaborRowDto,
   VenueStripResponseDto,
+  DailyOpsAttendanceKpisDto,
+  DailyOpsAttendanceVenueDto,
 } from '~/types/daily-ops-dashboard'
 import { resolveDailyOpsPeriod } from '~/utils/dailyOpsPeriod'
 import { weekdayShortForYmd } from '~/utils/inbox/importTableQuickDates'
@@ -619,6 +636,27 @@ const { data, pending, error: fetchError } = useAsyncData(
     }),
   { watch: [cacheKey] }
 )
+
+const attendanceCacheKey = computed(
+  () => `daily-ops-attendance-kpis-${props.period}-${props.anchor ?? ''}`,
+)
+
+const { data: attendanceData } = useAsyncData(
+  attendanceCacheKey,
+  async (): Promise<DailyOpsAttendanceKpisDto | null> =>
+    await $fetch<DailyOpsAttendanceKpisDto>('/api/daily-ops/metrics/attendance-kpis', {
+      query: stripQuery.value,
+    }),
+  { watch: [attendanceCacheKey] },
+)
+
+function attendanceVenue(
+  locationId: string,
+  kind: 'leave' | 'sick',
+): DailyOpsAttendanceVenueDto | null {
+  const block = kind === 'leave' ? attendanceData.value?.leave : attendanceData.value?.sick
+  return block?.venues.find((v) => v.locationId === locationId) ?? null
+}
 
 const hasVenues = computed(() => (data.value?.venues?.length ?? 0) > 0)
 const showActiveCounts = computed(() => props.period === 'today')

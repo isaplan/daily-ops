@@ -389,7 +389,10 @@ function venueBedieningRows (): KpiDrawerVenueRow[] {
 }
 
 function staffForVenue (venue: VenueStripCardDto, filter: GewerktStaffFilter | 'all') {
-  const workers = venue.workers ?? []
+  let workers = venue.workers ?? []
+  if (filter === 'all') {
+    workers = collapseAfwasSplitLinesForDisplay(workers)
+  }
   return workers
     .filter((w) => {
       if (filter === 'all') return true
@@ -398,7 +401,7 @@ function staffForVenue (venue: VenueStripCardDto, filter: GewerktStaffFilter | '
     })
     .map((w) => ({
       name: w.userName,
-      team: w.teamName,
+      team: formatVenueStripWorkerTeamLabel(w.teamName),
       startLabel: w.startLabel,
       endLabel: w.endLabel,
       hours: formatHoursWhole(w.hours),

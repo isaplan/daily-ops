@@ -1,9 +1,9 @@
 /**
  * @registry-id: dailyOpsSnapshotTriggerRebuilds
  * @created: 2026-05-27T00:00:00.000Z
- * @last-modified: 2026-06-02T00:00:00.000Z
+ * @last-modified: 2026-06-24T00:00:00.000Z
  * @description: Enqueue or run daily_ops_snapshot rebuilds after Bork/Eitje aggregation writes.
- * @last-fix: [2026-06-02] Bork location discovery uses suffix fallback (_test vs _v2)
+ * @last-fix: [2026-06-24] materializeIntegrationPipelineSnapshots — sync tail for integration crons
  * @adr-ref: ADR-004
  *
  * @architecture:
@@ -87,4 +87,33 @@ export async function rebuildSnapshotsForBusinessDateRange(
     `[snapshot:trigger] materialized ${built} snapshot(s), errors=${errors}, business_date ${startDate}..${endDate}`,
   )
   return { built, errors }
+}
+
+export type IntegrationPipelineSnapshotResult = {
+  startDate: string
+  endDate: string
+  built: number
+  errors: number
+}
+
+/**
+ * Final step of integration pipeline: resync + aggregation → sealed snapshot refresh → JSON bundle cache.
+ * Always reopens sealed days (`forceReopenSealed`) so warm-tier fixes propagate to Revenue GET paths.
+ */
+export async function materializeIntegrationPipelineSnapshots(
+  db: Db,
+  startDate: string,
+  endDate: string,
+  locationId?: string,
+): Promise<IntegrationPipelineSnapshotResult> {
+  const { built, errors } = await rebuildSnapshotsForBusinessDateRange(
+    db,
+    startDate,
+    endDate,
+    locationId,
+  )
+  console.info(
+    `[integration:pipeline] snapshots+JSON ${startDate}..${endDate} built=${built} errors=${errors}`,
+  )
+  return { startDate, endDate, built, errors }
 }

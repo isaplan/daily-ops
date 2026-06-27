@@ -156,7 +156,7 @@ export type DailyOpsRevenueKpiDto = {
   revenuePerItem: number
   businessDays: number
   avgRevenuePerDay: number
-  leadSource: 'inbox_basis' | 'bork_api' | 'unknown'
+  leadSource: 'inbox_basis' | 'bork_api' | 'datalab_benchmark' | 'unknown'
   currentLabel: string
   compareDelta?: { amount: number; pct: number | null }
   compareLabel?: string

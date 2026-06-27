@@ -5,7 +5,7 @@
  * @description: Builds DailyOpsSnapshotRevenueSection for one (businessDate, locationId).
  *   Reads only from aggregated collections: bork_business_days, bork_sales_by_hour,
  *   inbox-bork-basis-report. Never touches bork_raw_data.
- * @last-fix: [2026-05-27] Inbox headline only when cron 7|8 (morning final); intraday 18/23 never lead totals.
+ * @last-fix: [2026-06-24] Datalab daily benchmark fallback when inbox/Bork agg missing (2024 history)
  *   Prior: [2026-05-26] Snapshot carries order-time hourly Bork buckets beside paid-time buckets.
  *   Prior: [2026-05-25] Bork reads use resolveBorkAggReadSuffix (_v2) like products/hourly builders.
  *
@@ -32,6 +32,7 @@ import {
   resolveVenueDayHeadlineRevenue,
   type BasisReportData,
 } from '../inbox/basis-report-mapper'
+import { readRevenueDailyBenchmark } from '../revenueDailyBenchmarkService'
 
 const runtimeProcess = globalThis as typeof globalThis & {
   process?: { env?: Record<string, string | undefined> }
@@ -96,13 +97,36 @@ export async function buildRevenueSection(
     record_count: Number(borkDay?.record_count ?? 0),
   }
 
+  const benchmarkRow = await readRevenueDailyBenchmark(db, businessDate, locationId)
+  const benchmark = benchmarkRow
+    ? {
+        ex_vat: benchmarkRow.ex_vat,
+        inc_vat: benchmarkRow.inc_vat,
+        vat: benchmarkRow.vat,
+        quantity: benchmarkRow.quantity,
+        record_count: 0,
+      }
+    : null
+
   const headline = resolveVenueDayHeadlineRevenue({
     inboxReports: inboxRows as unknown as BasisReportData[],
     bork: borkTotals,
     hasBorkDay: borkDay != null,
+    benchmark,
   })
   const leadSource = headline.leadSource as LeadRevenueSource
   const totals = headline.totals
+
+  const sealedBorkTotals =
+    leadSource === 'datalab_benchmark' && benchmark
+      ? {
+          ex_vat: benchmark.ex_vat,
+          inc_vat: benchmark.inc_vat,
+          vat: benchmark.vat,
+          quantity: benchmark.quantity,
+          record_count: 0,
+        }
+      : borkTotals
 
   const hourly = createHourlySlots()
   const orderHourly = createHourlySlots()
@@ -143,7 +167,7 @@ export async function buildRevenueSection(
     hourly,
     orderHourly,
     intraday,
-    borkTotals,
+    borkTotals: sealedBorkTotals,
     lastBuiltAt: new Date(),
   }
 }

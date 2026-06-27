@@ -33,21 +33,24 @@
     </div>
 
     <!-- Child slots (secondary bar) -->
-    <div class="flex w-full min-w-0 items-center justify-between gap-2">
+    <div class="flex w-full min-w-0 items-center gap-2">
       <DailyOpsRevenueNavV2RevenueCompareToggle
+        class="shrink-0"
         :compare-mode="query.compare"
         :compare-slots="query.compareSlots"
         @toggle="toggleCompare()"
         @clear="onClearCompare"
       />
 
-      <DailyOpsRevenueNavV2RevenueNavChildBar
-        :active-mode="query.mode"
-        :active-slot="query.slot"
-        :compare-mode="query.compare"
-        :compare-slots="query.compareSlots"
-        @select="onChildSelect"
-      />
+      <div class="flex min-w-0 flex-1 justify-end overflow-hidden">
+        <DailyOpsRevenueNavV2RevenueNavChildBar
+          :active-mode="query.mode"
+          :active-slot="query.slot"
+          :compare-mode="query.compare"
+          :compare-slots="query.compareSlots"
+          @select="onChildSelect"
+        />
+      </div>
     </div>
 
     <!-- Granularity toggle — shown for modes where bucketing matters -->

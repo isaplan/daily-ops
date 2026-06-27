@@ -28,7 +28,7 @@
  */
 
 export type SnapshotStatus = 'partial' | 'final'
-export type LeadRevenueSource = 'bork' | 'inbox' | 'none'
+export type LeadRevenueSource = 'bork' | 'inbox' | 'datalab_benchmark' | 'none'
 
 /** Revenue breakdown with ex + inc + vat, no fixed divisor. */
 export type RevenueBreakdown = {

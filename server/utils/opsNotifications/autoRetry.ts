@@ -7,6 +7,7 @@ const AUTO_RETRY_KINDS: OpsNotificationKind[] = [
   'missing_revenue_snapshot',
   'missing_labor_snapshot',
   'missing_master_snapshot',
+  'revenue_snapshot_empty',
   'bork_inbox_revenue_gap',
   'bork_revenue_aggregation_stale',
   'unparsed_basis_attachment',
@@ -62,7 +63,7 @@ export async function runOpsNotificationAutoRetry(db: Db): Promise<{
   let scanned = 0
   try {
     const report = await runOpsNotificationScan(db, {
-      lookbackDays: 3,
+      lookbackDays: 31,
       skipArchitecture: true,
       includeHidden: false,
     })

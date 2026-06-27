@@ -3,7 +3,7 @@
  * @created: 2026-05-28T00:00:00.000Z
  * @last-modified: 2026-06-07T00:00:00.000Z
  * @description: Venue-strip labor bucket resolution from snapshot labor sections
- * @last-fix: [2026-06-09] Open-shift overlay uses check_ins + member cost_per_hour for live loaded cost
+ * @last-fix: [2026-06-23] dedupe workers + merge missing Eitje shifts (Sanno/Dario) + Afwas overlay dedup
  * @adr-ref: ADR-004
  */
 
@@ -13,12 +13,13 @@ import type { DailyOpsSnapshotLaborSection } from '~/types/daily-ops-snapshot'
 import {
   enrichSnapshotLaborWorkersFromMembers,
   loadMemberCompensationForStaffRows,
+  resolveMemberCompensationHit,
   type MemberCompensationLookup,
 } from '../eitjeAggCompensationEnrich'
 import { amsterdamOpenRegisterBusinessDateYmd } from '~/utils/dailyOpsBusinessDate'
 import { allocateOperationalTeamLabor, type VenueLaborSlice } from '../eitjeVenueLaborRollup'
 import { bucketTeamFromName } from '../dailyOpsTeamBucket'
-import { workersFromSnapshot } from '../dailyOpsVenueStripWorkers'
+import { workersFromSnapshot, dedupeWorkerLines, mergeMissingWorkersFromEitjeShifts } from '../dailyOpsVenueStripWorkers'
 import { enrichWorkersWithShiftTimesFromMaps, type WorkerShiftTimeMaps } from './workerShiftTimes'
 import type { CheckInRow } from './checkIns'
 import { applyOpenShiftLaborOverlay, laborTotalsFromWorkers } from './openShiftLaborOverlay'
@@ -285,7 +286,15 @@ export async function resolveVenueStripLabor(
         }
       }
     }
-    return out
+    out = dedupeWorkerLines(out)
+    out = mergeMissingWorkersFromEitjeShifts(
+      out,
+      shiftTimeMaps?.eitjeRows,
+      locationId,
+      (userId, userName) =>
+        memberComp ? (resolveMemberCompensationHit(userId, userName, memberComp)?.costPerHour ?? 0) : 0,
+    )
+    return dedupeWorkerLines(out)
   }
 
   const doc = snapLabor

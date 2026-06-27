@@ -35,11 +35,11 @@ export function useDailyOpsRevenueMetrics() {
   const periodState = onRevenuePage
     ? useDailyOpsRevenueAnalyticsPeriod()
     : useDailyOpsRevenuePeriod()
-  const { revenueQuery, primaryRange } = periodState
+  const { revenueQuery, primaryRange, chartGranularity } = periodState
   const qs = computed(() => buildQueryString(revenueQuery.value))
   const cacheKey = computed(() => `rev-${qs.value}`)
   const gran = computed(() =>
-    timeseriesGranularity(primaryRange.value.startDate, primaryRange.value.endDate),
+    chartGranularity?.value ?? timeseriesGranularity(primaryRange.value.startDate, primaryRange.value.endDate),
   )
 
   const trendsActive = ref(false)

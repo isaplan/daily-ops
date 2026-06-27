@@ -85,6 +85,7 @@ const leadLabel = computed(() => {
   const s = props.summary?.leadSource
   if (s === 'inbox_basis') return 'Basis'
   if (s === 'bork_api') return 'Bork'
+  if (s === 'datalab_benchmark') return 'Datalab'
   return s === 'unknown' ? null : s
 })
 

@@ -28,7 +28,6 @@
 
 import type { Db, Document } from 'mongodb'
 import { extractLineRevenue, resetBorkVatDebugSampler } from '../utils/borkVatCalculation'
-import { enqueueSnapshotsForBusinessDateRange } from '../utils/dailyOpsSnapshot/triggerSnapshotRebuilds'
 
 function borkDateToISO(borkDate: number): string {
   const s = String(borkDate).padStart(8, '0')
@@ -797,8 +796,6 @@ export async function rebuildBorkSalesAggregationV2(
     await db.collection(productsCollection).insertMany(productDocs as Document[])
     result.productLines = productDocs.length
   }
-
-  await enqueueSnapshotsForBusinessDateRange(db, clearStartBusiness, clearEndBusiness)
 
   return result
 }
