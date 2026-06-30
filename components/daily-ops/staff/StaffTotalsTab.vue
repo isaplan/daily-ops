@@ -73,7 +73,7 @@
             ({{ chartGranularityLabel }})
           </h2>
 
-          <div v-if="viewMode === 'chart' && graphType === 'bars'" class="flex flex-col gap-3">
+          <div v-if="viewMode === 'chart'" class="flex flex-col gap-3">
             <div class="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-end">
               <UiPillTabs
                 v-model="venueFilter"
@@ -83,7 +83,7 @@
               />
             </div>
 
-            <div class="flex flex-col gap-2">
+            <div v-if="graphType === 'bars'" class="flex flex-col gap-2">
               <div class="flex flex-wrap items-center gap-1">
                 <span class="mr-1 w-20 shrink-0 text-xs font-medium text-gray-500">Reference</span>
                 <button
@@ -101,7 +101,37 @@
               </div>
 
               <div class="flex flex-wrap items-center gap-1">
-                <span class="mr-1 w-20 shrink-0 text-xs font-medium text-gray-500">Averages</span>
+                <span class="mr-1 w-20 shrink-0 text-xs font-medium text-gray-500">Contract</span>
+                <UiPillTabs
+                  v-model="contractFilter"
+                  :options="contractFilterOptions"
+                  aria-label="Filter staff chart by contract type"
+                />
+              </div>
+
+              <div class="flex flex-wrap items-center gap-1">
+                <span class="mr-1 w-20 shrink-0 text-xs font-medium text-gray-500">Bars</span>
+                <button
+                  type="button"
+                  class="rounded-md border px-2.5 py-1 text-xs font-semibold transition-colors"
+                  :class="showBars
+                    ? 'border-gray-900 bg-gray-900 text-white'
+                    : 'border-gray-300 bg-white text-gray-600 hover:bg-gray-50'"
+                  @click="showBars = !showBars"
+                >
+                  Hide
+                </button>
+              </div>
+            </div>
+
+            <div
+              v-if="showChartAverageControls"
+              class="flex flex-col gap-2"
+            >
+              <div class="flex flex-wrap items-center gap-1">
+                <span class="mr-1 w-20 shrink-0 text-xs font-medium text-gray-500">
+                  {{ graphType === 'bars' ? 'Averages' : 'Total overlay' }}
+                </span>
                 <button
                   v-for="opt in averageOptions"
                   :key="opt.id"
@@ -129,43 +159,9 @@
                   </button>
                 </div>
               </div>
-
-              <div class="flex flex-wrap items-center gap-1">
-                <span class="mr-1 w-20 shrink-0 text-xs font-medium text-gray-500">Contract</span>
-                <UiPillTabs
-                  v-model="contractFilter"
-                  :options="contractFilterOptions"
-                  aria-label="Filter staff chart by contract type"
-                />
-              </div>
-
-              <div class="flex flex-wrap items-center gap-1">
-                <span class="mr-1 w-20 shrink-0 text-xs font-medium text-gray-500">Bars</span>
-                <button
-                  type="button"
-                  class="rounded-md border px-2.5 py-1 text-xs font-semibold transition-colors"
-                  :class="showBars
-                    ? 'border-gray-900 bg-gray-900 text-white'
-                    : 'border-gray-300 bg-white text-gray-600 hover:bg-gray-50'"
-                  @click="showBars = !showBars"
-                >
-                  Hide
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <div
-            v-else-if="viewMode === 'chart'"
-            class="flex flex-col gap-3"
-          >
-            <div class="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-end">
-              <UiPillTabs
-                v-model="venueFilter"
-                class="shrink-0"
-                :options="venueFilterOptions"
-                aria-label="Filter staff chart by venue"
-              />
+              <p v-if="graphType !== 'bars'" class="text-[11px] text-gray-500">
+                Lines track total {{ activeMetric === 'hours' ? 'hours' : 'staff' }} (bars stay mix / team split).
+              </p>
             </div>
 
             <div
@@ -202,21 +198,6 @@
                   :options="contractFilterOptions"
                   aria-label="Filter team chart by contract type"
                 />
-              </div>
-              <div class="flex flex-wrap items-center gap-1">
-                <span class="mr-1 w-20 shrink-0 text-xs font-medium text-gray-500">Averages</span>
-                <button
-                  v-for="opt in teamAverageOptions"
-                  :key="opt.id"
-                  type="button"
-                  class="rounded-md border px-2.5 py-1 text-xs font-semibold transition-colors"
-                  :class="teamActiveAverages.has(opt.id)
-                    ? 'border-gray-900 bg-gray-900 text-white'
-                    : 'border-gray-300 bg-white text-gray-600 hover:bg-gray-50'"
-                  @click="toggleTeamAverage(opt.id)"
-                >
-                  {{ opt.label }}
-                </button>
               </div>
             </div>
           </div>
@@ -277,6 +258,7 @@
             :keys="contractStackKeys"
             :key-labels="contractStackLabels"
             :colors="contractStackColors"
+            :reference-lines="contractStackReferenceLines"
             :date-granularity="chartGranularity"
             show-percent-labels
             :width="width"
@@ -450,16 +432,15 @@ const activeAverages = ref(new Set<AverageType>(['trend']))
 const activeRolling = ref(new Set<string>(['30d']))
 const activeTeams = ref(new Set<StaffTeamGroupKey>())
 const teamStackDisplay = ref<'absolute' | 'percent'>('absolute')
-const teamActiveAverages = ref(new Set<'trend' | 'median'>(['trend', 'median']))
+
+const showChartAverageControls = computed(() => {
+  if (graphType.value === 'bars' || graphType.value === 'stacked') return true
+  return graphType.value === 'teams' && teamStackDisplay.value === 'absolute'
+})
 
 const teamStackDisplayOptions = [
   { value: 'absolute', label: 'Absolute' },
   { value: 'percent', label: '%' },
-]
-
-const teamAverageOptions = [
-  { id: 'trend' as const, label: 'Trend' },
-  { id: 'median' as const, label: 'Median' },
 ]
 
 const venueFilterOptions = [
@@ -601,23 +582,34 @@ const teamTotalSeries = computed(() =>
   })),
 )
 
-const teamStackReferenceLines = computed((): StackedBarReferenceLine[] => {
-  if (graphType.value !== 'teams' || teamStackDisplay.value === 'percent') return []
-  const rows = teamTotalSeries.value.filter((p) => p.value > 0)
-  if (!rows.length || !teamActiveAverages.value.size) return []
+const stackedChartData = computed((): StackedBarDataPoint[] => buildStackedData(stackedVenueSeries.value))
+
+const stackedTotalSeries = computed(() =>
+  stackedChartData.value.map((row) => ({
+    date: String(row.date),
+    value: contractStackKeys.reduce((sum, key) => sum + (Number(row[key]) || 0), 0),
+  })),
+)
+
+function buildStackedTotalReferenceLines(
+  rows: Array<{ date: string; value: number }>,
+  idPrefix: string,
+): StackedBarReferenceLine[] {
+  const data = rows.filter((p) => p.value > 0)
+  if (!data.length || !activeAverages.value.size) return []
 
   const unit = chartGranularityLabel.value.replace('per ', '')
   const suffix = activeMetric.value === 'hours' ? 'h' : ''
   const decimals = activeMetric.value === 'hours' ? 1 : 0
   const lines: StackedBarReferenceLine[] = []
 
-  if (teamActiveAverages.value.has('trend')) {
-    const trend = chartTrendSeries(rows)
+  if (activeAverages.value.has('trend')) {
+    const trend = chartTrendSeries(data)
     if (trend.points.length >= 2) {
       const slopeLabel = `${trend.slopePerBucket >= 0 ? '+' : ''}${trend.slopePerBucket.toFixed(decimals)}${suffix}/${unit}`
       const style = referenceLineStyleForAverage('trend')
       lines.push({
-        id: 'team-trend',
+        id: `${idPrefix}-trend`,
         kind: 'series',
         points: trend.points,
         label: `Total ${slopeLabel} · n=${trend.sampleCount}`,
@@ -629,12 +621,12 @@ const teamStackReferenceLines = computed((): StackedBarReferenceLine[] => {
     }
   }
 
-  if (teamActiveAverages.value.has('median')) {
-    const stat = chartPeriodMedian(rows)
+  if (activeAverages.value.has('median')) {
+    const stat = chartPeriodMedian(data)
     if (stat.median > 0) {
       const style = referenceLineStyleForAverage('median')
       lines.push({
-        id: 'team-median',
+        id: `${idPrefix}-median`,
         kind: 'flat',
         value: stat.median,
         label: `Total med ${stat.median.toFixed(decimals)}${suffix}/${unit} · n=${stat.sampleCount}`,
@@ -645,10 +637,39 @@ const teamStackReferenceLines = computed((): StackedBarReferenceLine[] => {
     }
   }
 
+  if (activeAverages.value.has('rolling')) {
+    for (const windowLabel of rollingWindowLabels) {
+      if (!activeRolling.value.has(windowLabel)) continue
+      const days = STAFF_ROLLING_WINDOW_DAYS[windowLabel]!
+      const points = chartRollingMedianSeries(data, chartGranularity.value, days)
+      const last = [...points].reverse().find((p) => p.value > 0)
+      if (!last) continue
+      const style = referenceLineStyleForAverage('rolling')
+      lines.push({
+        id: `${idPrefix}-${windowLabel}`,
+        kind: 'series',
+        points,
+        label: `Total ${windowLabel} ${last.value.toFixed(decimals)}${suffix}`,
+        color: referenceLineColor('#374151', 'rolling'),
+        strokeWidth: style.strokeWidth,
+        dashArray: style.dashArray,
+        strokeLinecap: 'strokeLinecap' in style ? style.strokeLinecap : undefined,
+      })
+    }
+  }
+
   return lines
+}
+
+const contractStackReferenceLines = computed((): StackedBarReferenceLine[] => {
+  if (graphType.value !== 'stacked') return []
+  return buildStackedTotalReferenceLines(stackedTotalSeries.value, 'contract')
 })
 
-const stackedChartData = computed((): StackedBarDataPoint[] => buildStackedData(stackedVenueSeries.value))
+const teamStackReferenceLines = computed((): StackedBarReferenceLine[] => {
+  if (graphType.value !== 'teams' || teamStackDisplay.value === 'percent') return []
+  return buildStackedTotalReferenceLines(teamTotalSeries.value, 'team')
+})
 
 const barChartSeries = computed((): GroupedBarSeries[] =>
   chartSeries.value.map((s) => ({
@@ -932,13 +953,6 @@ function toggleTeam(groupKey: StaffTeamGroupKey) {
   activeTeams.value = next
 }
 
-function toggleTeamAverage(avg: 'trend' | 'median') {
-  const next = new Set(teamActiveAverages.value)
-  if (next.has(avg)) next.delete(avg)
-  else next.add(avg)
-  teamActiveAverages.value = next
-}
-
 function formatTeamSegmentValue(value: number): string {
   if (teamStackDisplay.value === 'percent') {
     return `${Math.round(value)}%`
@@ -1015,12 +1029,27 @@ function trendWindowLabel(mode: StaffNavMode): string {
   return STAFF_REFERENCE_WINDOWS.trend[mode]
 }
 
+function overlayLegendSuffix(): string {
+  if (!activeAverages.value.size) return ''
+  const longWin = trendWindowLabel(staffMode.value)
+  const parts: string[] = []
+  if (activeAverages.value.has('trend')) parts.push(`Solid total trend over ${longWin}`)
+  if (activeAverages.value.has('median')) parts.push('dashed total median')
+  if (activeAverages.value.has('rolling')) {
+    const rolling = [...activeRolling.value].sort().join(', ') || '30d'
+    parts.push(`dotted rolling ${rolling}`)
+  }
+  return parts.length ? `Overlay: ${parts.join(' · ')}.` : ''
+}
+
 const chartLegendText = computed(() => {
   if (viewMode.value !== 'chart') return ''
 
   if (graphType.value === 'stacked') {
     const metric = activeMetric.value === 'hours' ? 'hours' : 'headcount'
-    return `Stacked bars show FT / PT / ZZP share of ${metric} per period (% inside segments ≥6%). Pick a venue to track contract mix shifts (e.g. ZZP → FT).`
+    const mix = `Stacked bars show FT / PT / ZZP share of ${metric} per period (% inside segments ≥6%).`
+    const overlay = overlayLegendSuffix()
+    return overlay ? `${mix} ${overlay}` : mix
   }
 
   if (graphType.value === 'teams') {
@@ -1033,14 +1062,8 @@ const chartLegendText = computed(() => {
         : activeMetric.value === 'staff'
           ? 'Absolute = unique people active in that period.'
           : 'Absolute = total hours per team.'
-    const avgParts: string[] = []
-    if (teamStackDisplay.value === 'absolute' && teamActiveAverages.value.has('trend')) {
-      avgParts.push(`Solid trend over ${trendWindowLabel(staffMode.value)}`)
-    }
-    if (teamStackDisplay.value === 'absolute' && teamActiveAverages.value.has('median')) {
-      avgParts.push('Dashed = total median')
-    }
-    const avg = avgParts.length ? ` ${avgParts.join(' · ')}.` : ''
+    const overlay = teamStackDisplay.value === 'absolute' ? overlayLegendSuffix() : ''
+    const avg = overlay ? ` ${overlay}` : ''
     return `Team chart (${metric}${contract}). ${mode}${avg}`
   }
 
