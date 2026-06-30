@@ -3,12 +3,13 @@
  * @created: 2026-06-22T00:00:00.000Z
  * @last-modified: 2026-06-22T00:00:00.000Z
  * @description: Eitje loaded labor → accounting personnel calibration (per venue/year).
- * @last-fix: [2026-06-22] 2025 full-year calibration vs dashboard Eitje aggregate
+ * @last-fix: [2026-06-25] Wired into Insights staff costs + Staff %
  *
  * @exports-to:
  * ✓ server/utils/dailyOpsSnapshot/buildProfitByIntervalFromSnapshot.ts
  * ✓ server/utils/dailyOpsMetrics/profitHour.ts
  * ✓ server/utils/dailyOpsSnapshot/drilldown/buildRevenueDrilldownHourly.ts
+ * ✓ server/utils/dailyOpsInsights/buildPerformanceInsights.ts
  */
 
 import type { AccountingPnlVenueId, AccountingPnlYear } from '~/utils/accountingPnlData'

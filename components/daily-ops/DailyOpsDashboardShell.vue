@@ -21,12 +21,47 @@
           </nav>
         </div>
 
+        <div v-if="showLocationShortcuts" class="pointer-events-auto flex w-full min-w-0 justify-end">
+          <nav
+            aria-label="Location shortcuts"
+            class="scrollbar-hide inline-flex w-max max-w-full min-w-0 shrink-0 flex-nowrap gap-1 overflow-x-auto rounded-md border-2 border-gray-900 bg-white p-1"
+          >
+            <button
+              type="button"
+              class="rounded px-3 py-1.5 text-sm font-semibold transition-colors"
+              :class="!locationId
+                ? 'bg-gray-900 text-white'
+                : 'text-gray-700 hover:bg-gray-100'"
+              @click="setLocation(null)"
+            >
+              All
+            </button>
+          <button
+            v-for="s in resolvedLocationShortcuts"
+            :key="s.abbrev"
+            type="button"
+            class="rounded px-3 py-1.5 text-sm font-semibold transition-colors"
+            :class="locationId === s.id
+              ? 'bg-gray-900 text-white'
+              : 'text-gray-700 hover:bg-gray-100'"
+            :aria-label="`${s.longLabel}, ${s.abbrev}`"
+            @click="s.id != null && setLocation(s.id)"
+          >
+            <span class="md:hidden">{{ s.abbrev }}</span>
+            <span class="hidden md:inline">{{ s.longLabel }}</span>
+          </button>
+          </nav>
+        </div>
+
         <div v-if="isStaffRoute" class="pointer-events-auto flex w-full min-w-0 justify-end">
           <StaffNavChildBar />
         </div>
 
         <div v-if="isStaffAnalyticsRoute" class="pointer-events-auto w-full min-w-0">
           <StaffAnalyticsNav />
+        </div>
+        <div v-else-if="isInsightsRoute" class="pointer-events-auto w-full min-w-0">
+          <InsightsAnalyticsNav />
         </div>
         <div v-else-if="isRevenueRoute && revenueNavV2" class="pointer-events-auto w-full min-w-0">
           <DailyOpsRevenueNavV2RevenueAnalyticsNavV2 />
@@ -78,38 +113,6 @@
             </button>
           </nav>
         </div>
-
-        <div v-if="showLocationShortcuts" class="pointer-events-auto flex w-full min-w-0 justify-end">
-          <nav
-            aria-label="Location shortcuts"
-            class="scrollbar-hide inline-flex w-max max-w-full min-w-0 shrink-0 flex-nowrap gap-1 overflow-x-auto rounded-md border-2 border-gray-900 bg-white p-1"
-          >
-            <button
-              type="button"
-              class="rounded px-3 py-1.5 text-sm font-semibold transition-colors"
-              :class="!locationId
-                ? 'bg-gray-900 text-white'
-                : 'text-gray-700 hover:bg-gray-100'"
-              @click="setLocation(null)"
-            >
-              All
-            </button>
-          <button
-            v-for="s in resolvedLocationShortcuts"
-            :key="s.abbrev"
-            type="button"
-            class="rounded px-3 py-1.5 text-sm font-semibold transition-colors"
-            :class="locationId === s.id
-              ? 'bg-gray-900 text-white'
-              : 'text-gray-700 hover:bg-gray-100'"
-            :aria-label="`${s.longLabel}, ${s.abbrev}`"
-            @click="s.id != null && setLocation(s.id)"
-          >
-            <span class="md:hidden">{{ s.abbrev }}</span>
-            <span class="hidden md:inline">{{ s.longLabel }}</span>
-          </button>
-          </nav>
-        </div>
     </div>
 
     <div class="min-w-0">
@@ -128,6 +131,7 @@ import { addCalendarDaysYmd, amsterdamOpenRegisterBusinessDateYmd } from '~/util
 import { weekdayShortForYmd } from '~/utils/inbox/importTableQuickDates'
 import StaffNavChildBar from '~/components/daily-ops/staff/nav/StaffNavChildBar.vue'
 import StaffAnalyticsNav from '~/components/daily-ops/staff/nav/StaffAnalyticsNav.vue'
+import InsightsAnalyticsNav from '~/components/daily-ops/insights/InsightsAnalyticsNav.vue'
 
 const props = withDefaults(
   defineProps<{
@@ -141,9 +145,6 @@ const DAY_PERIOD_SET = new Set<string>(DAILY_OPS_DAY_PERIOD_IDS)
 const RANGE_PERIOD_SET = new Set<string>(DAILY_OPS_RANGE_PERIOD_IDS)
 
 type LocationRow = { _id: string; name: string; abbreviation?: string; chartColor?: string }
-
-/** Set true to restore fixed location filter (All / Van Kinsbergen / Bar Bea / L'amour). */
-const showLocationShortcuts = false
 
 const DAILY_OPS_SHORTCUT_ABBREVS = ['VKB', 'BEA', 'LAT'] as const
 
@@ -207,6 +208,10 @@ const isStaffRoute = computed(() => route.path.includes('/daily-ops/staff'))
 const isStaffAnalyticsRoute = computed(() =>
   route.path.includes('/daily-ops/staff/totals') || route.path.includes('/daily-ops/staff/plusmin'),
 )
+const isInsightsRoute = computed(() => route.path.includes('/daily-ops/insights'))
+
+/** Location filter (All / VKB / BEA / LAT) — insights page only. */
+const showLocationShortcuts = computed(() => isInsightsRoute.value)
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const revenueNavV2 = (useRuntimeConfig() as any).public?.revenueNavVersion === 'v2'
@@ -218,7 +223,9 @@ watch([isRevenueRoute, isStaffRoute], () => {
   })
 })
 watch(() => props.showRangePeriodNav, () => nextTick(measurePeriodNavWidth))
-const hideOpsPeriodNav = computed(() => isRevenueRoute.value || isStaffRoute.value)
+const hideOpsPeriodNav = computed(() =>
+  isRevenueRoute.value || isStaffRoute.value || isInsightsRoute.value,
+)
 
 const {
   period,

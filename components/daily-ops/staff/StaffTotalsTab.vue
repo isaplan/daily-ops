@@ -69,18 +69,42 @@
       <div class="rounded-lg border-2 border-gray-900 bg-white p-4">
         <div class="mb-4 flex flex-col gap-3">
           <h2 class="text-sm font-semibold">
-            {{ activeMetric === 'hours' ? 'Hours worked' : 'Staff count' }}
-            ({{ chartGranularityLabel }})
+            {{ chartMetricHeading }}
           </h2>
 
-          <div v-if="viewMode === 'chart'" class="flex flex-col gap-3">
-            <div class="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-end">
+          <div v-if="viewMode === 'chart'" class="flex flex-col gap-2">
+            <div class="flex flex-wrap items-center gap-1">
+              <span class="mr-1 w-20 shrink-0 text-xs font-medium text-gray-500">Graph</span>
+              <UiPillTabs
+                v-model="graphType"
+                :options="graphTypeOptions"
+                aria-label="Staff chart graph type"
+              />
+            </div>
+
+            <div class="flex flex-wrap items-center gap-1">
+              <span class="mr-1 w-20 shrink-0 text-xs font-medium text-gray-500">Location</span>
               <UiPillTabs
                 v-model="venueFilter"
                 class="shrink-0"
                 :options="venueFilterOptions"
                 aria-label="Filter staff chart by venue"
               />
+            </div>
+
+            <div v-if="graphType === 'stacked'" class="flex flex-wrap items-center gap-1">
+              <span class="mr-1 w-20 shrink-0 text-xs font-medium text-gray-500">Contract</span>
+              <div class="flex flex-wrap items-center gap-1.5">
+                <span
+                  v-for="(key, i) in contractStackKeys"
+                  :key="key"
+                  class="relative inline-flex items-center overflow-hidden rounded-md px-2 py-0.5 text-[11px] font-semibold text-white shadow-sm"
+                  :style="{ backgroundColor: contractStackColors[i] }"
+                >
+                  <span class="absolute inset-0 bg-black/45" aria-hidden="true" />
+                  <span class="relative">{{ contractStackLabels[key] }}</span>
+                </span>
+              </div>
             </div>
 
             <div v-if="graphType === 'bars'" class="flex flex-col gap-2">
@@ -160,7 +184,7 @@
                 </div>
               </div>
               <p v-if="graphType !== 'bars'" class="text-[11px] text-gray-500">
-                Lines track total {{ activeMetric === 'hours' ? 'hours' : 'staff' }} (bars stay mix / team split).
+                Lines track total {{ chartMetricNoun }} (bars stay mix / team split).
               </p>
             </div>
 
@@ -169,7 +193,7 @@
               class="flex flex-col gap-2"
             >
               <div class="flex flex-wrap items-center gap-1.5">
-                <span class="mr-1 shrink-0 text-xs font-medium text-gray-500">Teams</span>
+                <span class="mr-1 w-20 shrink-0 text-xs font-medium text-gray-500">Teams</span>
                 <button
                   v-for="groupKey in availableTeamGroups"
                   :key="groupKey"
@@ -184,7 +208,7 @@
                 </button>
               </div>
               <div class="flex flex-wrap items-center gap-1">
-                <span class="mr-1 shrink-0 text-xs font-medium text-gray-500">Bars</span>
+                <span class="mr-1 w-20 shrink-0 text-xs font-medium text-gray-500">Bars</span>
                 <UiPillTabs
                   v-model="teamStackDisplay"
                   :options="teamStackDisplayOptions"
@@ -199,36 +223,6 @@
                   aria-label="Filter team chart by contract type"
                 />
               </div>
-            </div>
-          </div>
-
-          <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-            <div v-if="graphType === 'stacked'" class="flex flex-wrap items-center gap-1">
-              <span class="mr-1 text-xs font-medium text-gray-500">Contract</span>
-              <div class="flex flex-wrap items-center gap-1.5">
-                <span
-                  v-for="(key, i) in contractStackKeys"
-                  :key="key"
-                  class="relative inline-flex items-center overflow-hidden rounded-md px-2 py-0.5 text-[11px] font-semibold text-white shadow-sm"
-                  :style="{ backgroundColor: contractStackColors[i] }"
-                >
-                  <span class="absolute inset-0 bg-black/45" aria-hidden="true" />
-                  <span class="relative">{{ contractStackLabels[key] }}</span>
-                </span>
-              </div>
-            </div>
-            <div v-else-if="graphType === 'teams'" class="flex-1" />
-            <div v-else class="flex-1" />
-            <div
-              v-if="viewMode === 'chart'"
-              class="flex flex-wrap items-center gap-1"
-            >
-              <span class="mr-1 text-xs font-medium text-gray-500">Graph</span>
-              <UiPillTabs
-                v-model="graphType"
-                :options="graphTypeOptions"
-                aria-label="Staff chart graph type"
-              />
             </div>
           </div>
         </div>
@@ -403,12 +397,23 @@ const { data: locationsRes } = useFetch<{ success: boolean; data: LocationRow[] 
   { key: 'daily-ops-locations-staff-totals' },
 )
 
+type StaffChartMetric = 'hours' | 'staff' | 'costs'
+
 const metricTabs = [
   { id: 'hours' as const, label: 'Hours' },
   { id: 'staff' as const, label: 'Staff' },
+  { id: 'costs' as const, label: 'Labor costs' },
 ]
 const referenceMetricOptions = computed(() => [
-  { id: 'hours' as const, label: activeMetric.value === 'hours' ? 'Hours' : 'Staff' },
+  {
+    id: 'hours' as const,
+    label:
+      activeMetric.value === 'hours'
+        ? 'Hours'
+        : activeMetric.value === 'staff'
+          ? 'Staff'
+          : 'Hours',
+  },
   { id: 'revenue' as const, label: 'Revenue' },
   { id: 'costs' as const, label: 'Costs' },
 ])
@@ -421,7 +426,7 @@ const averageOptions = [
 type ReferenceMetric = (typeof referenceMetricOptions)[number]['id']
 type AverageType = (typeof averageOptions)[number]['id']
 
-const activeMetric = ref<'hours' | 'staff'>('hours')
+const activeMetric = ref<StaffChartMetric>('hours')
 const viewMode = ref<'chart' | 'table'>('chart')
 const graphType = ref<StaffGraphType>('bars')
 const showBars = ref(true)
@@ -599,14 +604,19 @@ function buildStackedTotalReferenceLines(
   if (!data.length || !activeAverages.value.size) return []
 
   const unit = chartGranularityLabel.value.replace('per ', '')
-  const suffix = activeMetric.value === 'hours' ? 'h' : ''
-  const decimals = activeMetric.value === 'hours' ? 1 : 0
+  const metric = activeMetric.value
+  const isEuro = metric === 'costs'
+  const suffix = metric === 'hours' ? 'h' : ''
+  const decimals = metric === 'hours' ? 1 : 0
+  const formatTotal = (n: number) => (isEuro ? formatEur(n) : `${n.toFixed(decimals)}${suffix}`)
   const lines: StackedBarReferenceLine[] = []
 
   if (activeAverages.value.has('trend')) {
     const trend = chartTrendSeries(data)
     if (trend.points.length >= 2) {
-      const slopeLabel = `${trend.slopePerBucket >= 0 ? '+' : ''}${trend.slopePerBucket.toFixed(decimals)}${suffix}/${unit}`
+      const slopeLabel = isEuro
+        ? `${trend.slopePerBucket >= 0 ? '+' : ''}${formatEur(trend.slopePerBucket)}/${unit}`
+        : `${trend.slopePerBucket >= 0 ? '+' : ''}${trend.slopePerBucket.toFixed(decimals)}${suffix}/${unit}`
       const style = referenceLineStyleForAverage('trend')
       lines.push({
         id: `${idPrefix}-trend`,
@@ -629,7 +639,7 @@ function buildStackedTotalReferenceLines(
         id: `${idPrefix}-median`,
         kind: 'flat',
         value: stat.median,
-        label: `Total med ${stat.median.toFixed(decimals)}${suffix}/${unit} · n=${stat.sampleCount}`,
+        label: `Total med ${formatTotal(stat.median)}/${unit} · n=${stat.sampleCount}`,
         color: referenceLineColor('#374151', 'median'),
         strokeWidth: style.strokeWidth,
         dashArray: style.dashArray,
@@ -649,7 +659,7 @@ function buildStackedTotalReferenceLines(
         id: `${idPrefix}-${windowLabel}`,
         kind: 'series',
         points,
-        label: `Total ${windowLabel} ${last.value.toFixed(decimals)}${suffix}`,
+        label: `Total ${windowLabel} ${formatTotal(last.value)}`,
         color: referenceLineColor('#374151', 'rolling'),
         strokeWidth: style.strokeWidth,
         dashArray: style.dashArray,
@@ -719,13 +729,23 @@ function buildTeamStackedData(
   })
 }
 
+function teamLoadedCost(team: DailyOpsStaffTeamSeriesPoint): number {
+  const bc = team.byContract
+  if (!bc) return 0
+  return (bc.ft?.loaded_cost ?? 0) + (bc.pt?.loaded_cost ?? 0) + (bc.zzp?.loaded_cost ?? 0)
+}
+
 function teamMetricValue(team: DailyOpsStaffTeamSeriesPoint): number {
   if (contractFilter.value !== 'all') {
     const slice = team.byContract?.[contractFilter.value]
     if (!slice) return 0
-    return activeMetric.value === 'hours' ? slice.gewerkt_hours : slice.staff_count
+    if (activeMetric.value === 'hours') return slice.gewerkt_hours
+    if (activeMetric.value === 'staff') return slice.staff_count
+    return slice.loaded_cost
   }
-  return activeMetric.value === 'hours' ? team.gewerkt_hours : team.staff_count
+  if (activeMetric.value === 'hours') return team.gewerkt_hours
+  if (activeMetric.value === 'staff') return team.staff_count
+  return teamLoadedCost(team)
 }
 
 function buildStackedData(
@@ -753,13 +773,15 @@ function contractBucketMetric(
 ): number {
   const slice: DailyOpsStaffContractBucketMetrics | undefined = point.byContract?.[key]
   if (!slice) return 0
-  return activeMetric.value === 'hours' ? slice.gewerkt_hours : slice.staff_count
+  if (activeMetric.value === 'hours') return slice.gewerkt_hours
+  if (activeMetric.value === 'staff') return slice.staff_count
+  return slice.loaded_cost
 }
 
 function roundMetric(n: number): number {
-  return activeMetric.value === 'hours'
-    ? Math.round(n * 10) / 10
-    : Math.round(n)
+  if (activeMetric.value === 'hours') return Math.round(n * 10) / 10
+  if (activeMetric.value === 'costs') return Math.round(n * 100) / 100
+  return Math.round(n)
 }
 
 function buildBarData(
@@ -779,9 +801,25 @@ function buildBarData(
 
 const hasChartData = computed(() =>
   allVenueSeries.value.some((s) =>
-    s.points.some((p) => p.gewerkt_hours > 0 || p.staff_count > 0),
+    s.points.some(
+      (p) =>
+        p.gewerkt_hours > 0 ||
+        p.staff_count > 0 ||
+        (p.labor_loaded_cost ?? 0) > 0,
+    ),
   ),
 )
+
+function referenceLineYAxis(
+  refMetric: ReferenceMetric,
+  barMetric: StaffChartMetric,
+): 'right' | undefined {
+  const refIsEuro = refMetric === 'revenue' || refMetric === 'costs'
+  const barIsEuro = barMetric === 'costs'
+  if (barIsEuro && !refIsEuro) return 'right'
+  if (!barIsEuro && refIsEuro) return 'right'
+  return undefined
+}
 
 const chartReferenceLines = computed((): GroupedBarReferenceLine[] => {
   const series = chartSeries.value.filter((s) => s.points.length > 0)
@@ -795,9 +833,9 @@ const chartReferenceLines = computed((): GroupedBarReferenceLine[] => {
 
   for (const refMetric of activeReferenceMetrics.value) {
     for (const avg of activeAverages.value) {
-      const isEuro = refMetric === 'revenue' || refMetric === 'costs'
+      const refIsEuro = refMetric === 'revenue' || refMetric === 'costs'
       const style = referenceLineStyleForAverage(avg)
-      const yAxis = isEuro ? 'right' as const : undefined
+      const yAxis = referenceLineYAxis(refMetric, barMetric)
       const prefix =
         refMetric === 'revenue' ? 'rev' : refMetric === 'costs' ? 'cost' : ''
 
@@ -808,7 +846,9 @@ const chartReferenceLines = computed((): GroupedBarReferenceLine[] => {
             refMetric === 'hours'
               ? barMetric === 'hours'
                 ? p.gewerkt_hours
-                : p.staff_count
+                : barMetric === 'staff'
+                  ? p.staff_count
+                  : p.gewerkt_hours
               : refMetric === 'revenue'
                 ? p.revenue_ex_vat ?? 0
                 : p.labor_loaded_cost ?? 0,
@@ -820,7 +860,7 @@ const chartReferenceLines = computed((): GroupedBarReferenceLine[] => {
           if (trend.points.length < 2) continue
           const slope = trend.slopePerBucket
           const isStaffBar = barMetric === 'staff' && refMetric === 'hours'
-          const arrow = isEuro
+          const arrow = refIsEuro
             ? slope > 50
               ? '↑'
               : slope < -50
@@ -837,7 +877,7 @@ const chartReferenceLines = computed((): GroupedBarReferenceLine[] => {
                 : slope < -0.05
                   ? '↓'
                   : '→'
-          const slopeLabel = isEuro
+          const slopeLabel = refIsEuro
             ? `${slope >= 0 ? '+' : ''}${formatEur(slope)}/${unit}`
             : `${slope >= 0 ? '+' : ''}${slope.toFixed(barDecimals)}${barSuffix}/${unit}`
           lines.push({
@@ -846,7 +886,7 @@ const chartReferenceLines = computed((): GroupedBarReferenceLine[] => {
             points: trend.points,
             label: `${s.locationName}${prefix ? ` ${prefix}` : ''} ${arrow} ${slopeLabel} · n=${trend.sampleCount}`,
             color: referenceLineColorForOverlay(locationColor(s.locationId), {
-              euro: isEuro ? refMetric : undefined,
+              euro: refIsEuro ? refMetric : undefined,
               average: 'trend',
             }),
             strokeWidth: style.strokeWidth,
@@ -861,7 +901,7 @@ const chartReferenceLines = computed((): GroupedBarReferenceLine[] => {
         for (const s of series) {
           const stat = chartPeriodMedian(rowsFor(s.points))
           if (stat.median <= 0 || !stat.fromDate || !stat.toDate) continue
-          const valueLabel = isEuro
+          const valueLabel = refIsEuro
             ? formatEur(stat.median)
             : `${stat.median.toFixed(barDecimals)}${barSuffix}`
           lines.push({
@@ -872,7 +912,7 @@ const chartReferenceLines = computed((): GroupedBarReferenceLine[] => {
             toDate: stat.toDate,
             label: `${s.locationName}${prefix ? ` ${prefix}` : ''} med ${valueLabel}/${unit} · n=${stat.sampleCount}`,
             color: referenceLineColorForOverlay(locationColor(s.locationId), {
-              euro: isEuro ? refMetric : undefined,
+              euro: refIsEuro ? refMetric : undefined,
               average: 'median',
             }),
             dashArray: style.dashArray,
@@ -895,7 +935,7 @@ const chartReferenceLines = computed((): GroupedBarReferenceLine[] => {
             )
             const last = [...points].reverse().find((p) => p.value > 0)
             if (!last) continue
-            const valueLabel = isEuro
+            const valueLabel = refIsEuro
               ? formatEur(last.value)
               : `${last.value.toFixed(barDecimals)}${barSuffix}`
             lines.push({
@@ -904,7 +944,7 @@ const chartReferenceLines = computed((): GroupedBarReferenceLine[] => {
               points,
               label: `${s.locationName}${prefix ? ` ${prefix}` : ''} ${windowLabel} ${valueLabel}`,
               color: referenceLineColorForOverlay(locationColor(s.locationId), {
-                euro: isEuro ? refMetric : undefined,
+                euro: refIsEuro ? refMetric : undefined,
                 average: 'rolling',
               }),
               dashArray: style.dashArray,
@@ -976,7 +1016,9 @@ function teamPillStyle(groupKey: StaffTeamGroupKey): Record<string, string> {
 }
 
 function metricValue(p: DailyOpsStaffTimeseriesPoint): number {
-  return activeMetric.value === 'hours' ? p.gewerkt_hours : p.staff_count
+  if (activeMetric.value === 'hours') return p.gewerkt_hours
+  if (activeMetric.value === 'staff') return p.staff_count
+  return p.labor_loaded_cost ?? 0
 }
 
 function fmtHours(n: number) {
@@ -992,8 +1034,28 @@ function formatBucketDate(bucketKey: string) {
 }
 
 function formatMetricValue(n: number) {
-  return activeMetric.value === 'hours' ? fmtHours(n) : fmtCount(n)
+  if (activeMetric.value === 'hours') return fmtHours(n)
+  if (activeMetric.value === 'costs') return formatEur(n)
+  return fmtCount(n)
 }
+
+const chartMetricHeading = computed(() => {
+  if (activeMetric.value === 'hours') return `Hours worked (${chartGranularityLabel.value})`
+  if (activeMetric.value === 'staff') return `Staff count (${chartGranularityLabel.value})`
+  return `Labor costs (${chartGranularityLabel.value})`
+})
+
+const chartMetricNoun = computed(() => {
+  if (activeMetric.value === 'hours') return 'hours'
+  if (activeMetric.value === 'staff') return 'staff'
+  return 'loaded labor cost'
+})
+
+const chartMetricShortLabel = computed(() => {
+  if (activeMetric.value === 'hours') return 'Hours'
+  if (activeMetric.value === 'staff') return 'Staff'
+  return 'Labor costs'
+})
 
 function formatBarValue(n: number) {
   return formatMetricValue(n)
@@ -1011,18 +1073,16 @@ const chartTitle = computed(() => {
       venueFilter.value === 'all'
         ? 'All venues'
         : (REVENUE_LOCATIONS.find((l) => l.id === venueFilter.value)?.abbrev ?? 'Venue')
-    const metric = activeMetric.value === 'hours' ? 'Hours' : 'Staff'
-    return `${metric} mix · ${venue}`
+    return `${chartMetricShortLabel.value} mix · ${venue}`
   }
   if (graphType.value === 'teams') {
     const venue =
       venueFilter.value === 'all'
         ? 'All venues'
         : (REVENUE_LOCATIONS.find((l) => l.id === venueFilter.value)?.abbrev ?? 'Venue')
-    const metric = activeMetric.value === 'hours' ? 'Hours' : 'Staff'
-    return `${metric} by team · ${venue}`
+    return `${chartMetricShortLabel.value} by team · ${venue}`
   }
-  return activeMetric.value === 'hours' ? 'Hours worked' : 'Staff count'
+  return chartMetricHeading.value.replace(/\s*\([^)]*\)$/, '')
 })
 
 function trendWindowLabel(mode: StaffNavMode): string {
@@ -1046,14 +1106,24 @@ const chartLegendText = computed(() => {
   if (viewMode.value !== 'chart') return ''
 
   if (graphType.value === 'stacked') {
-    const metric = activeMetric.value === 'hours' ? 'hours' : 'headcount'
+    const metric =
+      activeMetric.value === 'hours'
+        ? 'hours'
+        : activeMetric.value === 'staff'
+          ? 'headcount'
+          : 'loaded labor cost'
     const mix = `Stacked bars show FT / PT / ZZP share of ${metric} per period (% inside segments ≥6%).`
     const overlay = overlayLegendSuffix()
     return overlay ? `${mix} ${overlay}` : mix
   }
 
   if (graphType.value === 'teams') {
-    const metric = activeMetric.value === 'hours' ? 'hours' : 'active staff'
+    const metric =
+      activeMetric.value === 'hours'
+        ? 'hours'
+        : activeMetric.value === 'staff'
+          ? 'active staff'
+          : 'loaded labor cost'
     const contract =
       contractFilter.value === 'all' ? '' : ` · ${contractFilter.value.toUpperCase()} only`
     const mode =
@@ -1061,7 +1131,9 @@ const chartLegendText = computed(() => {
         ? 'Bars normalised to 100% — allocation mix per period.'
         : activeMetric.value === 'staff'
           ? 'Absolute = unique people active in that period.'
-          : 'Absolute = total hours per team.'
+          : activeMetric.value === 'costs'
+            ? 'Absolute = loaded labor cost per team.'
+            : 'Absolute = total hours per team.'
     const overlay = teamStackDisplay.value === 'absolute' ? overlayLegendSuffix() : ''
     const avg = overlay ? ` ${overlay}` : ''
     return `Team chart (${metric}${contract}). ${mode}${avg}`
@@ -1086,6 +1158,9 @@ const chartLegendText = computed(() => {
   }
 
   const refs = [...activeReferenceMetrics.value].map((r) => r.charAt(0).toUpperCase() + r.slice(1)).join(' + ')
-  return `${refs} · ${parts.join(' · ')}. Revenue/costs use right € axis; hours/staff use left axis.`
+  const axisHint = activeMetric.value === 'costs'
+    ? 'Hours/staff overlays use right axis; revenue/costs share the € bar scale.'
+    : 'Revenue/costs use right € axis; hours/staff use left axis.'
+  return `${refs} · ${parts.join(' · ')}. ${axisHint}`
 })
 </script>
