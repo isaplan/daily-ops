@@ -33,6 +33,9 @@ export type OpsNotificationKind =
   | 'bork_revenue_aggregation_stale'
   | 'eitje_labor_aggregation_stale'
   | 'labor_snapshot_inconsistent'
+  // Staff (ADR-009)
+  | 'eitje_staff_not_in_members'
+  | 'eitje_staff_missing_compensation'
   // Architecture / ADR / agent-rules
   | 'adr004_live_bork_on_revenue_get'
   | 'monolithic_module'

@@ -52,12 +52,18 @@ const items = computed(() => {
   return [
     { key: 'overview' as const, label: 'Overview', to: { path: STAFF_BASE, query: overviewQuery } },
     { key: 'totals' as const, label: 'Totals', to: { path: `${STAFF_BASE}/totals`, query: sub } },
+    {
+      key: 'productivity' as const,
+      label: 'Productivity',
+      to: { path: `${STAFF_BASE}/productivity`, query: overviewQuery },
+    },
     { key: 'plusmin' as const, label: '± Hours', to: { path: `${STAFF_BASE}/plusmin`, query: sub } },
   ]
 })
 
 const activeKey = computed(() => {
   if (route.path.includes('/staff/totals')) return 'totals'
+  if (route.path.includes('/staff/productivity')) return 'productivity'
   if (route.path.includes('/staff/plusmin')) return 'plusmin'
   return 'overview'
 })

@@ -454,7 +454,7 @@ const isDailyOpsDashboard = computed(() => {
   const dash = [
     '/daily-ops',
     '/daily-ops/revenue',
-    '/daily-ops/productivity',
+    '/daily-ops/staff/productivity',
     '/daily-ops/workload',
     '/daily-ops/products',
     '/daily-ops/insights',

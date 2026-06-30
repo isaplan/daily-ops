@@ -1,133 +1,66 @@
 /**
- * Ops notification detector: Eitje staff data quality issues.
- *
- * Detects:
- * 1. Staff in Eitje API (recent activity) but NOT in members collection
- * 2. Staff in members but missing critical data (hourly_rate, contract_type, support_id)
+ * @description: Eitje staff data quality — aligned with eitjeStaffHub (ADR-009 Option B).
+ * @last-fix: [2026-06-28] Use staff hub SSOT; active staff only; register notification kinds.
+ * @adr-ref: ADR-009
  */
 
 import type { Db } from 'mongodb'
+import { getEitjeStaffHubRows, isStaffHubRowActive } from '../../eitjeStaffHub'
 import { buildNotificationItem } from '../notificationItem'
 import type { OpsNotificationDto } from '~/types/ops-notifications'
 
+function staffNameKey(name: string): string {
+  return name.trim().toLowerCase().replace(/\s+/g, ' ')
+}
+
 export async function detectEitjeStaffDataNotifications(db: Db): Promise<OpsNotificationDto[]> {
   const items: OpsNotificationDto[] = []
+  const rows = await getEitjeStaffHubRows(db, { bustCache: true })
 
-  // Get staff with recent API activity (last 30 days)
-  const thirtyDaysAgo = new Date()
-  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
-  const cutoffYmd = thirtyDaysAgo.toISOString().slice(0, 10)
+  for (const row of rows) {
+    if (!isStaffHubRowActive(row)) continue
 
-  const apiStaff = await db
-    .collection('eitje_time_registration_aggregation')
-    .aggregate<{
-      user_name: string
-      last_worked: string
-      total_hours: number
-    }>([
-      {
-        $match: {
-          period: { $gte: cutoffYmd },
-          user_name: { $exists: true, $ne: null },
-        },
-      },
-      {
-        $group: {
-          _id: { $toLower: { $trim: { input: '$user_name' } } },
-          user_name: { $first: '$user_name' },
-          last_worked: { $max: '$period' },
-          total_hours: { $sum: { $ifNull: ['$total_hours', 0] } },
-        },
-      },
-      { $match: { total_hours: { $gt: 0 } } },
-    ])
-    .toArray()
-
-  // Get all members
-  const members = await db
-    .collection('members')
-    .find({})
-    .project({
-      name: 1,
-      support_id: 1,
-      hourly_rate: 1,
-      contract_type: 1,
-    })
-    .toArray()
-
-  const membersByName = new Map(
-    members.map((m) => [
-      String(m.name ?? '')
-        .trim()
-        .toLowerCase(),
-      m,
-    ])
-  )
-
-  // 1. Check for staff in API but NOT in members (new staff not yet in system)
-  for (const staff of apiStaff) {
-    const nameKey = String(staff.user_name ?? '')
-      .trim()
-      .toLowerCase()
-    
-    if (!membersByName.has(nameKey)) {
+    if (row.is_unmatched) {
       items.push(
         buildNotificationItem({
           kind: 'eitje_staff_not_in_members',
-          businessDate: staff.last_worked,
-          locationId: 'all',
+          businessDate: row.recent_activity.last_worked ?? 'system',
+          locationId: 'staff',
+          locationName: 'Staff',
+          idSuffix: staffNameKey(row.employee_name),
+          message: `"${row.employee_name}" has ${Math.round(row.recent_activity.total_hours)}h in the last 30 days in Eitje but is not in members.`,
+          fixHint: `Add "${row.employee_name}" to members with contract_type, hourly_rate, and support_id.`,
           severity: 'warning',
-          title: `New staff in Eitje API: ${staff.user_name}`,
-          description: `Staff member "${staff.user_name}" has ${Math.round(staff.total_hours)}h worked in last 30 days but is NOT in members collection. Last worked: ${staff.last_worked}.`,
-          actionRequired: 'Add this staff member to members collection with contract details (hourly_rate, contract_type, support_id).',
           meta: {
-            user_name: staff.user_name,
-            last_worked: staff.last_worked,
-            total_hours: Math.round(staff.total_hours * 100) / 100,
+            user_name: row.employee_name,
+            last_worked: row.recent_activity.last_worked,
+            total_hours: row.recent_activity.total_hours,
           },
-        })
+        }),
       )
+      continue
     }
-  }
 
-  // 2. Check for members missing critical data
-  for (const member of members) {
-    const missing: string[] = []
-    if (!member.hourly_rate) missing.push('hourly_rate')
-    if (!member.contract_type || String(member.contract_type).trim() === '') missing.push('contract_type')
-    if (!member.support_id || String(member.support_id).trim() === '') missing.push('support_id')
+    if (!row.member_id || row.compensation_status !== 'missing') continue
 
-    if (missing.length > 0) {
-      const nameKey = String(member.name ?? '')
-        .trim()
-        .toLowerCase()
-      const hasRecentActivity = apiStaff.some(
-        (s) => String(s.user_name ?? '').trim().toLowerCase() === nameKey
-      )
-
-      const activityStaff = apiStaff.find(
-        (s) => String(s.user_name ?? '').trim().toLowerCase() === nameKey
-      )
-
-      items.push(
-        buildNotificationItem({
-          kind: 'eitje_staff_missing_data',
-          businessDate: activityStaff?.last_worked || 'unknown',
-          locationId: 'all',
-          severity: 'error',
-          title: `Staff missing critical data: ${member.name}`,
-          description: `Staff member "${member.name}" is missing: ${missing.join(', ')}. ${hasRecentActivity ? `Has recent activity (${Math.round(activityStaff?.total_hours ?? 0)}h last 30 days).` : 'No recent activity.'}`,
-          actionRequired: `Update members collection for "${member.name}" with: ${missing.join(', ')}. Without this data, cost calculations will be inaccurate.`,
-          meta: {
-            member_id: String(member._id),
-            name: member.name,
-            missing_fields: missing,
-            has_recent_activity: hasRecentActivity,
-            total_hours: activityStaff ? Math.round(activityStaff.total_hours * 100) / 100 : 0,
-          },
-        })
-      )
-    }
+    items.push(
+      buildNotificationItem({
+        kind: 'eitje_staff_missing_compensation',
+        businessDate: row.recent_activity.last_worked ?? 'system',
+        locationId: 'staff',
+        locationName: 'Staff',
+        idSuffix: row.member_id,
+        message: `Active staff "${row.employee_name}" is missing compensation data (${row.missing_data.join(', ') || 'contract/rate'}). ${Math.round(row.recent_activity.total_hours)}h in last 30 days.`,
+        fixHint: `Update members/${row.member_id} with contract_type and hourly_rate (or cost_per_hour). Staff hub uses compensation revisions SSOT.`,
+        severity: 'warning',
+        meta: {
+          member_id: row.member_id,
+          name: row.employee_name,
+          missing_fields: row.missing_data,
+          total_hours: row.recent_activity.total_hours,
+        },
+      }),
+    )
   }
 
   return items

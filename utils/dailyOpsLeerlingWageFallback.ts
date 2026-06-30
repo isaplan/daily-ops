@@ -28,12 +28,20 @@ export function isLeerlingEmployee(name: string, overig?: string | null): boolea
   return textContainsLeerling(name) || textContainsLeerling(overig)
 }
 
-/** Weekly contract hours embedded in e.g. `uren contract (16.0)`. */
+/** Weekly contract hours embedded in e.g. `uren contract (16.0)` or `stage (16)`. */
 export function weeklyHoursFromContractType(contractType: string): number | null {
-  const m = /uren contract\s*\(([\d.]+)\)/i.exec(String(contractType ?? ''))
-  if (!m) return null
-  const n = Number(m[1])
-  return Number.isFinite(n) ? n : null
+  const ct = String(contractType ?? '')
+  const uren = /uren contract\s*\(([\d.]+)\)/i.exec(ct)
+  if (uren) {
+    const n = Number(uren[1])
+    return Number.isFinite(n) ? n : null
+  }
+  const stage = /stage\s*\(([\d.]+)\)/i.exec(ct)
+  if (stage) {
+    const n = Number(stage[1])
+    return Number.isFinite(n) ? n : null
+  }
+  return null
 }
 
 /**

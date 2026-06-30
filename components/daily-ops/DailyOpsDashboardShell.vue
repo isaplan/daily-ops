@@ -1,7 +1,7 @@
 <template>
   <div class="min-w-0">
-    <div class="sticky top-3 z-10 mb-4 flex w-full min-w-0 flex-col items-end gap-2">
-        <div class="flex w-full min-w-0 justify-end">
+    <div class="pointer-events-none sticky top-3 z-10 mb-4 flex w-full min-w-0 flex-col items-end gap-2">
+        <div class="pointer-events-auto flex w-full min-w-0 justify-end">
           <nav
             ref="sectionNavEl"
             aria-label="Daily Ops sections"
@@ -21,15 +21,21 @@
           </nav>
         </div>
 
-        <div v-if="isStaffRoute" class="flex w-full min-w-0 justify-end">
+        <div v-if="isStaffRoute" class="pointer-events-auto flex w-full min-w-0 justify-end">
           <StaffNavChildBar />
         </div>
 
-        <StaffAnalyticsNav v-if="isStaffAnalyticsRoute" />
-        <DailyOpsRevenueNavV2RevenueAnalyticsNavV2 v-else-if="isRevenueRoute && revenueNavV2" />
-        <DailyOpsRevenueAnalyticsNav v-else-if="isRevenueRoute" />
+        <div v-if="isStaffAnalyticsRoute" class="pointer-events-auto w-full min-w-0">
+          <StaffAnalyticsNav />
+        </div>
+        <div v-else-if="isRevenueRoute && revenueNavV2" class="pointer-events-auto w-full min-w-0">
+          <DailyOpsRevenueNavV2RevenueAnalyticsNavV2 />
+        </div>
+        <div v-else-if="isRevenueRoute" class="pointer-events-auto w-full min-w-0">
+          <DailyOpsRevenueAnalyticsNav />
+        </div>
 
-        <div v-if="!hideOpsPeriodNav" class="flex w-full min-w-0 justify-end">
+        <div v-if="!hideOpsPeriodNav" class="pointer-events-auto flex w-full min-w-0 justify-end">
           <nav
             ref="periodNavEl"
             aria-label="Daily Ops period"
@@ -51,7 +57,7 @@
           </nav>
         </div>
 
-        <div v-if="showRangePeriodNav && !hideOpsPeriodNav" class="flex w-full min-w-0 justify-end">
+        <div v-if="showRangePeriodNav && !hideOpsPeriodNav" class="pointer-events-auto flex w-full min-w-0 justify-end">
           <nav
             aria-label="Daily Ops range period"
             :style="rangeNavWidthPx > 0 ? { width: `${rangeNavWidthPx}px` } : undefined"
@@ -73,7 +79,7 @@
           </nav>
         </div>
 
-        <div v-if="showLocationShortcuts" class="flex w-full min-w-0 justify-end">
+        <div v-if="showLocationShortcuts" class="pointer-events-auto flex w-full min-w-0 justify-end">
           <nav
             aria-label="Location shortcuts"
             class="scrollbar-hide inline-flex w-max max-w-full min-w-0 shrink-0 flex-nowrap gap-1 overflow-x-auto rounded-md border-2 border-gray-900 bg-white p-1"
@@ -263,7 +269,6 @@ const navItems = computed(() => {
   return [
     { key: 'overview' as const, label: 'Daily Ops', path: prefix },
     { key: 'revenue' as const, label: 'Revenue', path: `${prefix}/revenue` },
-    { key: 'productivity' as const, label: 'Productivity', path: `${prefix}/productivity` },
     { key: 'products' as const, label: 'Products', path: `${prefix}/products` },
     { key: 'staff' as const, label: 'Staff', path: `${prefix}/staff` },
     { key: 'insights' as const, label: 'Insights', path: `${prefix}/insights` },

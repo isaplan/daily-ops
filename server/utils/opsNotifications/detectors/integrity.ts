@@ -1,3 +1,4 @@
+import { rollupOperationalKeukenBediening } from '../../eitjeVenueLaborRollup'
 import { buildNotificationItem } from '../notificationItem'
 import type { OpsNotificationDto } from '~/types/ops-notifications'
 import type { DailyOpsSnapshotLaborSection } from '~/types/daily-ops-snapshot'
@@ -5,27 +6,22 @@ import type { OpsScanContext } from '../scanContext'
 
 const HOUR_EPS = 0.05
 
-function teamBucket(teamName: string): 'keuken' | 'bediening' | 'other' {
-  const n = teamName.trim().toLowerCase()
-  if (n === 'keuken' || n === 'afwas') return 'keuken'
-  if (n === 'bediening') return 'bediening'
-  return 'other'
-}
-
 function workerOperationalHours(doc: DailyOpsSnapshotLaborSection): {
   keuken: number
   bediening: number
   gewerkt: number
 } {
-  let keuken = 0
-  let bediening = 0
-  for (const worker of doc.workers ?? []) {
-    const hours = Number(worker.hours ?? 0)
-    if (hours <= 0) continue
-    const bucket = teamBucket(String(worker.teamName ?? ''))
-    if (bucket === 'keuken') keuken += hours
-    if (bucket === 'bediening') bediening += hours
-  }
+  const teamRows = (doc.workers ?? [])
+    .filter((w) => Number(w.hours ?? 0) > 0)
+    .map((w) => ({
+      teamName: String(w.teamName ?? ''),
+      hours: Number(w.hours ?? 0),
+      wages: Number(w.wage_cost ?? 0),
+      loaded: Number(w.loaded_cost ?? 0),
+    }))
+  const rolled = rollupOperationalKeukenBediening(teamRows)
+  const keuken = rolled.keuken.hours
+  const bediening = rolled.bediening.hours
   return { keuken, bediening, gewerkt: keuken + bediening }
 }
 
@@ -75,7 +71,7 @@ export function detectIntegrityNotifications(ctx: OpsScanContext): OpsNotificati
         locationId,
         locationName: doc.locationName ?? ctx.locName.get(locationId) ?? locationId,
         message:
-          `Labor snapshot workers do not match operational totals: workers keuken ${workerHours.keuken.toFixed(1)}h / bediening ${workerHours.bediening.toFixed(1)}h, ` +
+          `Labor snapshot workers (Afwas 50/50 rollup) do not match operational totals: workers keuken ${workerHours.keuken.toFixed(1)}h / bediening ${workerHours.bediening.toFixed(1)}h, ` +
           `snapshot operational keuken ${snapKeuken.toFixed(1)}h / bediening ${snapBediening.toFixed(1)}h.`,
         fixHint:
           'Fix the labor snapshot writer so operational/gewerkte totals are derived from the same worker/team rows. Reader fallback may mask this, but the snapshot invariant is broken.',

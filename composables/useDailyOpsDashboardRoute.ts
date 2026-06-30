@@ -74,7 +74,7 @@ export function useDailyOpsDashboardRoute() {
   function navKeyFromPath(path: string): DailyOpsNavKey {
     if (path === '/daily-ops' || path === '/daily-ops/') return 'overview'
     if (path.startsWith('/daily-ops/revenue')) return 'revenue'
-    if (path.startsWith('/daily-ops/productivity')) return 'productivity'
+    if (path.startsWith('/daily-ops/productivity')) return 'staff'
     if (path.startsWith('/daily-ops/workload')) return 'workload'
     if (path.startsWith('/daily-ops/products')) return 'products'
     if (path.startsWith('/daily-ops/staff')) return 'staff'

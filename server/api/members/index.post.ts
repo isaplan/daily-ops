@@ -1,9 +1,9 @@
 /**
  * @registry-id: membersIndexPostApi
  * @created: 2026-04-12T00:00:00.000Z
- * @last-modified: 2026-05-12T00:00:00.000Z
+ * @last-modified: 2026-06-30T19:30:00.000Z
  * @description: POST /api/members — create member + optional worker fields / placeholder email
- * @last-fix: [2026-05-12] Optional contract_start_date / contract_end_date (YYYY-MM-DD)
+ * @last-fix: [2026-06-30] Reuse existing member on support_id or normalized name match (no dupes)
  *
  * @exports-to:
  * ✓ pages/organisation.vue and related flows (create member)
@@ -13,6 +13,7 @@
 import { ObjectId } from 'mongodb'
 import { getDb } from '../../utils/db'
 import { parseOptionalYmdToDate } from '../../utils/parseOptionalYmdToDate'
+import { invalidateEitjeStaffHubCache } from '../../utils/eitjeStaffHub'
 
 export default defineEventHandler(async (event) => {
   const body = await readBody<{
@@ -54,12 +55,26 @@ export default defineEventHandler(async (event) => {
   if (sup) {
     const existing = await db.collection('members').findOne({ support_id: sup })
     if (existing) {
-      throw createError({
-        statusCode: 409,
-        statusMessage: 'A member already exists for this support_id',
-      })
+      return { success: true as const, data: { _id: String(existing._id), name: existing.name as string, email: existing.email as string }, reused: true as const }
     }
     doc.support_id = sup
+  }
+
+  const nameParts = body.name.trim().split(/\s+/).map((p) => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+  if (nameParts.length) {
+    const byName = await db
+      .collection('members')
+      .find({ name: { $regex: new RegExp(`^\\s*${nameParts.join('\\s+')}\\s*$`, 'i') } })
+      .limit(5)
+      .toArray()
+    if (byName.length) {
+      const best = [...byName].sort((a, b) => {
+        const score = (m: (typeof byName)[0]) =>
+          (m.support_id ? 4 : 0) + (Array.isArray(m.eitje_ids) && m.eitje_ids.length ? 2 : 0)
+        return score(b) - score(a)
+      })[0]
+      return { success: true as const, data: { _id: String(best._id), name: best.name as string, email: best.email as string }, reused: true as const }
+    }
   }
 
   const hr =
@@ -115,5 +130,6 @@ export default defineEventHandler(async (event) => {
         is_active: inserted.is_active,
       }
     : { _id: String(result.insertedId), name: doc.name as string, email: doc.email as string }
+  invalidateEitjeStaffHubCache()
   return { success: true, data }
 })

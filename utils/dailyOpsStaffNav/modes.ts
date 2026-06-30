@@ -1,9 +1,9 @@
 /**
  * @registry-id: dailyOpsStaffNavModes
  * @created: 2026-06-25T16:00:00.000Z
- * @last-modified: 2026-06-26T13:00:00.000Z
+ * @last-modified: 2026-06-27T23:55:00.000Z
  * @description: Staff analytics nav — weekly / monthly / yearly ranges + chart buckets
- * @last-fix: [2026-06-26] 52wk / 12mo / all-years display ranges
+ * @last-fix: [2026-06-27] Monthly range from STAFF_YEAR_DATA_START (not trailing 12mo)
  *
  * @exports-to:
  * ✓ components/daily-ops/staff/nav/StaffAnalyticsNav.vue
@@ -40,11 +40,6 @@ export function coerceStaffNavMode(mode: string): StaffNavMode {
   return isStaffNavMode(mode) ? mode : 'monthly'
 }
 
-function monthStartYmd(d: Date): string {
-  const p = (n: number) => String(n).padStart(2, '0')
-  return `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-01`
-}
-
 /** Display range + chart bucket per staff mode. */
 export function staffAnalyticsRange(
   mode: StaffNavMode,
@@ -70,16 +65,13 @@ export function staffAnalyticsRange(
         chartGranularity: 'week',
       }
     }
-    case 'monthly': {
-      const end = new Date(`${endDate}T12:00:00Z`)
-      const start = new Date(Date.UTC(end.getUTCFullYear(), end.getUTCMonth() - 11, 1))
+    case 'monthly':
       return {
-        startDate: monthStartYmd(start),
+        startDate: STAFF_YEAR_DATA_START,
         endDate,
-        label: 'Last 12 months',
+        label: 'All months since 2024',
         chartGranularity: 'month',
       }
-    }
     case 'yearly':
       return {
         startDate: STAFF_YEAR_DATA_START,

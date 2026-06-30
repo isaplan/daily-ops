@@ -9,8 +9,7 @@
         <div>
           <h1 class="text-3xl font-bold text-gray-900">Eitje — Staff</h1>
           <p class="mt-2 text-gray-600">
-            Staff profiles from <span class="font-semibold">members</span> (SSOT), enriched with recent Eitje
-            activity (last 30 days).
+            All staff from <span class="font-semibold">members</span> (Eitje master + CSV). Active/inactive = employment status, not recent hours.
           </p>
           <NuxtLink
             class="mt-2 inline-block text-sm font-medium text-primary-600 underline-offset-2 hover:text-primary-700 hover:underline"
@@ -48,9 +47,17 @@
         </UCard>
         <UCard class="border-2 border-gray-900 bg-white">
           <template #header>
-            <span class="text-sm font-medium text-gray-500">Active (30d)</span>
+            <span class="text-sm font-medium text-gray-500">Employed</span>
           </template>
           <p class="text-3xl font-bold tabular-nums text-blue-700">
+            {{ summary ? summary.active_count : '—' }}
+          </p>
+        </UCard>
+        <UCard class="border-2 border-gray-900 bg-white">
+          <template #header>
+            <span class="text-sm font-medium text-gray-500">Hours (30d)</span>
+          </template>
+          <p class="text-3xl font-bold tabular-nums text-violet-700">
             {{ summary ? summary.with_recent_activity : '—' }}
           </p>
         </UCard>
@@ -180,6 +187,13 @@
                     Missing data
                   </UBadge>
                   <UBadge
+                    v-else-if="!r.is_employed"
+                    color="neutral"
+                    variant="subtle"
+                  >
+                    Inactive
+                  </UBadge>
+                  <UBadge
                     v-else
                     :variant="r.match_confidence === 'none' ? 'subtle' : 'solid'"
                     :color="r.match_confidence === 'none' ? 'neutral' : 'neutral'"
@@ -189,7 +203,7 @@
                         : ''
                     "
                   >
-                    {{ statusLabel(r.match_confidence) }}
+                    {{ r.is_employed ? 'Active' : statusLabel(r.match_confidence) }}
                   </UBadge>
                 </td>
                 <td class="px-4 py-3 text-right">
@@ -384,6 +398,8 @@ type ApiStaffRow = {
   hourly_rate: number | null
   cost_per_hour: number | null
   compensation_status: 'ok' | 'missing'
+  is_employed: boolean
+  is_active_30d: boolean
   recent_activity: {
     last_worked: string | null
     total_hours: number
@@ -406,6 +422,7 @@ type StaffRow = {
   matched_member_id?: string
   match_confidence: MatchConfidence
   compensation_status?: 'ok' | 'missing'
+  is_employed: boolean
 }
 
 function mapApiRow(r: ApiStaffRow): StaffRow {
@@ -428,6 +445,7 @@ function mapApiRow(r: ApiStaffRow): StaffRow {
     matched_member_id: r.member_id,
     match_confidence: r.compensation_status === 'ok' ? 'high' : hasActivity ? 'medium' : 'none',
     compensation_status: r.compensation_status,
+    is_employed: r.is_employed,
   }
 }
 

@@ -23,6 +23,8 @@ const TITLES: Record<OpsNotificationKind, string> = {
   bork_revenue_aggregation_stale: 'Bork revenue aggregation stale',
   eitje_labor_aggregation_stale: 'Eitje labor aggregation stale',
   labor_snapshot_inconsistent: 'Labor snapshot internally inconsistent',
+  eitje_staff_not_in_members: 'Eitje staff not in members',
+  eitje_staff_missing_compensation: 'Active staff missing compensation',
   adr004_live_bork_on_revenue_get: 'ADR-004 violation on GET',
   monolithic_module: 'Monolithic module',
   daily_ops_iso_calendar_misuse: 'ADR-010 ISO date in Daily Ops',
@@ -44,6 +46,8 @@ const SEVERITY: Record<OpsNotificationKind, OpsNotificationSeverity> = {
   bork_revenue_aggregation_stale: 'critical',
   eitje_labor_aggregation_stale: 'critical',
   labor_snapshot_inconsistent: 'critical',
+  eitje_staff_not_in_members: 'warning',
+  eitje_staff_missing_compensation: 'warning',
   missing_master_snapshot: 'warning',
   revenue_snapshot_empty: 'warning',
   adr004_live_bork_on_revenue_get: 'critical',
@@ -69,6 +73,8 @@ const CATEGORY: Record<OpsNotificationKind, OpsNotificationCategory> = {
   bork_revenue_aggregation_stale: 'integrity',
   eitje_labor_aggregation_stale: 'integrity',
   labor_snapshot_inconsistent: 'integrity',
+  eitje_staff_not_in_members: 'integrity',
+  eitje_staff_missing_compensation: 'integrity',
   adr004_live_bork_on_revenue_get: 'architecture',
   monolithic_module: 'architecture',
   daily_ops_iso_calendar_misuse: 'architecture',
@@ -82,11 +88,14 @@ export function buildNotificationItem(input: {
   message: string
   fixHint: string
   severity?: OpsNotificationSeverity
+  /** Disambiguate rows that share businessDate+locationId (e.g. staff member_id). */
+  idSuffix?: string
   meta?: Record<string, unknown>
 }): OpsNotificationDto {
   const kind = input.kind
+  const baseId = `${kind}:${input.businessDate}:${input.locationId}`
   return {
-    id: `${kind}:${input.businessDate}:${input.locationId}`,
+    id: input.idSuffix ? `${baseId}:${input.idSuffix}` : baseId,
     category: CATEGORY[kind],
     kind,
     severity: input.severity ?? SEVERITY[kind],

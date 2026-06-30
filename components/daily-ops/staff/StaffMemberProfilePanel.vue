@@ -44,6 +44,36 @@
         </div>
       </div>
 
+      <div v-if="compensationHistoryRows.length" class="space-y-2 border-t border-gray-100 pt-3 text-sm">
+        <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Pay history</p>
+        <div class="overflow-x-auto rounded-md border border-gray-200">
+          <table class="w-full min-w-[18rem] text-left text-xs">
+            <thead class="bg-gray-50 text-gray-600">
+              <tr>
+                <th class="px-2 py-1.5 font-semibold">From</th>
+                <th class="px-2 py-1.5 font-semibold">To</th>
+                <th class="px-2 py-1.5 text-right font-semibold">€/h</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="(rev, idx) in compensationHistoryRows"
+                :key="idx"
+                class="border-t border-gray-100"
+                :class="rev.isCurrent ? 'bg-emerald-50/60' : ''"
+              >
+                <td class="px-2 py-1.5 tabular-nums">{{ formatDate(rev.effective_from) }}</td>
+                <td class="px-2 py-1.5 tabular-nums">{{ rev.effective_to ? formatDate(rev.effective_to) : 'Current' }}</td>
+                <td class="px-2 py-1.5 text-right tabular-nums font-medium">
+                  {{ rev.hourly_rate != null ? `€${rev.hourly_rate.toFixed(2)}` : '—' }}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p v-if="payIncreaseLabel" class="text-xs text-gray-600">{{ payIncreaseLabel }}</p>
+      </div>
+
       <div v-if="m.eitje_totals" class="space-y-2 border-t border-gray-100 pt-3">
         <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Hours (6 mo)</p>
         <div class="flex flex-wrap gap-2">
@@ -83,6 +113,14 @@ type MergedRow = {
   planned_hours: number
 }
 
+type CompensationHistoryRow = {
+  effective_from: string
+  effective_to: string | null
+  hourly_rate: number | null
+  contract_type?: string
+  source_ref?: string
+}
+
 type MemberPayload = {
   _id: string
   name: string
@@ -95,6 +133,7 @@ type MemberPayload = {
   hourly_rate?: number
   cost_per_hour?: number
   support_id?: string
+  compensationHistory?: CompensationHistoryRow[]
   eitje_places?: { merged: MergedRow[] }
   eitje_totals?: { worked_hours: number; planned_hours: number }
 }
@@ -142,6 +181,25 @@ const hasWorker = computed(() => {
   const x = m.value
   if (!x) return false
   return !!(x.contract_type || x.hourly_rate != null || x.support_id?.trim())
+})
+
+const compensationHistoryRows = computed(() => {
+  const rows = m.value?.compensationHistory ?? []
+  return rows.map((rev, idx) => ({
+    ...rev,
+    isCurrent: idx === 0 && !rev.effective_to,
+  }))
+})
+
+const payIncreaseLabel = computed(() => {
+  const rows = compensationHistoryRows.value.filter((r) => r.hourly_rate != null)
+  if (rows.length < 2) return ''
+  const current = rows[0]?.hourly_rate
+  const prior = rows[1]?.hourly_rate
+  if (current == null || prior == null || current <= prior) return ''
+  const delta = current - prior
+  const pct = prior > 0 ? Math.round((delta / prior) * 100) : 0
+  return `Rate increased €${prior.toFixed(2)} → €${current.toFixed(2)} (+€${delta.toFixed(2)}, +${pct}%)`
 })
 
 const locationsGrouped = computed(() => {

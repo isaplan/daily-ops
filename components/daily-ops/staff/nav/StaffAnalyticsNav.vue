@@ -31,18 +31,31 @@ import {
 } from '~/utils/dailyOpsStaffNav/modes'
 import { amsterdamOpenRegisterBusinessDateYmd } from '~/utils/dailyOpsBusinessDate'
 
-const {
-  query,
-  setMode: setNavMode,
-} = useDailyOpsRevenueNavV2()
-
 const route = useRoute()
 const router = useRouter()
 
-const activeMode = computed(() => coerceStaffNavMode(query.value.mode))
+const activeMode = computed(() =>
+  coerceStaffNavMode(typeof route.query.mode === 'string' ? route.query.mode : ''),
+)
 
 function setMode(mode: typeof STAFF_NAV_MODE_CONFIGS[number]['id']) {
-  setNavMode(mode)
+  const cfg = STAFF_NAV_MODE_CONFIGS.find((m) => m.id === mode)
+  const merged = { ...route.query } as Record<string, string | string[] | undefined>
+  delete merged.period
+  delete merged.compareTo
+  delete merged.comparePeriod
+  delete merged.pick
+  delete merged.compare
+  delete merged.cs
+  delete merged.granularity
+  router.push({
+    query: {
+      ...merged,
+      mode,
+      slot: cfg?.defaultSlot ?? 'this-month',
+      anchor: amsterdamOpenRegisterBusinessDateYmd(),
+    },
+  })
 }
 
 onMounted(() => {

@@ -1,6 +1,5 @@
 <template>
-  <DailyOpsDashboardShell>
-    <div class="space-y-6">
+  <div class="space-y-6">
       <header>
         <h1 class="text-2xl font-bold text-gray-900">Productivity</h1>
         <p class="text-sm text-gray-600">Personeel, tafels en werkdruk · excl. BTW</p>
@@ -61,7 +60,6 @@
         />
       </section>
     </div>
-  </DailyOpsDashboardShell>
 </template>
 
 <script setup lang="ts">

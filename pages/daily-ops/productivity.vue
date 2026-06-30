@@ -1,9 +1,8 @@
-<template>
-  <DailyOpsProductivityRevenuePage />
-</template>
-
 <script setup lang="ts">
-definePageMeta({
-  keepalive: true,
-})
+const route = useRoute()
+
+await navigateTo(
+  { path: '/daily-ops/staff/productivity', query: route.query },
+  { redirectCode: 301 },
+)
 </script>

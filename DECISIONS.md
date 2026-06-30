@@ -274,3 +274,23 @@ API endpoint (`bundle.get.ts`) intelligently serves from the appropriate cache l
 **Related:** ADR-004, ADR-010, `dev-docs/REVENUE_NAV_V2_BUILD_PLAN.md`
 
 ---
+
+## ADR-012 — Members ingest pipeline (Eitje master + CSV → members)
+
+**Status:** Accepted (2026-06-29)
+
+**Context:** ADR-001 and ADR-009 declared `members` as SSOT for staff profiles, but ingest stopped at `eitje_raw_data` / `unified_user`. Eitje master `active` and CSV contract end dates were stored but not applied. Staff UI used trailing 30-day hours as “active”, contradicting ops workflow (Eitje marks leavers inactive; CSV has contract end).
+
+**Decision:**
+
+1. **`members` = one HR profile per person** (staff roster, compensation, employment). **`unified_user` = ID resolver only** (Eitje/Bork/inbox IDs → `members._id`). No duplicate profile fields on `unified_user`.
+2. **Every Eitje master sync** upserts all API users into `members` (`syncMembersFromEitjeMaster`). Sets `eitje_active` from API `active` flag.
+3. **CSV / inbox** enrich `members` (contract, wage, `contract_end_date`) via revision util — input/audit collections are not runtime fallbacks (ADR-001 unchanged).
+4. **`members.is_active` (employment)** = resolve from: manual override → contract end in past → `eitje_active` → default true. **Not** trailing shift hours.
+5. **Notes / todos / chats:** `connected_member_ids` → `members._id`. `@mentions` / attendance may still reference `unified_user` until migrated; new links use `members`.
+
+**Consequences:** `eitjeStaffHub` lists all `members`; inactive badge from employment. Master sync + `pnpm members:sync-eitje-master` required after deploy. Snapshot labor still reads contract from `members` at build time.
+
+**Related:** ADR-001, ADR-003, ADR-009
+
+---

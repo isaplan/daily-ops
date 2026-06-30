@@ -35,6 +35,9 @@ import { materializeIntegrationPipelineSnapshots } from '../utils/dailyOpsSnapsh
 import { addCalendarDaysYmd, calendarYmdInAmsterdam } from '~/utils/dailyOpsBusinessDate'
 import { historicalLookbackDaysForJobType } from '~/utils/integrations/historicalJobTypes'
 import { linkMemberUnifiedUserId } from '../utils/memberEitjeContext'
+import { upsertUnifiedUserEitjeIdentity } from '../utils/unifiedUserMerge'
+import { syncMembersFromEitjeMaster } from '../utils/memberEitjeMasterSync'
+import { invalidateEitjeStaffHubCache } from '../utils/eitjeStaffHub'
 import { ObjectId } from 'mongodb'
 import './dailyOpsSnapshotService' // registers snapshot runner — side-effect import
 
@@ -758,6 +761,9 @@ export async function executeEitjeJob (db: Db, jobType: string): Promise<EitjeSy
     if (ok) {
       try {
         await syncUnifiedMasterDataFromRaw(db)
+        const memberSync = await syncMembersFromEitjeMaster(db)
+        invalidateEitjeStaffHubCache()
+        console.log('[eitje-master] members sync:', memberSync)
       } catch (e) {
         console.error('[syncUnifiedMasterDataFromRaw]', e)
       }
@@ -1095,21 +1101,13 @@ async function syncUnifiedMasterDataFromRaw (db: Db): Promise<{ locationsUpdated
     })
 
     for (const [id, name] of uniqueUsers) {
-      const result = await db.collection('unified_user').updateOne(
-        { $or: [{ eitjeIds: id }, { allIdValues: id }] },
-        {
-          $set: {
-            eitjeIds: [id],
-            allIdValues: [id],
-            primaryName: name,
-            canonicalName: name,
-            updatedAt: new Date(),
-          },
-          $setOnInsert: { createdAt: new Date() },
-        },
-        { upsert: true }
-      )
-      usersUpdated += result.upsertedCount + result.modifiedCount
+      const raw = userDocs.find((doc: Record<string, unknown>) => {
+        const extracted = doc.extracted as Record<string, unknown> | undefined
+        return extracted?.id === id
+      })?.rawApiResponse as Record<string, unknown> | undefined
+      const supportId = raw?.support_id != null ? String(raw.support_id) : undefined
+      const r = await upsertUnifiedUserEitjeIdentity(db, id, name, supportId)
+      usersUpdated += r.created ? 1 : 1
     }
 
     return { locationsUpdated, teamsUpdated, usersUpdated }
@@ -1142,25 +1140,10 @@ async function syncUnifiedCollectionsFromRawData (db: Db): Promise<{
       { $match: { _id: { $nin: [null, ''] } } },
     ]).toArray() as Array<{ _id: number | string; userName: string }>
 
-    // Upsert unified_user for each unique Eitje user ID
+    // One unified_user per person — merge Eitje shift user IDs by name/id
     for (const user of userAgg) {
-      const result = await db.collection('unified_user').updateOne(
-        { eitjeIds: user._id },
-        {
-          $addToSet: {
-            eitjeIds: user._id,
-            allIdValues: user._id,
-          },
-          $set: { updatedAt: new Date() },
-          $setOnInsert: {
-            primaryName: user.userName,
-            canonicalName: user.userName,
-            createdAt: new Date(),
-          },
-        },
-        { upsert: true }
-      )
-      usersUpdated += result.upsertedCount + result.modifiedCount
+      await upsertUnifiedUserEitjeIdentity(db, user._id, user.userName)
+      usersUpdated++
     }
 
     // Extract all unique team IDs from worked and planned raw shifts.

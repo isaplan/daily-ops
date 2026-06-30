@@ -15,6 +15,8 @@
 import { ObjectId } from 'mongodb'
 import { getDb } from '../../utils/db'
 import { openNewRevision, toNum } from '../../utils/memberCompensationRevisions'
+import { invalidateEitjeStaffHubCache } from '../../utils/eitjeStaffHub'
+import { applyStageContractCompensation } from '../../../utils/staffContractTypeOptions'
 
 export default defineEventHandler(async (event) => {
   const id = getRouterParam(event, 'id')
@@ -74,10 +76,16 @@ export default defineEventHandler(async (event) => {
       body?.contract_type !== undefined
         ? String(body.contract_type).trim()
         : String(ex.contract_type ?? '').trim()
-    const hourlyRate =
+    let hourlyRate =
       body?.hourly_rate !== undefined ? toNum(body.hourly_rate) : toNum(ex.hourly_rate)
-    const costPerHour =
+    let costPerHour =
       body?.cost_per_hour !== undefined ? toNum(body.cost_per_hour) : toNum(ex.cost_per_hour)
+
+    const stageWages = applyStageContractCompensation(contractType)
+    if (stageWages) {
+      hourlyRate = stageWages.hourly_rate
+      costPerHour = stageWages.cost_per_hour
+    }
 
     await openNewRevision(
       db,
@@ -135,5 +143,6 @@ export default defineEventHandler(async (event) => {
     cost_per_hour: typeof m.cost_per_hour === 'number' ? m.cost_per_hour : undefined,
     compensation_status: typeof m.compensation_status === 'string' ? m.compensation_status : undefined,
   }
+  invalidateEitjeStaffHubCache()
   return { success: true, data }
 })

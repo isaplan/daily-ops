@@ -1,6 +1,24 @@
 <template>
-  <div ref="scrollRef" class="w-full h-full min-h-[300px] overflow-x-auto">
-    <svg ref="svgRef" :width="svgWidth" :height="height" class="font-sans"></svg>
+  <div class="flex w-full min-h-[300px]" :style="{ height: `${height}px` }">
+    <svg
+      v-if="showLeftAxis"
+      ref="leftAxisRef"
+      :width="margin.left"
+      :height="height"
+      class="shrink-0 bg-white font-sans"
+      aria-hidden="true"
+    />
+    <div ref="scrollRef" class="min-w-0 flex-1 overflow-x-auto overflow-y-hidden">
+      <svg ref="plotRef" :width="plotWidth" :height="height" class="font-sans" />
+    </div>
+    <svg
+      v-if="hasRightAxis"
+      ref="rightAxisRef"
+      :width="rightAxisWidth"
+      :height="height"
+      class="shrink-0 bg-white font-sans"
+      aria-hidden="true"
+    />
   </div>
 </template>
 
@@ -32,6 +50,8 @@ export type GroupedBarReferenceLine =
       color?: string
       dashArray?: string
       strokeWidth?: number
+      yAxis?: 'left' | 'right'
+      strokeLinecap?: 'butt' | 'round' | 'square'
     }
   | {
       id: string
@@ -41,6 +61,8 @@ export type GroupedBarReferenceLine =
       color?: string
       dashArray?: string
       strokeWidth?: number
+      yAxis?: 'left' | 'right'
+      strokeLinecap?: 'butt' | 'round' | 'square'
     }
 
 const props = withDefaults(
@@ -52,45 +74,123 @@ const props = withDefaults(
     width?: number
     height?: number
     margin?: { top: number; right: number; bottom: number; left: number }
+    showBars?: boolean
+    formatBarValue?: (value: number) => string
   }>(),
   {
     width: 800,
     height: 400,
     referenceLines: () => [],
     dateGranularity: 'week',
-    margin: () => ({ top: 28, right: 30, bottom: 52, left: 56 }),
+    margin: () => ({ top: 28, right: 8, bottom: 52, left: 56 }),
+    showBars: true,
+    formatBarValue: undefined,
   },
 )
 
-const svgRef = ref<SVGSVGElement | null>(null)
+const leftAxisRef = ref<SVGSVGElement | null>(null)
+const plotRef = ref<SVGSVGElement | null>(null)
+const rightAxisRef = ref<SVGSVGElement | null>(null)
 const scrollRef = ref<HTMLDivElement | null>(null)
 
-const svgWidth = computed(() =>
-  Math.max(props.data.length * (props.series.length * 18 + 24), props.width),
+const rightAxisWidth = 56
+
+const hasRightAxis = computed(() =>
+  props.referenceLines.some((r) => r.yAxis === 'right'),
 )
 
-function refValues(): number[] {
+const showLeftAxis = computed(
+  () => props.showBars || props.referenceLines.some((r) => r.yAxis !== 'right'),
+)
+
+const plotWidth = computed(() => {
+  const axisW =
+    (showLeftAxis.value ? props.margin.left : 0) +
+    (hasRightAxis.value ? rightAxisWidth : 0)
+  const minPlot = Math.max(
+    props.data.length * (props.series.length * 18 + 24),
+    props.width - axisW,
+  )
+  return minPlot
+})
+
+function refValues(lines: GroupedBarReferenceLine[]): number[] {
   const vals: number[] = []
-  for (const ref of props.referenceLines) {
+  for (const ref of lines) {
     if (ref.kind === 'flat') vals.push(ref.value)
     else vals.push(...ref.points.map((p) => p.value))
   }
   return vals
 }
 
+function eurTick(v: d3.NumberValue): string {
+  const n = Number(v)
+  if (!Number.isFinite(n)) return ''
+  if (Math.abs(n) >= 1000) return `€${Math.round(n / 1000)}k`
+  return `€${Math.round(n)}`
+}
+
+function defaultBarFormat(value: number): string {
+  if (value >= 100) return String(Math.round(value))
+  if (value >= 10) return value.toFixed(0)
+  return value.toFixed(1)
+}
+
+function formatBar(value: number): string {
+  return (props.formatBarValue ?? defaultBarFormat)(value)
+}
+
+function appendLabelBadge(
+  parent: d3.Selection<SVGGElement, unknown, null, undefined>,
+  x: number,
+  y: number,
+  text: string,
+  anchor: 'start' | 'middle' | 'end',
+) {
+  const g = parent
+    .append('g')
+    .attr('class', 'ref-label-badge')
+    .attr('transform', `translate(${x},${y})`)
+
+  const textEl = g
+    .append('text')
+    .attr('text-anchor', anchor)
+    .attr('dy', '-0.45em')
+    .attr('class', 'text-[10px] font-semibold')
+    .attr('fill', '#111827')
+    .text(text)
+
+  const node = textEl.node()
+  if (!node) return
+
+  const bbox = node.getBBox()
+  const padX = 6
+  const padY = 3
+  g.insert('rect', 'text')
+    .attr('x', bbox.x - padX)
+    .attr('y', bbox.y - padY)
+    .attr('width', bbox.width + padX * 2)
+    .attr('height', bbox.height + padY * 2)
+    .attr('rx', 5)
+    .attr('fill', 'rgba(255,255,255,0.88)')
+    .attr('stroke', 'rgba(17,24,39,0.12)')
+}
+
 function createChart() {
-  if (!svgRef.value || !props.data.length || !props.series.length) return
+  if (!plotRef.value || !props.data.length || !props.series.length) return
+  if (showLeftAxis.value && !leftAxisRef.value) return
+  if (hasRightAxis.value && !rightAxisRef.value) return
 
-  const svg = d3.select(svgRef.value)
-  svg.selectAll('*').remove()
-
-  const innerWidth = svgWidth.value - props.margin.left - props.margin.right
   const innerHeight = props.height - props.margin.top - props.margin.bottom
+  const plotInnerWidth = plotWidth.value
+
+  const leftRefs = props.referenceLines.filter((r) => r.yAxis !== 'right')
+  const rightRefs = props.referenceLines.filter((r) => r.yAxis === 'right')
 
   const x0 = d3
     .scaleBand()
     .domain(props.data.map((d) => d.date))
-    .range([0, innerWidth])
+    .range([0, plotInnerWidth])
     .padding(0.2)
 
   const x1 = d3
@@ -99,12 +199,12 @@ function createChart() {
     .range([0, x0.bandwidth()])
     .padding(0.08)
 
-  const barMax =
-    d3.max(props.data, (d) =>
-      d3.max(props.series, (s) => Number(d[s.key]) || 0),
-    ) ?? 0
-  const refMax = d3.max(refValues()) ?? 0
-  const yMax = Math.max(barMax, refMax)
+  const barMax = props.showBars
+    ? d3.max(props.data, (d) => d3.max(props.series, (s) => Number(d[s.key]) || 0)) ?? 0
+    : 0
+  const leftRefMax = d3.max(refValues(leftRefs)) ?? 0
+  const rightRefMax = d3.max(refValues(rightRefs)) ?? 0
+  const yMax = Math.max(barMax, leftRefMax, 1)
 
   const yScale = d3
     .scaleLinear()
@@ -112,17 +212,79 @@ function createChart() {
     .nice()
     .range([innerHeight, 0])
 
-  const g = svg
-    .append('g')
-    .attr('transform', `translate(${props.margin.left},${props.margin.top})`)
+  const yScaleRight =
+    hasRightAxis.value
+      ? d3
+          .scaleLinear()
+          .domain([0, rightRefMax > 0 ? rightRefMax : 1])
+          .nice()
+          .range([innerHeight, 0])
+      : null
+
+  const valueY = (ref: GroupedBarReferenceLine, value: number) =>
+    ref.yAxis === 'right' && yScaleRight ? yScaleRight(value) : yScale(value)
 
   const bucketCenter = (date: string) => (x0(date) ?? 0) + x0.bandwidth() / 2
 
-  const grid = g.append('g').attr('class', 'reference-grid')
+  // —— Left Y-axis (fixed) ——
+  if (showLeftAxis.value && leftAxisRef.value) {
+    const leftSvg = d3.select(leftAxisRef.value)
+    leftSvg.selectAll('*').remove()
+    const leftG = leftSvg
+      .append('g')
+      .attr('transform', `translate(${props.margin.left - 6},${props.margin.top})`)
+    leftG.append('g').call(d3.axisLeft(yScale).ticks(6)).attr('class', 'text-xs')
+  }
+
+  // —— Right Y-axis (fixed) ——
+  if (hasRightAxis.value && rightAxisRef.value && yScaleRight) {
+    const rightSvg = d3.select(rightAxisRef.value)
+    rightSvg.selectAll('*').remove()
+    const rightG = rightSvg.append('g').attr('transform', `translate(0,${props.margin.top})`)
+    rightG.append('g').call(d3.axisRight(yScaleRight).ticks(5).tickFormat(eurTick)).attr('class', 'text-xs')
+  }
+
+  // —— Scrollable plot ——
+  const plotSvg = d3.select(plotRef.value)
+  plotSvg.selectAll('*').remove()
+  const g = plotSvg.append('g').attr('transform', `translate(0,${props.margin.top})`)
+
+  if (props.showBars) {
+    for (const row of props.data) {
+      const gx = g.append('g').attr('transform', `translate(${x0(row.date) ?? 0},0)`)
+
+      for (const s of props.series) {
+        const val = Number(row[s.key]) || 0
+        const barH = innerHeight - yScale(val)
+        if (barH < 1) continue
+
+        gx.append('rect')
+          .attr('x', x1(s.key) ?? 0)
+          .attr('y', yScale(val))
+          .attr('width', x1.bandwidth())
+          .attr('height', barH)
+          .attr('fill', s.color)
+          .attr('rx', 2)
+          .attr('class', 'transition-opacity hover:opacity-80')
+
+        if (barH >= 14 && val > 0) {
+          gx.append('text')
+            .attr('x', (x1(s.key) ?? 0) + x1.bandwidth() / 2)
+            .attr('y', yScale(val) - 4)
+            .attr('text-anchor', 'middle')
+            .attr('class', 'text-[9px] font-semibold fill-gray-900')
+            .text(formatBar(val))
+        }
+      }
+    }
+  }
+
+  const grid = g.append('g').attr('class', 'reference-grid').attr('pointer-events', 'none')
   for (const ref of props.referenceLines) {
     const stroke = ref.color ?? '#9ca3af'
     const dash = ref.dashArray
     const sw = ref.strokeWidth ?? 2
+    const yFor = (value: number) => valueY(ref, value)
 
     const applyStrokeDash = (
       sel: d3.Selection<d3.BaseType, unknown, d3.BaseType, unknown>,
@@ -138,28 +300,20 @@ function createChart() {
       const xEnd =
         ref.toDate && x0(ref.toDate) != null
           ? (x0(ref.toDate) ?? 0) + band
-          : innerWidth
+          : plotInnerWidth
 
       applyStrokeDash(
-        grid.append('line')
+        grid
+          .append('line')
           .attr('x1', xStart)
           .attr('x2', xEnd)
-          .attr('y1', yScale(ref.value))
-          .attr('y2', yScale(ref.value))
+          .attr('y1', yFor(ref.value))
+          .attr('y2', yFor(ref.value))
           .attr('stroke', stroke)
           .attr('stroke-width', sw)
           .attr('opacity', 0.95),
       )
-      grid.append('text')
-        .attr('x', xEnd - 4)
-        .attr('y', yScale(ref.value) - 5)
-        .attr('text-anchor', 'end')
-        .attr('class', 'text-[10px] font-semibold')
-        .attr('fill', stroke)
-        .attr('paint-order', 'stroke')
-        .attr('stroke', 'white')
-        .attr('stroke-width', 3)
-        .text(ref.label)
+      appendLabelBadge(grid, xEnd - 4, yFor(ref.value), ref.label, 'end')
     }
 
     if (ref.kind === 'series' && ref.points.length > 1) {
@@ -167,49 +321,24 @@ function createChart() {
         .line<{ date: string; value: number }>()
         .defined((p) => p.value > 0 && x0(p.date) != null)
         .x((p) => bucketCenter(p.date))
-        .y((p) => yScale(p.value))
+        .y((p) => yFor(p.value))
 
       applyStrokeDash(
-        grid.append('path')
+        grid
+          .append('path')
           .datum(ref.points)
           .attr('fill', 'none')
           .attr('stroke', stroke)
           .attr('stroke-width', sw)
+          .attr('stroke-linecap', ref.strokeLinecap ?? 'butt')
           .attr('opacity', 0.95)
           .attr('d', line),
       )
 
       const last = [...ref.points].reverse().find((p) => p.value > 0)
       if (last) {
-        grid.append('text')
-          .attr('x', bucketCenter(last.date))
-          .attr('y', yScale(last.value) - 5)
-          .attr('text-anchor', 'middle')
-          .attr('class', 'text-[10px] font-semibold')
-          .attr('fill', stroke)
-          .attr('paint-order', 'stroke')
-          .attr('stroke', 'white')
-          .attr('stroke-width', 3)
-          .text(ref.label)
+        appendLabelBadge(grid, bucketCenter(last.date), yFor(last.value), ref.label, 'middle')
       }
-    }
-  }
-
-  for (const row of props.data) {
-    const gx = g
-      .append('g')
-      .attr('transform', `translate(${x0(row.date) ?? 0},0)`)
-
-    for (const s of props.series) {
-      const val = Number(row[s.key]) || 0
-      gx.append('rect')
-        .attr('x', x1(s.key) ?? 0)
-        .attr('y', yScale(val))
-        .attr('width', x1.bandwidth())
-        .attr('height', innerHeight - yScale(val))
-        .attr('fill', s.color)
-        .attr('rx', 2)
-        .attr('class', 'transition-opacity hover:opacity-80')
     }
   }
 
@@ -226,8 +355,6 @@ function createChart() {
     .style('text-anchor', 'end')
     .attr('dx', '-0.4em')
     .attr('dy', '0.2em')
-
-  g.append('g').call(d3.axisLeft(yScale).ticks(6)).attr('class', 'text-xs')
 
   const legend = g.append('g').attr('transform', `translate(0,${-10})`)
   props.series.forEach((s, i) => {
@@ -261,10 +388,21 @@ function scrollToLatest() {
   })
 }
 
-onMounted(createChart)
+onMounted(() => nextTick(createChart))
 watch(
-  () => [props.data, props.series, props.referenceLines, props.width, props.height, props.dateGranularity],
-  createChart,
-  { deep: true },
+  () => [
+    props.data,
+    props.series,
+    props.referenceLines,
+    props.width,
+    props.height,
+    props.dateGranularity,
+    props.showBars,
+    props.formatBarValue,
+    hasRightAxis.value,
+    showLeftAxis.value,
+  ],
+  () => nextTick(createChart),
+  { deep: true, flush: 'post' },
 )
 </script>

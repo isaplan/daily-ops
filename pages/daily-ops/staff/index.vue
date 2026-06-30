@@ -13,19 +13,75 @@
       <div v-if="initialLoading" class="grid min-w-0 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <USkeleton v-for="i in 3" :key="`sk-${i}`" class="h-24 w-full rounded-lg" />
       </div>
-      <div v-else class="grid min-w-0 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div class="rounded-lg border-2 border-gray-900 bg-white p-4 text-left shadow-none">
+      <div v-else class="grid min-w-0 gap-4 sm:grid-cols-2" :class="hasActiveMissingKpi ? 'lg:grid-cols-5' : 'lg:grid-cols-4'">
+        <button
+          type="button"
+          class="block w-full cursor-pointer outline-none focus:outline-none focus-visible:outline-none"
+          :class="activityFilter === 'active' ? KPI_ACTIVE_SELECTED : KPI_FILTER_UNSELECTED"
+          :aria-pressed="activityFilter === 'active'"
+          @click="setActivityFilter('active')"
+        >
+          <p
+            class="text-sm font-medium"
+            :class="activityFilter === 'active' ? 'text-white/80' : 'text-gray-500'"
+          >
+            Active (30d)
+          </p>
+          <p
+            class="mt-2 text-2xl font-semibold tabular-nums"
+            :class="activityFilter === 'active' ? 'text-white' : 'text-gray-900'"
+          >
+            {{ summary?.active_count ?? '—' }}
+          </p>
+        </button>
+        <button
+          type="button"
+          class="block w-full cursor-pointer outline-none focus:outline-none focus-visible:outline-none"
+          :class="activityFilter === 'inactive' ? KPI_STAT_CARD : KPI_FILTER_UNSELECTED"
+          :aria-pressed="activityFilter === 'inactive'"
+          @click="setActivityFilter('inactive')"
+        >
+          <p class="text-sm font-medium text-gray-500">Inactive</p>
+          <p class="mt-2 text-2xl font-semibold tabular-nums text-gray-900">{{ summary?.inactive_count ?? '—' }}</p>
+        </button>
+        <div :class="KPI_STAT_CARD">
           <p class="text-sm font-medium text-gray-500">Total staff</p>
           <p class="mt-2 text-2xl font-semibold tabular-nums text-gray-900">{{ summary?.total_staff ?? '—' }}</p>
+          <p v-if="summary?.unmatched_historical" class="mt-1 text-xs text-gray-500">
+            {{ summary.unmatched_historical }} historical (no member yet)
+          </p>
         </div>
-        <div class="rounded-lg border-2 border-gray-900 bg-white p-4 text-left shadow-none">
-          <p class="text-sm font-medium text-gray-500">Active (30d)</p>
-          <p class="mt-2 text-2xl font-semibold tabular-nums text-gray-900">{{ summary?.with_recent_activity ?? '—' }}</p>
-        </div>
-        <div class="rounded-lg border-2 border-gray-900 bg-white p-4 text-left shadow-none">
+        <div :class="KPI_STAT_CARD">
           <p class="text-sm font-medium text-gray-500">Matched profiles</p>
           <p class="mt-2 text-2xl font-semibold tabular-nums text-gray-900">{{ summary?.matched ?? '—' }}</p>
         </div>
+        <button
+          v-if="hasActiveMissingKpi"
+          type="button"
+          class="block w-full cursor-pointer outline-none focus:outline-none focus-visible:outline-none"
+          :class="activityFilter === 'active_missing_90d' ? KPI_ACTIVE_MISSING_SELECTED : KPI_ACTIVE_MISSING_UNSELECTED"
+          :aria-pressed="activityFilter === 'active_missing_90d'"
+          @click="setActivityFilter('active_missing_90d')"
+        >
+          <p
+            class="text-sm font-medium"
+            :class="activityFilter === 'active_missing_90d' ? 'text-amber-950/80' : 'text-amber-800'"
+          >
+            Active missing data
+          </p>
+          <p
+            class="mt-2 text-2xl font-semibold tabular-nums"
+            :class="activityFilter === 'active_missing_90d' ? 'text-amber-950' : 'text-amber-900'"
+          >
+            {{ summary?.active_missing_90d ?? '—' }}
+          </p>
+          <p
+            class="mt-1 text-xs"
+            :class="activityFilter === 'active_missing_90d' ? 'text-amber-950/70' : 'text-amber-700/80'"
+          >
+            Worked last 90d · incomplete profile
+          </p>
+        </button>
       </div>
     </section>
 
@@ -124,22 +180,74 @@
                 <tr
                   v-for="(r, i) in rows"
                   :key="`${r.member_id}-${i}`"
-                  class="group cursor-pointer border-b border-gray-100 last:border-0"
-                  :class="r.member_id === profileMemberId ? 'bg-gray-100' : 'hover:bg-gray-50'"
-                  @click="openProfile(r.member_id)"
+                  class="group border-b border-gray-100 last:border-0"
+                  :class="[
+                    isEditableView && !r.member_id ? 'cursor-default' : 'cursor-pointer',
+                    r.member_id === profileMemberId ? 'bg-gray-100' : 'hover:bg-gray-50',
+                  ]"
+                  @click="onRowClick(r)"
                 >
                   <td
                     class="sticky left-0 z-10 border-b border-gray-100 px-4 py-3 font-semibold whitespace-nowrap text-gray-900 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.08)] last:border-0"
                     :class="r.member_id === profileMemberId ? 'bg-gray-100' : 'bg-white group-hover:bg-gray-50'"
                   >
                     {{ r.employee_name }}
+                    <span v-if="isInactiveView && r.is_unmatched" class="ml-1 text-[10px] font-medium uppercase text-amber-700">Eitje</span>
                   </td>
-                  <td class="border-b border-gray-100 px-4 py-3 text-gray-700 last:border-0">{{ r.contract_type || '—' }}</td>
-                  <td class="border-b border-gray-100 px-4 py-3 tabular-nums text-gray-700 last:border-0">{{ r.last_worked || '—' }}</td>
+                  <td
+                    v-if="isEditableView"
+                    class="border-b border-gray-100 px-4 py-2 last:border-0"
+                    @click.stop
+                  >
+                    <USelectMenu
+                      :model-value="editDraft[`${rowKey(r)}-contract`] || undefined"
+                      :items="contractTypeOptionsForRow(r)"
+                      value-key="value"
+                      size="sm"
+                      class="w-full min-w-[11rem]"
+                      placeholder="Select contract"
+                      :disabled="savingKey === rowKey(r)"
+                      @update:model-value="(v) => setDraftContract(r, v)"
+                    />
+                  </td>
+                  <td v-else class="border-b border-gray-100 px-4 py-3 text-gray-700 last:border-0">
+                    {{ r.contract_type || '—' }}
+                  </td>
+                  <td class="border-b border-gray-100 px-4 py-3 tabular-nums text-gray-700 last:border-0">
+                    {{ r.last_worked || '—' }}
+                  </td>
                   <td class="border-b border-gray-100 px-4 py-3 text-right tabular-nums last:border-0">{{ fmtHours(r.hours_30d) }}</td>
-                  <td class="border-b border-gray-100 px-4 py-3 text-right tabular-nums last:border-0">{{ money(r.hourly_rate) }}</td>
+                  <td
+                    v-if="isEditableView"
+                    class="border-b border-gray-100 px-4 py-2 text-right last:border-0"
+                    @click.stop
+                  >
+                    <input
+                      v-model="editDraft[`${rowKey(r)}-rate`]"
+                      type="text"
+                      inputmode="decimal"
+                      class="w-full min-w-[5rem] rounded border border-gray-300 bg-white px-2 py-1 text-right text-sm tabular-nums text-gray-900 focus:border-gray-900 focus:outline-none focus:ring-1 focus:ring-gray-900"
+                      placeholder="€/h"
+                      :disabled="savingKey === rowKey(r)"
+                    />
+                  </td>
+                  <td v-else class="border-b border-gray-100 px-4 py-3 text-right tabular-nums last:border-0">
+                    {{ money(r.hourly_rate) }}
+                  </td>
                   <td class="border-b border-gray-100 px-4 py-3 text-right last:border-0">
                     <UButton
+                      v-if="isEditableView && rowHasUnsavedChanges(r)"
+                      size="xs"
+                      variant="solid"
+                      color="neutral"
+                      class="bg-gray-900 font-semibold text-white"
+                      :loading="savingKey === rowKey(r)"
+                      @click.stop="saveRow(r)"
+                    >
+                      Save
+                    </UButton>
+                    <UButton
+                      v-else-if="r.member_id"
                       size="xs"
                       variant="outline"
                       color="neutral"
@@ -208,31 +316,45 @@
 
 <script setup lang="ts">
 import StaffMemberProfilePanel from '~/components/daily-ops/staff/StaffMemberProfilePanel.vue'
+import { staffContractTypeSelectOptions, STAGE_CONTRACT_HOURLY_EUR, isStageContractType } from '~/utils/staffContractTypeOptions'
 
 definePageMeta({ keepalive: true })
 
 const PROFILE_ASIDE_WIDTH_LS = 'daily-ops-staff-profile-aside-px-v1'
 const STAFF_PATH = '/daily-ops/staff'
 
+/** Shared with Total staff / Matched / Inactive-selected */
+const KPI_STAT_CARD = 'rounded-lg border-2 border-gray-900 bg-white p-4 text-left shadow-none'
+const KPI_FILTER_UNSELECTED = 'rounded-lg border-2 border-gray-300 bg-white p-4 text-left shadow-none hover:border-gray-900'
+const KPI_ACTIVE_SELECTED = 'rounded-lg border-2 border-gray-900 bg-gray-900 p-4 text-left shadow-none'
+const KPI_ACTIVE_MISSING_SELECTED = 'rounded-lg border-2 border-amber-600 bg-amber-100 p-4 text-left shadow-none'
+const KPI_ACTIVE_MISSING_UNSELECTED = 'rounded-lg border-2 border-amber-400 bg-white p-4 text-left shadow-none hover:border-amber-600'
+
 const route = useRoute()
 const { dashboardQuery } = useDailyOpsDashboardRoute()
 
 type ApiStaffRow = {
-  member_id: string
+  member_id: string | null
   employee_name: string
+  support_id: string | null
   contract_type: string | null
   hourly_rate: number | null
+  is_unmatched?: boolean
   recent_activity: { last_worked: string | null; total_hours: number }
 }
 
 type StaffRow = {
-  member_id: string
+  member_id: string | null
   employee_name: string
   contract_type: string
   last_worked: string | null
   hours_30d: number | null
   hourly_rate: number | null
+  is_unmatched: boolean
+  support_id: string | null
 }
+
+type ActivityFilter = 'active' | 'inactive' | 'all' | 'active_missing_90d'
 
 const profileMemberId = ref<string | null>(
   typeof route.query.member === 'string' ? route.query.member : null,
@@ -240,8 +362,15 @@ const profileMemberId = ref<string | null>(
 const profileAsideWidthPx = ref(400)
 let profileResizeListeners: { move: (e: MouseEvent) => void; up: () => void } | null = null
 
+function parseActivityFilter(raw: unknown): ActivityFilter {
+  const s = String(raw ?? '').trim().toLowerCase()
+  if (s === 'inactive' || s === 'all' || s === 'active_missing_90d') return s
+  return 'active'
+}
+
 function staffQuery(extra?: Record<string, string>) {
   const q: Record<string, string> = { ...dashboardQuery.value }
+  if (activityFilter.value !== 'active') q.activity = activityFilter.value
   if (extra) Object.assign(q, extra)
   else delete q.member
   return q
@@ -297,7 +426,7 @@ function startResizeProfile(e: MouseEvent) {
   document.addEventListener('mouseup', onUp)
 }
 
-function openProfile(memberId: string) {
+function openProfile(memberId: string | null) {
   const id = String(memberId ?? '').trim()
   if (!id) return
   profileMemberId.value = id
@@ -313,12 +442,166 @@ const initialLoading = ref(true)
 const tableBusy = ref(false)
 const loadError = ref<string | null>(null)
 const rows = ref<StaffRow[]>([])
-const summary = ref<{ total_staff: number; matched: number; with_recent_activity: number } | null>(null)
+const summary = ref<{
+  total_staff: number
+  matched: number
+  active_count: number
+  inactive_count: number
+  unmatched_historical: number
+  active_missing_90d: number
+} | null>(null)
+const hasActiveMissingKpi = computed(() => (summary.value?.active_missing_90d ?? 0) > 0)
 const pagination = ref<{ skip: number; limit: number; total: number } | null>(null)
 const page = ref(1)
 const pageSize = 25
 const searchInput = ref('')
 const searchActive = ref('')
+const activityFilter = ref<ActivityFilter>(parseActivityFilter(route.query.activity))
+const isInactiveView = computed(() => activityFilter.value === 'inactive')
+const isEditableView = computed(
+  () => activityFilter.value === 'inactive' || activityFilter.value === 'active_missing_90d',
+)
+const editDraft = ref<Record<string, string>>({})
+const savingKey = ref<string | null>(null)
+const rowSnapshot = ref<Record<string, { contract_type: string; hourly_rate: string }>>({})
+
+function rowKey(r: StaffRow): string {
+  return r.member_id ?? `unmatched:${r.employee_name}`
+}
+
+function setActivityFilter(filter: ActivityFilter) {
+  activityFilter.value = filter
+  page.value = 1
+  void navigateTo({ path: STAFF_PATH, query: staffQuery() }, { replace: true })
+  load()
+  if (import.meta.client && document.activeElement instanceof HTMLElement) {
+    document.activeElement.blur()
+  }
+}
+
+function onRowClick(r: StaffRow) {
+  if (isEditableView.value && !r.member_id) return
+  if (r.member_id) openProfile(r.member_id)
+}
+
+function syncEditDrafts(list: StaffRow[]) {
+  if (!isEditableView.value) return
+  const next: Record<string, string> = { ...editDraft.value }
+  const snap: Record<string, { contract_type: string; hourly_rate: string }> = {}
+  for (const r of list) {
+    const key = rowKey(r)
+    const contractVal = r.contract_type === '—' ? '' : r.contract_type
+    const rateVal = r.hourly_rate != null && Number.isFinite(r.hourly_rate) ? String(r.hourly_rate) : ''
+    next[`${key}-contract`] = contractVal
+    next[`${key}-rate`] = rateVal
+    snap[key] = { contract_type: contractVal, hourly_rate: rateVal }
+  }
+  editDraft.value = next
+  rowSnapshot.value = snap
+}
+
+function parseRateInput(raw: string): number | null {
+  const t = raw.trim().replace(',', '.').replace(/[^\d.]/g, '')
+  if (!t) return null
+  const n = Number(t)
+  return Number.isFinite(n) ? n : null
+}
+
+async function ensureMemberId(r: StaffRow): Promise<string | null> {
+  if (r.member_id) return r.member_id
+  const name = r.employee_name.trim()
+  if (!name) return null
+  const key = rowKey(r)
+  const created = await $fetch<{ success: boolean; data: { _id: string } }>('/api/members', {
+    method: 'POST',
+    body: {
+      name,
+      support_id: r.support_id ?? undefined,
+      contract_type: normalizeSelectValue(editDraft.value[`${key}-contract`]) || undefined,
+      hourly_rate: parseRateInput(editDraft.value[`${key}-rate`] ?? '') ?? undefined,
+    },
+  })
+  return created.data._id
+}
+
+function normalizeSelectValue(value: unknown): string {
+  if (value == null) return ''
+  if (typeof value === 'string') return value.trim()
+  if (typeof value === 'object' && value !== null && 'value' in value) {
+    return String((value as { value: unknown }).value ?? '').trim()
+  }
+  return String(value).trim()
+}
+
+function contractTypeOptionsForRow(r: StaffRow) {
+  const key = rowKey(r)
+  const draft = editDraft.value[`${key}-contract`]
+  const current = draft || (r.contract_type === '—' ? '' : r.contract_type)
+  return staffContractTypeSelectOptions(current)
+}
+
+function setDraftContract(r: StaffRow, value: unknown) {
+  const key = rowKey(r)
+  const normalized = normalizeSelectValue(value)
+  editDraft.value = { ...editDraft.value, [`${key}-contract`]: normalized }
+  if (isStageContractType(normalized)) {
+    editDraft.value = { ...editDraft.value, [`${key}-rate`]: String(STAGE_CONTRACT_HOURLY_EUR) }
+  }
+}
+
+function rowHasUnsavedChanges(r: StaffRow): boolean {
+  const key = rowKey(r)
+  const snap = rowSnapshot.value[key]
+  if (!snap) return false
+  const contract = editDraft.value[`${key}-contract`] ?? ''
+  const rate = editDraft.value[`${key}-rate`] ?? ''
+  return contract !== snap.contract_type || rate !== snap.hourly_rate
+}
+
+async function saveRow(r: StaffRow) {
+  if (!isEditableView.value || !rowHasUnsavedChanges(r)) return
+  const key = rowKey(r)
+  const snap = rowSnapshot.value[key]
+  const contract = normalizeSelectValue(editDraft.value[`${key}-contract`])
+  const rateRaw = editDraft.value[`${key}-rate`] ?? ''
+
+  savingKey.value = key
+  loadError.value = null
+  try {
+    const memberId = await ensureMemberId(r)
+    if (!memberId) {
+      loadError.value = 'Could not resolve member profile'
+      return
+    }
+
+    const body: { contract_type?: string; hourly_rate?: number } = {}
+    if (contract !== (snap?.contract_type ?? '')) {
+      body.contract_type = contract
+    }
+    if (rateRaw !== (snap?.hourly_rate ?? '')) {
+      const rate = parseRateInput(rateRaw)
+      if (rateRaw.trim() && rate == null) {
+        loadError.value = 'Invalid hourly rate'
+        return
+      }
+      if (rate != null) body.hourly_rate = rate
+    }
+    if (body.contract_type && isStageContractType(body.contract_type)) {
+      body.hourly_rate = STAGE_CONTRACT_HOURLY_EUR
+    }
+    if (Object.keys(body).length === 0) {
+      loadError.value = 'No changes to save'
+      return
+    }
+
+    await $fetch(`/api/members/${memberId}`, { method: 'PUT', body })
+    await load({ bustCache: true })
+  } catch (e) {
+    loadError.value = e instanceof Error ? e.message : String(e)
+  } finally {
+    savingKey.value = null
+  }
+}
 
 function mapRow(r: ApiStaffRow): StaffRow {
   const h = r.recent_activity.total_hours
@@ -329,8 +612,11 @@ function mapRow(r: ApiStaffRow): StaffRow {
     last_worked: r.recent_activity.last_worked,
     hours_30d: h > 0 ? h : null,
     hourly_rate: r.hourly_rate,
+    is_unmatched: r.is_unmatched === true || !r.member_id,
+    support_id: r.support_id ?? null,
   }
 }
+
 
 function money(n: number | null) {
   return n != null && Number.isFinite(n) ? `€${n.toFixed(2)}` : '—'
@@ -340,7 +626,7 @@ function fmtHours(n: number | null) {
   return n != null && Number.isFinite(n) ? n.toFixed(1) : '—'
 }
 
-async function load() {
+async function load(opts?: { bustCache?: boolean; _filterReset?: boolean }) {
   const isFirst = initialLoading.value
   if (!isFirst) tableBusy.value = true
   loadError.value = null
@@ -348,19 +634,43 @@ async function load() {
     const q: Record<string, string> = {
       skip: String((page.value - 1) * pageSize),
       limit: String(pageSize),
+      activity: activityFilter.value,
     }
     if (searchActive.value.trim()) q.search = searchActive.value.trim()
+    if (opts?.bustCache) q.refresh = 'true'
     const res = await $fetch<{
       success: boolean
       data: ApiStaffRow[]
-      summary: { total_staff: number; with_recent_activity: number; missing_critical_data: number }
+      summary: {
+        total_staff: number
+        matched: number
+        active_count: number
+        inactive_count: number
+        unmatched_historical: number
+        missing_critical_data: number
+        active_missing_90d: number
+      }
       pagination: { skip: number; limit: number; total: number }
     }>(`/api/daily-ops/staff?${new URLSearchParams(q)}`)
-    rows.value = res.data.map(mapRow)
+    const mapped = res.data.map(mapRow)
+    rows.value = mapped
+    syncEditDrafts(mapped)
     summary.value = {
       total_staff: res.summary.total_staff,
-      matched: res.summary.total_staff - res.summary.missing_critical_data,
-      with_recent_activity: res.summary.with_recent_activity,
+      matched: res.summary.matched,
+      active_count: res.summary.active_count,
+      inactive_count: res.summary.inactive_count,
+      unmatched_historical: res.summary.unmatched_historical ?? 0,
+      active_missing_90d: res.summary.active_missing_90d ?? 0,
+    }
+    if (
+      activityFilter.value === 'active_missing_90d' &&
+      summary.value.active_missing_90d === 0 &&
+      !opts?._filterReset
+    ) {
+      activityFilter.value = 'active'
+      await load({ bustCache: opts?.bustCache, _filterReset: true })
+      return
     }
     pagination.value = res.pagination
   } catch (e) {
@@ -384,6 +694,18 @@ function clearFilters() {
   page.value = 1
   load()
 }
+
+watch(
+  () => route.query.activity,
+  (q) => {
+    const next = parseActivityFilter(q)
+    if (next !== activityFilter.value) {
+      activityFilter.value = next
+      page.value = 1
+      load()
+    }
+  },
+)
 
 watch(
   () => route.query.member,

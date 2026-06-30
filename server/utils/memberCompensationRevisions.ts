@@ -3,7 +3,7 @@
  * @created: 2026-05-16T12:00:00.000Z
  * @last-modified: 2026-05-21T12:00:00.000Z
  * @description: Open/close compensation revision intervals on members (forward-only, idempotent)
- * @last-fix: [2026-06-09] Leerling overig field; fix compensationHistory $set/$push conflict on revision close
+ * @last-fix: [2026-06-28] seedCompensationBaseline for CSV baseline rates without overwriting headline pay
  *
  * @architecture-ref: ARCHITECTURE.md#5-business-rules
  * @adr-ref: ADR-001, ADR-002, ADR-005
@@ -196,6 +196,146 @@ export async function openNewRevision(
   )
 
   return { changed: true, revision }
+}
+
+export function hasCompensationBaseline(history: CompensationRevision[] | undefined, sourceRef: string): boolean {
+  return (history ?? []).some((r) => r.source_ref === sourceRef)
+}
+
+/**
+ * Insert a closed baseline revision (e.g. CSV export rate) without changing member headline fields.
+ * Ensures an open revision exists for current headline rates after the baseline window.
+ */
+export async function seedCompensationBaseline(
+  db: Db,
+  memberId: ObjectId,
+  opts: {
+    baseline: CompensationMaterialFields
+    effectiveFrom: Date
+    effectiveTo: Date
+    sourceRef: string
+    source?: CompensationRevisionSource
+  },
+): Promise<{ inserted: boolean; reason?: string }> {
+  const member = await db.collection('members').findOne({ _id: memberId })
+  if (!member) return { inserted: false, reason: 'member_not_found' }
+
+  const history = (member.compensationHistory as CompensationRevision[] | undefined) ?? []
+  if (hasCompensationBaseline(history, opts.sourceRef)) {
+    return { inserted: false, reason: 'already_seeded' }
+  }
+
+  const headlineType = String(member.contract_type ?? '').trim() || '—'
+  const headlineRate = toNum(member.hourly_rate)
+  const headlineCph = resolveCostPerHour(
+    headlineType,
+    headlineRate,
+    toNum(member.cost_per_hour),
+  )
+
+  const baselineType = String(opts.baseline.contract_type ?? '').trim() || headlineType
+  const baselineRate = toNum(opts.baseline.hourly_rate)
+  const baselineCph = resolveCostPerHour(
+    baselineType,
+    baselineRate,
+    toNum(opts.baseline.cost_per_hour),
+  )
+
+  if (baselineRate == null && baselineCph == null) {
+    return { inserted: false, reason: 'no_baseline_rate' }
+  }
+
+  let effectiveFrom = opts.effectiveFrom
+  let effectiveTo = opts.effectiveTo
+  if (effectiveTo.getTime() <= effectiveFrom.getTime()) {
+    effectiveTo = new Date(effectiveFrom.getTime() + 86400000)
+  }
+
+  const now = new Date()
+  const source = opts.source ?? 'inbox_eitje_contract'
+  const baselineRevision: CompensationRevision = {
+    effective_from: effectiveFrom,
+    effective_to: effectiveTo,
+    contract_type: baselineType,
+    hourly_rate: baselineRate,
+    cost_per_hour: baselineCph,
+    cost_model: resolveCostModel(baselineType, baselineRate, baselineCph),
+    source,
+    source_ref: opts.sourceRef,
+    created_at: now,
+  }
+
+  const openRev = latestOpenRevision(history)
+  const openMatchesHeadline =
+    openRev &&
+    !materialFieldsChanged(
+      {
+        contract_type: openRev.contract_type,
+        hourly_rate: openRev.hourly_rate,
+        cost_per_hour: openRev.cost_per_hour,
+      },
+      {
+        contract_type: headlineType,
+        hourly_rate: headlineRate,
+        cost_per_hour: headlineCph,
+      },
+    )
+
+  const currentRevisionStart = new Date(effectiveTo.getTime() + 86400000)
+  const currentRevision: CompensationRevision = {
+    effective_from: currentRevisionStart,
+    effective_to: null,
+    contract_type: headlineType,
+    hourly_rate: headlineRate,
+    cost_per_hour: headlineCph,
+    cost_model: resolveCostModel(headlineType, headlineRate, headlineCph),
+    source: openRev?.source ?? 'manual_ui',
+    source_ref: openRev?.source_ref,
+    created_at: now,
+  }
+
+  if (openRev && openMatchesHeadline) {
+    await db.collection('members').updateOne(
+      { _id: memberId },
+      {
+        $push: { compensationHistory: baselineRevision },
+        $set: { updated_at: now },
+      },
+    )
+    await db.collection('members').updateOne(
+      { _id: memberId },
+      {
+        $set: {
+          'compensationHistory.$[open].effective_from': currentRevisionStart,
+          updated_at: now,
+        },
+      },
+      { arrayFilters: [{ 'open.effective_to': null }] },
+    )
+    return { inserted: true }
+  }
+
+  if (openRev && !openMatchesHeadline) {
+    await db.collection('members').updateOne(
+      { _id: memberId },
+      {
+        $push: { compensationHistory: baselineRevision },
+        $set: { updated_at: now },
+      },
+    )
+    return { inserted: true }
+  }
+
+  await db.collection('members').updateOne(
+    { _id: memberId },
+    {
+      $push: {
+        compensationHistory: { $each: [baselineRevision, currentRevision] },
+      },
+      $set: { updated_at: now },
+    },
+  )
+  return { inserted: true }
 }
 
 export async function findMemberIdBySupportId(db: Db, supportId: string): Promise<ObjectId | null> {

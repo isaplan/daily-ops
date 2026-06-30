@@ -60,6 +60,18 @@ export type DailyOpsStaffTeamSeriesPoint = {
   hours: number
   gewerkt_hours: number
   staff_count: number
+  byContract?: {
+    ft: DailyOpsStaffContractBucketMetrics
+    pt: DailyOpsStaffContractBucketMetrics
+    zzp: DailyOpsStaffContractBucketMetrics
+  }
+}
+
+export type DailyOpsStaffContractBucketMetrics = {
+  hours: number
+  gewerkt_hours: number
+  staff_count: number
+  loaded_cost: number
 }
 
 export type DailyOpsStaffTimeseriesPoint = {
@@ -67,6 +79,15 @@ export type DailyOpsStaffTimeseriesPoint = {
   hours: number
   gewerkt_hours: number
   staff_count: number
+  /** Snapshot revenue ex VAT for the bucket (ADR-004). */
+  revenue_ex_vat?: number
+  /** Snapshot loaded labor cost (gewerkt) for the bucket (ADR-004). */
+  labor_loaded_cost?: number
+  byContract?: {
+    ft: DailyOpsStaffContractBucketMetrics
+    pt: DailyOpsStaffContractBucketMetrics
+    zzp: DailyOpsStaffContractBucketMetrics
+  }
   teams?: DailyOpsStaffTeamSeriesPoint[]
 }
 

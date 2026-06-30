@@ -68,9 +68,20 @@ export const OPS_NOTIFICATION_RULE_SECTIONS: OpsNotificationRuleSection[] = [
       'Unmapped Basis location — inbox row has no location_id (add alias on unified_location, re-parse).',
       'Bork revenue aggregation stale — Bork day totals have revenue but hourly rows are missing/mismatched, or snapshots are older than the latest Bork aggregate.',
       'Eitje labor aggregation stale — Eitje aggregation has hours but is missing current enriched fields (`team_name`, `total_cost_loaded`) or snapshots are older than aggregation.',
-      'Labor snapshot internally inconsistent — worker rows show Keuken/Bediening hours but operational/gewerkte snapshot totals do not match.',
+      'Labor snapshot internally inconsistent — worker rows rolled up with Afwas 50/50 must match operational keuken/bediening/gewerkt on the snapshot.',
     ],
     paragraphs: [],
+  },
+  {
+    id: 'staff',
+    title: 'Staff (ADR-009)',
+    paragraphs: [
+      'Uses the same rules as the Staff hub — active staff only (30d hours or still_working override).',
+    ],
+    bullets: [
+      'Eitje staff not in members — active Eitje hours but no matching members row.',
+      'Active staff missing compensation — member exists but compensation_status is missing (contract_type / rate / cost_per_hour).',
+    ],
   },
   {
     id: 'architecture',

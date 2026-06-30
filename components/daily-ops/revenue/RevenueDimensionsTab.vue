@@ -21,7 +21,7 @@
     </div>
     <p class="text-sm text-gray-600">
       Personeel, tafels en werkdruk (order vs betaling) staan op
-      <NuxtLink to="/daily-ops/productivity" class="font-semibold underline">Productivity</NuxtLink>.
+      <NuxtLink to="/daily-ops/staff/productivity" class="font-semibold underline">Productivity</NuxtLink>.
     </p>
   </section>
 </template>

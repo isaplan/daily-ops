@@ -41,17 +41,25 @@ export function staffPeriodMedian(
   const rows = [...points]
     .sort((a, b) => a.date.localeCompare(b.date))
     .map((p) => ({ date: p.date, value: metricValue(p, metric) }))
+  return chartPeriodMedian(rows)
+}
+
+export function chartPeriodMedian(
+  rows: Array<{ date: string; value: number }>,
+): StaffPeriodMedianResult {
+  const sorted = [...rows]
+    .sort((a, b) => a.date.localeCompare(b.date))
     .filter((r) => r.value > 0)
 
-  if (!rows.length) {
+  if (!sorted.length) {
     return { median: 0, sampleCount: 0, fromDate: null, toDate: null }
   }
 
   return {
-    median: round2(median(rows.map((r) => r.value))),
-    sampleCount: rows.length,
-    fromDate: rows[0]!.date,
-    toDate: rows[rows.length - 1]!.date,
+    median: round2(median(sorted.map((r) => r.value))),
+    sampleCount: sorted.length,
+    fromDate: sorted[0]!.date,
+    toDate: sorted[sorted.length - 1]!.date,
   }
 }
 
@@ -61,12 +69,23 @@ export function staffRollingMedianSeries(
   windowDays: number,
   metric: 'hours' | 'staff',
 ): Array<{ date: string; value: number }> {
-  const buckets = [...points]
+  const rows = [...points]
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .map((p) => ({ date: p.date, value: metricValue(p, metric) }))
+  return chartRollingMedianSeries(rows, granularity, windowDays)
+}
+
+export function chartRollingMedianSeries(
+  rows: Array<{ date: string; value: number }>,
+  granularity: StaffChartGranularity,
+  windowDays: number,
+): Array<{ date: string; value: number }> {
+  const buckets = [...rows]
     .sort((a, b) => a.date.localeCompare(b.date))
     .map((p) => ({
       date: p.date,
       endDate: bucketEndDate(p.date, granularity),
-      value: metricValue(p, metric),
+      value: p.value,
     }))
 
   return buckets.map((b) => {
@@ -86,32 +105,30 @@ export type StaffTrendResult = {
   sampleCount: number
 }
 
-/** Linear trend over all non-zero buckets in the chart range (long window). */
-export function staffTrendSeries(
-  points: DailyOpsStaffTimeseriesPoint[],
-  metric: 'hours' | 'staff',
+/** Linear trend over non-zero buckets (shared by hours, staff, revenue overlays). */
+export function chartTrendSeries(
+  rows: Array<{ date: string; value: number }>,
 ): StaffTrendResult {
-  const rows = [...points]
+  const sorted = [...rows]
     .sort((a, b) => a.date.localeCompare(b.date))
-    .map((p) => ({ date: p.date, value: metricValue(p, metric) }))
     .filter((r) => r.value > 0)
 
-  if (rows.length < 2) {
+  if (sorted.length < 2) {
     return {
-      points: rows.map((r) => ({ date: r.date, value: r.value })),
+      points: sorted.map((r) => ({ date: r.date, value: r.value })),
       slopePerBucket: 0,
-      sampleCount: rows.length,
+      sampleCount: sorted.length,
     }
   }
 
-  const n = rows.length
+  const n = sorted.length
   let sumX = 0
   let sumY = 0
   let sumXY = 0
   let sumXX = 0
   for (let i = 0; i < n; i++) {
     const x = i
-    const y = rows[i]!.value
+    const y = sorted[i]!.value
     sumX += x
     sumY += y
     sumXY += x * y
@@ -122,13 +139,24 @@ export function staffTrendSeries(
   const intercept = (sumY - slope * sumX) / n
 
   return {
-    points: rows.map((r, i) => ({
+    points: sorted.map((r, i) => ({
       date: r.date,
       value: round2(intercept + slope * i),
     })),
     slopePerBucket: round2(slope),
     sampleCount: n,
   }
+}
+
+/** Linear trend over all non-zero buckets in the chart range (long window). */
+export function staffTrendSeries(
+  points: DailyOpsStaffTimeseriesPoint[],
+  metric: 'hours' | 'staff',
+): StaffTrendResult {
+  const rows = [...points]
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .map((p) => ({ date: p.date, value: metricValue(p, metric) }))
+  return chartTrendSeries(rows)
 }
 
 /** Short windows (calendar days) — ~4 / 8 / 13 weeks on weekly charts. */
@@ -141,12 +169,12 @@ export const STAFF_ROLLING_WINDOW_DAYS: Record<string, number> = {
 export const STAFF_REFERENCE_WINDOWS = {
   trend: {
     weekly: '52 weeks',
-    monthly: '12 months',
+    monthly: 'all months since 2024',
     yearly: 'all years',
   },
   median: {
     weekly: '52 weeks',
-    monthly: '12 months',
+    monthly: 'all months since 2024',
     yearly: 'all years',
   },
   rolling: {

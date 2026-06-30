@@ -17,6 +17,7 @@ import {
   resolveCostPerHour,
   toNum,
 } from '../../../../utils/memberCompensationRevisions'
+import type { CompensationRevision } from '../../../../../types/member-compensation'
 
 const PANEL_EITJE_MONTHS = 6
 
@@ -47,6 +48,7 @@ export default defineEventHandler(async (event) => {
         cost_per_hour: 1,
         compensation_status: 1,
         support_id: 1,
+        compensationHistory: 1,
       },
     }
   )
@@ -91,6 +93,20 @@ export default defineEventHandler(async (event) => {
       ? m.compensation_status
       : compensationStatusFromFields(contractTypeStr, hourlyNum ?? null, storedCost)
 
+  const rawHistory = (m.compensationHistory as CompensationRevision[] | undefined) ?? []
+  const compensationHistory = rawHistory
+    .map((r) => ({
+      effective_from: r.effective_from instanceof Date ? r.effective_from.toISOString() : String(r.effective_from),
+      effective_to:
+        r.effective_to instanceof Date ? r.effective_to.toISOString() : r.effective_to != null ? String(r.effective_to) : null,
+      contract_type: r.contract_type,
+      hourly_rate: r.hourly_rate,
+      cost_per_hour: r.cost_per_hour,
+      source: r.source,
+      source_ref: r.source_ref,
+    }))
+    .sort((a, b) => new Date(b.effective_from).getTime() - new Date(a.effective_from).getTime())
+
   const merged = eitje_places.merged
   const eitje_totals = {
     worked_hours: merged.reduce((s, r) => s + r.worked_hours, 0),
@@ -116,6 +132,7 @@ export default defineEventHandler(async (event) => {
       hourly_rate: hourlyNum,
       cost_per_hour: costPerHour,
       compensation_status,
+      compensationHistory,
       support_id: typeof m.support_id === 'string' ? m.support_id.trim() : undefined,
       eitje_places: {
         months_back: eitje_places.months_back,

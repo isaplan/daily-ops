@@ -3,7 +3,7 @@
  * @created: 2026-06-26T13:00:00.000Z
  * @last-modified: 2026-06-26T13:00:00.000Z
  * @description: Staff totals/plusmin — mode-based range (52wk / 12mo / years)
- * @last-fix: [2026-06-26] Fixed trailing windows for staff analytics APIs
+ * @last-fix: [2026-06-27] Monthly range from STAFF_YEAR_DATA_START
  *
  * @exports-to:
  * ✓ server/api/daily-ops/staff/timeseries.get.ts

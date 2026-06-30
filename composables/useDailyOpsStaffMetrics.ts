@@ -3,7 +3,7 @@
  * @created: 2026-06-25T12:00:00.000Z
  * @last-modified: 2026-06-27T18:00:00.000Z
  * @description: Staff totals analytics — timeseries (all venues, chart filters client-side)
- * @last-fix: [2026-06-27] Hide stale timeseries on mode switch; isLoading until key matches
+ * @last-fix: [2026-06-28] Fix loadedKey when timeseries arrives; reset on mode switch
  * @adr-ref: ADR-004, ADR-011
  *
  * @exports-to:
@@ -25,9 +25,10 @@ function buildQueryString(q: Record<string, string>): string {
 
 export function useDailyOpsStaffMetrics() {
   const route = useRoute()
-  const navV2 = useDailyOpsRevenueNavV2()
 
-  const staffMode = computed(() => coerceStaffNavMode(navV2.query.value.mode))
+  const staffMode = computed(() =>
+    coerceStaffNavMode(typeof route.query.mode === 'string' ? route.query.mode : ''),
+  )
   const anchor = computed(() => amsterdamOpenRegisterBusinessDateYmd())
 
   const analyticsRange = computed(() =>
@@ -62,10 +63,14 @@ export function useDailyOpsStaffMetrics() {
     { watch: [qs] },
   )
 
-  watch([pending, cacheKey], () => {
+  watch([pending, cacheKey, timeseriesRaw], () => {
     if (!pending.value && timeseriesRaw.value) {
       loadedKey.value = cacheKey.value
     }
+  })
+
+  watch(cacheKey, () => {
+    loadedKey.value = null
   })
 
   const isReady = computed(() => !pending.value && loadedKey.value === cacheKey.value)
@@ -83,6 +88,5 @@ export function useDailyOpsStaffMetrics() {
     chartGranularityLabel,
     timeseries,
     isLoading,
-    navV2,
   }
 }
