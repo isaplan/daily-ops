@@ -116,9 +116,10 @@ const CATEGORY_FROM_LINES_PIPELINE = [
 export async function sumFoodBeverageFromHourAggregates(
   db: Db,
   match: Record<string, unknown>,
+  collectionName?: string,
 ): Promise<{ food: number; drinks: number }> {
   const sfx = resolveBorkAggReadSuffix()
-  const coll = `bork_sales_by_hour${sfx}`
+  const coll = collectionName ?? `bork_sales_by_hour${sfx}`
 
   const [facetRow] = (await db
     .collection(coll)

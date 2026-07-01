@@ -1,16 +1,18 @@
 /**
  * @registry-id: dailyOpsSnapshotBuildRevenueSection
  * @created: 2026-05-13T00:00:00.000Z
- * @last-modified: 2026-05-27T14:30:00.000Z
+ * @last-modified: 2026-07-01T12:00:00.000Z
  * @description: Builds DailyOpsSnapshotRevenueSection for one (businessDate, locationId).
  *   Reads only from aggregated collections: bork_business_days, bork_sales_by_hour,
  *   inbox-bork-basis-report. Never touches bork_raw_data.
- * @last-fix: [2026-06-24] Datalab daily benchmark fallback when inbox/Bork agg missing (2024 history)
+ * @last-fix: [2026-07-01] Open register day headline = order-time hour sum; sealed days = inbox/paid SSOT
+ *   Prior: [2026-06-24] Datalab daily benchmark fallback when inbox/Bork agg missing (2024 history)
  *   Prior: [2026-05-26] Snapshot carries order-time hourly Bork buckets beside paid-time buckets.
  *   Prior: [2026-05-25] Bork reads use resolveBorkAggReadSuffix (_v2) like products/hourly builders.
  *
  * @architecture:
- *   - Headline: `resolveVenueDayHeadlineRevenue` (basis-report-mapper SSOT). Morning inbox 7|8 or Bork.
+ *   - Headline: open register day → sum `bork_sales_by_order_hour` (order-entry time).
+ *     Sealed days → `resolveVenueDayHeadlineRevenue` (morning inbox 7|8 or paid Bork).
  *   - Hourly: pre-fill 24 slots (business_hour 0..23 → calendar_hour 8..7-next). Paid-time
  *     buckets come from bork_sales_by_hour; order-time buckets come from bork_sales_by_order_hour.
  *     No intraday inbox per-hour split (inbox is daily-level).
@@ -33,6 +35,8 @@ import {
   type BasisReportData,
 } from '../inbox/basis-report-mapper'
 import { readRevenueDailyBenchmark } from '../revenueDailyBenchmarkService'
+import { sumBorkOrderHourDocs } from '../dailyOpsRevenue/orderTimeHeadline'
+import { isOpenRegisterBusinessDate } from '~/utils/dailyOpsBusinessDate'
 
 const runtimeProcess = globalThis as typeof globalThis & {
   process?: { env?: Record<string, string | undefined> }
@@ -108,17 +112,39 @@ export async function buildRevenueSection(
       }
     : null
 
-  const headline = resolveVenueDayHeadlineRevenue({
-    inboxReports: inboxRows as unknown as BasisReportData[],
-    bork: borkTotals,
-    hasBorkDay: borkDay != null,
-    benchmark,
-  })
+  const orderTotals = sumBorkOrderHourDocs(borkOrderHours)
+  const isOpenRegisterToday = isOpenRegisterBusinessDate(businessDate)
+
+  const headline = isOpenRegisterToday
+    ? {
+        leadSource: 'bork' as const,
+        morningInbox: undefined,
+        totals: {
+          ex_vat: orderTotals.ex_vat,
+          inc_vat: orderTotals.inc_vat,
+          vat: orderTotals.vat,
+          quantity: orderTotals.quantity,
+          record_count: orderTotals.record_count,
+        },
+      }
+    : resolveVenueDayHeadlineRevenue({
+        inboxReports: inboxRows as unknown as BasisReportData[],
+        bork: borkTotals,
+        hasBorkDay: borkDay != null,
+        benchmark,
+      })
   const leadSource = headline.leadSource as LeadRevenueSource
   const totals = headline.totals
 
-  const sealedBorkTotals =
-    leadSource === 'datalab_benchmark' && benchmark
+  const sealedBorkTotals = isOpenRegisterToday
+    ? {
+        ex_vat: orderTotals.ex_vat,
+        inc_vat: orderTotals.inc_vat,
+        vat: orderTotals.vat,
+        quantity: orderTotals.quantity,
+        record_count: orderTotals.record_count,
+      }
+    : leadSource === 'datalab_benchmark' && benchmark
       ? {
           ex_vat: benchmark.ex_vat,
           inc_vat: benchmark.inc_vat,

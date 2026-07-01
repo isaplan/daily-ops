@@ -1,8 +1,10 @@
 /**
  * @registry-id: dailyOpsRevenueBorkRead
- * @last-modified: 2026-05-21T00:00:00.000Z
+ * @last-modified: 2026-07-01T12:00:00.000Z
  * @description: Bork V2 fallbacks when revenue snapshot sections are missing or partial
- * @last-fix: [2026-05-21] Shared Bork reads for categories, products, hourly matrix
+ * @last-fix: [2026-07-01] fetchBorkOrderTimeRangeTotals for open register-day headline (order-time)
+ *   Prior: [2026-05-21] Shared Bork reads for categories, products, hourly matrix
+ * @adr-ref: ADR-004, ADR-010
  */
 
 import type { Db } from 'mongodb'
@@ -104,6 +106,66 @@ export async function fetchBorkRangeTotals(
     foodRevenue: food,
     beverageRevenue: drinks,
   }
+}
+
+export type BorkRangeTotals = {
+  revenue: number
+  revenueIncVat: number
+  itemsCount: number
+  foodRevenue: number
+  beverageRevenue: number
+}
+
+/** Open register-day headline: sum `bork_sales_by_order_hour` (order-entry time, not paid/close time). */
+export async function fetchBorkOrderTimeRangeTotals(
+  db: Db,
+  ctx: Pick<DailyOpsRevenueQueryContext, 'startDate' | 'endDate' | 'locationId'>,
+  opts?: FetchBorkRangeTotalsOpts,
+): Promise<BorkRangeTotals> {
+  const match = borkRevenueMatch(ctx)
+
+  let revenue = 0
+  let revenueIncVat = 0
+  let itemsCount = 0
+  for (const suffix of listBorkAggReadSuffixCandidates()) {
+    const collName = `bork_sales_by_order_hour${suffix}`
+    const exists = await db.listCollections({ name: collName }).hasNext()
+    if (!exists) continue
+
+    const [dayRow] = await db
+      .collection(collName)
+      .aggregate([
+        { $match: match },
+        {
+          $group: {
+            _id: null,
+            revenue: { $sum: BORK_DOC_REVENUE_EXPR },
+            revenueIncVat: { $sum: BORK_DOC_REVENUE_INC_EXPR },
+            itemsCount: { $sum: { $ifNull: ['$total_quantity', 0] } },
+          },
+        },
+      ])
+      .toArray()
+
+    const d = dayRow as { revenue?: number; revenueIncVat?: number; itemsCount?: number } | undefined
+    const rev = Number(d?.revenue ?? 0)
+    if (rev > 0) {
+      revenue = rev
+      revenueIncVat = Number(d?.revenueIncVat ?? 0)
+      itemsCount = Number(d?.itemsCount ?? 0)
+      break
+    }
+  }
+
+  if (opts?.skipFoodBev) {
+    return { revenue, revenueIncVat, itemsCount, foodRevenue: 0, beverageRevenue: 0 }
+  }
+
+  const sfx = resolveBorkAggReadSuffix()
+  const orderColl = `bork_sales_by_order_hour${sfx}`
+  const { food, drinks } = await sumFoodBeverageFromHourAggregates(db, match, orderColl)
+
+  return { revenue, revenueIncVat, itemsCount, foodRevenue: food, beverageRevenue: drinks }
 }
 
 function round2(n: number): number {
