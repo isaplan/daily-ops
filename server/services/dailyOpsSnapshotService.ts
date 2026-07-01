@@ -2,7 +2,8 @@
  * @registry-id: dailyOpsSnapshotService
  * @created: 2026-05-13T00:00:00.000Z
  * @last-modified: 2026-07-01T00:00:00.000Z
- * @last-fix: [2026-07-01] Pregen daily JSON after every snapshot build (incl. open register day)
+ * @last-fix: [2026-07-01] Cascade weekly/monthly/yearly JSON after snapshot materialization
+ *   Prior: [2026-07-01] Pregen daily JSON after every snapshot build (incl. open register day)
  *   Prior: [2026-06-18] Reopen sealed snapshots when warm tier is newer; preserve revenue hourly on rewrite
  *   Prior: [2026-06-05] Pre-generate bundle JSON cache after snapshot builds complete
  * @adr-ref: ADR-004, ADR-006, ADR-007
@@ -53,7 +54,8 @@ import {
   writeRevenueBenchmarkForLocation,
 } from '../utils/dailyOpsRevenue/revenueBenchmark'
 import { runPostSealRetention } from '../utils/dailyOpsBlob/runPostSealRetention'
-import { preGenerateBundleForDate, preGenerateBundlesForRange } from '../utils/dailyOpsSnapshot/preGenerateBundleCache'
+import { preGenerateBundleForDate, refreshDashboardBundleCache } from '../utils/dailyOpsSnapshot/preGenerateBundleCache'
+import { cascadeGenerate } from '../utils/dailyOpsSnapshot/cacheCascade'
 import type { SourcesFingerprint } from '../utils/dailyOpsSnapshot/resolveSources'
 
 const runtimeProcess = globalThis as typeof globalThis & {
@@ -345,6 +347,8 @@ export async function buildDailyOpsSnapshot(input: BuildSnapshotInput): Promise<
   if (out.built.length > 0) {
     await writeRevenueBenchmarkAllLocations(db, businessDate)
     await preGenerateBundleForDate(db, businessDate, 'all')
+    const cacheLocationIds = [...out.built.map((b) => b.locationId), 'all']
+    await cascadeGenerate(businessDate, businessDate, cacheLocationIds)
   }
 
   return out
@@ -378,9 +382,9 @@ export async function buildDailyOpsSnapshotRange(input: {
     cursor = `${next.getUTCFullYear()}-${String(next.getUTCMonth() + 1).padStart(2, '0')}-${String(next.getUTCDate()).padStart(2, '0')}`
   }
   
-  // Pre-generate bundle cache for all sealed days in range
+  // Daily JSON + weekly/monthly/yearly cascade for instant GET paths
   if (locationIds.length > 0) {
-    await preGenerateBundlesForRange(db, input.startDate, input.endDate, [...locationIds, 'all'])
+    await refreshDashboardBundleCache(db, input.startDate, input.endDate, [...locationIds, 'all'])
   }
   
   return { built, errors }
@@ -397,6 +401,7 @@ export async function sealDailyOpsSnapshot(input: { businessDate: string; locati
     await runPostSealRetention(db, input.businessDate, input.locationId)
     await preGenerateBundleForDate(db, input.businessDate, input.locationId)
     await preGenerateBundleForDate(db, input.businessDate, 'all')
+    await cascadeGenerate(input.businessDate, input.businessDate, [input.locationId, 'all'])
     if (DEBUG) console.info(`[snapshot:seal] ${input.businessDate} ${input.locationId} sealed`)
     return { sealed: true }
   } catch (e) {

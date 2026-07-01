@@ -3,7 +3,8 @@
  * @created: 2026-05-27T00:00:00.000Z
  * @last-modified: 2026-06-24T00:00:00.000Z
  * @description: Enqueue or run daily_ops_snapshot rebuilds after Bork/Eitje aggregation writes.
- * @last-fix: [2026-06-24] materializeIntegrationPipelineSnapshots — sync tail for integration crons
+ * @last-fix: [2026-07-01] Pipeline tail includes daily + weekly/monthly/yearly JSON cascade
+ *   Prior: [2026-06-24] materializeIntegrationPipelineSnapshots — sync tail for integration crons
  * @adr-ref: ADR-004
  *
  * @architecture:
