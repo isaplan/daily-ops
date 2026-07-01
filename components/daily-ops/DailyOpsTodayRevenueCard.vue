@@ -128,7 +128,7 @@ type MetricColumn = LocationColumn & {
   isFirstForLocation: boolean
 }
 
-const hourlyBasis = ref<HourlyBasis>('paid')
+const hourlyBasis = ref<HourlyBasis>('ordered')
 const venueFilter = ref<string>('all')
 const metricFilter = ref<MetricFilter>('all')
 

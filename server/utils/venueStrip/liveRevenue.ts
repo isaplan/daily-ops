@@ -1,15 +1,15 @@
 /**
  * @registry-id: dailyOpsVenueStripLiveRevenue
  * @created: 2026-06-06T18:00:00.000Z
- * @last-modified: 2026-06-07T01:00:00.000Z
- * @description: Open register-day venue revenue — freshest of Bork V2 aggregate or live raw sum
- * @last-fix: [2026-06-08] Bounded raw scan via sumBusinessDateFromBorkRawBounded (4s cap)
- *   Prior: [2026-06-07] isTodayBusinessDate uses open register day, not ISO calendar
+ * @last-modified: 2026-07-01T12:00:00.000Z
+ * @description: Open register-day venue revenue — Bork order-time aggregates (order-entry hour)
+ * @last-fix: [2026-07-01] Today headline uses bork_sales_by_order_hour, not paid business-day totals
+ *   Prior: [2026-06-08] Bounded raw scan via sumBusinessDateFromBorkRawBounded (4s cap)
  * @adr-ref: ADR-004, ADR-010
  *
  * @architecture:
  *   - “Today” = open register `business_date` (08:00 → next morning 07:59).
- *   - Prefer max(aggregate, raw) so hourly cron lag does not under-report vs Datalab/POS.
+ *   - Headline = sum of order-time hour buckets (matches Datalab “orders now”).
  *
  * @exports-to:
  * ✓ server/utils/venueStrip/snapshotBatch.ts
@@ -20,8 +20,7 @@ import type { Db } from 'mongodb'
 import type { VenueStripCardDto } from '~/types/daily-ops-dashboard'
 import { isOpenRegisterBusinessDate } from '~/utils/dailyOpsBusinessDate'
 import { proportionalFoodBeverageToHeadline } from '../borkFoodBeverageSplit'
-import { fetchBorkRangeTotals } from '../dailyOpsRevenue/borkRevenueRead'
-import { sumBusinessDateFromBorkRawBounded } from './liveRevenueRaw'
+import { fetchBorkOrderTimeRangeTotals } from '../dailyOpsRevenue/borkRevenueRead'
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100
@@ -32,7 +31,7 @@ export function isTodayBusinessDate(ymd: string): boolean {
   return isOpenRegisterBusinessDate(ymd)
 }
 
-/** Live Bork revenue for one venue × open register business day. */
+/** Live Bork order-time revenue for one venue × open register business day. */
 export async function fetchVenueStripLiveRevenue(
   db: Db,
   businessDate: string,
@@ -40,17 +39,14 @@ export async function fetchVenueStripLiveRevenue(
 ): Promise<VenueStripCardDto['revenue'] | null> {
   if (!isTodayBusinessDate(businessDate)) return null
 
-  const [agg, raw] = await Promise.all([
-    fetchBorkRangeTotals(db, {
-      startDate: businessDate,
-      endDate: businessDate,
-      locationId,
-    }),
-    sumBusinessDateFromBorkRawBounded(db, locationId, businessDate),
-  ])
+  const agg = await fetchBorkOrderTimeRangeTotals(db, {
+    startDate: businessDate,
+    endDate: businessDate,
+    locationId,
+  })
 
-  const revenue = Math.max(agg.revenue, raw?.revenue ?? 0)
-  const revenueIncVat = Math.max(agg.revenueIncVat, raw?.revenueIncVat ?? 0)
+  const revenue = agg.revenue
+  const revenueIncVat = agg.revenueIncVat
 
   if (revenue <= 0 && revenueIncVat <= 0) return null
 

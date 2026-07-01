@@ -542,18 +542,22 @@ const drawerContent = computed(() => {
     case 'revenue':
       return {
         title: 'Total Revenue',
-        intro: s?.revenueLeadSource === 'inbox_basis_ex_vat'
-          ? 'Headline uses Inbox Basis Report (full business day, ex VAT) per venue when available.'
-          : 'Headline uses Bork API business-day aggregates (ex VAT).',
+        intro: props.period === 'today'
+          ? 'Headline uses Bork order-time aggregates (ex VAT) for the open register day.'
+          : s?.revenueLeadSource === 'inbox_basis_ex_vat'
+            ? 'Headline uses Inbox Basis Report (full business day, ex VAT) per venue when available.'
+            : 'Headline uses Bork paid-time business-day aggregates (ex VAT).',
         summaryRows: [
           { label: 'Combined (3 venues)', value: formatEurWhole(t.revenue) },
           {
-            label: 'Inbox Basis · ex VAT (bundle)',
-            value: rs?.inboxBasisExVat != null ? formatEurWhole(rs.inboxBasisExVat) : '—',
+            label: props.period === 'today' ? 'Bork order-time · ex VAT (bundle)' : 'Inbox Basis · ex VAT (bundle)',
+            value: props.period === 'today'
+              ? (rs != null ? formatEurWhole(rs.apiBusinessDaysTotal) : '—')
+              : (rs?.inboxBasisExVat != null ? formatEurWhole(rs.inboxBasisExVat) : '—'),
           },
           {
-            label: 'Bork API · ex VAT (bundle)',
-            value: rs != null ? formatEurWhole(rs.apiBusinessDaysTotal) : '—',
+            label: props.period === 'today' ? 'Bork paid-time · ex VAT (reference)' : 'Bork API · ex VAT (bundle)',
+            value: props.period === 'today' ? '—' : (rs != null ? formatEurWhole(rs.apiBusinessDaysTotal) : '—'),
           },
         ],
         venueColumns: ['Total', 'Food', 'Beverage'],

@@ -1,8 +1,9 @@
 /**
  * @registry-id: dailyOpsSnapshotFetchDashboardBundle
  * @created: 2026-05-25T00:00:00.000Z
- * @last-modified: 2026-06-07T00:00:00.000Z
- * @last-fix: [2026-06-09] Merge live check_ins hourly labor into today P&L / profit-by-interval
+ * @last-modified: 2026-07-01T12:00:00.000Z
+ * @last-fix: [2026-07-01] Patch open register-day revenue from order-time Bork aggregates before DTO build
+ *   Prior: [2026-06-09] Merge live check_ins hourly labor into today P&L / profit-by-interval
  *   Prior: [2026-06-07] snapshotCacheControl uses open register business_date (ADR-010), not UTC ISO
  *   Prior: [2026-06-05] Cache sealed days 24h immutable; yesterday 1h + stale-while-revalidate
  *   Prior: [2026-06-05] Merge revenue-section hourly fallback + scale today hourly detail
@@ -54,6 +55,8 @@ import {
 import { buildHeadlineRevenueByLocDay, buildRevLabMaps } from './dashboardBundle/revLabMaps'
 import { snapshotRound2 } from './dashboardBundle/shared'
 import { buildTodayExtrasFromHourBundle } from './dashboardBundle/todayRevenueDetail'
+import { patchTodayRevenueRowsFromBork } from './dashboardBundle/patchTodayRevenueFromBork'
+import { headlineExVatFromSnapshotSection } from './snapshotHeadlineRevenue'
 import { coverageFromSnapshotMasters, formatCoverageNote } from './bundleCoverage'
 
 export type DailyOpsDashboardBundleDto = {
@@ -141,6 +144,7 @@ export async function fetchDailyOpsDashboardBundle(
   }
 
   const rows = await loadSnapshotDashboardRows(db, ctx)
+  await patchTodayRevenueRowsFromBork(db, ctx, rows.revenue)
   const snapshotContracts = contractRollupsFromSnapshotLabor(rows.labor)
   const { revMap, labMap, revByDateLocation, laborByLocDay } = buildRevLabMaps(
     rows.masters,
@@ -154,7 +158,7 @@ export async function fetchDailyOpsDashboardBundle(
 
   let apiMergedTotal = 0
   for (const r of rows.revenue) {
-    apiMergedTotal += Number(r.borkTotals?.ex_vat ?? 0)
+    apiMergedTotal += headlineExVatFromSnapshotSection(r)
   }
 
   let laborByLocHour = laborByLocHourFromSnapshots(rows.labor)

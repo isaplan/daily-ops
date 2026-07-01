@@ -22,6 +22,7 @@ import type { CheckInRow } from './checkIns'
 import { loadMemberCompensationForStaffRows } from '../eitjeAggCompensationEnrich'
 import { enrichLaborWithPct, productivityPerHour, resolveVenueStripLabor } from './labor'
 import { contractsByTeamFromSnapshot, revenueFromSnapshotSections } from './revenue'
+import { fetchVenueStripLiveRevenue, isTodayBusinessDate } from './liveRevenue'
 import type { WorkerShiftTimeMaps } from './workerShiftTimes'
 
 export type VenueStripSnapshotBatch = {
@@ -129,13 +130,18 @@ export async function buildVenueStripCardFromSnapshots(
   const { totalRevenue, food, beverage, totalIncVat, foodIncVat, beverageIncVat } =
     revenueFromSnapshotSections(snapRev, snapProducts)
 
-  const revenue = {
+  let revenue = {
     total: totalRevenue,
     food,
     beverage,
     totalIncVat,
     foodIncVat,
     beverageIncVat,
+  }
+
+  if (isTodayBusinessDate(ctx.startDate)) {
+    const live = await fetchVenueStripLiveRevenue(db, ctx.startDate, venue.locationId)
+    if (live) revenue = live
   }
 
   const headlineTotal = revenue.total
