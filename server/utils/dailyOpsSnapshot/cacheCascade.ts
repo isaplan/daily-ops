@@ -1,9 +1,10 @@
 /**
  * @registry-id: dailyOpsCacheCascade
  * @created: 2026-06-05T18:48:00.000Z
- * @last-modified: 2026-06-07T00:00:00.000Z
+ * @last-modified: 2026-07-01T00:00:00.000Z
  * @description: Cascading cache: daily → weekly → monthly → yearly bundle aggregation
- * @last-fix: [2026-06-07] Date iteration via addCalendarDaysYmd on business_date (ADR-010)
+ * @last-fix: [2026-07-01] Serve daily JSON for open register day (written after each snapshot rebuild)
+ *   Prior: [2026-06-07] Date iteration via addCalendarDaysYmd on business_date (ADR-010)
  * @adr-ref: ADR-004, ADR-010
  *
  * @exports-to:
@@ -90,10 +91,9 @@ export async function loadCachedDashboardBundle(
   const openRegister = amsterdamOpenRegisterBusinessDateYmd()
   const yesterday = addCalendarDaysYmd(openRegister, -1)
 
-  if (startDate === endDate && endDate < openRegister) {
+  if (startDate === endDate) {
     return readCachedBundle(cachePath('daily', startDate, locationId))
   }
-  if (startDate === endDate) return null
 
   const weekStart = getWeekStart(startDate)
   const weekEnd = getWeekEnd(startDate)

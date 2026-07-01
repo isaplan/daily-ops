@@ -3,7 +3,7 @@
  * @created: 2026-05-28T00:00:00.000Z
  * @last-modified: 2026-06-10T00:00:00.000Z
  * @description: Batch snapshot reads + venue card assembly for venue strip
- * @last-fix: [2026-06-10] Range batch loader for multi-day venue strip rollups
+ * @last-fix: [2026-07-01] Venue strip revenue snapshot-only; removed live Bork GET overlay
  * @adr-ref: ADR-004, ADR-010
  */
 
@@ -22,7 +22,6 @@ import type { CheckInRow } from './checkIns'
 import { loadMemberCompensationForStaffRows } from '../eitjeAggCompensationEnrich'
 import { enrichLaborWithPct, productivityPerHour, resolveVenueStripLabor } from './labor'
 import { contractsByTeamFromSnapshot, revenueFromSnapshotSections } from './revenue'
-import { fetchVenueStripLiveRevenue, isTodayBusinessDate } from './liveRevenue'
 import type { WorkerShiftTimeMaps } from './workerShiftTimes'
 
 export type VenueStripSnapshotBatch = {
@@ -130,18 +129,13 @@ export async function buildVenueStripCardFromSnapshots(
   const { totalRevenue, food, beverage, totalIncVat, foodIncVat, beverageIncVat } =
     revenueFromSnapshotSections(snapRev, snapProducts)
 
-  let revenue = {
+  const revenue = {
     total: totalRevenue,
     food,
     beverage,
     totalIncVat,
     foodIncVat,
     beverageIncVat,
-  }
-
-  if (isTodayBusinessDate(ctx.startDate)) {
-    const live = await fetchVenueStripLiveRevenue(db, ctx.startDate, venue.locationId)
-    if (live) revenue = live
   }
 
   const headlineTotal = revenue.total

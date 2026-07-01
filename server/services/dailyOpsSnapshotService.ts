@@ -1,8 +1,9 @@
 /**
  * @registry-id: dailyOpsSnapshotService
  * @created: 2026-05-13T00:00:00.000Z
- * @last-modified: 2026-06-18T00:00:00.000Z
- * @last-fix: [2026-06-18] Reopen sealed snapshots when warm tier is newer; preserve revenue hourly on rewrite
+ * @last-modified: 2026-07-01T00:00:00.000Z
+ * @last-fix: [2026-07-01] Pregen daily JSON after every snapshot build (incl. open register day)
+ *   Prior: [2026-06-18] Reopen sealed snapshots when warm tier is newer; preserve revenue hourly on rewrite
  *   Prior: [2026-06-05] Pre-generate bundle JSON cache after snapshot builds complete
  * @adr-ref: ADR-004, ADR-006, ADR-007
  *
@@ -331,10 +332,8 @@ export async function buildDailyOpsSnapshot(input: BuildSnapshotInput): Promise<
 
       if (sealed) {
         await writeRevenueBenchmarkForLocation(db, businessDate, locationId)
-        // Pre-generate bundle cache for instant page loads
-        await preGenerateBundleForDate(db, businessDate, locationId)
-        await preGenerateBundleForDate(db, businessDate, 'all')
       }
+      await preGenerateBundleForDate(db, businessDate, locationId)
       out.built.push({ locationId, locationName })
     } catch (e) {
       out.success = false
@@ -345,6 +344,7 @@ export async function buildDailyOpsSnapshot(input: BuildSnapshotInput): Promise<
 
   if (out.built.length > 0) {
     await writeRevenueBenchmarkAllLocations(db, businessDate)
+    await preGenerateBundleForDate(db, businessDate, 'all')
   }
 
   return out

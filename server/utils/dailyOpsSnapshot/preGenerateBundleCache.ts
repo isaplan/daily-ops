@@ -1,9 +1,10 @@
 /**
  * @registry-id: dailyOpsPreGenerateBundleCache
  * @created: 2026-06-05T17:50:00.000Z
- * @last-modified: 2026-06-07T00:00:00.000Z
- * @description: Pre-generate static JSON cache for sealed dashboard bundles (instant page loads)
- * @last-fix: [2026-06-07] Open register day check via amsterdamOpenRegisterBusinessDateYmd (ADR-010)
+ * @last-modified: 2026-07-01T00:00:00.000Z
+ * @description: Pre-generate static JSON cache for dashboard bundles (all days — instant page loads)
+ * @last-fix: [2026-07-01] Write daily JSON for open register day after each snapshot rebuild
+ *   Prior: [2026-06-07] Open register day check via amsterdamOpenRegisterBusinessDateYmd (ADR-010)
  *   Prior: [2026-06-05] Initial pre-generation after snapshot builds complete
  * @adr-ref: ADR-004, ADR-010
  *
@@ -25,20 +26,18 @@ function cacheFileName(businessDate: string, locationId: string): string {
   return `${businessDate}-${locationId}.json`
 }
 
-/** Generate static bundle JSON for a sealed day after snapshot build completes. */
+/** Generate static bundle JSON after snapshot build completes (all days including today). */
 export async function preGenerateBundleForDate(
   db: Db,
   businessDate: string,
   locationId: string,
 ): Promise<{ written: boolean; path: string | null; error?: string }> {
   const openRegister = amsterdamOpenRegisterBusinessDateYmd()
-  if (businessDate >= openRegister) {
-    return { written: false, path: null, error: 'Skip today (not sealed)' }
-  }
+  const isToday = businessDate === openRegister
 
   try {
     const ctx: DailyOpsMetricsContext = {
-      period: 'd1',
+      period: isToday ? 'today' : 'd1',
       startDate: businessDate,
       endDate: businessDate,
       locationId: locationId === 'all' ? undefined : locationId,
@@ -89,7 +88,7 @@ export async function preGenerateBundlesForRange(
       if (result.written) {
         generated++
       }
-      else if (!result.error?.includes('not sealed')) {
+      else if (result.error) {
         errors++
         console.warn(`[bundle:cache] Failed ${date} ${locationId}: ${result.error}`)
       }
