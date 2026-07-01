@@ -1,9 +1,9 @@
 /**
  * @registry-id: dailyOpsSnapshotHeadlineRevenue
  * @created: 2026-05-28T00:00:00.000Z
- * @last-modified: 2026-07-01T12:00:00.000Z
- * @description: Read headline revenue from sealed snapshot sections (ADR-004/006). No inbox or Bork on GET.
- * @last-fix: [2026-07-01] Open register day reads order-time hourly sum, not paid-time totals
+ * @last-modified: 2026-07-01T21:30:00.000Z
+ * @description: Read headline revenue from snapshot sections (ADR-004/006). No inbox or Bork on GET.
+ * @last-fix: [2026-07-01] Open register day reads order-time hourly sum from snapshot; past days = inbox/paid totals
  *   Prior: [2026-05-28] Snapshot totals are SSOT on dashboard/revenue GET paths
  * @adr-ref: ADR-004, ADR-006, ADR-010
  *
@@ -47,4 +47,11 @@ export function headlineIncVatFromSnapshotSection(rev: DailyOpsSnapshotRevenueSe
 export function leadSourceFromSnapshotSection(rev: DailyOpsSnapshotRevenueSection | null | undefined): LeadRevenueSource | 'unknown' {
   if (!rev) return 'unknown'
   return rev.leadSource ?? 'unknown'
+}
+
+export function isOpenRegisterOrderTimeHeadline(rev: DailyOpsSnapshotRevenueSection | null | undefined): boolean {
+  if (!rev || !isOpenRegisterBusinessDate(rev.businessDate)) return false
+  const totalsEx = Number(rev.totals?.ex_vat ?? 0)
+  if (totalsEx > 0) return true
+  return sumOrderHourlySlots(rev.orderHourly).ex_vat > 0
 }

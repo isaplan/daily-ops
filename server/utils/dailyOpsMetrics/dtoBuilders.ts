@@ -33,8 +33,14 @@ export const VAT_DISCLAIMER = 'All revenue values shown are excluding VAT (ex VA
 
 function resolveHeadlineRevenue(
   apiMergedTotal: number,
-  revenueSourcesDetail?: { inboxBasisExVat: number | null },
-): { headline: number; leadSource: 'inbox_basis_ex_vat' | 'bork_api_merged' } {
+  revenueSourcesDetail?: { inboxBasisExVat: number | null; useOrderTimeHeadline?: boolean },
+): { headline: number; leadSource: 'inbox_basis_ex_vat' | 'bork_api_merged' | 'bork_order_time' } {
+  if (revenueSourcesDetail?.useOrderTimeHeadline) {
+    return {
+      headline: Math.round(apiMergedTotal * 100) / 100,
+      leadSource: 'bork_order_time',
+    }
+  }
   const inboxEx = revenueSourcesDetail?.inboxBasisExVat ?? 0
   const resolved = resolveVenueDayHeadlineRevenue({
     inboxReports:
@@ -55,6 +61,7 @@ export function buildDailyOpsSummaryDto(
   revenueSourcesDetail?: {
     apiBusinessDaysTotal: number
     inboxBasisExVat: number | null
+    useOrderTimeHeadline?: boolean
   },
 ): DailyOpsSummaryDto {
   let apiMergedTotal = 0

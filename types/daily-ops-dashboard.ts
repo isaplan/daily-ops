@@ -82,7 +82,7 @@ export type DailyOpsSummaryDto = {
     /** Labor cost as % of revenue when revenue > 0 */
     laborCostPctOfRevenue: number | null
     /** Which number drives headline + profit / €·h / labor % (single completed days: inbox Basis when present) */
-    revenueLeadSource?: 'inbox_basis_ex_vat' | 'bork_api_merged'
+    revenueLeadSource?: 'inbox_basis_ex_vat' | 'bork_api_merged' | 'bork_order_time'
     /** Bork API + Inbox Basis totals for the period */
     revenueSources?: {
       apiBusinessDaysTotal: number

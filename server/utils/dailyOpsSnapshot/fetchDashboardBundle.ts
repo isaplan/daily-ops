@@ -1,8 +1,8 @@
 /**
  * @registry-id: dailyOpsSnapshotFetchDashboardBundle
  * @created: 2026-05-25T00:00:00.000Z
- * @last-modified: 2026-07-01T12:00:00.000Z
- * @last-fix: [2026-07-01] Patch open register-day revenue from order-time Bork aggregates before DTO build
+ * @last-modified: 2026-07-01T21:30:00.000Z
+ * @last-fix: [2026-07-01] Today ordered revenue from snapshot orderHourly only — no GET patch
  *   Prior: [2026-06-09] Merge live check_ins hourly labor into today P&L / profit-by-interval
  *   Prior: [2026-06-07] snapshotCacheControl uses open register business_date (ADR-010), not UTC ISO
  *   Prior: [2026-06-05] Cache sealed days 24h immutable; yesterday 1h + stale-while-revalidate
@@ -55,7 +55,6 @@ import {
 import { buildHeadlineRevenueByLocDay, buildRevLabMaps } from './dashboardBundle/revLabMaps'
 import { snapshotRound2 } from './dashboardBundle/shared'
 import { buildTodayExtrasFromHourBundle } from './dashboardBundle/todayRevenueDetail'
-import { patchTodayRevenueRowsFromBork } from './dashboardBundle/patchTodayRevenueFromBork'
 import { headlineExVatFromSnapshotSection } from './snapshotHeadlineRevenue'
 import { coverageFromSnapshotMasters, formatCoverageNote } from './bundleCoverage'
 
@@ -144,7 +143,6 @@ export async function fetchDailyOpsDashboardBundle(
   }
 
   const rows = await loadSnapshotDashboardRows(db, ctx)
-  await patchTodayRevenueRowsFromBork(db, ctx, rows.revenue)
   const snapshotContracts = contractRollupsFromSnapshotLabor(rows.labor)
   const { revMap, labMap, revByDateLocation, laborByLocDay } = buildRevLabMaps(
     rows.masters,
@@ -213,6 +211,7 @@ export async function fetchDailyOpsDashboardBundle(
   const summary = buildDailyOpsSummaryDto(ctx, revMap, labMap, {
     apiBusinessDaysTotal: snapshotRound2(apiMergedTotal),
     inboxBasisExVat: null,
+    useOrderTimeHeadline: ctx.startDate === ctx.endDate && ctx.startDate === openRegister,
   })
   if (laborBreakdown.coverage.daysFound > 0) {
     summary.summary.laborBreakdown = laborBreakdown

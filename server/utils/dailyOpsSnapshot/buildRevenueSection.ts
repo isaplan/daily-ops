@@ -1,7 +1,7 @@
 /**
  * @registry-id: dailyOpsSnapshotBuildRevenueSection
  * @created: 2026-05-13T00:00:00.000Z
- * @last-modified: 2026-07-01T12:00:00.000Z
+ * @last-modified: 2026-07-01T21:30:00.000Z
  * @description: Builds DailyOpsSnapshotRevenueSection for one (businessDate, locationId).
  *   Reads only from aggregated collections: bork_business_days, bork_sales_by_hour,
  *   inbox-bork-basis-report. Never touches bork_raw_data.
@@ -64,8 +64,6 @@ export async function buildRevenueSection(
 ): Promise<DailyOpsSnapshotRevenueSection> {
   const { businessDate, locationId, locationName } = input
 
-  // bork_*  collections store locationId as ObjectId (live confirmed 2026-05-13).
-  // inbox stores location_id as string. Eitje stores locationId as string.
   const locOid = ObjectId.isValid(locationId) ? new ObjectId(locationId) : null
   const borkFilter = { business_date: businessDate, locationId: locOid }
   const borkSuffix = resolveBorkAggReadSuffix()
