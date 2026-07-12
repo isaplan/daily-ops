@@ -1,15 +1,17 @@
 /**
  * @registry-id: dailyOpsSnapshotService
  * @created: 2026-05-13T00:00:00.000Z
- * @last-modified: 2026-07-01T00:00:00.000Z
- * @last-fix: [2026-07-01] Cascade weekly/monthly/yearly JSON after snapshot materialization
- *   Prior: [2026-07-01] Pregen daily JSON after every snapshot build (incl. open register day)
- *   Prior: [2026-06-18] Reopen sealed snapshots when warm tier is newer; preserve revenue hourly on rewrite
- *   Prior: [2026-06-05] Pre-generate bundle JSON cache after snapshot builds complete
- * @adr-ref: ADR-004, ADR-006, ADR-007
+ * @last-modified: 2026-07-13T00:58:00.000Z
+ * @last-fix: [2026-07-13] CRITICAL FIX: Replace buggy Eitje-fallback location discovery with hardcoded VENUE_STRIP_LOCATIONS. 
+ *   Prior bug: listLocationIdsForDate() queried stale bork_business_days (empty post-May 2026), fell back to Eitje labor rows only → 
+ *   Bork-only venues like Kinsbergen silently skipped when no Eitje shifts clocked in yet. Now always builds all 3 venues.
+ * @adr-ref: ADR-004, ADR-006, ADR-007, ADR-013
+ * @data-source: snapshot-write-only
+ * @write-cache-json: daily_ops_read_cache · dashboard-bundle · after buildDailyOpsSnapshot + cascadeGenerate
  *
  * @architecture:
- *   - No raw data reads — aggregated collections only (bork_business_days, bork_sales_by_hour,
+ *   - Snapshot always builds all 3 VENUE_STRIP_LOCATIONS (Van Kinsbergen, Bar Bea, l'Amour Toujours) per businessDate, no location discovery fallback.
+ *   - No raw data reads — aggregated collections only (bork_business_days_v2 via resolveBorkAggReadSuffix,
  *     eitje_time_registration_aggregation, inbox-bork-basis-report).
  *   - Denormalization: locationName / teamName / userName copied at write time (no $lookup on read).
  *   - Business day = 08:00 Amsterdam → 07:59:59 next ISO day.
@@ -29,6 +31,7 @@
 import type { Db } from 'mongodb'
 import { ObjectId } from 'mongodb'
 import { getDb } from '../utils/db'
+import { VENUE_STRIP_LOCATIONS } from '../utils/venueStrip/constants'
 import {
   DAILY_OPS_SNAPSHOT_COLLECTIONS,
   type DailyOpsSnapshotMaster,
@@ -175,14 +178,13 @@ async function resolveLocationName(db: Db, locationId: string): Promise<string> 
 }
 
 async function listLocationIdsForDate(db: Db, businessDate: string): Promise<string[]> {
-  const [bork, eitje] = await Promise.all([
-    db.collection('bork_business_days').distinct('locationId', { business_date: businessDate }),
-    db.collection('eitje_time_registration_aggregation').distinct('locationId', { period: businessDate }),
-  ])
-  const set = new Set<string>()
-  for (const id of bork) set.add(String(id))
-  for (const id of eitje) set.add(String(id))
-  return Array.from(set)
+  // SSOT: Always build snapshots for exactly these 3 venues per VENUE_STRIP_LOCATIONS constant.
+  // FIX (2026-07-13): Removed buggy fallback to Eitje labor rows.
+  // Prior code queried stale bork_business_days (empty post-May 2026), then fell back to Eitje →
+  // venues with no Eitje shifts yet (timing, holiday, sync lag) were silently skipped from snapshot build,
+  // even though Bork had revenue data. Now always attempt all 3 venues; missing data per venue is
+  // handled by buildDailyOpsSnapshot's error handling + ops-notifications gap detection.
+  return VENUE_STRIP_LOCATIONS.map(v => v.locationId)
 }
 
 export type BuildSnapshotInput = {
@@ -203,7 +205,7 @@ export async function buildDailyOpsSnapshot(input: BuildSnapshotInput): Promise<
   const { businessDate } = input
   const locations = input.locationId ? [input.locationId] : await listLocationIdsForDate(db, businessDate)
 
-  if (DEBUG) console.info(`[snapshot:build] ${businessDate} | locations=${locations.length}`)
+  if (DEBUG) console.info(`[snapshot:build] ${businessDate} | venues=${locations.join(', ')}`)
 
   const out: BuildSnapshotResult = { success: true, built: [], errors: [] }
   for (const locationId of locations) {
@@ -348,7 +350,7 @@ export async function buildDailyOpsSnapshot(input: BuildSnapshotInput): Promise<
     await writeRevenueBenchmarkAllLocations(db, businessDate)
     await preGenerateBundleForDate(db, businessDate, 'all')
     const cacheLocationIds = [...out.built.map((b) => b.locationId), 'all']
-    await cascadeGenerate(businessDate, businessDate, cacheLocationIds)
+    await cascadeGenerate(db, businessDate, businessDate, cacheLocationIds)
   }
 
   return out
@@ -401,7 +403,7 @@ export async function sealDailyOpsSnapshot(input: { businessDate: string; locati
     await runPostSealRetention(db, input.businessDate, input.locationId)
     await preGenerateBundleForDate(db, input.businessDate, input.locationId)
     await preGenerateBundleForDate(db, input.businessDate, 'all')
-    await cascadeGenerate(input.businessDate, input.businessDate, [input.locationId, 'all'])
+    await cascadeGenerate(db, input.businessDate, input.businessDate, [input.locationId, 'all'])
     if (DEBUG) console.info(`[snapshot:seal] ${input.businessDate} ${input.locationId} sealed`)
     return { sealed: true }
   } catch (e) {
