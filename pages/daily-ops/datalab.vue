@@ -49,6 +49,16 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * @registry-id: dailyOpsDatalab
+ * @last-modified: 2026-07-02T00:00:00.000Z
+ * @description: Datalab index
+ * @last-fix: [2026-07-02] ADR-013 read-cache metadata
+ * @adr-ref: ADR-013
+ * @data-source: direct-db
+ * @read-cache-json: none
+ * @imports-data-from: none
+ */
 import { DATALAB_REPORTS } from '~/utils/datalabReports'
 
 definePageMeta({

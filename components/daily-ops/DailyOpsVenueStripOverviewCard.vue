@@ -216,13 +216,16 @@ const tiles = computed((): OverviewTile[] => {
     })
   }
 
-  base.push({
-    id: 'verlof',
-    label: 'Verlof',
-    primary: `${verlofDisplay.value.verlof} · ${verlofDisplay.value.vakantie} · ${verlofDisplay.value.ziek}`,
-    secondary: 'Verlof · Vakantie · Ziek',
-    drawerKind: 'verlof',
-  })
+  const { verlof, vakantie, ziek } = verlofDisplay.value
+  if (verlof + vakantie + ziek > 0) {
+    base.push({
+      id: 'verlof',
+      label: 'Verlof',
+      primary: `${verlof} · ${vakantie} · ${ziek}`,
+      secondary: 'Verlof · Vakantie · Ziek',
+      drawerKind: 'verlof',
+    })
+  }
 
   return base
 })

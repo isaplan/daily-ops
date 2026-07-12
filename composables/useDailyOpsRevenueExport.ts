@@ -1,3 +1,12 @@
+/**
+ * @registry-id: useDailyOpsRevenueExport
+ * @last-modified: 2026-07-02T00:00:00.000Z
+ * @description: Client CSV export helper for revenue tables
+ * @last-fix: [2026-07-02] ADR-013 read-cache metadata
+ * @adr-ref: ADR-013
+ * @data-source: none
+ * @read-cache-json: none
+ */
 export function useDailyOpsRevenueExport() {
   function downloadCsv(filename: string, headers: string[], rows: (string | number)[][]) {
     const escape = (v: string | number) => {

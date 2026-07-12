@@ -58,6 +58,16 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * @description: Revenue drilldown tables and top-10 grids
+ * @last-modified: 2026-07-02T00:00:00.000Z
+ * @last-fix: [2026-07-02] ADR-013 read-cache metadata
+ * @adr-ref: ADR-004, ADR-010, ADR-013
+ * @data-source: read-cache
+ * @read-cache-json: dashboard-bundle revenue.drilldown
+ * @imports-data-from: props from composables/useDailyOpsDashboardMetrics.ts
+ */
+
 import type { DailyOpsRevenueDrilldownDto } from '~/types/daily-ops-dashboard'
 
 defineProps<{

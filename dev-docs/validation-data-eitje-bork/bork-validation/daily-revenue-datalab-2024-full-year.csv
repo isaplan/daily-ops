@@ -1,0 +1,1101 @@
+Dag,Dag van de week,Winkel,Omzet (excl. btw) € / Selectie,Omzet (incl. btw) € / Selectie,Omzet (stuks) / Selectie
+2024-01-01,Maandag,Bar Bea,"0,00","0,00",0
+2024-01-01,Maandag,Gastropub Van Kinsbergen,"2.918,24","3.295,60",454
+2024-01-01,Maandag,L'Amour Toujours,"0,00","0,00",0
+2024-01-02,Dinsdag,Bar Bea,"1.536,34","1.732,10",258
+2024-01-02,Dinsdag,Gastropub Van Kinsbergen,"2.993,46","3.335,85",443
+2024-01-02,Dinsdag,L'Amour Toujours,"0,00","0,00",0
+2024-01-03,Woensdag,Bar Bea,"2.152,11","2.453,47",396
+2024-01-03,Woensdag,Gastropub Van Kinsbergen,"4.097,77","4.576,03",653
+2024-01-03,Woensdag,L'Amour Toujours,"0,00","0,00",0
+2024-01-04,Donderdag,Bar Bea,"3.980,07","4.563,99",700
+2024-01-04,Donderdag,Gastropub Van Kinsbergen,"4.987,94","5.598,37",756
+2024-01-04,Donderdag,L'Amour Toujours,"0,00","0,00",0
+2024-01-05,Vrijdag,Bar Bea,"4.814,47","5.528,50",822
+2024-01-05,Vrijdag,Gastropub Van Kinsbergen,"8.940,13","10.082,10",1.308
+2024-01-05,Vrijdag,L'Amour Toujours,"0,00","0,00",0
+2024-01-06,Zaterdag,Bar Bea,"6.381,03","7.317,90",1.114
+2024-01-06,Zaterdag,Gastropub Van Kinsbergen,"9.037,13","10.162,93",1.314
+2024-01-06,Zaterdag,L'Amour Toujours,"0,00","0,00",0
+2024-01-07,Zondag,Bar Bea,"2.547,96","2.874,58",489
+2024-01-07,Zondag,Gastropub Van Kinsbergen,"5.618,28","6.277,14",948
+2024-01-07,Zondag,L'Amour Toujours,"0,00","0,00",0
+2024-01-08,Maandag,Bar Bea,"0,00","0,00",0
+2024-01-08,Maandag,Gastropub Van Kinsbergen,"1.296,24","1.472,86",213
+2024-01-08,Maandag,L'Amour Toujours,"4,79","5,80",2
+2024-01-09,Dinsdag,Bar Bea,"901,16","1.027,70",168
+2024-01-09,Dinsdag,Gastropub Van Kinsbergen,"2.658,26","2.959,90",401
+2024-01-09,Dinsdag,L'Amour Toujours,"0,00","0,00",1
+2024-01-10,Woensdag,Bar Bea,"685,91","791,30",113
+2024-01-10,Woensdag,Gastropub Van Kinsbergen,"3.022,40","3.398,78",477
+2024-01-10,Woensdag,L'Amour Toujours,"66,79","72,80",15
+2024-01-11,Donderdag,Bar Bea,"3.068,48","3.480,26",404
+2024-01-11,Donderdag,Gastropub Van Kinsbergen,"3.594,26","4.052,40",522
+2024-01-11,Donderdag,L'Amour Toujours,"4.169,23","4.732,75",486
+2024-01-12,Vrijdag,Bar Bea,"7.735,12","8.952,93",1.289
+2024-01-12,Vrijdag,Gastropub Van Kinsbergen,"8.433,81","9.584,18",1.222
+2024-01-12,Vrijdag,L'Amour Toujours,"5.418,41","6.136,70",623
+2024-01-13,Zaterdag,Bar Bea,"7.562,75","8.719,41",1.322
+2024-01-13,Zaterdag,Gastropub Van Kinsbergen,"10.834,28","12.218,72",1.586
+2024-01-13,Zaterdag,L'Amour Toujours,"6.004,71","6.782,95",791
+2024-01-14,Zondag,Bar Bea,"1.773,43","2.016,26",318
+2024-01-14,Zondag,Gastropub Van Kinsbergen,"5.046,04","5.620,75",739
+2024-01-14,Zondag,L'Amour Toujours,"5.032,83","5.672,03",711
+2024-01-15,Maandag,Bar Bea,"0,00","0,00",1
+2024-01-15,Maandag,Gastropub Van Kinsbergen,"2.881,32","3.208,56",425
+2024-01-15,Maandag,L'Amour Toujours,"0,00","0,00",0
+2024-01-16,Dinsdag,Bar Bea,"1.624,49","1.864,30",241
+2024-01-16,Dinsdag,Gastropub Van Kinsbergen,"3.238,45","3.631,70",431
+2024-01-16,Dinsdag,L'Amour Toujours,"4.332,27","4.896,74",548
+2024-01-17,Woensdag,Bar Bea,"1.872,81","2.139,18",319
+2024-01-17,Woensdag,Gastropub Van Kinsbergen,"4.415,23","4.968,70",646
+2024-01-17,Woensdag,L'Amour Toujours,"2.751,51","3.102,33",300
+2024-01-18,Donderdag,Bar Bea,"2.023,34","2.323,40",383
+2024-01-18,Donderdag,Gastropub Van Kinsbergen,"5.147,34","5.774,40",834
+2024-01-18,Donderdag,L'Amour Toujours,"4.861,49","5.520,17",516
+2024-01-19,Vrijdag,Bar Bea,"7.048,77","8.130,66",1.182
+2024-01-19,Vrijdag,Gastropub Van Kinsbergen,"8.805,39","9.932,50",1.165
+2024-01-19,Vrijdag,L'Amour Toujours,"8.015,12","9.044,05",893
+2024-01-20,Zaterdag,Bar Bea,"7.850,74","9.038,56",1.479
+2024-01-20,Zaterdag,Gastropub Van Kinsbergen,"10.467,51","11.802,30",1.412
+2024-01-20,Zaterdag,L'Amour Toujours,"9.027,68","10.154,80",1.076
+2024-01-21,Zondag,Bar Bea,"2.195,98","2.466,00",406
+2024-01-21,Zondag,Gastropub Van Kinsbergen,"4.383,55","4.911,32",681
+2024-01-21,Zondag,L'Amour Toujours,"4.773,32","5.355,72",598
+2024-01-22,Maandag,Bar Bea,"0,00","0,00",0
+2024-01-22,Maandag,Gastropub Van Kinsbergen,"3.403,68","3.794,58",457
+2024-01-22,Maandag,L'Amour Toujours,"0,00","0,00",0
+2024-01-23,Dinsdag,Bar Bea,"987,71","1.131,90",175
+2024-01-23,Dinsdag,Gastropub Van Kinsbergen,"3.653,11","4.072,95",508
+2024-01-23,Dinsdag,L'Amour Toujours,"3.208,52","3.603,00",385
+2024-01-24,Woensdag,Bar Bea,"1.734,25","1.976,08",279
+2024-01-24,Woensdag,Gastropub Van Kinsbergen,"2.036,94","2.295,30",303
+2024-01-24,Woensdag,L'Amour Toujours,"5.369,37","6.036,27",619
+2024-01-25,Donderdag,Bar Bea,"3.385,18","3.897,20",555
+2024-01-25,Donderdag,Gastropub Van Kinsbergen,"3.773,87","4.316,60",627
+2024-01-25,Donderdag,L'Amour Toujours,"5.476,40","6.164,89",633
+2024-01-26,Vrijdag,Bar Bea,"7.314,85","8.464,35",1.303
+2024-01-26,Vrijdag,Gastropub Van Kinsbergen,"9.336,08","10.535,50",1.325
+2024-01-26,Vrijdag,L'Amour Toujours,"8.809,90","9.896,15",1.023
+2024-01-27,Zaterdag,Bar Bea,"10.035,60","11.561,35",1.615
+2024-01-27,Zaterdag,Gastropub Van Kinsbergen,"9.892,87","11.177,54",1.455
+2024-01-27,Zaterdag,L'Amour Toujours,"10.293,69","11.597,09",1.227
+2024-01-28,Zondag,Bar Bea,"3.322,14","3.787,77",583
+2024-01-28,Zondag,Gastropub Van Kinsbergen,"6.315,94","7.061,75",932
+2024-01-28,Zondag,L'Amour Toujours,"6.085,68","6.851,55",809
+2024-01-29,Maandag,Bar Bea,"0,00","0,00",0
+2024-01-29,Maandag,Gastropub Van Kinsbergen,"3.288,96","3.696,40",467
+2024-01-29,Maandag,L'Amour Toujours,"0,00","0,00",0
+2024-01-30,Dinsdag,Bar Bea,"1.975,27","2.274,78",357
+2024-01-30,Dinsdag,Gastropub Van Kinsbergen,"2.627,08","2.977,07",413
+2024-01-30,Dinsdag,L'Amour Toujours,"3.246,54","3.657,12",480
+2024-01-31,Woensdag,Bar Bea,"1.693,36","1.936,04",285
+2024-01-31,Woensdag,Gastropub Van Kinsbergen,"3.703,42","4.159,58",585
+2024-01-31,Woensdag,L'Amour Toujours,"4.258,26","4.788,85",494
+2024-02-01,Donderdag,Bar Bea,"3.935,00","4.498,65",690
+2024-02-01,Donderdag,Gastropub Van Kinsbergen,"8.103,85","9.098,61",981
+2024-02-01,Donderdag,L'Amour Toujours,"5.334,63","6.006,25",688
+2024-02-02,Vrijdag,Bar Bea,"6.975,86","8.100,58",1.313
+2024-02-02,Vrijdag,Gastropub Van Kinsbergen,"7.803,54","8.853,26",1.107
+2024-02-02,Vrijdag,L'Amour Toujours,"9.514,33","10.777,19",1.072
+2024-02-03,Zaterdag,Bar Bea,"7.859,16","9.104,14",1.438
+2024-02-03,Zaterdag,Gastropub Van Kinsbergen,"10.683,29","11.988,40",1.560
+2024-02-03,Zaterdag,L'Amour Toujours,"10.545,22","11.878,40",1.195
+2024-02-04,Zondag,Bar Bea,"2.083,09","2.364,88",373
+2024-02-04,Zondag,Gastropub Van Kinsbergen,"5.494,72","6.181,90",809
+2024-02-04,Zondag,L'Amour Toujours,"6.022,21","6.766,29",738
+2024-02-05,Maandag,Bar Bea,"0,00","0,00",0
+2024-02-05,Maandag,Gastropub Van Kinsbergen,"2.988,67","3.383,68",470
+2024-02-05,Maandag,L'Amour Toujours,"0,00","0,00",0
+2024-02-06,Dinsdag,Bar Bea,"1.886,23","2.172,90",294
+2024-02-06,Dinsdag,Gastropub Van Kinsbergen,"5.289,44","5.970,30",793
+2024-02-06,Dinsdag,L'Amour Toujours,"4.383,00","4.938,73",481
+2024-02-07,Woensdag,Bar Bea,"4.903,66","5.597,68",784
+2024-02-07,Woensdag,Gastropub Van Kinsbergen,"3.484,48","3.932,85",497
+2024-02-07,Woensdag,L'Amour Toujours,"5.117,22","5.754,90",593
+2024-02-08,Donderdag,Bar Bea,"2.618,58","3.048,64",484
+2024-02-08,Donderdag,Gastropub Van Kinsbergen,"4.859,30","5.491,00",671
+2024-02-08,Donderdag,L'Amour Toujours,"5.100,55","5.734,32",580
+2024-02-09,Vrijdag,Bar Bea,"5.677,06","6.531,36",1.004
+2024-02-09,Vrijdag,Gastropub Van Kinsbergen,"7.283,61","8.247,20",1.008
+2024-02-09,Vrijdag,L'Amour Toujours,"9.631,98","10.873,90",1.175
+2024-02-10,Zaterdag,Bar Bea,"6.938,03","7.986,48",1.183
+2024-02-10,Zaterdag,Gastropub Van Kinsbergen,"10.379,07","11.764,10",1.523
+2024-02-10,Zaterdag,L'Amour Toujours,"10.962,43","12.389,65",1.295
+2024-02-11,Zondag,Bar Bea,"2.553,91","2.912,30",469
+2024-02-11,Zondag,Gastropub Van Kinsbergen,"5.359,53","5.953,60",820
+2024-02-11,Zondag,L'Amour Toujours,"7.053,11","7.902,28",900
+2024-02-12,Maandag,Bar Bea,"0,00","0,00",0
+2024-02-12,Maandag,Gastropub Van Kinsbergen,"3.191,22","3.556,78",487
+2024-02-12,Maandag,L'Amour Toujours,"0,00","0,00",0
+2024-02-13,Dinsdag,Bar Bea,"1.860,79","2.131,38",284
+2024-02-13,Dinsdag,Gastropub Van Kinsbergen,"4.169,50","4.665,60",596
+2024-02-13,Dinsdag,L'Amour Toujours,"5.743,88","6.436,54",621
+2024-02-14,Woensdag,Bar Bea,"3.340,89","3.798,42",496
+2024-02-14,Woensdag,Gastropub Van Kinsbergen,"5.230,17","5.888,04",682
+2024-02-14,Woensdag,L'Amour Toujours,"6.800,01","7.626,84",800
+2024-02-15,Donderdag,Bar Bea,"3.917,94","4.474,80",722
+2024-02-15,Donderdag,Gastropub Van Kinsbergen,"4.745,57","5.394,22",660
+2024-02-15,Donderdag,L'Amour Toujours,"5.363,90","6.064,05",642
+2024-02-16,Vrijdag,Bar Bea,"6.564,92","7.610,21",1.204
+2024-02-16,Vrijdag,Gastropub Van Kinsbergen,"8.438,42","9.549,18",1.138
+2024-02-16,Vrijdag,L'Amour Toujours,"8.466,04","9.599,02",998
+2024-02-17,Zaterdag,Bar Bea,"8.585,51","9.938,52",1.659
+2024-02-17,Zaterdag,Gastropub Van Kinsbergen,"9.550,59","10.758,35",1.366
+2024-02-17,Zaterdag,L'Amour Toujours,"9.269,49","10.480,21",1.099
+2024-02-18,Zondag,Bar Bea,"2.517,35","2.846,09",459
+2024-02-18,Zondag,Gastropub Van Kinsbergen,"4.198,20","4.687,84",652
+2024-02-18,Zondag,L'Amour Toujours,"6.674,64","7.486,41",814
+2024-02-19,Maandag,Bar Bea,"0,00","0,00",0
+2024-02-19,Maandag,Gastropub Van Kinsbergen,"3.318,80","3.711,76",473
+2024-02-19,Maandag,L'Amour Toujours,"0,00","0,00",0
+2024-02-20,Dinsdag,Bar Bea,"1.981,26","2.282,46",335
+2024-02-20,Dinsdag,Gastropub Van Kinsbergen,"2.913,86","3.271,82",469
+2024-02-20,Dinsdag,L'Amour Toujours,"4.461,95","5.052,26",551
+2024-02-21,Woensdag,Bar Bea,"963,97","1.105,22",149
+2024-02-21,Woensdag,Gastropub Van Kinsbergen,"4.523,91","5.056,04",682
+2024-02-21,Woensdag,L'Amour Toujours,"5.215,05","5.845,80",574
+2024-02-22,Donderdag,Bar Bea,"5.314,24","6.112,57",818
+2024-02-22,Donderdag,Gastropub Van Kinsbergen,"4.233,59","4.788,15",620
+2024-02-22,Donderdag,L'Amour Toujours,"5.390,06","6.068,40",673
+2024-02-23,Vrijdag,Bar Bea,"6.464,11","7.507,95",1.105
+2024-02-23,Vrijdag,Gastropub Van Kinsbergen,"7.759,18","8.788,50",1.135
+2024-02-23,Vrijdag,L'Amour Toujours,"8.963,00","10.121,46",1.028
+2024-02-24,Zaterdag,Bar Bea,"7.360,31","8.494,10",1.304
+2024-02-24,Zaterdag,Gastropub Van Kinsbergen,"10.229,14","11.576,35",1.433
+2024-02-24,Zaterdag,L'Amour Toujours,"9.524,19","10.706,15",1.136
+2024-02-25,Zondag,Bar Bea,"2.625,69","3.002,57",441
+2024-02-25,Zondag,Gastropub Van Kinsbergen,"4.820,93","5.400,69",720
+2024-02-25,Zondag,L'Amour Toujours,"6.315,56","7.066,70",782
+2024-02-26,Maandag,Bar Bea,"0,00","0,00",0
+2024-02-26,Maandag,Gastropub Van Kinsbergen,"3.174,14","3.551,85",461
+2024-02-26,Maandag,L'Amour Toujours,"0,00","0,00",0
+2024-02-27,Dinsdag,Bar Bea,"1.096,27","1.262,82",205
+2024-02-27,Dinsdag,Gastropub Van Kinsbergen,"3.973,09","4.475,25",559
+2024-02-27,Dinsdag,L'Amour Toujours,"3.162,70","3.561,41",397
+2024-02-28,Woensdag,Bar Bea,"989,36","1.150,64",183
+2024-02-28,Woensdag,Gastropub Van Kinsbergen,"3.152,80","3.546,45",460
+2024-02-28,Woensdag,L'Amour Toujours,"4.271,60","4.771,70",522
+2024-02-29,Donderdag,Bar Bea,"2.466,29","2.827,25",409
+2024-02-29,Donderdag,Gastropub Van Kinsbergen,"2.539,58","2.865,50",388
+2024-02-29,Donderdag,L'Amour Toujours,"5.486,20","6.187,51",671
+2024-03-01,Vrijdag,Bar Bea,"7.812,91","8.991,75",1.160
+2024-03-01,Vrijdag,Gastropub Van Kinsbergen,"8.573,80","9.772,21",1.284
+2024-03-01,Vrijdag,L'Amour Toujours,"8.294,09","9.367,85",963
+2024-03-02,Zaterdag,Bar Bea,"8.124,54","9.373,14",1.342
+2024-03-02,Zaterdag,Gastropub Van Kinsbergen,"12.502,70","14.106,40",1.882
+2024-03-02,Zaterdag,L'Amour Toujours,"8.391,88","9.428,89",972
+2024-03-03,Zondag,Bar Bea,"4.378,03","5.026,20",881
+2024-03-03,Zondag,Gastropub Van Kinsbergen,"6.557,65","7.299,92",950
+2024-03-03,Zondag,L'Amour Toujours,"6.233,94","7.008,73",746
+2024-03-04,Maandag,Bar Bea,"0,00","0,00",0
+2024-03-04,Maandag,Gastropub Van Kinsbergen,"3.445,76","3.886,28",529
+2024-03-04,Maandag,L'Amour Toujours,"0,00","0,00",0
+2024-03-05,Dinsdag,Bar Bea,"1.580,37","1.809,02",265
+2024-03-05,Dinsdag,Gastropub Van Kinsbergen,"2.902,92","3.255,88",412
+2024-03-05,Dinsdag,L'Amour Toujours,"3.338,12","3.741,26",406
+2024-03-06,Woensdag,Bar Bea,"2.113,91","2.425,05",364
+2024-03-06,Woensdag,Gastropub Van Kinsbergen,"3.272,69","3.690,69",493
+2024-03-06,Woensdag,L'Amour Toujours,"5.041,67","5.686,60",551
+2024-03-07,Donderdag,Bar Bea,"4.321,94","5.014,84",695
+2024-03-07,Donderdag,Gastropub Van Kinsbergen,"6.318,56","7.154,36",1.000
+2024-03-07,Donderdag,L'Amour Toujours,"4.824,01","5.412,27",560
+2024-03-08,Vrijdag,Bar Bea,"8.174,00","9.450,68",1.392
+2024-03-08,Vrijdag,Gastropub Van Kinsbergen,"9.634,45","10.954,78",1.362
+2024-03-08,Vrijdag,L'Amour Toujours,"7.815,58","8.794,70",916
+2024-03-09,Zaterdag,Bar Bea,"9.781,46","11.253,65",1.731
+2024-03-09,Zaterdag,Gastropub Van Kinsbergen,"13.045,35","14.714,80",2.000
+2024-03-09,Zaterdag,L'Amour Toujours,"7.246,48","8.116,84",843
+2024-03-10,Zondag,Bar Bea,"3.801,33","4.332,78",643
+2024-03-10,Zondag,Gastropub Van Kinsbergen,"5.424,44","6.077,15",852
+2024-03-10,Zondag,L'Amour Toujours,"5.847,08","6.550,20",675
+2024-03-11,Maandag,Bar Bea,"0,00","0,00",0
+2024-03-11,Maandag,Gastropub Van Kinsbergen,"3.139,35","3.533,94",434
+2024-03-11,Maandag,L'Amour Toujours,"0,00","0,00",0
+2024-03-12,Dinsdag,Bar Bea,"1.581,92","1.828,98",271
+2024-03-12,Dinsdag,Gastropub Van Kinsbergen,"3.418,32","3.824,40",562
+2024-03-12,Dinsdag,L'Amour Toujours,"3.084,31","3.454,93",351
+2024-03-13,Woensdag,Bar Bea,"2.039,42","2.350,10",340
+2024-03-13,Woensdag,Gastropub Van Kinsbergen,"4.000,78","4.469,62",580
+2024-03-13,Woensdag,L'Amour Toujours,"4.428,96","4.970,00",579
+2024-03-14,Donderdag,Bar Bea,"4.132,87","4.775,64",732
+2024-03-14,Donderdag,Gastropub Van Kinsbergen,"5.798,16","6.571,35",906
+2024-03-14,Donderdag,L'Amour Toujours,"5.839,67","6.599,18",704
+2024-03-15,Vrijdag,Bar Bea,"7.730,03","8.966,40",1.314
+2024-03-15,Vrijdag,Gastropub Van Kinsbergen,"8.708,51","9.862,42",1.298
+2024-03-15,Vrijdag,L'Amour Toujours,"8.193,65","9.254,10",949
+2024-03-16,Zaterdag,Bar Bea,"10.181,26","11.800,20",1.834
+2024-03-16,Zaterdag,Gastropub Van Kinsbergen,"11.879,38","13.467,30",1.773
+2024-03-16,Zaterdag,L'Amour Toujours,"7.616,99","8.567,59",870
+2024-03-17,Zondag,Bar Bea,"2.285,87","2.601,70",446
+2024-03-17,Zondag,Gastropub Van Kinsbergen,"7.357,65","8.199,85",1.062
+2024-03-17,Zondag,L'Amour Toujours,"6.420,06","7.177,50",762
+2024-03-18,Maandag,Bar Bea,"0,00","0,00",0
+2024-03-18,Maandag,Gastropub Van Kinsbergen,"4.459,99","5.032,60",691
+2024-03-18,Maandag,L'Amour Toujours,"0,00","0,00",0
+2024-03-19,Dinsdag,Bar Bea,"1.684,14","1.923,63",286
+2024-03-19,Dinsdag,Gastropub Van Kinsbergen,"4.382,48","4.931,54",682
+2024-03-19,Dinsdag,L'Amour Toujours,"2.357,44","2.646,88",265
+2024-03-20,Woensdag,Bar Bea,"2.144,01","2.478,40",384
+2024-03-20,Woensdag,Gastropub Van Kinsbergen,"5.577,16","6.308,90",785
+2024-03-20,Woensdag,L'Amour Toujours,"4.042,20","4.546,99",472
+2024-03-21,Donderdag,Bar Bea,"4.714,15","5.437,26",832
+2024-03-21,Donderdag,Gastropub Van Kinsbergen,"4.968,29","5.612,45",720
+2024-03-21,Donderdag,L'Amour Toujours,"5.012,51","5.660,80",597
+2024-03-22,Vrijdag,Bar Bea,"7.024,77","8.142,23",1.254
+2024-03-22,Vrijdag,Gastropub Van Kinsbergen,"10.204,83","11.469,80",1.414
+2024-03-22,Vrijdag,L'Amour Toujours,"8.112,40","9.139,05",932
+2024-03-23,Zaterdag,Bar Bea,"9.780,82","11.299,22",1.622
+2024-03-23,Zaterdag,Gastropub Van Kinsbergen,"11.185,88","12.632,32",1.630
+2024-03-23,Zaterdag,L'Amour Toujours,"9.179,23","10.309,00",1.076
+2024-03-24,Zondag,Bar Bea,"2.279,47","2.567,00",373
+2024-03-24,Zondag,Gastropub Van Kinsbergen,"5.181,17","5.765,00",754
+2024-03-24,Zondag,L'Amour Toujours,"5.264,08","5.907,34",649
+2024-03-25,Maandag,Bar Bea,"0,00","0,00",0
+2024-03-25,Maandag,Gastropub Van Kinsbergen,"5.013,96","5.643,82",739
+2024-03-25,Maandag,L'Amour Toujours,"3,85","4,20",3
+2024-03-26,Dinsdag,Bar Bea,"1.862,05","2.133,69",331
+2024-03-26,Dinsdag,Gastropub Van Kinsbergen,"2.662,80","2.999,90",435
+2024-03-26,Dinsdag,L'Amour Toujours,"3.442,14","3.870,24",412
+2024-03-27,Woensdag,Bar Bea,"5.076,88","5.838,22",866
+2024-03-27,Woensdag,Gastropub Van Kinsbergen,"4.050,31","4.548,02",595
+2024-03-27,Woensdag,L'Amour Toujours,"4.053,44","4.551,35",481
+2024-03-28,Donderdag,Bar Bea,"4.201,16","4.874,62",713
+2024-03-28,Donderdag,Gastropub Van Kinsbergen,"7.424,47","8.378,46",1.057
+2024-03-28,Donderdag,L'Amour Toujours,"5.477,05","6.158,58",645
+2024-03-29,Vrijdag,Bar Bea,"8.616,01","10.013,74",1.585
+2024-03-29,Vrijdag,Gastropub Van Kinsbergen,"8.204,73","9.284,55",1.231
+2024-03-29,Vrijdag,L'Amour Toujours,"8.739,04","9.873,30",1.034
+2024-03-30,Zaterdag,Bar Bea,"5.859,22","6.749,49",928
+2024-03-30,Zaterdag,Gastropub Van Kinsbergen,"9.864,26","11.115,60",1.372
+2024-03-30,Zaterdag,L'Amour Toujours,"6.192,87","6.980,25",733
+2024-03-31,Zondag,Bar Bea,"5.098,89","5.853,06",830
+2024-03-31,Zondag,Gastropub Van Kinsbergen,"5.465,51","6.135,02",832
+2024-03-31,Zondag,L'Amour Toujours,"6.276,31","7.055,58",770
+2024-04-01,Maandag,Bar Bea,"3.539,61","4.084,10",651
+2024-04-01,Maandag,Gastropub Van Kinsbergen,"8.787,74","9.851,02",1.233
+2024-04-01,Maandag,L'Amour Toujours,"5.726,39","6.458,92",744
+2024-04-02,Dinsdag,Bar Bea,"1.161,33","1.328,10",208
+2024-04-02,Dinsdag,Gastropub Van Kinsbergen,"3.093,18","3.477,54",465
+2024-04-02,Dinsdag,L'Amour Toujours,"2.173,44","2.425,62",254
+2024-04-03,Woensdag,Bar Bea,"1.660,46","1.924,72",272
+2024-04-03,Woensdag,Gastropub Van Kinsbergen,"2.784,80","3.146,60",424
+2024-04-03,Woensdag,L'Amour Toujours,"3.132,57","3.512,35",361
+2024-04-04,Donderdag,Bar Bea,"4.321,90","4.912,99",721
+2024-04-04,Donderdag,Gastropub Van Kinsbergen,"5.123,48","5.805,95",757
+2024-04-04,Donderdag,L'Amour Toujours,"4.789,19","5.354,11",555
+2024-04-05,Vrijdag,Bar Bea,"9.075,60","10.551,94",1.633
+2024-04-05,Vrijdag,Gastropub Van Kinsbergen,"9.524,77","10.810,83",1.439
+2024-04-05,Vrijdag,L'Amour Toujours,"8.036,17","9.068,21",1.040
+2024-04-06,Zaterdag,Bar Bea,"13.636,47","15.702,73",2.140
+2024-04-06,Zaterdag,Gastropub Van Kinsbergen,"12.864,86","14.644,91",1.915
+2024-04-06,Zaterdag,L'Amour Toujours,"11.620,47","13.134,05",1.535
+2024-04-07,Zondag,Bar Bea,"4.310,83","4.921,68",769
+2024-04-07,Zondag,Gastropub Van Kinsbergen,"8.619,21","9.739,52",1.373
+2024-04-07,Zondag,L'Amour Toujours,"7.854,86","8.885,18",1.128
+2024-04-08,Maandag,Bar Bea,"2.302,25","2.641,96",378
+2024-04-08,Maandag,Gastropub Van Kinsbergen,"4.300,38","4.844,62",608
+2024-04-08,Maandag,L'Amour Toujours,"0,00","0,00",0
+2024-04-09,Dinsdag,Bar Bea,"2.499,30","2.835,60",355
+2024-04-09,Dinsdag,Gastropub Van Kinsbergen,"3.736,99","4.187,94",549
+2024-04-09,Dinsdag,L'Amour Toujours,"2.655,91","3.004,44",295
+2024-04-10,Woensdag,Bar Bea,"4.269,11","4.933,19",763
+2024-04-10,Woensdag,Gastropub Van Kinsbergen,"4.039,33","4.568,30",665
+2024-04-10,Woensdag,L'Amour Toujours,"5.157,96","5.770,82",694
+2024-04-11,Donderdag,Bar Bea,"5.388,98","6.198,20",854
+2024-04-11,Donderdag,Gastropub Van Kinsbergen,"4.128,74","4.637,69",552
+2024-04-11,Donderdag,L'Amour Toujours,"4.004,66","4.509,20",454
+2024-04-12,Vrijdag,Bar Bea,"9.736,48","11.246,77",1.621
+2024-04-12,Vrijdag,Gastropub Van Kinsbergen,"9.092,10","10.321,35",1.305
+2024-04-12,Vrijdag,L'Amour Toujours,"9.478,27","10.729,50",1.186
+2024-04-13,Zaterdag,Bar Bea,"10.298,86","11.845,36",1.589
+2024-04-13,Zaterdag,Gastropub Van Kinsbergen,"12.117,73","13.743,20",1.782
+2024-04-13,Zaterdag,L'Amour Toujours,"11.333,86","12.815,47",1.371
+2024-04-14,Zondag,Bar Bea,"5.397,29","6.122,22",888
+2024-04-14,Zondag,Gastropub Van Kinsbergen,"7.679,68","8.676,10",1.165
+2024-04-14,Zondag,L'Amour Toujours,"6.744,67","7.597,20",894
+2024-04-15,Maandag,Bar Bea,"750,77","849,20",119
+2024-04-15,Maandag,Gastropub Van Kinsbergen,"3.412,03","3.824,50",489
+2024-04-15,Maandag,L'Amour Toujours,"0,00","0,00",0
+2024-04-16,Dinsdag,Bar Bea,"2.590,94","2.942,84",426
+2024-04-16,Dinsdag,Gastropub Van Kinsbergen,"2.617,39","2.975,50",377
+2024-04-16,Dinsdag,L'Amour Toujours,"3.216,27","3.624,26",404
+2024-04-17,Woensdag,Bar Bea,"2.772,12","3.187,66",473
+2024-04-17,Woensdag,Gastropub Van Kinsbergen,"3.309,16","3.731,32",490
+2024-04-17,Woensdag,L'Amour Toujours,"3.349,16","3.770,01",445
+2024-04-18,Donderdag,Bar Bea,"4.244,62","4.915,10",756
+2024-04-18,Donderdag,Gastropub Van Kinsbergen,"3.830,65","4.367,10",622
+2024-04-18,Donderdag,L'Amour Toujours,"5.987,26","6.757,45",673
+2024-04-19,Vrijdag,Bar Bea,"7.207,42","8.330,24",1.133
+2024-04-19,Vrijdag,Gastropub Van Kinsbergen,"8.205,24","9.352,74",1.130
+2024-04-19,Vrijdag,L'Amour Toujours,"8.536,52","9.637,81",978
+2024-04-20,Zaterdag,Bar Bea,"7.442,56","8.606,50",1.288
+2024-04-20,Zaterdag,Gastropub Van Kinsbergen,"10.344,64","11.712,62",1.662
+2024-04-20,Zaterdag,L'Amour Toujours,"8.642,14","9.743,59",926
+2024-04-21,Zondag,Bar Bea,"4.021,04","4.551,76",703
+2024-04-21,Zondag,Gastropub Van Kinsbergen,"5.495,67","6.151,35",835
+2024-04-21,Zondag,L'Amour Toujours,"5.409,12","6.030,60",658
+2024-04-22,Maandag,Bar Bea,"1.111,86","1.263,10",199
+2024-04-22,Maandag,Gastropub Van Kinsbergen,"3.353,01","3.746,75",500
+2024-04-22,Maandag,L'Amour Toujours,"0,00","0,00",0
+2024-04-23,Dinsdag,Bar Bea,"2.994,55","3.478,70",592
+2024-04-23,Dinsdag,Gastropub Van Kinsbergen,"4.099,18","4.628,63",622
+2024-04-23,Dinsdag,L'Amour Toujours,"4.525,00","5.097,75",469
+2024-04-24,Woensdag,Bar Bea,"2.782,35","3.223,35",470
+2024-04-24,Woensdag,Gastropub Van Kinsbergen,"4.085,64","4.608,92",579
+2024-04-24,Woensdag,L'Amour Toujours,"3.797,32","4.258,85",419
+2024-04-25,Donderdag,Bar Bea,"5.214,75","5.958,20",827
+2024-04-25,Donderdag,Gastropub Van Kinsbergen,"5.945,10","6.720,56",840
+2024-04-25,Donderdag,L'Amour Toujours,"5.333,68","5.994,95",592
+2024-04-26,Vrijdag,Bar Bea,"11.956,54","14.021,84",2.498
+2024-04-26,Vrijdag,Gastropub Van Kinsbergen,"7.951,66","9.001,00",1.222
+2024-04-26,Vrijdag,L'Amour Toujours,"7.144,63","8.095,65",867
+2024-04-27,Zaterdag,Bar Bea,"9.053,88","10.493,16",1.571
+2024-04-27,Zaterdag,Gastropub Van Kinsbergen,"15.582,30","17.694,25",2.417
+2024-04-27,Zaterdag,L'Amour Toujours,"9.204,88","10.455,40",1.379
+2024-04-28,Zondag,Bar Bea,"3.186,29","3.574,22",560
+2024-04-28,Zondag,Gastropub Van Kinsbergen,"6.597,27","7.411,52",967
+2024-04-28,Zondag,L'Amour Toujours,"6.541,74","7.307,05",744
+2024-04-29,Maandag,Bar Bea,"3.039,13","3.511,64",529
+2024-04-29,Maandag,Gastropub Van Kinsbergen,"6.620,34","7.471,58",1.026
+2024-04-29,Maandag,L'Amour Toujours,"0,00","0,00",0
+2024-04-30,Dinsdag,Bar Bea,"4.378,41","5.029,04",684
+2024-04-30,Dinsdag,Gastropub Van Kinsbergen,"5.633,80","6.414,44",930
+2024-04-30,Dinsdag,L'Amour Toujours,"5.793,79","6.542,38",630
+2024-05-01,Woensdag,Bar Bea,"4.970,61","5.694,16",796
+2024-05-01,Woensdag,Gastropub Van Kinsbergen,"7.075,23","7.991,17",1.076
+2024-05-01,Woensdag,L'Amour Toujours,"6.673,34","7.537,60",906
+2024-05-02,Donderdag,Bar Bea,"6.071,36","6.977,26",1.047
+2024-05-02,Donderdag,Gastropub Van Kinsbergen,"9.385,27","10.599,92",1.346
+2024-05-02,Donderdag,L'Amour Toujours,"7.593,38","8.556,30",963
+2024-05-03,Vrijdag,Bar Bea,"8.683,63","10.070,43",1.468
+2024-05-03,Vrijdag,Gastropub Van Kinsbergen,"8.317,07","9.400,08",1.140
+2024-05-03,Vrijdag,L'Amour Toujours,"6.373,91","7.151,90",720
+2024-05-04,Zaterdag,Bar Bea,"8.280,83","9.566,98",1.434
+2024-05-04,Zaterdag,Gastropub Van Kinsbergen,"8.896,24","10.024,04",1.304
+2024-05-04,Zaterdag,L'Amour Toujours,"9.917,87","11.203,20",1.171
+2024-05-05,Zondag,Bar Bea,"6.116,30","6.980,56",964
+2024-05-05,Zondag,Gastropub Van Kinsbergen,"6.495,66","7.302,80",1.010
+2024-05-05,Zondag,L'Amour Toujours,"5.893,54","6.642,77",837
+2024-05-06,Maandag,Bar Bea,"1.699,54","1.960,88",295
+2024-05-06,Maandag,Gastropub Van Kinsbergen,"4.965,30","5.541,15",763
+2024-05-06,Maandag,L'Amour Toujours,"0,00","0,00",0
+2024-05-07,Dinsdag,Bar Bea,"3.932,41","4.558,40",620
+2024-05-07,Dinsdag,Gastropub Van Kinsbergen,"4.968,51","5.630,11",781
+2024-05-07,Dinsdag,L'Amour Toujours,"3.907,31","4.437,28",504
+2024-05-08,Woensdag,Bar Bea,"4.161,31","4.813,34",764
+2024-05-08,Woensdag,Gastropub Van Kinsbergen,"4.568,80","5.138,37",716
+2024-05-08,Woensdag,L'Amour Toujours,"5.088,12","5.761,28",545
+2024-05-09,Donderdag,Bar Bea,"6.484,10","7.432,84",1.100
+2024-05-09,Donderdag,Gastropub Van Kinsbergen,"10.387,47","11.693,89",1.487
+2024-05-09,Donderdag,L'Amour Toujours,"7.447,66","8.454,00",1.042
+2024-05-10,Vrijdag,Bar Bea,"9.275,81","10.749,51",1.526
+2024-05-10,Vrijdag,Gastropub Van Kinsbergen,"10.728,32","12.156,50",1.510
+2024-05-10,Vrijdag,L'Amour Toujours,"6.932,82","7.855,57",934
+2024-05-11,Zaterdag,Bar Bea,"9.068,22","10.463,91",1.453
+2024-05-11,Zaterdag,Gastropub Van Kinsbergen,"9.730,17","10.991,77",1.318
+2024-05-11,Zaterdag,L'Amour Toujours,"8.753,44","9.909,16",1.049
+2024-05-12,Zondag,Bar Bea,"5.061,79","5.770,50",795
+2024-05-12,Zondag,Gastropub Van Kinsbergen,"9.668,11","10.796,60",1.388
+2024-05-12,Zondag,L'Amour Toujours,"7.628,22","8.547,35",925
+2024-05-13,Maandag,Bar Bea,"1.834,13","2.119,05",291
+2024-05-13,Maandag,Gastropub Van Kinsbergen,"4.785,12","5.375,27",704
+2024-05-13,Maandag,L'Amour Toujours,"0,00","0,00",0
+2024-05-14,Dinsdag,Bar Bea,"2.609,24","3.016,60",453
+2024-05-14,Dinsdag,Gastropub Van Kinsbergen,"5.314,35","5.956,52",780
+2024-05-14,Dinsdag,L'Amour Toujours,"4.096,54","4.624,64",487
+2024-05-15,Woensdag,Bar Bea,"2.530,61","2.881,06",402
+2024-05-15,Woensdag,Gastropub Van Kinsbergen,"3.205,81","3.610,55",455
+2024-05-15,Woensdag,L'Amour Toujours,"4.166,91","4.648,12",487
+2024-05-16,Donderdag,Bar Bea,"3.831,47","4.404,15",582
+2024-05-16,Donderdag,Gastropub Van Kinsbergen,"3.461,02","3.930,72",540
+2024-05-16,Donderdag,L'Amour Toujours,"5.365,61","6.069,22",585
+2024-05-17,Vrijdag,Bar Bea,"6.402,25","7.414,05",1.029
+2024-05-17,Vrijdag,Gastropub Van Kinsbergen,"7.004,56","7.901,90",1.009
+2024-05-17,Vrijdag,L'Amour Toujours,"8.353,32","9.445,82",949
+2024-05-18,Zaterdag,Bar Bea,"9.596,01","11.111,52",1.570
+2024-05-18,Zaterdag,Gastropub Van Kinsbergen,"10.656,97","12.023,60",1.564
+2024-05-18,Zaterdag,L'Amour Toujours,"9.878,34","11.161,75",1.247
+2024-05-19,Zondag,Bar Bea,"5.593,05","6.399,00",898
+2024-05-19,Zondag,Gastropub Van Kinsbergen,"8.949,54","10.052,53",1.280
+2024-05-19,Zondag,L'Amour Toujours,"6.918,70","7.783,63",864
+2024-05-20,Maandag,Bar Bea,"3.516,61","4.021,80",584
+2024-05-20,Maandag,Gastropub Van Kinsbergen,"6.577,57","7.366,24",903
+2024-05-20,Maandag,L'Amour Toujours,"4.120,18","4.589,67",546
+2024-05-21,Dinsdag,Bar Bea,"1.115,59","1.278,52",182
+2024-05-21,Dinsdag,Gastropub Van Kinsbergen,"3.977,95","4.500,45",672
+2024-05-21,Dinsdag,L'Amour Toujours,"3.050,83","3.449,06",329
+2024-05-22,Woensdag,Bar Bea,"2.370,39","2.714,83",387
+2024-05-22,Woensdag,Gastropub Van Kinsbergen,"3.346,33","3.777,61",516
+2024-05-22,Woensdag,L'Amour Toujours,"3.619,19","4.056,65",398
+2024-05-23,Donderdag,Bar Bea,"4.710,52","5.466,26",767
+2024-05-23,Donderdag,Gastropub Van Kinsbergen,"5.292,04","6.005,45",771
+2024-05-23,Donderdag,L'Amour Toujours,"6.722,96","7.616,45",818
+2024-05-24,Vrijdag,Bar Bea,"5.991,62","6.957,37",920
+2024-05-24,Vrijdag,Gastropub Van Kinsbergen,"8.912,89","10.064,54",1.262
+2024-05-24,Vrijdag,L'Amour Toujours,"7.006,12","7.880,86",712
+2024-05-25,Zaterdag,Bar Bea,"8.608,92","9.933,12",1.441
+2024-05-25,Zaterdag,Gastropub Van Kinsbergen,"9.336,26","10.555,40",1.296
+2024-05-25,Zaterdag,L'Amour Toujours,"8.591,58","9.659,45",934
+2024-05-26,Zondag,Bar Bea,"3.021,09","3.475,10",567
+2024-05-26,Zondag,Gastropub Van Kinsbergen,"8.437,28","9.492,00",1.278
+2024-05-26,Zondag,L'Amour Toujours,"7.880,54","8.874,70",1.069
+2024-05-27,Maandag,Bar Bea,"1.774,40","2.067,72",278
+2024-05-27,Maandag,Gastropub Van Kinsbergen,"3.347,41","3.764,67",491
+2024-05-27,Maandag,L'Amour Toujours,"0,00","0,00",0
+2024-05-28,Dinsdag,Bar Bea,"1.920,90","2.225,18",309
+2024-05-28,Dinsdag,Gastropub Van Kinsbergen,"4.088,00","4.589,30",594
+2024-05-28,Dinsdag,L'Amour Toujours,"2.857,28","3.221,87",345
+2024-05-29,Woensdag,Bar Bea,"2.605,76","3.036,12",503
+2024-05-29,Woensdag,Gastropub Van Kinsbergen,"4.152,50","4.667,12",611
+2024-05-29,Woensdag,L'Amour Toujours,"5.119,85","5.755,80",598
+2024-05-30,Donderdag,Bar Bea,"4.829,87","5.568,73",827
+2024-05-30,Donderdag,Gastropub Van Kinsbergen,"5.768,42","6.568,35",861
+2024-05-30,Donderdag,L'Amour Toujours,"4.969,25","5.608,46",605
+2024-05-31,Vrijdag,Bar Bea,"9.460,19","10.938,90",1.613
+2024-05-31,Vrijdag,Gastropub Van Kinsbergen,"6.923,99","7.885,96",1.039
+2024-05-31,Vrijdag,L'Amour Toujours,"6.191,53","6.972,95",677
+2024-06-01,Zaterdag,Bar Bea,"5.459,55","6.308,36",860
+2024-06-01,Zaterdag,Gastropub Van Kinsbergen,"8.143,03","9.134,55",1.143
+2024-06-01,Zaterdag,L'Amour Toujours,"7.597,10","8.526,41",873
+2024-06-02,Zondag,Bar Bea,"3.131,78","3.580,64",553
+2024-06-02,Zondag,Gastropub Van Kinsbergen,"4.595,28","5.154,53",705
+2024-06-02,Zondag,L'Amour Toujours,"6.283,05","7.055,38",741
+2024-06-03,Maandag,Bar Bea,"1.078,46","1.246,72",163
+2024-06-03,Maandag,Gastropub Van Kinsbergen,"4.330,15","4.887,75",637
+2024-06-03,Maandag,L'Amour Toujours,"0,00","0,00",0
+2024-06-04,Dinsdag,Bar Bea,"1.870,42","2.181,76",296
+2024-06-04,Dinsdag,Gastropub Van Kinsbergen,"4.864,66","5.488,40",692
+2024-06-04,Dinsdag,L'Amour Toujours,"3.783,97","4.228,00",394
+2024-06-05,Woensdag,Bar Bea,"3.396,37","3.899,98",616
+2024-06-05,Woensdag,Gastropub Van Kinsbergen,"4.326,94","4.903,90",679
+2024-06-05,Woensdag,L'Amour Toujours,"5.770,41","6.470,20",692
+2024-06-06,Donderdag,Bar Bea,"4.919,82","5.668,31",784
+2024-06-06,Donderdag,Gastropub Van Kinsbergen,"7.565,27","8.575,60",1.150
+2024-06-06,Donderdag,L'Amour Toujours,"5.556,41","6.273,63",680
+2024-06-07,Vrijdag,Bar Bea,"8.288,65","9.586,33",1.249
+2024-06-07,Vrijdag,Gastropub Van Kinsbergen,"10.826,23","12.284,25",1.593
+2024-06-07,Vrijdag,L'Amour Toujours,"10.876,23","12.264,80",1.262
+2024-06-08,Zaterdag,Bar Bea,"8.877,42","10.245,92",1.508
+2024-06-08,Zaterdag,Gastropub Van Kinsbergen,"9.746,55","10.995,17",1.486
+2024-06-08,Zaterdag,L'Amour Toujours,"7.380,60","8.273,77",893
+2024-06-09,Zondag,Bar Bea,"4.436,26","5.098,62",810
+2024-06-09,Zondag,Gastropub Van Kinsbergen,"7.118,69","7.981,50",1.082
+2024-06-09,Zondag,L'Amour Toujours,"7.237,95","8.121,84",952
+2024-06-10,Maandag,Bar Bea,"1.723,35","1.980,10",224
+2024-06-10,Maandag,Gastropub Van Kinsbergen,"2.928,92","3.281,80",462
+2024-06-10,Maandag,L'Amour Toujours,"0,00","0,00",0
+2024-06-11,Dinsdag,Bar Bea,"1.957,58","2.265,62",321
+2024-06-11,Dinsdag,Gastropub Van Kinsbergen,"5.633,81","6.398,12",845
+2024-06-11,Dinsdag,L'Amour Toujours,"3.612,83","4.041,19",392
+2024-06-12,Woensdag,Bar Bea,"2.640,70","2.997,25",438
+2024-06-12,Woensdag,Gastropub Van Kinsbergen,"4.305,92","4.818,00",602
+2024-06-12,Woensdag,L'Amour Toujours,"5.031,35","5.625,40",550
+2024-06-13,Donderdag,Bar Bea,"5.670,74","6.533,00",939
+2024-06-13,Donderdag,Gastropub Van Kinsbergen,"4.994,13","5.636,62",776
+2024-06-13,Donderdag,L'Amour Toujours,"5.213,36","5.880,40",598
+2024-06-14,Vrijdag,Bar Bea,"6.498,47","7.520,36",1.054
+2024-06-14,Vrijdag,Gastropub Van Kinsbergen,"7.530,29","8.541,22",1.121
+2024-06-14,Vrijdag,L'Amour Toujours,"8.040,67","9.110,71",849
+2024-06-15,Zaterdag,Bar Bea,"6.426,63","7.447,73",1.062
+2024-06-15,Zaterdag,Gastropub Van Kinsbergen,"6.534,38","7.354,75",1.011
+2024-06-15,Zaterdag,L'Amour Toujours,"7.886,10","8.877,93",853
+2024-06-16,Zondag,Bar Bea,"4.227,63","4.957,50",736
+2024-06-16,Zondag,Gastropub Van Kinsbergen,"9.890,62","11.285,20",1.604
+2024-06-16,Zondag,L'Amour Toujours,"7.149,05","8.009,02",889
+2024-06-17,Maandag,Bar Bea,"5.342,33","6.077,66",702
+2024-06-17,Maandag,Gastropub Van Kinsbergen,"5.243,81","5.883,90",814
+2024-06-17,Maandag,L'Amour Toujours,"0,00","0,00",0
+2024-06-18,Dinsdag,Bar Bea,"2.690,19","3.090,62",446
+2024-06-18,Dinsdag,Gastropub Van Kinsbergen,"4.793,96","5.383,90",626
+2024-06-18,Dinsdag,L'Amour Toujours,"3.221,83","3.606,05",359
+2024-06-19,Woensdag,Bar Bea,"2.431,05","2.812,00",426
+2024-06-19,Woensdag,Gastropub Van Kinsbergen,"6.086,22","6.865,34",886
+2024-06-19,Woensdag,L'Amour Toujours,"4.106,30","4.649,03",530
+2024-06-20,Donderdag,Bar Bea,"6.729,86","7.741,90",1.188
+2024-06-20,Donderdag,Gastropub Van Kinsbergen,"5.105,25","5.768,77",778
+2024-06-20,Donderdag,L'Amour Toujours,"6.861,93","7.723,75",806
+2024-06-21,Vrijdag,Bar Bea,"6.775,80","8.031,30",1.250
+2024-06-21,Vrijdag,Gastropub Van Kinsbergen,"11.721,67","13.765,45",1.918
+2024-06-21,Vrijdag,L'Amour Toujours,"7.272,87","8.300,81",962
+2024-06-22,Zaterdag,Bar Bea,"7.419,19","8.570,40",1.194
+2024-06-22,Zaterdag,Gastropub Van Kinsbergen,"9.996,61","11.280,96",1.452
+2024-06-22,Zaterdag,L'Amour Toujours,"9.481,86","10.679,23",1.225
+2024-06-23,Zondag,Bar Bea,"3.321,93","3.775,50",568
+2024-06-23,Zondag,Gastropub Van Kinsbergen,"9.000,27","10.124,70",1.301
+2024-06-23,Zondag,L'Amour Toujours,"6.515,48","7.302,50",841
+2024-06-24,Maandag,Bar Bea,"2.893,80","3.327,22",485
+2024-06-24,Maandag,Gastropub Van Kinsbergen,"5.466,37","6.162,86",840
+2024-06-24,Maandag,L'Amour Toujours,"0,00","0,00",0
+2024-06-25,Dinsdag,Bar Bea,"3.244,23","3.809,70",530
+2024-06-25,Dinsdag,Gastropub Van Kinsbergen,"5.212,01","5.952,20",836
+2024-06-25,Dinsdag,L'Amour Toujours,"4.826,45","5.470,15",615
+2024-06-26,Woensdag,Bar Bea,"3.655,37","4.189,61",609
+2024-06-26,Woensdag,Gastropub Van Kinsbergen,"6.452,25","7.288,95",962
+2024-06-26,Woensdag,L'Amour Toujours,"4.930,96","5.537,03",641
+2024-06-27,Donderdag,Bar Bea,"5.982,55","6.993,27",1.094
+2024-06-27,Donderdag,Gastropub Van Kinsbergen,"9.372,56","10.903,24",1.546
+2024-06-27,Donderdag,L'Amour Toujours,"5.490,36","6.186,40",739
+2024-06-28,Vrijdag,Bar Bea,"10.828,55","12.517,02",1.692
+2024-06-28,Vrijdag,Gastropub Van Kinsbergen,"9.786,95","11.092,43",1.361
+2024-06-28,Vrijdag,L'Amour Toujours,"8.639,67","9.730,10",1.000
+2024-06-29,Zaterdag,Bar Bea,"7.029,82","8.058,03",1.128
+2024-06-29,Zaterdag,Gastropub Van Kinsbergen,"9.616,48","10.829,40",1.411
+2024-06-29,Zaterdag,L'Amour Toujours,"8.318,58","9.335,32",968
+2024-06-30,Zondag,Bar Bea,"5.187,70","5.919,50",875
+2024-06-30,Zondag,Gastropub Van Kinsbergen,"5.240,44","5.884,80",849
+2024-06-30,Zondag,L'Amour Toujours,"5.440,59","6.105,20",697
+2024-07-01,Maandag,Bar Bea,"2.904,88","3.366,64",463
+2024-07-01,Maandag,Gastropub Van Kinsbergen,"5.563,82","6.253,86",776
+2024-07-01,Maandag,L'Amour Toujours,"0,00","0,00",0
+2024-07-02,Dinsdag,Bar Bea,"4.785,56","5.633,25",874
+2024-07-02,Dinsdag,Gastropub Van Kinsbergen,"6.272,09","7.333,70",1.126
+2024-07-02,Dinsdag,L'Amour Toujours,"4.200,16","4.742,35",478
+2024-07-03,Woensdag,Bar Bea,"2.265,01","2.590,05",358
+2024-07-03,Woensdag,Gastropub Van Kinsbergen,"6.846,96","7.701,60",971
+2024-07-03,Woensdag,L'Amour Toujours,"5.444,36","6.117,80",587
+2024-07-04,Donderdag,Bar Bea,"4.607,48","5.341,77",750
+2024-07-04,Donderdag,Gastropub Van Kinsbergen,"6.051,39","6.882,74",975
+2024-07-04,Donderdag,L'Amour Toujours,"7.324,26","8.229,86",904
+2024-07-05,Vrijdag,Bar Bea,"5.552,13","6.430,45",806
+2024-07-05,Vrijdag,Gastropub Van Kinsbergen,"11.168,60","12.725,90",1.762
+2024-07-05,Vrijdag,L'Amour Toujours,"7.598,86","8.599,20",947
+2024-07-06,Zaterdag,Bar Bea,"7.659,73","9.016,85",1.342
+2024-07-06,Zaterdag,Gastropub Van Kinsbergen,"13.418,86","15.561,30",2.337
+2024-07-06,Zaterdag,L'Amour Toujours,"9.292,33","10.560,90",1.290
+2024-07-07,Zondag,Bar Bea,"1.904,78","2.172,06",351
+2024-07-07,Zondag,Gastropub Van Kinsbergen,"5.889,07","6.613,84",854
+2024-07-07,Zondag,L'Amour Toujours,"4.670,96","5.216,70",551
+2024-07-08,Maandag,Bar Bea,"2.168,05","2.489,04",313
+2024-07-08,Maandag,Gastropub Van Kinsbergen,"6.020,56","6.785,62",878
+2024-07-08,Maandag,L'Amour Toujours,"0,00","0,00",0
+2024-07-09,Dinsdag,Bar Bea,"2.870,40","3.305,18",448
+2024-07-09,Dinsdag,Gastropub Van Kinsbergen,"5.551,69","6.216,92",799
+2024-07-09,Dinsdag,L'Amour Toujours,"4.121,84","4.665,95",449
+2024-07-10,Woensdag,Bar Bea,"6.217,95","7.317,29",1.040
+2024-07-10,Woensdag,Gastropub Van Kinsbergen,"9.685,14","11.427,36",1.630
+2024-07-10,Woensdag,L'Amour Toujours,"6.815,75","7.701,75",910
+2024-07-11,Donderdag,Bar Bea,"7.584,04","8.930,82",1.310
+2024-07-11,Donderdag,Gastropub Van Kinsbergen,"14.250,90","16.642,31",2.242
+2024-07-11,Donderdag,L'Amour Toujours,"8.798,98","9.900,63",944
+2024-07-12,Vrijdag,Bar Bea,"5.435,94","6.330,89",873
+2024-07-12,Vrijdag,Gastropub Van Kinsbergen,"7.986,73","9.085,74",1.081
+2024-07-12,Vrijdag,L'Amour Toujours,"6.731,58","7.577,46",703
+2024-07-13,Zaterdag,Bar Bea,"4.911,87","5.668,88",743
+2024-07-13,Zaterdag,Gastropub Van Kinsbergen,"9.524,61","10.722,92",1.379
+2024-07-13,Zaterdag,L'Amour Toujours,"7.385,59","8.311,65",813
+2024-07-14,Zondag,Bar Bea,"3.380,72","3.890,60",597
+2024-07-14,Zondag,Gastropub Van Kinsbergen,"7.288,70","8.185,40",1.064
+2024-07-14,Zondag,L'Amour Toujours,"4.684,98","5.270,35",584
+2024-07-15,Maandag,Bar Bea,"2.274,72","2.629,22",392
+2024-07-15,Maandag,Gastropub Van Kinsbergen,"5.413,66","6.054,48",778
+2024-07-15,Maandag,L'Amour Toujours,"0,00","0,00",0
+2024-07-16,Dinsdag,Bar Bea,"2.607,16","2.992,52",458
+2024-07-16,Dinsdag,Gastropub Van Kinsbergen,"5.244,67","5.897,19",755
+2024-07-16,Dinsdag,L'Amour Toujours,"3.626,79","4.085,80",429
+2024-07-17,Woensdag,Bar Bea,"3.188,36","3.686,06",478
+2024-07-17,Woensdag,Gastropub Van Kinsbergen,"5.361,89","6.045,27",826
+2024-07-17,Woensdag,L'Amour Toujours,"6.296,16","7.042,17",793
+2024-07-18,Donderdag,Bar Bea,"6.246,19","7.201,02",1.042
+2024-07-18,Donderdag,Gastropub Van Kinsbergen,"5.987,88","6.785,39",972
+2024-07-18,Donderdag,L'Amour Toujours,"6.559,51","7.371,96",822
+2024-07-19,Vrijdag,Bar Bea,"6.509,17","7.497,59",1.077
+2024-07-19,Vrijdag,Gastropub Van Kinsbergen,"8.791,97","9.965,14",1.293
+2024-07-19,Vrijdag,L'Amour Toujours,"7.193,30","8.077,57",874
+2024-07-20,Zaterdag,Bar Bea,"5.533,72","6.351,38",914
+2024-07-20,Zaterdag,Gastropub Van Kinsbergen,"9.724,73","10.893,04",1.428
+2024-07-20,Zaterdag,L'Amour Toujours,"8.428,58","9.476,35",986
+2024-07-21,Zondag,Bar Bea,"4.371,47","4.913,58",672
+2024-07-21,Zondag,Gastropub Van Kinsbergen,"5.983,12","6.725,32",870
+2024-07-21,Zondag,L'Amour Toujours,"5.259,09","5.885,09",647
+2024-07-22,Maandag,Bar Bea,"1.659,29","1.914,40",261
+2024-07-22,Maandag,Gastropub Van Kinsbergen,"4.965,37","5.576,60",710
+2024-07-22,Maandag,L'Amour Toujours,"0,00","0,00",0
+2024-07-23,Dinsdag,Bar Bea,"2.039,24","2.349,30",332
+2024-07-23,Dinsdag,Gastropub Van Kinsbergen,"4.879,68","5.515,02",767
+2024-07-23,Dinsdag,L'Amour Toujours,"4.327,92","4.857,85",480
+2024-07-24,Woensdag,Bar Bea,"3.650,25","4.189,16",566
+2024-07-24,Woensdag,Gastropub Van Kinsbergen,"5.240,32","5.919,72",805
+2024-07-24,Woensdag,L'Amour Toujours,"5.471,83","6.158,15",646
+2024-07-25,Donderdag,Bar Bea,"6.072,59","6.935,43",972
+2024-07-25,Donderdag,Gastropub Van Kinsbergen,"5.472,90","6.177,53",790
+2024-07-25,Donderdag,L'Amour Toujours,"5.101,96","5.741,82",598
+2024-07-26,Vrijdag,Bar Bea,"9.512,82","11.033,98",1.573
+2024-07-26,Vrijdag,Gastropub Van Kinsbergen,"8.624,69","9.805,86",1.234
+2024-07-26,Vrijdag,L'Amour Toujours,"9.454,82","10.666,92",1.182
+2024-07-27,Zaterdag,Bar Bea,"8.302,80","9.543,68",1.299
+2024-07-27,Zaterdag,Gastropub Van Kinsbergen,"9.398,71","10.575,00",1.386
+2024-07-27,Zaterdag,L'Amour Toujours,"6.858,63","7.698,25",801
+2024-07-28,Zondag,Bar Bea,"4.305,78","4.913,06",666
+2024-07-28,Zondag,Gastropub Van Kinsbergen,"9.631,24","10.835,56",1.395
+2024-07-28,Zondag,L'Amour Toujours,"5.775,68","6.516,75",771
+2024-07-29,Maandag,Bar Bea,"2.454,90","2.839,06",394
+2024-07-29,Maandag,Gastropub Van Kinsbergen,"6.064,13","6.808,64",870
+2024-07-29,Maandag,L'Amour Toujours,"0,00","0,00",0
+2024-07-30,Dinsdag,Bar Bea,"3.085,89","3.520,82",449
+2024-07-30,Dinsdag,Gastropub Van Kinsbergen,"7.164,11","8.087,37",1.010
+2024-07-30,Dinsdag,L'Amour Toujours,"4.028,36","4.557,35",512
+2024-07-31,Woensdag,Bar Bea,"3.376,32","3.875,62",592
+2024-07-31,Woensdag,Gastropub Van Kinsbergen,"6.516,73","7.376,80",991
+2024-07-31,Woensdag,L'Amour Toujours,"5.751,56","6.492,14",758
+2024-08-01,Donderdag,Bar Bea,"4.606,82","5.328,48",719
+2024-08-01,Donderdag,Gastropub Van Kinsbergen,"4.748,40","5.419,40",722
+2024-08-01,Donderdag,L'Amour Toujours,"4.721,96","5.328,20",591
+2024-08-02,Vrijdag,Bar Bea,"7.856,83","9.118,15",1.294
+2024-08-02,Vrijdag,Gastropub Van Kinsbergen,"8.187,12","9.337,11",1.276
+2024-08-02,Vrijdag,L'Amour Toujours,"6.840,91","7.713,77",903
+2024-08-03,Zaterdag,Bar Bea,"8.413,56","9.724,16",1.374
+2024-08-03,Zaterdag,Gastropub Van Kinsbergen,"7.587,90","8.539,83",1.102
+2024-08-03,Zaterdag,L'Amour Toujours,"7.195,23","8.102,65",875
+2024-08-04,Zondag,Bar Bea,"3.750,65","4.272,68",606
+2024-08-04,Zondag,Gastropub Van Kinsbergen,"5.092,67","5.702,94",751
+2024-08-04,Zondag,L'Amour Toujours,"5.355,22","5.980,05",667
+2024-08-05,Maandag,Bar Bea,"2.796,53","3.228,98",458
+2024-08-05,Maandag,Gastropub Van Kinsbergen,"5.781,92","6.520,50",869
+2024-08-05,Maandag,L'Amour Toujours,"0,00","0,00",0
+2024-08-06,Dinsdag,Bar Bea,"2.833,34","3.261,00",452
+2024-08-06,Dinsdag,Gastropub Van Kinsbergen,"6.056,97","6.827,00",925
+2024-08-06,Dinsdag,L'Amour Toujours,"5.603,36","6.318,11",667
+2024-08-07,Woensdag,Bar Bea,"3.274,15","3.766,20",551
+2024-08-07,Woensdag,Gastropub Van Kinsbergen,"6.913,25","7.807,95",1.037
+2024-08-07,Woensdag,L'Amour Toujours,"4.845,94","5.467,88",610
+2024-08-08,Donderdag,Bar Bea,"4.435,98","5.123,67",693
+2024-08-08,Donderdag,Gastropub Van Kinsbergen,"5.996,36","6.757,44",883
+2024-08-08,Donderdag,L'Amour Toujours,"6.769,84","7.618,82",855
+2024-08-09,Vrijdag,Bar Bea,"8.244,64","9.610,70",1.368
+2024-08-09,Vrijdag,Gastropub Van Kinsbergen,"7.261,61","8.269,60",1.031
+2024-08-09,Vrijdag,L'Amour Toujours,"7.756,63","8.791,22",981
+2024-08-10,Zaterdag,Bar Bea,"8.782,17","10.131,26",1.366
+2024-08-10,Zaterdag,Gastropub Van Kinsbergen,"8.341,72","9.406,66",1.221
+2024-08-10,Zaterdag,L'Amour Toujours,"5.855,94","6.637,02",678
+2024-08-11,Zondag,Bar Bea,"4.382,72","5.039,85",725
+2024-08-11,Zondag,Gastropub Van Kinsbergen,"6.931,27","7.736,20",1.011
+2024-08-11,Zondag,L'Amour Toujours,"4.376,08","4.920,45",558
+2024-08-12,Maandag,Bar Bea,"2.579,43","2.974,40",436
+2024-08-12,Maandag,Gastropub Van Kinsbergen,"7.497,04","8.432,04",1.152
+2024-08-12,Maandag,L'Amour Toujours,"0,00","0,00",0
+2024-08-13,Dinsdag,Bar Bea,"3.998,56","4.607,60",654
+2024-08-13,Dinsdag,Gastropub Van Kinsbergen,"7.272,88","8.174,75",1.032
+2024-08-13,Dinsdag,L'Amour Toujours,"4.178,43","4.697,07",497
+2024-08-14,Woensdag,Bar Bea,"3.395,74","3.877,60",538
+2024-08-14,Woensdag,Gastropub Van Kinsbergen,"4.799,03","5.411,80",746
+2024-08-14,Woensdag,L'Amour Toujours,"6.293,93","7.068,60",736
+2024-08-15,Donderdag,Bar Bea,"4.316,14","4.973,16",712
+2024-08-15,Donderdag,Gastropub Van Kinsbergen,"6.377,23","7.217,74",949
+2024-08-15,Donderdag,L'Amour Toujours,"6.049,76","6.837,45",688
+2024-08-16,Vrijdag,Bar Bea,"5.794,27","6.743,90",997
+2024-08-16,Vrijdag,Gastropub Van Kinsbergen,"9.261,47","10.557,10",1.355
+2024-08-16,Vrijdag,L'Amour Toujours,"8.328,33","9.404,96",933
+2024-08-17,Zaterdag,Bar Bea,"7.552,59","8.750,36",1.315
+2024-08-17,Zaterdag,Gastropub Van Kinsbergen,"9.117,49","10.309,98",1.402
+2024-08-17,Zaterdag,L'Amour Toujours,"6.779,34","7.632,14",823
+2024-08-18,Zondag,Bar Bea,"3.000,27","3.435,74",565
+2024-08-18,Zondag,Gastropub Van Kinsbergen,"6.175,56","6.937,50",929
+2024-08-18,Zondag,L'Amour Toujours,"5.434,25","6.141,35",713
+2024-08-19,Maandag,Bar Bea,"2.224,11","2.556,40",383
+2024-08-19,Maandag,Gastropub Van Kinsbergen,"5.655,64","6.400,70",971
+2024-08-19,Maandag,L'Amour Toujours,"0,00","0,00",0
+2024-08-20,Dinsdag,Bar Bea,"1.198,51","1.374,34",213
+2024-08-20,Dinsdag,Gastropub Van Kinsbergen,"3.642,35","4.109,30",543
+2024-08-20,Dinsdag,L'Amour Toujours,"2.981,31","3.367,00",324
+2024-08-21,Woensdag,Bar Bea,"2.664,17","3.060,16",462
+2024-08-21,Woensdag,Gastropub Van Kinsbergen,"3.771,13","4.236,90",579
+2024-08-21,Woensdag,L'Amour Toujours,"5.297,42","5.947,72",604
+2024-08-22,Donderdag,Bar Bea,"4.604,51","5.308,96",765
+2024-08-22,Donderdag,Gastropub Van Kinsbergen,"6.517,33","7.346,40",939
+2024-08-22,Donderdag,L'Amour Toujours,"6.298,64","7.082,15",729
+2024-08-23,Vrijdag,Bar Bea,"7.895,17","9.276,18",1.381
+2024-08-23,Vrijdag,Gastropub Van Kinsbergen,"8.465,45","9.614,74",1.287
+2024-08-23,Vrijdag,L'Amour Toujours,"7.716,70","8.715,65",858
+2024-08-24,Zaterdag,Bar Bea,"7.328,09","8.530,62",1.267
+2024-08-24,Zaterdag,Gastropub Van Kinsbergen,"6.942,69","7.837,00",1.037
+2024-08-24,Zaterdag,L'Amour Toujours,"8.062,43","9.069,20",828
+2024-08-25,Zondag,Bar Bea,"3.825,12","4.388,60",659
+2024-08-25,Zondag,Gastropub Van Kinsbergen,"5.300,23","5.951,30",793
+2024-08-25,Zondag,L'Amour Toujours,"8.569,61","9.648,05",946
+2024-08-26,Maandag,Bar Bea,"2.718,24","3.168,00",458
+2024-08-26,Maandag,Gastropub Van Kinsbergen,"3.847,73","4.327,62",596
+2024-08-26,Maandag,L'Amour Toujours,"0,00","0,00",0
+2024-08-27,Dinsdag,Bar Bea,"4.038,17","4.650,34",665
+2024-08-27,Dinsdag,Gastropub Van Kinsbergen,"6.961,53","7.843,65",999
+2024-08-27,Dinsdag,L'Amour Toujours,"3.475,56","3.904,94",484
+2024-08-28,Woensdag,Bar Bea,"5.145,84","5.888,53",798
+2024-08-28,Woensdag,Gastropub Van Kinsbergen,"7.759,43","8.761,78",1.132
+2024-08-28,Woensdag,L'Amour Toujours,"5.865,94","6.610,80",689
+2024-08-29,Donderdag,Bar Bea,"5.123,68","5.918,60",844
+2024-08-29,Donderdag,Gastropub Van Kinsbergen,"4.673,38","5.266,20",688
+2024-08-29,Donderdag,L'Amour Toujours,"4.965,09","5.605,53",636
+2024-08-30,Vrijdag,Bar Bea,"7.160,00","8.290,00",1.191
+2024-08-30,Vrijdag,Gastropub Van Kinsbergen,"8.827,12","9.988,40",1.200
+2024-08-30,Vrijdag,L'Amour Toujours,"9.008,16","10.192,35",1.040
+2024-08-31,Zaterdag,Bar Bea,"9.501,57","10.967,10",1.607
+2024-08-31,Zaterdag,Gastropub Van Kinsbergen,"8.753,36","9.890,96",1.312
+2024-08-31,Zaterdag,L'Amour Toujours,"6.682,91","7.485,10",857
+2024-09-01,Zondag,Bar Bea,"2.501,12","2.859,90",417
+2024-09-01,Zondag,Gastropub Van Kinsbergen,"7.967,34","8.928,14",1.320
+2024-09-01,Zondag,L'Amour Toujours,"6.100,37","6.861,29",897
+2024-09-02,Maandag,Bar Bea,"1.801,47","2.070,62",341
+2024-09-02,Maandag,Gastropub Van Kinsbergen,"3.953,63","4.414,40",603
+2024-09-02,Maandag,L'Amour Toujours,"0,00","0,00",0
+2024-09-03,Dinsdag,Bar Bea,"2.098,54","2.405,05",312
+2024-09-03,Dinsdag,Gastropub Van Kinsbergen,"3.952,11","4.439,42",548
+2024-09-03,Dinsdag,L'Amour Toujours,"3.242,38","3.633,00",367
+2024-09-04,Woensdag,Bar Bea,"2.745,43","3.143,60",451
+2024-09-04,Woensdag,Gastropub Van Kinsbergen,"1.855,19","2.099,30",311
+2024-09-04,Woensdag,L'Amour Toujours,"4.185,87","4.684,15",488
+2024-09-05,Donderdag,Bar Bea,"5.513,78","6.319,17",908
+2024-09-05,Donderdag,Gastropub Van Kinsbergen,"5.212,84","5.917,26",781
+2024-09-05,Donderdag,L'Amour Toujours,"6.258,37","7.074,14",733
+2024-09-06,Vrijdag,Bar Bea,"9.857,73","11.362,24",1.503
+2024-09-06,Vrijdag,Gastropub Van Kinsbergen,"8.614,36","9.786,50",1.305
+2024-09-06,Vrijdag,L'Amour Toujours,"8.346,55","9.403,37",990
+2024-09-07,Zaterdag,Bar Bea,"9.277,62","10.766,52",1.664
+2024-09-07,Zaterdag,Gastropub Van Kinsbergen,"8.430,95","9.551,08",1.274
+2024-09-07,Zaterdag,L'Amour Toujours,"9.855,89","11.089,79",1.197
+2024-09-08,Zondag,Bar Bea,"3.465,50","3.983,26",584
+2024-09-08,Zondag,Gastropub Van Kinsbergen,"4.023,92","4.528,75",642
+2024-09-08,Zondag,L'Amour Toujours,"6.772,58","7.595,52",809
+2024-09-09,Maandag,Bar Bea,"721,08","843,62",163
+2024-09-09,Maandag,Gastropub Van Kinsbergen,"3.558,89","4.008,20",533
+2024-09-09,Maandag,L'Amour Toujours,"0,00","0,00",0
+2024-09-10,Dinsdag,Bar Bea,"1.854,73","2.142,02",316
+2024-09-10,Dinsdag,Gastropub Van Kinsbergen,"4.000,78","4.471,10",610
+2024-09-10,Dinsdag,L'Amour Toujours,"1.718,27","1.925,05",195
+2024-09-11,Woensdag,Bar Bea,"1.024,34","1.165,14",193
+2024-09-11,Woensdag,Gastropub Van Kinsbergen,"2.985,82","3.342,62",419
+2024-09-11,Woensdag,L'Amour Toujours,"1.989,72","2.227,04",219
+2024-09-12,Donderdag,Bar Bea,"2.777,59","3.196,00",422
+2024-09-12,Donderdag,Gastropub Van Kinsbergen,"4.778,67","5.368,16",671
+2024-09-12,Donderdag,L'Amour Toujours,"4.248,09","4.756,02",476
+2024-09-13,Vrijdag,Bar Bea,"6.035,44","7.047,55",1.080
+2024-09-13,Vrijdag,Gastropub Van Kinsbergen,"7.573,68","8.567,83",1.093
+2024-09-13,Vrijdag,L'Amour Toujours,"5.206,98","5.852,55",562
+2024-09-14,Zaterdag,Bar Bea,"5.750,54","6.674,02",1.025
+2024-09-14,Zaterdag,Gastropub Van Kinsbergen,"8.366,28","9.421,70",1.232
+2024-09-14,Zaterdag,L'Amour Toujours,"7.924,05","8.883,95",914
+2024-09-15,Zondag,Bar Bea,"3.553,22","4.059,04",617
+2024-09-15,Zondag,Gastropub Van Kinsbergen,"8.449,18","9.512,30",1.321
+2024-09-15,Zondag,L'Amour Toujours,"6.726,66","7.564,64",978
+2024-09-16,Maandag,Bar Bea,"1.370,88","1.576,50",249
+2024-09-16,Maandag,Gastropub Van Kinsbergen,"3.571,79","4.031,45",514
+2024-09-16,Maandag,L'Amour Toujours,"0,00","0,00",0
+2024-09-17,Dinsdag,Bar Bea,"2.220,12","2.558,98",365
+2024-09-17,Dinsdag,Gastropub Van Kinsbergen,"3.461,60","3.933,30",539
+2024-09-17,Dinsdag,L'Amour Toujours,"3.354,95","3.803,45",326
+2024-09-18,Woensdag,Bar Bea,"3.269,85","3.778,70",570
+2024-09-18,Woensdag,Gastropub Van Kinsbergen,"3.146,64","3.557,00",484
+2024-09-18,Woensdag,L'Amour Toujours,"4.285,79","4.799,35",506
+2024-09-19,Donderdag,Bar Bea,"3.758,07","4.305,16",604
+2024-09-19,Donderdag,Gastropub Van Kinsbergen,"4.772,92","5.407,70",718
+2024-09-19,Donderdag,L'Amour Toujours,"6.400,99","7.213,37",796
+2024-09-20,Vrijdag,Bar Bea,"8.703,51","10.085,46",1.405
+2024-09-20,Vrijdag,Gastropub Van Kinsbergen,"9.168,09","10.410,85",1.332
+2024-09-20,Vrijdag,L'Amour Toujours,"9.484,83","10.624,26",1.071
+2024-09-21,Zaterdag,Bar Bea,"11.463,39","13.365,36",2.032
+2024-09-21,Zaterdag,Gastropub Van Kinsbergen,"8.404,45","9.501,34",1.226
+2024-09-21,Zaterdag,L'Amour Toujours,"8.897,84","10.006,80",1.084
+2024-09-22,Zondag,Bar Bea,"3.870,38","4.388,74",693
+2024-09-22,Zondag,Gastropub Van Kinsbergen,"4.745,45","5.354,60",760
+2024-09-22,Zondag,L'Amour Toujours,"2.459,68","2.785,90",316
+2024-09-23,Maandag,Bar Bea,"1.168,06","1.343,46",210
+2024-09-23,Maandag,Gastropub Van Kinsbergen,"2.566,60","2.911,38",404
+2024-09-23,Maandag,L'Amour Toujours,"0,00","0,00",0
+2024-09-24,Dinsdag,Bar Bea,"1.267,26","1.449,69",219
+2024-09-24,Dinsdag,Gastropub Van Kinsbergen,"3.108,71","3.489,30",464
+2024-09-24,Dinsdag,L'Amour Toujours,"3.588,97","4.009,95",358
+2024-09-25,Woensdag,Bar Bea,"990,40","1.129,90",167
+2024-09-25,Woensdag,Gastropub Van Kinsbergen,"2.845,88","3.250,32",402
+2024-09-25,Woensdag,L'Amour Toujours,"3.059,01","3.417,90",331
+2024-09-26,Donderdag,Bar Bea,"2.515,59","2.889,04",371
+2024-09-26,Donderdag,Gastropub Van Kinsbergen,"3.552,99","4.025,82",584
+2024-09-26,Donderdag,L'Amour Toujours,"5.310,02","5.946,30",547
+2024-09-27,Vrijdag,Bar Bea,"5.988,81","6.947,25",1.014
+2024-09-27,Vrijdag,Gastropub Van Kinsbergen,"7.613,51","8.657,34",1.140
+2024-09-27,Vrijdag,L'Amour Toujours,"5.536,13","6.231,14",545
+2024-09-28,Zaterdag,Bar Bea,"7.438,38","8.627,87",1.321
+2024-09-28,Zaterdag,Gastropub Van Kinsbergen,"7.021,44","8.007,20",1.054
+2024-09-28,Zaterdag,L'Amour Toujours,"7.745,83","8.695,80",870
+2024-09-29,Zondag,Bar Bea,"2.209,65","2.541,50",436
+2024-09-29,Zondag,Gastropub Van Kinsbergen,"4.934,14","5.517,00",775
+2024-09-29,Zondag,L'Amour Toujours,"4.578,46","5.119,10",515
+2024-09-30,Maandag,Bar Bea,"0,00","0,00",0
+2024-09-30,Maandag,Gastropub Van Kinsbergen,"983,40","1.173,16",251
+2024-09-30,Maandag,L'Amour Toujours,"0,00","0,00",0
+2024-10-01,Dinsdag,Bar Bea,"1.744,29","1.976,60",276
+2024-10-01,Dinsdag,Gastropub Van Kinsbergen,"3.683,89","4.126,70",510
+2024-10-01,Dinsdag,L'Amour Toujours,"952,18","1.069,70",94
+2024-10-02,Woensdag,Bar Bea,"1.123,23","1.292,00",191
+2024-10-02,Woensdag,Gastropub Van Kinsbergen,"2.424,67","2.737,04",375
+2024-10-02,Woensdag,L'Amour Toujours,"3.411,47","3.848,38",385
+2024-10-03,Donderdag,Bar Bea,"3.849,83","4.439,40",642
+2024-10-03,Donderdag,Gastropub Van Kinsbergen,"4.391,03","4.956,20",633
+2024-10-03,Donderdag,L'Amour Toujours,"5.621,32","6.287,30",591
+2024-10-04,Vrijdag,Bar Bea,"9.876,37","11.480,72",1.786
+2024-10-04,Vrijdag,Gastropub Van Kinsbergen,"8.109,13","9.180,52",1.194
+2024-10-04,Vrijdag,L'Amour Toujours,"9.094,31","10.235,02",1.058
+2024-10-05,Zaterdag,Bar Bea,"8.008,95","9.232,47",1.365
+2024-10-05,Zaterdag,Gastropub Van Kinsbergen,"10.488,19","11.835,95",1.532
+2024-10-05,Zaterdag,L'Amour Toujours,"10.916,26","12.328,26",1.316
+2024-10-06,Zondag,Bar Bea,"3.438,26","3.940,32",626
+2024-10-06,Zondag,Gastropub Van Kinsbergen,"4.187,64","4.689,04",642
+2024-10-06,Zondag,L'Amour Toujours,"4.567,00","5.101,60",548
+2024-10-07,Maandag,Bar Bea,"0,00","0,00",0
+2024-10-07,Maandag,Gastropub Van Kinsbergen,"2.641,11","2.965,00",378
+2024-10-07,Maandag,L'Amour Toujours,"0,00","0,00",0
+2024-10-08,Dinsdag,Bar Bea,"1.122,55","1.306,96",215
+2024-10-08,Dinsdag,Gastropub Van Kinsbergen,"3.338,68","3.764,10",492
+2024-10-08,Dinsdag,L'Amour Toujours,"2.289,12","2.570,72",240
+2024-10-09,Woensdag,Bar Bea,"1.455,60","1.702,62",280
+2024-10-09,Woensdag,Gastropub Van Kinsbergen,"2.910,24","3.269,90",444
+2024-10-09,Woensdag,L'Amour Toujours,"2.016,02","2.265,40",218
+2024-10-10,Donderdag,Bar Bea,"2.178,62","2.532,70",400
+2024-10-10,Donderdag,Gastropub Van Kinsbergen,"2.617,90","2.966,05",408
+2024-10-10,Donderdag,L'Amour Toujours,"4.589,89","5.146,70",468
+2024-10-11,Vrijdag,Bar Bea,"5.285,19","6.130,69",925
+2024-10-11,Vrijdag,Gastropub Van Kinsbergen,"7.827,60","8.922,04",1.101
+2024-10-11,Vrijdag,L'Amour Toujours,"6.607,90","7.464,90",693
+2024-10-12,Zaterdag,Bar Bea,"7.560,34","8.757,75",1.305
+2024-10-12,Zaterdag,Gastropub Van Kinsbergen,"12.418,50","14.101,00",1.782
+2024-10-12,Zaterdag,L'Amour Toujours,"7.353,79","8.284,90",787
+2024-10-13,Zondag,Bar Bea,"1.202,25","1.379,66",229
+2024-10-13,Zondag,Gastropub Van Kinsbergen,"5.328,56","5.925,28",810
+2024-10-13,Zondag,L'Amour Toujours,"4.570,44","5.101,95",512
+2024-10-14,Maandag,Bar Bea,"0,00","0,00",0
+2024-10-14,Maandag,Gastropub Van Kinsbergen,"3.409,94","3.844,00",472
+2024-10-14,Maandag,L'Amour Toujours,"0,00","0,00",0
+2024-10-15,Dinsdag,Bar Bea,"1.047,55","1.214,20",182
+2024-10-15,Dinsdag,Gastropub Van Kinsbergen,"2.911,17","3.281,30",470
+2024-10-15,Dinsdag,L'Amour Toujours,"2.444,09","2.740,78",261
+2024-10-16,Woensdag,Bar Bea,"2.044,38","2.389,24",349
+2024-10-16,Woensdag,Gastropub Van Kinsbergen,"5.094,94","5.740,50",698
+2024-10-16,Woensdag,L'Amour Toujours,"2.671,30","2.996,80",301
+2024-10-17,Donderdag,Bar Bea,"5.206,25","6.082,88",841
+2024-10-17,Donderdag,Gastropub Van Kinsbergen,"4.101,54","4.626,20",586
+2024-10-17,Donderdag,L'Amour Toujours,"3.366,26","3.774,30",371
+2024-10-18,Vrijdag,Bar Bea,"7.374,33","8.589,30",1.290
+2024-10-18,Vrijdag,Gastropub Van Kinsbergen,"6.863,26","7.768,20",933
+2024-10-18,Vrijdag,L'Amour Toujours,"7.207,24","8.088,26",785
+2024-10-19,Zaterdag,Bar Bea,"7.788,22","8.975,65",1.250
+2024-10-19,Zaterdag,Gastropub Van Kinsbergen,"6.545,39","7.397,27",975
+2024-10-19,Zaterdag,L'Amour Toujours,"5.810,99","6.524,60",599
+2024-10-20,Zondag,Bar Bea,"2.127,51","2.411,30",379
+2024-10-20,Zondag,Gastropub Van Kinsbergen,"4.164,14","4.659,50",639
+2024-10-20,Zondag,L'Amour Toujours,"2.675,94","2.990,40",324
+2024-10-21,Maandag,Bar Bea,"0,00","0,00",0
+2024-10-21,Maandag,Gastropub Van Kinsbergen,"0,00","0,00",0
+2024-10-21,Maandag,L'Amour Toujours,"0,00","0,00",0
+2024-10-22,Dinsdag,Bar Bea,"1.565,08","1.800,08",278
+2024-10-22,Dinsdag,Gastropub Van Kinsbergen,"372,22","436,64",92
+2024-10-22,Dinsdag,L'Amour Toujours,"5.636,95","6.386,20",584
+2024-10-23,Woensdag,Bar Bea,"2.940,34","3.354,05",452
+2024-10-23,Woensdag,Gastropub Van Kinsbergen,"0,00","0,00",0
+2024-10-23,Woensdag,L'Amour Toujours,"4.877,32","5.496,10",578
+2024-10-24,Donderdag,Bar Bea,"6.095,11","7.048,94",1.062
+2024-10-24,Donderdag,Gastropub Van Kinsbergen,"4.718,18","5.377,42",570
+2024-10-24,Donderdag,L'Amour Toujours,"4.854,36","5.470,70",643
+2024-10-25,Vrijdag,Bar Bea,"8.676,13","10.045,26",1.484
+2024-10-25,Vrijdag,Gastropub Van Kinsbergen,"9.307,35","10.601,44",1.256
+2024-10-25,Vrijdag,L'Amour Toujours,"10.568,48","11.958,90",1.234
+2024-10-26,Zaterdag,Bar Bea,"9.745,04","11.235,72",1.670
+2024-10-26,Zaterdag,Gastropub Van Kinsbergen,"11.881,24","13.421,34",1.656
+2024-10-26,Zaterdag,L'Amour Toujours,"12.025,49","13.498,16",1.442
+2024-10-27,Zondag,Bar Bea,"4.245,35","4.834,15",704
+2024-10-27,Zondag,Gastropub Van Kinsbergen,"4.803,93","5.390,02",708
+2024-10-27,Zondag,L'Amour Toujours,"5.244,08","5.877,50",676
+2024-10-28,Maandag,Bar Bea,"0,00","0,00",0
+2024-10-28,Maandag,Gastropub Van Kinsbergen,"3.301,34","3.715,38",394
+2024-10-28,Maandag,L'Amour Toujours,"0,00","0,00",0
+2024-10-29,Dinsdag,Bar Bea,"2.353,47","2.738,95",361
+2024-10-29,Dinsdag,Gastropub Van Kinsbergen,"5.503,36","6.166,22",688
+2024-10-29,Dinsdag,L'Amour Toujours,"2.783,01","3.123,02",298
+2024-10-30,Woensdag,Bar Bea,"2.910,10","3.346,02",483
+2024-10-30,Woensdag,Gastropub Van Kinsbergen,"4.849,54","5.426,58",637
+2024-10-30,Woensdag,L'Amour Toujours,"3.398,33","3.791,10",363
+2024-10-31,Donderdag,Bar Bea,"4.312,55","5.034,40",836
+2024-10-31,Donderdag,Gastropub Van Kinsbergen,"7.186,61","8.092,98",1.058
+2024-10-31,Donderdag,L'Amour Toujours,"1.898,35","2.142,16",223
+2024-11-01,Vrijdag,Bar Bea,"9.283,72","10.777,14",1.646
+2024-11-01,Vrijdag,Gastropub Van Kinsbergen,"8.197,81","9.256,18",1.074
+2024-11-01,Vrijdag,L'Amour Toujours,"7.244,46","8.132,64",739
+2024-11-02,Zaterdag,Bar Bea,"9.682,27","11.169,45",1.658
+2024-11-02,Zaterdag,Gastropub Van Kinsbergen,"9.006,01","10.204,93",1.233
+2024-11-02,Zaterdag,L'Amour Toujours,"6.817,29","7.650,84",716
+2024-11-03,Zondag,Bar Bea,"3.272,05","3.738,30",646
+2024-11-03,Zondag,Gastropub Van Kinsbergen,"4.116,79","4.607,34",615
+2024-11-03,Zondag,L'Amour Toujours,"3.663,01","4.099,00",414
+2024-11-04,Maandag,Bar Bea,"0,00","0,00",0
+2024-11-04,Maandag,Gastropub Van Kinsbergen,"2.336,96","2.640,40",388
+2024-11-04,Maandag,L'Amour Toujours,"0,00","0,00",0
+2024-11-05,Dinsdag,Bar Bea,"1.755,54","1.986,95",270
+2024-11-05,Dinsdag,Gastropub Van Kinsbergen,"4.881,06","5.446,80",684
+2024-11-05,Dinsdag,L'Amour Toujours,"873,05","977,38",114
+2024-11-06,Woensdag,Bar Bea,"2.543,98","2.963,30",473
+2024-11-06,Woensdag,Gastropub Van Kinsbergen,"5.045,45","5.714,52",748
+2024-11-06,Woensdag,L'Amour Toujours,"4.242,06","4.741,90",489
+2024-11-07,Donderdag,Bar Bea,"5.145,77","5.912,98",856
+2024-11-07,Donderdag,Gastropub Van Kinsbergen,"2.894,36","3.286,20",459
+2024-11-07,Donderdag,L'Amour Toujours,"5.491,82","6.181,60",479
+2024-11-08,Vrijdag,Bar Bea,"6.120,03","7.175,02",1.123
+2024-11-08,Vrijdag,Gastropub Van Kinsbergen,"6.237,08","7.135,66",918
+2024-11-08,Vrijdag,L'Amour Toujours,"5.608,45","6.289,20",600
+2024-11-09,Zaterdag,Bar Bea,"7.269,48","8.427,32",1.288
+2024-11-09,Zaterdag,Gastropub Van Kinsbergen,"11.200,58","12.803,32",1.808
+2024-11-09,Zaterdag,L'Amour Toujours,"9.798,52","11.006,00",929
+2024-11-10,Zondag,Bar Bea,"3.020,77","3.429,40",535
+2024-11-10,Zondag,Gastropub Van Kinsbergen,"6.158,43","6.899,00",843
+2024-11-10,Zondag,L'Amour Toujours,"4.980,08","5.578,60",520
+2024-11-11,Maandag,Bar Bea,"0,00","0,00",0
+2024-11-11,Maandag,Gastropub Van Kinsbergen,"2.362,77","2.674,90",380
+2024-11-11,Maandag,L'Amour Toujours,"0,00","0,00",0
+2024-11-12,Dinsdag,Bar Bea,"2.121,41","2.455,50",381
+2024-11-12,Dinsdag,Gastropub Van Kinsbergen,"3.302,72","3.747,50",481
+2024-11-12,Dinsdag,L'Amour Toujours,"4.860,60","5.522,20",333
+2024-11-13,Woensdag,Bar Bea,"1.810,19","2.108,92",293
+2024-11-13,Woensdag,Gastropub Van Kinsbergen,"2.729,97","3.110,54",439
+2024-11-13,Woensdag,L'Amour Toujours,"2.823,83","3.157,90",299
+2024-11-14,Donderdag,Bar Bea,"4.033,37","4.660,82",701
+2024-11-14,Donderdag,Gastropub Van Kinsbergen,"4.990,40","5.602,54",723
+2024-11-14,Donderdag,L'Amour Toujours,"5.040,19","5.648,10",536
+2024-11-15,Vrijdag,Bar Bea,"7.206,14","8.361,56",1.259
+2024-11-15,Vrijdag,Gastropub Van Kinsbergen,"7.699,49","8.733,04",1.090
+2024-11-15,Vrijdag,L'Amour Toujours,"6.643,43","7.457,85",676
+2024-11-16,Zaterdag,Bar Bea,"6.917,44","7.952,90",1.144
+2024-11-16,Zaterdag,Gastropub Van Kinsbergen,"11.607,25","13.126,66",1.604
+2024-11-16,Zaterdag,L'Amour Toujours,"8.468,46","9.548,79",870
+2024-11-17,Zondag,Bar Bea,"1.830,40","2.078,00",344
+2024-11-17,Zondag,Gastropub Van Kinsbergen,"6.178,70","6.882,72",955
+2024-11-17,Zondag,L'Amour Toujours,"4.938,73","5.533,20",517
+2024-11-18,Maandag,Bar Bea,"0,00","0,00",0
+2024-11-18,Maandag,Gastropub Van Kinsbergen,"4.163,32","4.635,00",473
+2024-11-18,Maandag,L'Amour Toujours,"0,00","0,00",0
+2024-11-19,Dinsdag,Bar Bea,"1.227,24","1.430,00",220
+2024-11-19,Dinsdag,Gastropub Van Kinsbergen,"4.601,99","5.165,14",630
+2024-11-19,Dinsdag,L'Amour Toujours,"1.941,01","2.161,52",199
+2024-11-20,Woensdag,Bar Bea,"1.999,88","2.311,16",322
+2024-11-20,Woensdag,Gastropub Van Kinsbergen,"2.531,96","2.837,46",337
+2024-11-20,Woensdag,L'Amour Toujours,"2.243,47","2.501,20",227
+2024-11-21,Donderdag,Bar Bea,"5.154,28","5.971,36",862
+2024-11-21,Donderdag,Gastropub Van Kinsbergen,"5.205,03","5.889,76",749
+2024-11-21,Donderdag,L'Amour Toujours,"3.950,35","4.466,20",393
+2024-11-22,Vrijdag,Bar Bea,"7.439,79","8.602,15",1.177
+2024-11-22,Vrijdag,Gastropub Van Kinsbergen,"8.674,96","9.842,10",1.307
+2024-11-22,Vrijdag,L'Amour Toujours,"5.462,75","6.159,60",563
+2024-11-23,Zaterdag,Bar Bea,"7.993,70","9.253,71",1.476
+2024-11-23,Zaterdag,Gastropub Van Kinsbergen,"7.281,90","8.297,20",1.132
+2024-11-23,Zaterdag,L'Amour Toujours,"9.843,04","11.086,20",920
+2024-11-24,Zondag,Bar Bea,"2.465,71","2.809,20",415
+2024-11-24,Zondag,Gastropub Van Kinsbergen,"7.259,37","8.124,60",954
+2024-11-24,Zondag,L'Amour Toujours,"4.609,53","5.148,20",496
+2024-11-25,Maandag,Bar Bea,"0,00","0,00",0
+2024-11-25,Maandag,Gastropub Van Kinsbergen,"2.725,96","3.050,90",400
+2024-11-25,Maandag,L'Amour Toujours,"0,00","0,00",0
+2024-11-26,Dinsdag,Bar Bea,"2.603,09","2.953,46",409
+2024-11-26,Dinsdag,Gastropub Van Kinsbergen,"5.774,06","6.432,10",719
+2024-11-26,Dinsdag,L'Amour Toujours,"2.557,17","2.873,16",246
+2024-11-27,Woensdag,Bar Bea,"2.447,35","2.823,18",405
+2024-11-27,Woensdag,Gastropub Van Kinsbergen,"4.440,05","4.944,88",608
+2024-11-27,Woensdag,L'Amour Toujours,"5.033,20","5.602,34",519
+2024-11-28,Donderdag,Bar Bea,"2.850,26","3.313,40",482
+2024-11-28,Donderdag,Gastropub Van Kinsbergen,"4.402,49","4.963,20",659
+2024-11-28,Donderdag,L'Amour Toujours,"3.478,90","3.898,40",377
+2024-11-29,Vrijdag,Bar Bea,"8.489,22","9.794,39",1.488
+2024-11-29,Vrijdag,Gastropub Van Kinsbergen,"7.622,39","8.633,68",1.080
+2024-11-29,Vrijdag,L'Amour Toujours,"8.144,17","9.162,90",788
+2024-11-30,Zaterdag,Bar Bea,"8.568,08","9.840,02",1.374
+2024-11-30,Zaterdag,Gastropub Van Kinsbergen,"16.265,56","18.328,21",3.255
+2024-11-30,Zaterdag,L'Amour Toujours,"6.853,21","7.682,14",697
+2024-12-01,Zondag,Bar Bea,"1.976,18","2.249,18",338
+2024-12-01,Zondag,Gastropub Van Kinsbergen,"6.167,79","6.861,94",849
+2024-12-01,Zondag,L'Amour Toujours,"3.128,71","3.496,10",323
+2024-12-02,Maandag,Bar Bea,"0,00","0,00",0
+2024-12-02,Maandag,Gastropub Van Kinsbergen,"4.925,23","5.538,96",637
+2024-12-02,Maandag,L'Amour Toujours,"0,00","0,00",0
+2024-12-03,Dinsdag,Bar Bea,"2.152,97","2.500,70",352
+2024-12-03,Dinsdag,Gastropub Van Kinsbergen,"3.856,86","4.348,60",571
+2024-12-03,Dinsdag,L'Amour Toujours,"2.150,93","2.441,80",214
+2024-12-04,Woensdag,Bar Bea,"1.306,99","1.513,31",242
+2024-12-04,Woensdag,Gastropub Van Kinsbergen,"3.851,26","4.313,80",550
+2024-12-04,Woensdag,L'Amour Toujours,"3.386,65","3.809,66",330
+2024-12-05,Donderdag,Bar Bea,"1.067,30","1.239,58",174
+2024-12-05,Donderdag,Gastropub Van Kinsbergen,"4.380,57","4.934,72",564
+2024-12-05,Donderdag,L'Amour Toujours,"3.462,95","3.884,30",349
+2024-12-06,Vrijdag,Bar Bea,"4.866,55","5.674,00",841
+2024-12-06,Vrijdag,Gastropub Van Kinsbergen,"8.058,02","9.179,32",1.161
+2024-12-06,Vrijdag,L'Amour Toujours,"8.611,46","9.676,10",853
+2024-12-07,Zaterdag,Bar Bea,"5.998,31","6.968,96",1.016
+2024-12-07,Zaterdag,Gastropub Van Kinsbergen,"7.486,45","8.470,80",1.041
+2024-12-07,Zaterdag,L'Amour Toujours,"5.310,15","5.958,40",602
+2024-12-08,Zondag,Bar Bea,"2.902,91","3.299,04",503
+2024-12-08,Zondag,Gastropub Van Kinsbergen,"4.255,38","4.786,22",666
+2024-12-08,Zondag,L'Amour Toujours,"3.059,38","3.421,40",344
+2024-12-09,Maandag,Bar Bea,"0,00","0,00",0
+2024-12-09,Maandag,Gastropub Van Kinsbergen,"3.527,98","3.958,35",583
+2024-12-09,Maandag,L'Amour Toujours,"0,00","0,00",0
+2024-12-10,Dinsdag,Bar Bea,"3.664,90","4.151,50",520
+2024-12-10,Dinsdag,Gastropub Van Kinsbergen,"2.940,54","3.295,80",421
+2024-12-10,Dinsdag,L'Amour Toujours,"4.645,48","5.239,70",356
+2024-12-11,Woensdag,Bar Bea,"5.197,83","5.948,18",716
+2024-12-11,Woensdag,Gastropub Van Kinsbergen,"4.127,96","4.674,64",589
+2024-12-11,Woensdag,L'Amour Toujours,"3.859,20","4.332,90",417
+2024-12-12,Donderdag,Bar Bea,"3.475,31","4.023,04",619
+2024-12-12,Donderdag,Gastropub Van Kinsbergen,"11.595,44","12.815,50",1.255
+2024-12-12,Donderdag,L'Amour Toujours,"6.398,88","7.212,15",645
+2024-12-13,Vrijdag,Bar Bea,"8.973,26","10.157,00",1.000
+2024-12-13,Vrijdag,Gastropub Van Kinsbergen,"8.637,28","9.797,90",1.155
+2024-12-13,Vrijdag,L'Amour Toujours,"10.338,29","11.655,62",1.024
+2024-12-14,Zaterdag,Bar Bea,"9.054,79","10.390,00",1.403
+2024-12-14,Zaterdag,Gastropub Van Kinsbergen,"7.724,72","8.731,30",1.109
+2024-12-14,Zaterdag,L'Amour Toujours,"6.759,15","7.621,90",748
+2024-12-15,Zondag,Bar Bea,"1.878,20","2.134,98",338
+2024-12-15,Zondag,Gastropub Van Kinsbergen,"5.294,86","5.909,80",827
+2024-12-15,Zondag,L'Amour Toujours,"4.854,73","5.439,50",536
+2024-12-16,Maandag,Bar Bea,"0,00","0,00",0
+2024-12-16,Maandag,Gastropub Van Kinsbergen,"2.969,59","3.323,10",426
+2024-12-16,Maandag,L'Amour Toujours,"0,00","0,00",0
+2024-12-17,Dinsdag,Bar Bea,"2.235,95","2.578,60",374
+2024-12-17,Dinsdag,Gastropub Van Kinsbergen,"7.581,73","8.539,40",951
+2024-12-17,Dinsdag,L'Amour Toujours,"4.618,36","5.201,66",370
+2024-12-18,Woensdag,Bar Bea,"1.717,57","1.971,00",274
+2024-12-18,Woensdag,Gastropub Van Kinsbergen,"3.514,54","3.944,70",493
+2024-12-18,Woensdag,L'Amour Toujours,"3.737,87","4.186,10",409
+2024-12-19,Donderdag,Bar Bea,"5.441,08","6.255,20",776
+2024-12-19,Donderdag,Gastropub Van Kinsbergen,"9.919,04","11.095,90",1.154
+2024-12-19,Donderdag,L'Amour Toujours,"7.345,18","8.224,10",644
+2024-12-20,Vrijdag,Bar Bea,"6.944,50","8.073,10",1.224
+2024-12-20,Vrijdag,Gastropub Van Kinsbergen,"7.682,45","8.744,40",1.347
+2024-12-20,Vrijdag,L'Amour Toujours,"5.504,24","6.220,40",591
+2024-12-21,Zaterdag,Bar Bea,"4.928,00","5.703,45",934
+2024-12-21,Zaterdag,Gastropub Van Kinsbergen,"9.395,69","10.671,00",1.510
+2024-12-21,Zaterdag,L'Amour Toujours,"5.361,83","6.058,42",580
+2024-12-22,Zondag,Bar Bea,"2.720,55","3.071,20",441
+2024-12-22,Zondag,Gastropub Van Kinsbergen,"8.064,23","9.103,00",1.431
+2024-12-22,Zondag,L'Amour Toujours,"5.752,97","6.451,00",572
+2024-12-23,Maandag,Bar Bea,"0,00","0,00",0
+2024-12-23,Maandag,Gastropub Van Kinsbergen,"8.170,80","9.220,83",1.139
+2024-12-23,Maandag,L'Amour Toujours,"0,00","0,00",0
+2024-12-24,Dinsdag,Bar Bea,"799,87","943,36",142
+2024-12-24,Dinsdag,Gastropub Van Kinsbergen,"7.302,88","8.201,33",1.004
+2024-12-24,Dinsdag,L'Amour Toujours,"6.262,73","7.018,50",757
+2024-12-25,Woensdag,Bar Bea,"0,00","0,00",0
+2024-12-25,Woensdag,Gastropub Van Kinsbergen,"0,00","0,00",0
+2024-12-25,Woensdag,L'Amour Toujours,"9.867,47","11.086,86",1.198
+2024-12-26,Donderdag,Bar Bea,"0,00","0,00",0
+2024-12-26,Donderdag,Gastropub Van Kinsbergen,"0,00","0,00",0
+2024-12-26,Donderdag,L'Amour Toujours,"11.578,82","13.002,42",1.342
+2024-12-27,Vrijdag,Bar Bea,"4.200,68","4.866,06",742
+2024-12-27,Vrijdag,Gastropub Van Kinsbergen,"6.007,18","6.813,18",832
+2024-12-27,Vrijdag,L'Amour Toujours,"4.160,07","4.689,97",454
+2024-12-28,Zaterdag,Bar Bea,"7.163,47","8.264,24",1.146
+2024-12-28,Zaterdag,Gastropub Van Kinsbergen,"7.941,03","8.961,60",1.199
+2024-12-28,Zaterdag,L'Amour Toujours,"5.458,32","6.121,40",568
+2024-12-29,Zondag,Bar Bea,"3.015,29","3.375,33",483
+2024-12-29,Zondag,Gastropub Van Kinsbergen,"7.315,40","8.270,96",1.069
+2024-12-29,Zondag,L'Amour Toujours,"4.267,72","4.767,26",476
+2024-12-30,Maandag,Bar Bea,"0,00","0,00",0
+2024-12-30,Maandag,Gastropub Van Kinsbergen,"7.866,29","8.903,80",1.135
+2024-12-30,Maandag,L'Amour Toujours,"0,00","0,00",0
+2024-12-31,Dinsdag,Bar Bea,"4.529,67","5.179,25",647
+2024-12-31,Dinsdag,Gastropub Van Kinsbergen,"6.120,09","6.863,70",763
+2024-12-31,Dinsdag,L'Amour Toujours,"6.882,49","7.780,86",631
+,,,,,
+Totaal,,,"5.587.286,82","6.339.902,00",800.702

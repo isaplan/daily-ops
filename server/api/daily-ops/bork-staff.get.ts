@@ -1,11 +1,13 @@
 /**
  * @registry-id: dailyOpsBorkStaffHubGet
  * @created: 2026-05-19T12:00:00.000Z
- * @last-modified: 2026-05-19T12:00:00.000Z
+ * @last-modified: 2026-07-02T00:00:00.000Z
  * @description: Lists Bork waiters with sales from bork_sales_by_worker, linked to members via unified_user
- * @last-fix: [2026-05-19] Initial hub API for Bork staff page
+ * @last-fix: [2026-07-02] ADR-013 read-cache metadata
  *
- * @adr-ref: ADR-003
+ * @adr-ref: ADR-003, ADR-013
+ * @data-source: direct-db
+ * @read-cache-json: none
  *
  * @exports-to:
  * ✓ pages/daily-ops/inbox/bork-staff.vue (GET hub data)

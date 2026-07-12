@@ -187,7 +187,8 @@ grep '"type": "service"' function-registry.json
 - **Labor read path (ADR-004):** `daily_ops_snapshot_section_labor` only on GET. No `eitje_time_registration_aggregation` or raw fallback on venue strip / dashboard bundle — missing snapshot → zeros + ops notification; fix via snapshot rebuild.
 - Before editing `dailyOpsDashboardMetrics.ts`, `bundle.get.ts`, or `aggregateLaborForRange.ts` → **ask user first** (import helpers only in v1).
 - **Basis inbox revenue pick (SSOT):** `calculateBasisCronPriority` / `pickBasisReportByCronPriority` in `basis-report-mapper.ts`. Morning cron **7 or 8** = final yesterday for `business_date`; **18/23** are intraday partials only. Never pick “latest cron_hour” for headline totals. **Inbox reads only at snapshot write** (`buildRevenueSection`); GET uses `snapshot.totals` (sealed headline).
-- **Daily Ops GET = snapshot only (ADR-004):** Revenue/labor/dashboard read APIs use `daily_ops_snapshot*` + `daily_ops_revenue_benchmark` only. Never `bork_*`, `inbox-*`, or raw on page load. Missing snapshot → `dataGap` / zeros; fix via snapshot rebuild, not live agg on GET.
+- **Daily Ops GET = read-cache only (ADR-004 + ADR-013):** Revenue/labor/dashboard/staff GET APIs read **`daily_ops_read_cache`** (small prebuilt JSON per profile/period). Snapshots are write SSOT only. Never `bork_*`, `inbox-*`, raw, or live snapshot assembly on page load. Missing cache → `dataGap` / zeros; fix via snapshot + cache rebuild.
+- **Weekly Report SSOT:** `GET /api/daily-ops/analytics/weekly-digest` reads **`daily_ops_read_cache` · profile=`weekly-digest` · level=`weekly`**. Builder aggregates 7 sealed daily snapshots (no new snapshot writes). Cron: Monday 01:00 `daily-ops:weekly-digest-cache`. Page: `/daily-ops/analytics/weekly-report`.
 - **Ops notifications:** `/ops-notifications` (sidebar above Organisation). Modular scan: `server/utils/opsNotifications/` — snapshot gaps, **Bork vs Inbox** discrepancy (≥10% or €500), **missed morning cron**, intraday-only Basis, unmapped inbox, **ADR-004 live Bork on GET**, monolith file size. Extend detectors there; never hide issues with Bork fallback on GET.
 - After route/component changes: check dev terminal per RULE #0.5.
 
@@ -197,7 +198,7 @@ grep '"type": "service"' function-registry.json
 
 **SSOT:** [DECISIONS.md ADR-006](../../DECISIONS.md#adr-006--hot--warm--cold-data-tiers) · [dev-docs/DATA_RETENTION_PLAN.md](../../dev-docs/DATA_RETENTION_PLAN.md)
 
-- **Hot (2y, UI reads):** `daily_ops_snapshot*` + `daily_ops_revenue_benchmark` only on Revenue / Daily Ops GET paths.
+- **Hot (2y, UI reads):** `daily_ops_read_cache` + `daily_ops_revenue_benchmark` on Daily Ops GET; snapshots are write path only (ADR-013).
 - **Warm (2y):** `bork_business_days`, `eitje_time_registration_aggregation`. Fat `bork_sales_by_*` = pipeline buffer — **delete per day after snapshot sealed**.
 - **Cold:** Bork + Eitje **shift** raw → DO Spaces blob → delete from Mongo. Eitje master-data (`users`, `teams`, `environments`) stays in Mongo.
 - **60d** = benchmark precompute + backfill SLA (not a delete cutoff). **90d** = optional Mongo grace for shift drill-down.

@@ -1,9 +1,9 @@
 /**
  * @registry-id: dailyOpsStaffPlusminPeriod
  * @created: 2026-06-25T14:00:00.000Z
- * @last-modified: 2026-06-25T14:00:00.000Z
+ * @last-modified: 2026-07-09T20:30:00.000Z
  * @description: Period plus/min (worked − contract) per member and venue
- * @last-fix: [2026-06-25] Staff plus/min tab period deltas
+ * @last-fix: [2026-07-09] memberPlusminForLocation for weekly report venue filter
  *
  * @exports-to:
  * ✓ server/utils/dailyOpsStaff/fetchStaffPlusminSummary.ts
@@ -96,7 +96,7 @@ export async function fetchWorkedByDayAndLocation(
 
 export function workedSplitForSubrange(
   byDay: Map<string, number>,
-  detailRows: Array<{ period: string; locationId: string; hours: number }>,
+  detailRows: WorkedDetailRow[],
   start: string,
   end: string,
 ): WorkedLocationSplit {
@@ -116,13 +116,62 @@ export function workedSplitForSubrange(
   return { byDay: subDay, byLocation }
 }
 
+export type WorkedDetailRow = {
+  period: string
+  locationId: string
+  hours: number
+  teamName: string
+}
+
+export function dominantTeamInRange(
+  detailRows: WorkedDetailRow[],
+  start: string,
+  end: string,
+  locationId = 'all',
+): string | null {
+  const byTeam = new Map<string, number>()
+  for (const row of detailRows) {
+    if (row.period < start || row.period > end) continue
+    if (locationId !== 'all' && row.locationId !== locationId) continue
+    const team = row.teamName.trim()
+    if (!team) continue
+    byTeam.set(team, (byTeam.get(team) ?? 0) + row.hours)
+  }
+  let bestTeam = ''
+  let bestHours = 0
+  for (const [team, hours] of byTeam) {
+    if (hours > bestHours) {
+      bestTeam = team
+      bestHours = hours
+    }
+  }
+  return bestTeam || null
+}
+
+export function workedLocationIdsInRange(
+  detailRows: WorkedDetailRow[],
+  start: string,
+  end: string,
+): string[] {
+  const byLocation = new Map<string, number>()
+  for (const row of detailRows) {
+    if (row.period < start || row.period > end) continue
+    if (row.locationId === 'unknown') continue
+    byLocation.set(row.locationId, (byLocation.get(row.locationId) ?? 0) + row.hours)
+  }
+  return [...byLocation.entries()]
+    .filter(([, hours]) => hours > 0)
+    .sort((a, b) => b[1] - a[1])
+    .map(([id]) => id)
+}
+
 export async function fetchWorkedDetail(
   db: Db,
   userClause: Record<string, unknown>,
   range: { start: string; end: string },
 ): Promise<{
   byDay: Map<string, number>
-  detailRows: Array<{ period: string; locationId: string; hours: number }>
+  detailRows: WorkedDetailRow[]
 }> {
   const rows = await db
     .collection('eitje_time_registration_aggregation')
@@ -131,11 +180,11 @@ export async function fetchWorkedDetail(
       period: { $gte: range.start, $lte: range.end },
       ...userClause,
     })
-    .project({ period: 1, total_hours: 1, locationId: 1 })
+    .project({ period: 1, total_hours: 1, locationId: 1, team_name: 1 })
     .toArray()
 
   const byDay = new Map<string, number>()
-  const detailRows: Array<{ period: string; locationId: string; hours: number }> = []
+  const detailRows: WorkedDetailRow[] = []
 
   for (const row of rows) {
     const r = row as Record<string, unknown>
@@ -143,8 +192,9 @@ export async function fetchWorkedDetail(
     if (!period) continue
     const hours = Number(r.total_hours ?? 0)
     const locationId = String(r.locationId ?? '').trim() || 'unknown'
+    const teamName = String(r.team_name ?? '').trim()
     byDay.set(period, (byDay.get(period) ?? 0) + hours)
-    detailRows.push({ period, locationId, hours })
+    detailRows.push({ period, locationId, hours, teamName })
   }
 
   return { byDay, detailRows }
@@ -168,6 +218,27 @@ export function allocateVenuePlusmin(
     })
   }
   return out.sort((a, b) => b.delta - a.delta)
+}
+
+/** Week (or any subrange) plus/min — all venues, or one venue via proportional contract split. */
+export function memberPlusminForLocation(
+  startDate: string,
+  endDate: string,
+  weeklyContract: number,
+  byDay: Map<string, number>,
+  detailRows: WorkedDetailRow[],
+  locationId: string,
+): { worked: number; contract: number; delta: number } | null {
+  const period = periodPlusminDelta(startDate, endDate, weeklyContract, byDay)
+  if (period.worked <= 0 && period.contract <= 0) return null
+
+  if (locationId === 'all') return period
+
+  const split = workedSplitForSubrange(byDay, detailRows, startDate, endDate)
+  const venues = allocateVenuePlusmin(split.byLocation, period.worked, period.contract)
+  const hit = venues.find((v) => v.locationId === locationId)
+  if (!hit || hit.worked <= 0) return null
+  return hit
 }
 
 export function sumPlusMinus(deltas: number[]): { plusHours: number; minusHours: number; net: number } {

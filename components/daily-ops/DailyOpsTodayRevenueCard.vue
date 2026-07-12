@@ -106,6 +106,16 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * @description: Today hourly revenue dual-axis chart card
+ * @last-modified: 2026-07-02T00:00:00.000Z
+ * @last-fix: [2026-07-02] ADR-013 read-cache metadata
+ * @adr-ref: ADR-004, ADR-010, ADR-013
+ * @data-source: read-cache
+ * @read-cache-json: dashboard-bundle revenue.todayRevenueDetail
+ * @imports-data-from: props from composables/useDailyOpsDashboardMetrics.ts
+ */
+
 import type { DailyOpsTodayRevenueDetailDto } from '~/types/daily-ops-dashboard'
 import { DAILY_OPS_PROFIT_VENUE_LOCATIONS } from '~/utils/dailyOpsProfitIntervals'
 

@@ -311,6 +311,16 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * @registry-id: dailyOpsInboxBorkSales
+ * @last-modified: 2026-07-02T00:00:00.000Z
+ * @description: Bork sales inbox
+ * @last-fix: [2026-07-02] ADR-013 read-cache metadata
+ * @adr-ref: ADR-013
+ * @data-source: direct-db
+ * @read-cache-json: none
+ * @imports-data-from: GET /api/inbox/*
+ */
 import type { BasisReportData } from '~/server/utils/inbox/basis-report-mapper'
 
 const FILTER_ALL = '__all__' as const

@@ -38,6 +38,7 @@ const props = withDefaults(
     showPercentLabels?: boolean
     showValueLabels?: boolean
     formatSegmentValue?: (value: number) => string
+    formatBucketLabel?: (bucketKey: string) => string
     hideLegend?: boolean
     width?: number
     height?: number
@@ -294,7 +295,11 @@ function createChart() {
     .call(
       d3
         .axisBottom(xScale)
-        .tickFormat((d) => formatStaffChartBucketLabel(String(d), props.dateGranularity)),
+        .tickFormat((d) =>
+          props.formatBucketLabel
+            ? props.formatBucketLabel(String(d))
+            : formatStaffChartBucketLabel(String(d), props.dateGranularity),
+        ),
     )
     .selectAll('text')
     .attr('class', 'text-[10px]')
@@ -352,6 +357,7 @@ watch(
     props.showPercentLabels,
     props.showValueLabels,
     props.formatSegmentValue,
+    props.formatBucketLabel,
     props.hideLegend,
   ],
   createChart,

@@ -3,9 +3,13 @@
  *
  * @registry-id: dailyOpsEitjeEventsAPI
  * @created: 2026-05-25T22:25:00.000Z
- * @last-modified: 2026-05-25T22:25:00.000Z
+ * @last-modified: 2026-07-02T00:00:00.000Z
  * @description: GET /api/daily-ops/eitje-events reads eitje_events_aggregation
- * @last-fix: [2026-05-25] Added read API for aggregated Eitje events.
+ * @last-fix: [2026-07-02] ADR-013 read-cache metadata
+ *
+ * @adr-ref: ADR-013
+ * @data-source: direct-db
+ * @read-cache-json: none
  *
  * @exports-to:
  * ✓ Future Daily Ops planning views

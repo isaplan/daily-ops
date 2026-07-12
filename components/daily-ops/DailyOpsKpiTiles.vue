@@ -56,6 +56,16 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * @description: Dashboard KPI tiles with lazy drawer fetches
+ * @last-modified: 2026-07-02T00:00:00.000Z
+ * @last-fix: [2026-07-02] ADR-013 read-cache metadata
+ * @adr-ref: ADR-004, ADR-010, ADR-013
+ * @data-source: mixed
+ * @read-cache-json: dashboard-bundle summary + lazy GET /api/daily-ops/metrics/attendance-kpis, contract-hours-variance
+ * @imports-data-from: props + GET /api/daily-ops/metrics/*
+ */
+
 import type {
   DailyOpsAttendanceKpiBlockDto,
   DailyOpsAttendanceKpiKind,

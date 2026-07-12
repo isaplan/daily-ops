@@ -1,15 +1,29 @@
 /**
- * @description: One-shot manual fix for ops notification rows (no auto-retry on scan).
- * @last-fix: [2026-05-28] Bork V2 rebuild + snapshot rebuild for warm-tier / gap alerts.
+ * @registry-id: tryFixOpsNotification
+ * @created: 2026-05-28T00:00:00.000Z
+ * @last-modified: 2026-07-11T17:30:00.000Z
+ * @description: One-shot fix + self-healing for ops notification rows
+ * @last-fix: [2026-07-11] Integration sync re-run + snapshot/cache backfill; refresh read-cache after snapshot fix
+ *   Prior: [2026-05-28] Bork V2 rebuild + snapshot rebuild for warm-tier / gap alerts
+ * @adr-ref: ADR-004, ADR-013
+ *
+ * @exports-to:
+ * ✓ server/utils/opsNotifications/autoRetry.ts
+ * ✓ server/api/ops-notifications/try-fix.post.ts
  */
 
 import type { Db } from 'mongodb'
 import { buildDailyOpsSnapshot } from '../../services/dailyOpsSnapshotService'
 import { rebuildBorkSalesAggregationV2 } from '../../services/borkRebuildAggregationV2Service'
+import { runIntegrationCronJob } from '../../services/integrationCronRunner'
 import { resolveV2RebuildCollectionSuffix } from '../borkV2RebuildSuffix'
 import { runOpsNotificationScan } from './runOpsNotificationScan'
 import type { OpsNotificationKind, OpsNotificationStatus } from '~/types/ops-notifications'
 import { retryProcessEmailAttachments } from '../../services/inboxProcessService'
+import { refreshDashboardBundleCache } from '../dailyOpsSnapshot/preGenerateBundleCache'
+import { materializeSnapshotGaps } from '../dailyOpsSnapshot/triggerSnapshotRebuilds'
+import { VENUE_STRIP_LOCATIONS } from '../venueStrip/constants'
+import { amsterdamOpenRegisterBusinessDateYmd } from '~/utils/dailyOpsBusinessDate'
 
 export type TryFixInput = {
   kind: OpsNotificationKind
@@ -40,6 +54,8 @@ const SNAPSHOT_ONLY_KINDS: OpsNotificationKind[] = [
   'labor_snapshot_inconsistent',
 ]
 
+const VENUE_LOCATION_IDS = [...VENUE_STRIP_LOCATIONS.map((v) => v.locationId), 'all']
+
 async function rebuildBorkWarmTier(db: Db, businessDate: string): Promise<string> {
   const suffix = resolveV2RebuildCollectionSuffix()
   const result = await rebuildBorkSalesAggregationV2(db, businessDate, businessDate, suffix)
@@ -48,7 +64,8 @@ async function rebuildBorkWarmTier(db: Db, businessDate: string): Promise<string
   return `Bork V2 rebuild ${businessDate} (days=${days}, hourly=${hours})`
 }
 
-async function rebuildSnapshot(
+async function rebuildSnapshotWithCache(
+  db: Db,
   businessDate: string,
   locationId: string,
 ): Promise<{ ok: boolean; detail: string }> {
@@ -56,7 +73,39 @@ async function rebuildSnapshot(
   if (result.errors.length > 0) {
     return { ok: false, detail: result.errors.map((e) => e.error).join('; ') }
   }
-  return { ok: true, detail: 'Snapshot rebuilt' }
+  const locIds = locationId === 'all' ? VENUE_LOCATION_IDS : [locationId, 'all']
+  await refreshDashboardBundleCache(db, businessDate, businessDate, locIds)
+  return { ok: true, detail: 'Snapshot + read-cache rebuilt' }
+}
+
+async function healIntegrationSyncFailure(
+  db: Db,
+  meta?: Record<string, unknown>,
+): Promise<{ ok: boolean; detail: string }> {
+  const source = meta?.source === 'eitje' ? 'eitje' : 'bork'
+  const jobType = String(meta?.jobType ?? '')
+  if (!jobType) {
+    return { ok: false, detail: 'missing jobType in alert meta' }
+  }
+
+  const sync = await runIntegrationCronJob(db, source, jobType)
+  if (!sync.syncResult.ok) {
+    return { ok: false, detail: sync.syncResult.message }
+  }
+
+  const window = meta?.syncWindow as { startDate?: string; endDate?: string } | undefined
+  const openRegister = amsterdamOpenRegisterBusinessDateYmd()
+  const startDate = window?.startDate ?? openRegister
+  const endDate = window?.endDate ?? openRegister
+
+  const gaps = await materializeSnapshotGaps(db, { startDate, endDate: openRegister })
+  const gapBuilt = gaps?.built ?? 0
+  await refreshDashboardBundleCache(db, startDate, openRegister, VENUE_LOCATION_IDS)
+
+  return {
+    ok: true,
+    detail: `Re-ran ${source} ${jobType} · gap backfill built=${gapBuilt} · cache ${startDate}..${endDate}`,
+  }
 }
 
 async function stillOpen(
@@ -77,12 +126,23 @@ export async function tryFixOpsNotification(db: Db, input: TryFixInput): Promise
   const steps: string[] = []
 
   try {
-    if (BORK_WARM_FIX_KINDS.includes(kind)) {
+    if (kind === 'integration_sync_partial_failure') {
+      const healed = await healIntegrationSyncFailure(db, input.meta)
+      steps.push(healed.detail)
+      if (!healed.ok) {
+        return {
+          ok: false,
+          fixed: false,
+          status: 'open',
+          message: `Tried fix, failed: ${healed.detail}`,
+        }
+      }
+    } else if (BORK_WARM_FIX_KINDS.includes(kind)) {
       steps.push(await rebuildBorkWarmTier(db, businessDate))
     }
 
     if (BORK_WARM_FIX_KINDS.includes(kind) || SNAPSHOT_ONLY_KINDS.includes(kind)) {
-      const snap = await rebuildSnapshot(businessDate, locationId)
+      const snap = await rebuildSnapshotWithCache(db, businessDate, locationId)
       steps.push(snap.detail)
       if (!snap.ok) {
         return {
@@ -113,7 +173,7 @@ export async function tryFixOpsNotification(db: Db, input: TryFixInput): Promise
         }
       }
       steps.push('Inbox attachment reprocessed')
-      const snap = await rebuildSnapshot(businessDate, locationId)
+      const snap = await rebuildSnapshotWithCache(db, businessDate, locationId)
       steps.push(snap.detail)
       if (!snap.ok) {
         return {
@@ -123,7 +183,7 @@ export async function tryFixOpsNotification(db: Db, input: TryFixInput): Promise
           message: `Tried fix, failed: ${snap.detail}`,
         }
       }
-    } else {
+    } else if (kind !== 'integration_sync_partial_failure') {
       return {
         ok: false,
         fixed: false,

@@ -1,9 +1,13 @@
 /**
  * @registry-id: dailyOpsEitjeStaffMemberPanelGet
  * @created: 2026-06-09T12:00:00.000Z
- * @last-modified: 2026-06-09T12:00:00.000Z
+ * @last-modified: 2026-07-02T00:00:00.000Z
  * @description: Lightweight member payload for Eitje staff hub side panel (no Bork, 6mo Eitje)
- * @last-fix: [2026-06-09] Created to avoid full GET /api/members/[id] on panel open
+ * @last-fix: [2026-07-02] ADR-013 read-cache metadata
+ *
+ * @adr-ref: ADR-013
+ * @data-source: direct-db
+ * @read-cache-json: none
  *
  * @exports-to:
  * ✓ components/daily-ops/inbox/EitjeStaffMemberProfilePanel.vue

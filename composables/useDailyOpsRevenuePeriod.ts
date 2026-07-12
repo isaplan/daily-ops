@@ -1,3 +1,15 @@
+/**
+ * @registry-id: useDailyOpsRevenuePeriod
+ * @last-modified: 2026-07-02T00:00:00.000Z
+ * @description: Revenue period + compare URL state (ADR-010)
+ * @last-fix: [2026-07-02] ADR-013 read-cache metadata
+ * @adr-ref: ADR-010, ADR-013
+ * @data-source: none
+ * @read-cache-json: none (period resolution only)
+ *
+ * @exports-to:
+ * ✓ composables/useDailyOpsRevenueMetrics.ts
+ */
 import {
   DAILY_OPS_REVENUE_PERIOD_IDS,
   type DailyOpsRevenueCompareKind,

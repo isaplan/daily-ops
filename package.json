@@ -45,6 +45,7 @@
     "snapshots:backfill:daily-ops:all": "npx --yes tsx scripts/backfill-daily-ops-full-snapshots.ts -- --all-locations",
     "snapshots:backfill:daily-ops:dry-run": "npx --yes tsx scripts/backfill-daily-ops-full-snapshots.ts -- --dry-run",
     "snapshots:backfill:daily-ops:force": "npx --yes tsx scripts/backfill-daily-ops-full-snapshots.ts -- --force",
+    "snapshots:backfill:gaps": "npx --yes tsx scripts/backfill-snapshot-gaps.ts",
     "snapshots:benchmarks:backfill": "npx --yes tsx scripts/backfill-revenue-benchmarks.ts",
     "seed:revenue-daily-benchmark": "npx --yes tsx scripts/seed-revenue-daily-benchmarks.ts",
     "snapshots:benchmarks:backfill:60d": "npx --yes tsx scripts/backfill-revenue-benchmarks.ts -- --days 60",

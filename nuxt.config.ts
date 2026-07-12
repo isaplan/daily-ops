@@ -67,6 +67,8 @@ if (enableNitroScheduled && !disableIntegrationsSchedule) {
   scheduledTasks['0 6 * * *'] = ['integrations:bork-eitje-morning-maintenance']
   scheduledTasks['30 6 1 * *'] = ['integrations:bork-eitje-historical-monthly']
   Object.assign(scheduledTasks, buildBorkEitjeDailyNitroCronEntries())
+  /** Weekly digest read-cache — Monday 01:00 Amsterdam (last completed ISO week). */
+  scheduledTasks['0 1 * * 1'] = ['daily-ops:weekly-digest-cache']
 }
 if (enableNitroScheduled && enableOpsAutoRetry) {
   // Staggered away from :00/:05 integration/inbox windows.

@@ -1,9 +1,13 @@
 /**
  * @registry-id: dailyOpsStaffMemberWeeklyHoursGet
  * @created: 2026-06-10T12:00:00.000Z
- * @last-modified: 2026-06-10T12:00:00.000Z
+ * @last-modified: 2026-07-02T00:00:00.000Z
  * @description: Weekly worked vs contract/planned hours for staff profile KPI
- * @last-fix: [2026-06-10] Initial endpoint
+ * @last-fix: [2026-07-02] ADR-013 read-cache metadata
+ *
+ * @adr-ref: ADR-013
+ * @data-source: direct-db
+ * @read-cache-json: none
  *
  * @exports-to:
  * ✓ composables/useStaffWeeklyHours.ts

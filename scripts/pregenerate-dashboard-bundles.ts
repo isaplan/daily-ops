@@ -75,7 +75,7 @@ async function main() {
 
   console.log(`[bundle:pregen] Daily: ${dailyResult.generated} generated, ${dailyResult.errors} errors`)
 
-  const cascadeResult = await cascadeGenerate(startDate, endDate, Array.from(locationIds))
+  const cascadeResult = await cascadeGenerate(db, startDate, endDate, Array.from(locationIds))
 
   console.log(
     `[bundle:pregen] Cascade: weekly=${cascadeResult.weekly}, monthly=${cascadeResult.monthly}, yearly=${cascadeResult.yearly}`,

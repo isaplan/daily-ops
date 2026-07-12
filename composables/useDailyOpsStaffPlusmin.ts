@@ -1,12 +1,18 @@
 /**
  * @registry-id: useDailyOpsStaffPlusmin
  * @created: 2026-06-25T14:00:00.000Z
- * @last-modified: 2026-06-25T14:00:00.000Z
+ * @last-modified: 2026-07-02T00:00:00.000Z
  * @description: Staff plus/min tab — summary fetch via Nav V2 query
- * @last-fix: [2026-06-25] Plus/min KPI + venue breakdown
+ * @last-fix: [2026-07-02] ADR-013 read-cache metadata
+ *   Prior: [2026-06-25] Plus/min KPI + venue breakdown
+ * @adr-ref: ADR-004, ADR-010, ADR-013
+ * @data-source: read-cache
+ * @read-cache-json: staff-plusmin (via GET /api/daily-ops/staff/plusmin-summary)
+ * @imports-data-from: GET /api/daily-ops/staff/plusmin-summary
  *
  * @exports-to:
  * ✓ components/daily-ops/staff/StaffPlusminTab.vue
+ * ✓ pages/daily-ops/staff/plusmin.vue
  */
 
 import type { DailyOpsStaffPlusminSummaryDto } from '~/types/daily-ops-staff'

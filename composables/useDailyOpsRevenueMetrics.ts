@@ -1,3 +1,17 @@
+/**
+ * @registry-id: useDailyOpsRevenueMetrics
+ * @created: 2026-06-08T00:00:00.000Z
+ * @last-modified: 2026-07-02T00:00:00.000Z
+ * @description: Revenue page metrics — read-cache via /api/daily-ops/revenue/*
+ * @last-fix: [2026-07-02] ADR-013 read-cache metadata
+ * @adr-ref: ADR-004, ADR-010, ADR-013
+ * @data-source: read-cache
+ * @read-cache-json: revenue-summary, revenue-timeseries, revenue-* (via GET /api/daily-ops/revenue/*)
+ * @imports-data-from: GET /api/daily-ops/revenue/*
+ *
+ * @exports-to:
+ * ✓ components/daily-ops/revenue/RevenuePage.vue
+ */
 import type {
   DailyOpsRevenueCategoryDto,
   DailyOpsRevenueCoOccurrenceDto,

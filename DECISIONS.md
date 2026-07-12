@@ -52,7 +52,11 @@ Append-only log of locked decisions. When changing behavior that contradicts an 
 
 **Amendment (2026-06-18):** Headline **totals** (revenue, labor hours, labor cost) must reconcile across KPI tiles, venue strip, and profit-by-time-of-day for any period. Hourly *shape* may differ ≤10% for visualization; rolled-up totals may not.
 
-**Consequences:** Snapshot rebuilds are event-driven (Bork/Eitje sync, inbox seal). Writers never read raw collections.
+**Amendment (2026-07-02):** GET paths read **precomputed read-cache JSON** (ADR-013) when present. Snapshots remain the **write** SSOT; read-cache is a derived, disposable layer. Missing read-cache → zeros / `dataGap` / ops notification — **not** live warm-tier aggregation on page load.
+
+**Amendment (2026-07-11):** Integration cron **success requires all locations** (Bork: every `api_credentials` row must sync OK). Partial sync → `integration_sync_partial_failure` ops alert. **Self-healing loop:** `runOpsNotificationAutoRetry` re-runs the failed job, runs `materializeSnapshotGaps` for the job window, then `refreshDashboardBundleCache`. Snapshot-gap fixes also refresh read-cache after `buildDailyOpsSnapshot`. Gap scan includes the **open register day** (ADR-010), not calendar yesterday only.
+
+**Consequences:** Snapshot rebuilds are event-driven (Bork/Eitje sync, inbox seal). Writers never read raw collections. Failed syncs must not report `lastSyncOk: true`.
 
 ---
 
@@ -78,7 +82,7 @@ Append-only log of locked decisions. When changing behavior that contradicts an 
 
 | Tier | What | Retention | UI reads? |
 |------|------|-----------|-----------|
-| **Hot** | `daily_ops_snapshot*` + precomputed `daily_ops_revenue_benchmark` | 2 years | **Yes — only source** for Daily Ops / Revenue overview |
+| **Hot** | `daily_ops_snapshot*` + precomputed `daily_ops_revenue_benchmark` + **`daily_ops_read_cache`** (small prebuilt JSON, ADR-013) | 2 years | **Yes — only source** for Daily Ops / Revenue / Staff GET paths |
 | **Warm** | `bork_business_days`, `eitje_time_registration_aggregation`; fat `bork_sales_by_*` during pipeline | Day-level **2 years**; fat slices **until snapshot sealed** then delete per day | **No** on GET (writers + backfill jobs only) |
 | **Cold** | DO Spaces blobs: `bork/{locationId}/{businessDate}.json.gz`, `eitje/{locationId}/{businessDate}.json.gz` | Indefinite | On-demand rebuild jobs only |
 
@@ -157,7 +161,9 @@ API endpoint (`bundle.get.ts`) intelligently serves from the appropriate cache l
 - Composed bundles include `snapshotCoverage` (`daysFound`, `missingDates[]`) and UI warning when partial.
 - `bundle.get.ts` rejects cached bundles where profit-by-interval is empty but headline revenue > 0 (falls back to live Mongo read).
 
-**Implementation:**
+**Superseded (2026-07-02) by ADR-013:** Period rollups (week/month/year) must **not** concatenate day-level PBI cells or full drilldown into parent JSON. Daily = detail; rollups = **totals only** (same small doc shape). Storage moves to Mongo read-cache collection; child pages get separate cache profiles.
+
+**Implementation (transitional — see ADR-013 for target):**
 - `server/utils/dailyOpsSnapshot/aggregateDailyBundles.ts` — Aggregation math
 - `server/utils/dailyOpsSnapshot/cacheCascade.ts` — Weekly/monthly/yearly generation
 - `server/utils/dailyOpsSnapshot/preGenerateBundleCache.ts` — Daily cache generation
@@ -266,12 +272,12 @@ API endpoint (`bundle.get.ts`) intelligently serves from the appropriate cache l
 2. **URL is SSOT:** `?mode=daily&slot=today&location=&compare=0&pick=YYYY-MM-DD`. Deep-linkable; refresh-safe.
 3. **Feature flag:** `runtimeConfig.public.revenueNavVersion` = `'v1'` (default) | `'v2'`. V1 frozen until V2 sign-off.
 4. **Slot → date range:** Pure TS resolver in `utils/dailyOpsRevenueNavV2/resolveRange.ts`. All existing V1 period IDs reused where possible; new IDs (`w-2`, `w-3`, `m-YYYY-MM`) added for missing slots.
-5. **ADR-004 unchanged:** GET paths read snapshots only. V2 only changes query → date-range mapping on the client.
+5. **ADR-004 unchanged:** GET paths read prebuilt read-cache only (ADR-013). V2 only changes query → date-range mapping on the client.
 6. **Compare mode:** When `compare=1`, child tabs become multi-select (max 4). Composable exposes `compareSlots[]`; charts receive multiple date-range series.
 
 **Consequences:** `DailyOpsDashboardShell` conditionally renders `RevenueAnalyticsNavV2` on revenue routes when flag is `v2`. All V2 logic lives in `utils/dailyOpsRevenueNavV2/` and `composables/useDailyOpsRevenueNavV2.ts`.
 
-**Related:** ADR-004, ADR-010, `dev-docs/REVENUE_NAV_V2_BUILD_PLAN.md`
+**Related:** ADR-004, ADR-010, ADR-013, `dev-docs/REVENUE_NAV_V2_BUILD_PLAN.md`
 
 ---
 
@@ -291,6 +297,49 @@ API endpoint (`bundle.get.ts`) intelligently serves from the appropriate cache l
 
 **Consequences:** `eitjeStaffHub` lists all `members`; inactive badge from employment. Master sync + `pnpm members:sync-eitje-master` required after deploy. Snapshot labor still reads contract from `members` at build time.
 
-**Related:** ADR-001, ADR-003, ADR-009
+**Related:** ADR-013 (light read-cache SSOT), ADR-001, ADR-003, ADR-009
+
+---
+
+## ADR-013 — Light read-cache: small hierarchical JSON in Mongo (all Daily Ops pages)
+
+**Status:** Accepted (2026-07-02)  
+**Supersedes:** ADR-008 amendment (2026-06-18) fat rollup merge; extends ADR-008 filesystem prototype
+
+**Context:** Daily Ops must keep the **client light**. Snapshots in Mongo are the write SSOT but assembling bundles/timeseries on every GET is too slow (especially on DO). A filesystem `.cache/` layer was added for the dashboard only; it is wiped on deploy, was never extended to Staff/Revenue child pages, and period rollups incorrectly concatenated day-level chart payloads (PBI cells, drilldown) into multi‑MB year files — contradicting the totals-only hierarchy design.
+
+**Decision:**
+
+1. **Primary goal:** Prebuilt JSON on the server; browser receives **small, ready-to-render payloads**. No aggregation math on the client. GET handlers **read cache only** — never rebuild cache on request.
+
+2. **Storage:** Mongo collection **`daily_ops_read_cache`** (hot tier, ADR-006). Local dev may mirror to `.cache/` for debugging; **production SSOT is Mongo**, not container disk.
+
+3. **Document key:** `{ profile, level, key, locationId }` where:
+   - `profile` — cache slice for a page/domain, e.g. `dashboard-bundle`, `staff-timeseries`, `staff-plusmin`, `revenue-timeseries` (extensible; one profile per child page or chart family)
+   - `level` — `daily` | `weekly` | `monthly` | `yearly`
+   - `key` — `YYYY-MM-DD`, `YYYY-Wxx`, `YYYY-MM`, or `YYYY`
+   - `locationId` — venue id or `all`
+
+4. **Hierarchy (wheelbarrow, not backpack):**
+   - **Daily** — full detail needed for that day’s UI (drilldown, hourly, PBI for single-day views only).
+   - **Weekly / monthly / yearly** — **same small shape as daily headlines**: summed totals (revenue, labor hours, labor cost, headcount, team buckets) + optional **child refs** (e.g. year doc lists 12 month keys; month doc lists week keys). **No** concatenation of per-day PBI cell arrays or full drilldown into parent docs.
+   - Charts pick the **lowest level that fits**: year overview → yearly doc; month chart → monthly doc; week strip → weekly doc; today drilldown → daily doc.
+
+5. **Write path:** After integration cron finishes snapshot materialization (`buildDailyOpsSnapshot*`), server writes/updates affected daily docs then cascades week → month → year **for each profile**. Intraday open register day refreshes on each cron; sealed days are immutable until warm-tier reopen.
+
+6. **Read path:** API resolves period → cache key → `findOne` on `daily_ops_read_cache`. Miss → `dataGap` / partial zeros + ops notification; fix via snapshot/cache rebuild job, **not** live Mongo assembly on GET (ADR-004).
+
+7. **Size budget:** Rollup docs target **few KB** (headline + venue strip + labor breakdown totals). Heavy detail stays in **daily** profile docs or separate **sub-profiles** per child page when needed.
+
+8. **Register business day (ADR-010):** All cache keys and period resolution use **`business_date`** from `utils/dailyOpsBusinessDate.ts` — never raw ISO calendar “today”. Daily cache key = snapshot `business_date` (register opens 08:00 Amsterdam). “Today” / open register = `amsterdamOpenRegisterBusinessDateYmd()`. Partial periods (`this-month`, `this-year`, `this-week`) cap `endDate` to open register. Hourly buckets in daily detail use `calendarHourToBusinessDate` where wall-clock hour maps to register day. Week/month/year rollups sum **business_date** daily docs only (same dates as `daily_ops_snapshot_master.businessDate`).
+
+**Consequences:**
+- Staff totals/plusmin must get their own cache profiles (currently live Mongo — gap to implement).
+- Remove startup full-history filesystem rebuild; bounded catchup or Mongo-only backfill.
+- `aggregateDailyBundles` and cascade logic must strip detail on rollup (implement under ADR-013).
+- `bundleDashboardSectionsIncomplete` rules adjust: period views may omit drilldown/PBI by design.
+
+**Related:** ADR-004, ADR-006, ADR-008, ADR-010, ADR-011  
+**Docs:** `dev-docs/CACHE_CASCADE.md`, `ARCHITECTURE.md` §2–3
 
 ---

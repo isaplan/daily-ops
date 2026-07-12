@@ -1,8 +1,12 @@
 /**
  * @created: 2026-05-28T00:00:00.000Z
- * @last-modified: 2026-05-28T00:00:00.000Z
+ * @last-modified: 2026-07-02T00:00:00.000Z
  * @description: Worker details drawer state + filtered staff rows for productivity view.
- * @last-fix: [2026-05-28] Extracted from DailyOpsHomeDashboard.vue
+ * @last-fix: [2026-07-02] ADR-013 read-cache metadata
+ * @adr-ref: ADR-004, ADR-010, ADR-013
+ * @data-source: read-cache
+ * @read-cache-json: dashboard-bundle + worker-staff-detail (via GET /api/daily-ops/metrics/worker-staff-detail)
+ * @imports-data-from: composables/useDailyOpsDashboardMetrics.ts, GET /api/daily-ops/metrics/worker-staff-detail
  *
  * @exports-to:
  * ✓ components/daily-ops/DailyOpsHomeDashboard.vue

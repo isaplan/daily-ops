@@ -1,0 +1,18 @@
+{
+  "generatedAt": "2026-06-28T23:58:25.523Z",
+  "plans": [],
+  "skipped": [
+    {
+      "key": "chelsea cruz",
+      "reason": "Overlapping contract periods with hours on multiple rows"
+    },
+    {
+      "key": "hugo bronkhorst",
+      "reason": "Overlapping contract periods with hours on multiple rows"
+    },
+    {
+      "key": "nicky canter visscher",
+      "reason": "Overlapping contract periods with hours on multiple rows"
+    }
+  ]
+}

@@ -226,6 +226,41 @@ export type DailyOpsRevenueBreakdownDto = {
 
 export type DailyOpsTodayRevenueDetailDto = NonNullable<DailyOpsRevenueBreakdownDto['todayRevenueDetail']>
 
+export type PeriodBreakdownGranularity = 'hour' | 'day' | 'week' | 'month'
+
+export type PeriodBreakdownStaffByContractDto = {
+  ft: number
+  pt: number
+  zzp: number
+}
+
+export type PeriodBreakdownRowDto = {
+  bucketKey: string
+  bucketLabel: string
+  revenue: number
+  laborCost: number
+  laborHours: number
+  productivity: number | null
+  staffCount: number
+  staffByContract?: PeriodBreakdownStaffByContractDto
+  profit: number
+  prevPeriodRevenue?: number | null
+}
+
+export type PeriodBreakdownVenueDto = {
+  locationId: string
+  locationName: string
+  rows: PeriodBreakdownRowDto[]
+}
+
+export type PeriodBreakdownDto = {
+  granularity: PeriodBreakdownGranularity
+  rows: PeriodBreakdownRowDto[]
+  byVenue: PeriodBreakdownVenueDto[]
+  estimatesNote?: string
+  coverageNote?: string | null
+}
+
 export type DailyOpsLaborDayDto = {
   date: string
   revenue: number

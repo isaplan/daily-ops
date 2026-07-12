@@ -7,7 +7,7 @@
 
       <div class="flex shrink-0 flex-wrap items-center gap-2">
         <div
-          v-if="hasVenues"
+          v-if="hasVenues && viewMode !== 'graph'"
           class="hidden md:flex lg:hidden"
         >
           <UiPillTabs
@@ -19,7 +19,7 @@
         </div>
 
         <div
-          v-if="hasVenues"
+          v-if="hasVenues && viewMode !== 'graph'"
           class="flex md:hidden"
         >
           <UiPillTabs
@@ -45,6 +45,17 @@
           >
             <UIcon name="i-lucide-gauge" class="size-4" aria-hidden="true" />
             <span class="sr-only">Overview</span>
+          </button>
+          <button
+            type="button"
+            class="inline-flex items-center justify-center rounded px-3 py-1.5 text-sm font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-900"
+            :class="viewMode === 'graph' ? 'bg-gray-900 text-white' : 'text-gray-700 hover:bg-gray-100'"
+            :aria-pressed="viewMode === 'graph'"
+            title="Period breakdown chart"
+            @click="viewMode = 'graph'"
+          >
+            <UIcon name="i-lucide-chart-column-stacked" class="size-4" aria-hidden="true" />
+            <span class="sr-only">Graph</span>
           </button>
           <button
             type="button"
@@ -82,6 +93,21 @@
       variant="soft"
       title="No venue data"
       description="No snapshot data for this period yet. Try a shorter range or rebuild snapshots."
+    />
+
+    <DailyOpsVenueStripGraphView
+      v-if="hasVenues && viewMode === 'graph' && periodBreakdown"
+      :breakdown="periodBreakdown"
+      :period-label="periodLabel"
+      :business-date="chartBusinessDate"
+    />
+
+    <UAlert
+      v-else-if="hasVenues && viewMode === 'graph'"
+      color="neutral"
+      variant="soft"
+      title="No breakdown chart"
+      description="Period breakdown is not cached for this range yet. Try a shorter range or rebuild snapshots."
     />
 
     <!-- Overview — Desktop Grid (lg+) -->
@@ -537,8 +563,19 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * @description: Venue strip cards — fixed 3 locations
+ * @last-modified: 2026-07-02T00:00:00.000Z
+ * @last-fix: [2026-07-02] ADR-013 read-cache metadata
+ * @adr-ref: ADR-004, ADR-010, ADR-013
+ * @data-source: read-cache
+ * @read-cache-json: dashboard-bundle venue-strip (via GET /api/daily-ops/metrics/venue-strip)
+ * @imports-data-from: GET /api/daily-ops/metrics/venue-strip
+ */
+
 import type {
   DailyOpsPeriodId,
+  PeriodBreakdownDto,
   VenueStripCardDto,
   VenueStripContractRowDto,
   VenueStripLaborRowDto,
@@ -552,6 +589,7 @@ import { weekdayShortForYmd } from '~/utils/inbox/importTableQuickDates'
 const props = defineProps<{
   period: DailyOpsPeriodId
   anchor?: string | null
+  periodBreakdown?: PeriodBreakdownDto | null
 }>()
 
 const { chartColorFor } = useDailyOpsLocationChartColors()
@@ -563,7 +601,7 @@ function venueCardBorderStyle(locationId: string) {
 type VenuePillOption = { value: number; label: string; key: string }
 type PillTabValue = string | number
 
-type VenueStripViewMode = 'overview' | 'detail'
+type VenueStripViewMode = 'overview' | 'graph' | 'detail'
 
 const viewMode = ref<VenueStripViewMode>('overview')
 const currentSlide = ref(0)
@@ -624,6 +662,12 @@ const stripQuery = computed(() => {
   return q
 })
 
+/** Attendance (planned/verlof/ziek) — single calendar day only; skip week/month/year. */
+const fetchAttendanceKpis = computed(() => {
+  const r = resolveDailyOpsPeriod(props.period, props.anchor ?? undefined)
+  return r.startDate === r.endDate
+})
+
 const cacheKey = computed(
   () => `daily-ops-venue-strip-${props.period}-${props.anchor ?? ''}`
 )
@@ -643,11 +687,13 @@ const attendanceCacheKey = computed(
 
 const { data: attendanceData } = useAsyncData(
   attendanceCacheKey,
-  async (): Promise<DailyOpsAttendanceKpisDto | null> =>
-    await $fetch<DailyOpsAttendanceKpisDto>('/api/daily-ops/metrics/attendance-kpis', {
+  async (): Promise<DailyOpsAttendanceKpisDto | null> => {
+    if (!fetchAttendanceKpis.value) return null
+    return await $fetch<DailyOpsAttendanceKpisDto>('/api/daily-ops/metrics/attendance-kpis', {
       query: stripQuery.value,
-    }),
-  { watch: [attendanceCacheKey] },
+    })
+  },
+  { watch: [attendanceCacheKey, fetchAttendanceKpis] },
 )
 
 function attendanceVenue(
@@ -660,6 +706,11 @@ function attendanceVenue(
 
 const hasVenues = computed(() => (data.value?.venues?.length ?? 0) > 0)
 const showActiveCounts = computed(() => props.period === 'today')
+
+const chartBusinessDate = computed(() => {
+  const r = resolveDailyOpsPeriod(props.period, props.anchor ?? undefined)
+  return r.startDate === r.endDate ? r.startDate : null
+})
 
 const mediumSlideIndex = computed(() => clampSlideIndex(currentSlide.value, 2))
 const smallSlideIndex = computed(() => clampSlideIndex(currentSlide.value, 1))

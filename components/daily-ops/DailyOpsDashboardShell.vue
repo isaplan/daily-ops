@@ -10,7 +10,7 @@
             <NuxtLink
               v-for="item in navItems"
               :key="item.key"
-              :to="{ path: item.path, query: dashboardQuery }"
+              :to="{ path: item.path, query: navQueryFor(item.key) }"
               class="inline-flex shrink-0 items-center rounded px-4 py-2 text-sm font-semibold no-underline transition-colors"
               :class="activeNav === item.key
                 ? 'bg-gray-900 text-white'
@@ -51,6 +51,10 @@
             <span class="hidden md:inline">{{ s.longLabel }}</span>
           </button>
           </nav>
+        </div>
+
+        <div v-if="isWeeklyReportRoute" class="pointer-events-auto flex w-full min-w-0 justify-end">
+          <DailyOpsAnalyticsWeeklyReportNav />
         </div>
 
         <div v-if="isStaffRoute" class="pointer-events-auto flex w-full min-w-0 justify-end">
@@ -122,6 +126,7 @@
 </template>
 
 <script setup lang="ts">
+import type { DailyOpsNavKey } from '~/composables/useDailyOpsDashboardRoute'
 import type { DailyOpsPeriodId } from '~/types/daily-ops-dashboard'
 import {
   DAILY_OPS_DAY_PERIOD_IDS,
@@ -204,14 +209,15 @@ onUnmounted(() => {
 provide('dailyOpsSectionNavWidthPx', sectionNavWidthPx)
 
 const isRevenueRoute = computed(() => route.path.includes('/daily-ops/revenue'))
+const isWeeklyReportRoute = computed(() => route.path.includes('/daily-ops/analytics/weekly-report'))
 const isStaffRoute = computed(() => route.path.includes('/daily-ops/staff'))
 const isStaffAnalyticsRoute = computed(() =>
   route.path.includes('/daily-ops/staff/totals') || route.path.includes('/daily-ops/staff/plusmin'),
 )
 const isInsightsRoute = computed(() => route.path.includes('/daily-ops/insights'))
 
-/** Location filter (All / VKB / BEA / LAT) — insights page only. */
-const showLocationShortcuts = computed(() => isInsightsRoute.value)
+/** Location filter (All / VKB / BEA / LAT) — insights + weekly report. */
+const showLocationShortcuts = computed(() => isInsightsRoute.value || isWeeklyReportRoute.value)
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const revenueNavV2 = (useRuntimeConfig() as any).public?.revenueNavVersion === 'v2'
@@ -224,7 +230,7 @@ watch([isRevenueRoute, isStaffRoute], () => {
 })
 watch(() => props.showRangePeriodNav, () => nextTick(measurePeriodNavWidth))
 const hideOpsPeriodNav = computed(() =>
-  isRevenueRoute.value || isStaffRoute.value || isInsightsRoute.value,
+  isRevenueRoute.value || isStaffRoute.value || isInsightsRoute.value || isWeeklyReportRoute.value,
 )
 
 const {
@@ -234,7 +240,17 @@ const {
   activeNav,
   setPeriod,
   setLocation,
+  openRegisterYmd,
 } = useDailyOpsDashboardRoute()
+
+function navQueryFor(key: DailyOpsNavKey): Record<string, string> {
+  if (key === 'weekly-report') {
+    const q: Record<string, string> = { period: 'last-week', targets: 'standard', anchor: openRegisterYmd.value }
+    if (locationId.value) q.location = locationId.value
+    return q
+  }
+  return dashboardQuery.value
+}
 
 const anchorYmd = computed(() => amsterdamOpenRegisterBusinessDateYmd())
 
@@ -275,6 +291,7 @@ const navItems = computed(() => {
   const prefix = '/daily-ops'
   return [
     { key: 'overview' as const, label: 'Daily Ops', path: prefix },
+    { key: 'weekly-report' as const, label: 'Weekly Report', path: `${prefix}/analytics/weekly-report` },
     { key: 'revenue' as const, label: 'Revenue', path: `${prefix}/revenue` },
     { key: 'products' as const, label: 'Products', path: `${prefix}/products` },
     { key: 'staff' as const, label: 'Staff', path: `${prefix}/staff` },

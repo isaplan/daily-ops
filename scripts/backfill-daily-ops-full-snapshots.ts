@@ -1,4 +1,8 @@
 /**
+ * FULL snapshot rewrite (all days in range) — slow. For missing days only use:
+ *   pnpm snapshots:backfill:gaps -- --dry-run
+ *   GAP_BACKFILL_CONFIRM=1 pnpm snapshots:backfill:gaps
+ *
  * Backfill full daily_ops snapshots (master + ALL sections: revenue, labor/Eitje operational, hourly, products, …).
  *
  * Default range: entire history found in Mongo (Bork + Inbox + Eitje agg) — NOT one month.
@@ -314,7 +318,7 @@ async function run() {
     const jsonLocationIds = ['all', ...DAILY_OPS_LOCATION_IDS]
     console.log(`[daily-ops:snapshot:backfill] JSON cache ${startDate}..${endDate} …`)
     const jsonResult = await preGenerateBundlesForRange(db, startDate, endDate, jsonLocationIds)
-    const cascade = await cascadeGenerate(startDate, endDate, jsonLocationIds)
+    const cascade = await cascadeGenerate(db, startDate, endDate, jsonLocationIds)
     console.log(
       `[daily-ops:snapshot:backfill] JSON done | daily=${jsonResult.generated} weekly=${cascade.weekly} monthly=${cascade.monthly} yearly=${cascade.yearly}`,
     )

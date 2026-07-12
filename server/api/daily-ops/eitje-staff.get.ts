@@ -1,11 +1,13 @@
 /**
  * @registry-id: dailyOpsEitjeStaffHubGet
  * @created: 2026-05-11T17:50:00.000Z
- * @last-modified: 2026-06-28T02:30:00.000Z
+ * @last-modified: 2026-07-02T00:00:00.000Z
  * @description: Lists staff from members collection (SSOT) enriched with Eitje API activity data
- * @last-fix: [2026-06-28] Historical inactive staff + activity filter query param
+ * @last-fix: [2026-07-02] ADR-013 read-cache metadata
  *
- * @adr-ref: ADR-001, ADR-009 (Option B architecture)
+ * @adr-ref: ADR-001, ADR-009, ADR-013
+ * @data-source: direct-db
+ * @read-cache-json: none
  *
  * @exports-to:
  * ✓ pages/daily-ops/inbox/eitje-staff.vue (GET hub data)

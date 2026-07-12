@@ -3,7 +3,7 @@
  * @created: 2026-05-26T00:43:00.000Z
  * @last-modified: 2026-05-26T01:54:00.000Z
  * @description: Lazy Daily Ops attendance KPIs from local Eitje synced data/aggregations.
- * @last-fix: [2026-05-26] Add planned to actual worked hours for KPI tile and drawer data.
+ * @last-fix: [2026-07-09] Cap leave at 8h per calendar day (not 24h overlap)
  *
  * @exports-to:
  * ✓ server/api/daily-ops/metrics/attendance-kpis.get.ts
@@ -18,9 +18,10 @@ import type {
 } from '../../types/daily-ops-dashboard'
 import type { DailyOpsMetricsContext } from './dailyOpsMetrics/context'
 import { enumerateUtcDatesInclusive } from './dailyOpsMetrics/context'
-import { VENUE_STRIP_LOCATIONS } from './venueStrip/constants'
+import { EITJE_ZIEK_TEAM_REGEX } from './eitjeAbsenceTeams'
 import { EITJE_HOURS_ADD_FIELDS } from './eitjeHours'
 import { addCalendarDaysYmd } from '~/utils/dailyOpsBusinessDate'
+import { VENUE_STRIP_LOCATIONS } from './venueStrip/constants'
 
 type AttendanceRow = DailyOpsAttendanceStaffRowDto & {
   locationId: string
@@ -240,7 +241,7 @@ async function fetchSickRows(db: Db, businessDate: string): Promise<AttendanceRo
       period_type: 'day',
       period: businessDate,
       locationId: { $in: locationIds },
-      team_name: /^ziek$/i,
+      team_name: EITJE_ZIEK_TEAM_REGEX,
     })
     .toArray()
 
@@ -255,13 +256,32 @@ async function fetchSickRows(db: Db, businessDate: string): Promise<AttendanceRo
   }))
 }
 
-function overlapHours(start: unknown, end: unknown, windowStart: Date, windowEnd: Date): number {
+function overlapMs(start: unknown, end: unknown, windowStart: Date, windowEnd: Date): number {
   const s = start instanceof Date ? start : start ? new Date(String(start)) : null
   const e = end instanceof Date ? end : end ? new Date(String(end)) : null
   if (!s || !e || Number.isNaN(s.getTime()) || Number.isNaN(e.getTime())) return 0
   const from = Math.max(s.getTime(), windowStart.getTime())
   const to = Math.min(e.getTime(), windowEnd.getTime())
-  return round2(Math.max(0, (to - from) / 3600000))
+  return Math.max(0, to - from)
+}
+
+function overlapHours(start: unknown, end: unknown, windowStart: Date, windowEnd: Date): number {
+  return round2(overlapMs(start, end, windowStart, windowEnd) / 3_600_000)
+}
+
+const DEFAULT_LEAVE_HOURS_PER_DAY = 8
+
+/** Hours on leave for one business day — capped at one work-day (not 24h calendar overlap). */
+function leaveHoursOnBusinessDay(
+  earliestStart: unknown,
+  latestEnd: unknown,
+  windowStart: Date,
+  windowEnd: Date,
+  maxHoursPerDay = DEFAULT_LEAVE_HOURS_PER_DAY,
+): number {
+  const raw = overlapHours(earliestStart, latestEnd, windowStart, windowEnd)
+  if (raw <= 0) return 0
+  return round2(Math.min(raw, maxHoursPerDay))
 }
 
 async function fetchLeaveRows(db: Db, businessDate: string): Promise<AttendanceRow[]> {
@@ -278,7 +298,12 @@ async function fetchLeaveRows(db: Db, businessDate: string): Promise<AttendanceR
 
   return docs
     .map((d) => {
-      const hours = overlapHours(d.earliest_start, d.latest_end, windowStart, windowEnd)
+      const hours = leaveHoursOnBusinessDay(
+        d.earliest_start,
+        d.latest_end,
+        windowStart,
+        windowEnd,
+      )
       return {
         locationId: String(d.locationId ?? ''),
         locationName: String(d.location_name ?? ''),
@@ -391,3 +416,6 @@ export async function fetchDailyOpsAttendanceKpis(
     sick: buildBlock([]),
   }
 }
+
+/** Exported for weekly-digest verlof rollup (per-day proration, then sum week). */
+export const fetchLeaveRowsForDay = fetchLeaveRows

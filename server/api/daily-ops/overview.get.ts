@@ -1,3 +1,12 @@
+/**
+ * @registry-id: dailyOpsOverviewGet
+ * @last-modified: 2026-07-02T00:00:00.000Z
+ * @description: @deprecated — use /metrics/bundle; snapshot bundle read (ADR-004)
+ * @last-fix: [2026-07-02] ADR-013 read-cache metadata
+ * @adr-ref: ADR-004, ADR-010, ADR-013
+ * @data-source: read-cache
+ * @read-cache-json: daily_ops_read_cache · profile=dashboard-bundle · levels=daily|weekly|monthly|yearly
+ */
 import { getDb } from '../../utils/db'
 import { parseDailyOpsMetricsQuery } from '../../utils/dailyOpsMetrics/context'
 import { VAT_DISCLAIMER } from '../../utils/dailyOpsMetrics/dtoBuilders'

@@ -1,8 +1,9 @@
 /**
  * @registry-id: eitjeSyncService
  * @created: 2026-04-05T12:00:00.000Z
- * @last-modified: 2026-06-24T00:00:00.000Z
- * @last-fix: [2026-06-24] Await snapshot+JSON materialization after daily/historical; 7d/31d job types
+ * @last-modified: 2026-07-09T00:00:00.000Z
+ * @last-fix: [2026-07-09] Always materialize snapshots — remove ok/hasWork gate; historical gap backfill
+ *   Prior: [2026-06-24] Await snapshot+JSON materialization after daily/historical; 7d/31d job types
  * @description: Fetches Eitje Open API resources and upserts eitje_raw_data; drives cron/sync handlers
  * @last-fix: [2026-06-09] Daily sync includes check_ins (yesterday + today window)
  *   Prior: [2026-05-25] Daily/historical sync now fetches planning_shifts, leave_requests, and events; planning_shifts rebuilds planned-hours aggregation.
@@ -31,7 +32,10 @@ import {
   rebuildEitjeTimeRegistrationAggregation,
 } from './eitjeRebuildAggregationService'
 import { runEitjeLaborAggIntegrity } from '../utils/eitjeAggIntegrity'
-import { materializeIntegrationPipelineSnapshots } from '../utils/dailyOpsSnapshot/triggerSnapshotRebuilds'
+import {
+  materializeHistoricalPipelineSnapshots,
+  materializeIntegrationPipelineSnapshots,
+} from '../utils/dailyOpsSnapshot/triggerSnapshotRebuilds'
 import { addCalendarDaysYmd, calendarYmdInAmsterdam } from '~/utils/dailyOpsBusinessDate'
 import { historicalLookbackDaysForJobType } from '~/utils/integrations/historicalJobTypes'
 import { linkMemberUnifiedUserId } from '../utils/memberEitjeContext'
@@ -893,12 +897,10 @@ export async function executeEitjeJob (db: Db, jobType: string): Promise<EitjeSy
     const ok = !hasErrors && hasWork
 
     let snapshots: EitjeSyncJobResult['snapshots']
-    if (ok) {
-      try {
-        snapshots = await materializeIntegrationPipelineSnapshots(db, yesterdayYmd, todayYmd)
-      } catch (e) {
-        console.error('[eitjeSyncService] Snapshot materialization error:', e)
-      }
+    try {
+      snapshots = await materializeIntegrationPipelineSnapshots(db, yesterdayYmd, todayYmd)
+    } catch (e) {
+      console.error('[eitjeSyncService] Snapshot materialization error:', e)
     }
 
     return {
@@ -992,12 +994,16 @@ export async function executeEitjeJob (db: Db, jobType: string): Promise<EitjeSy
     !Boolean(agg.events?.error)
 
   let snapshots: EitjeSyncJobResult['snapshots']
-  if (ok) {
-    try {
-      snapshots = await materializeIntegrationPipelineSnapshots(db, start, end)
-    } catch (e) {
-      console.error('[eitjeSyncService] Historical snapshot materialization error:', e)
+  try {
+    const { window, gaps } = await materializeHistoricalPipelineSnapshots(db, start, end)
+    snapshots = window
+    if (gaps) {
+      console.info(
+        `[eitjeSyncService] Historical gap backfill ${gaps.gapDates.length} day(s) built=${gaps.built}`,
+      )
     }
+  } catch (e) {
+    console.error('[eitjeSyncService] Historical snapshot materialization error:', e)
   }
 
   return {

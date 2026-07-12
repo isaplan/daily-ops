@@ -59,6 +59,7 @@ export const OPS_NOTIFICATION_RULE_SECTIONS: OpsNotificationRuleSection[] = [
       'Morning Basis missing — Bork has sales but no cron 7/8 row for that business_date.',
       'Only intraday partial — rows for cron 18/23 only; no morning final (headline revenue unreliable).',
       'Eitje hours inbox missing — Eitje aggregation has hours but no inbox-eitje-hours row for control.',
+      'Integration sync partial failure — Bork/Eitje cron reported success but one or more locations failed (e.g. historical-data-7d 1/3). Auto-retry re-runs the job and rebuilds snapshots + read-cache.',
     ],
   },
   {
@@ -107,8 +108,8 @@ export const OPS_NOTIFICATION_RULE_SECTIONS: OpsNotificationRuleSection[] = [
     id: 'actions',
     title: 'Actions on this page',
     bullets: [
-      'Status open — alert is active; fixed — manual Try fix cleared it on rescan.',
-      'Try fix — one attempt (Bork V2 rebuild + snapshot, or inbox reprocess); no auto-retry on scan. Failure stays open with “Tried fix, failed”.',
+      'Status open — alert is active; fixed — manual Try fix or auto-retry cleared it on rescan.',
+      'Try fix — one attempt (Bork V2 rebuild + snapshot + read-cache, inbox reprocess, or integration cron re-run); auto-retry task also runs on eligible snapshot + sync alerts.',
       'Rebuild snapshot — snapshot-category rows only (legacy button).',
       'Fix hint — CLI or ops step shown per row.',
       'Architecture rows — code refactor only, no Try fix.',

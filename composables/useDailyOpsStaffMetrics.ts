@@ -1,10 +1,14 @@
 /**
  * @registry-id: useDailyOpsStaffMetrics
  * @created: 2026-06-25T12:00:00.000Z
- * @last-modified: 2026-06-27T18:00:00.000Z
+ * @last-modified: 2026-07-02T00:00:00.000Z
  * @description: Staff totals analytics — timeseries (all venues, chart filters client-side)
- * @last-fix: [2026-06-28] Fix loadedKey when timeseries arrives; reset on mode switch
- * @adr-ref: ADR-004, ADR-011
+ * @last-fix: [2026-07-02] ADR-013 read-cache metadata
+ *   Prior: [2026-06-28] Fix loadedKey when timeseries arrives; reset on mode switch
+ * @adr-ref: ADR-004, ADR-010, ADR-013
+ * @data-source: read-cache
+ * @read-cache-json: staff-timeseries (via GET /api/daily-ops/staff/timeseries)
+ * @imports-data-from: GET /api/daily-ops/staff/timeseries
  *
  * @exports-to:
  * ✓ components/daily-ops/staff/StaffTotalsTab.vue

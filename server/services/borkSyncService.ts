@@ -1,8 +1,10 @@
 /**
  * @registry-id: borkSyncService
  * @created: 2026-04-06T12:00:00.000Z
- * @last-modified: 2026-06-24T00:00:00.000Z
- * @last-fix: [2026-06-24] Snapshot materialization moved into executeBorkJob (sync pipeline tail)
+ * @last-modified: 2026-07-11T17:30:00.000Z
+ * @last-fix: [2026-07-11] syncOk requires all credential locations — partial 1/3 no longer reports success
+ *   Prior: [2026-07-09] Always materialize snapshots for daily/historical window — decouple from syncOk
+ *   Prior: [2026-06-24] Snapshot materialization moved into executeBorkJob (sync pipeline tail)
  * @description: Bork/Trivec gateway fetch + bork_raw_data upserts; drives Bork cron/sync; calls V2 aggregation after sync
  * @last-fix: [2026-05-20] Master-data job refreshes unified product_catalog from Bork catalog API.
  *   Prior: [2026-05-19] Clearer V2 line: calendar rebuild window vs register-day rollup counts.
@@ -27,7 +29,10 @@ import {
   historicalLookbackDaysForJobType,
   isIntegrationHistoricalJobType,
 } from '~/utils/integrations/historicalJobTypes'
-import { materializeIntegrationPipelineSnapshots } from '../utils/dailyOpsSnapshot/triggerSnapshotRebuilds'
+import {
+  materializeHistoricalPipelineSnapshots,
+  materializeIntegrationPipelineSnapshots,
+} from '../utils/dailyOpsSnapshot/triggerSnapshotRebuilds'
 
 export type BorkLocationSyncResult = {
   locationId: string
@@ -347,7 +352,7 @@ export async function executeBorkJob (db: Db, jobType: string): Promise<BorkSync
   }
 
   const okCount = locations.filter((x) => x.ok).length
-  const syncOk = okCount > 0
+  const syncOk = okCount === creds.length
   const { startYmd, endYmd } = ticketWindowForJob(jobType)
   const message = formatBorkRawSyncMessage({
     okCount,
@@ -365,14 +370,13 @@ export async function executeBorkJob (db: Db, jobType: string): Promise<BorkSync
   let v2CalendarStartYmd: string | null = null
   let v2CalendarEndYmd: string | null = null
 
-  if (syncOk && jobType === 'daily-data') {
+  if (jobType === 'daily-data') {
+    const todayYmd = calendarYmdInAmsterdam(new Date())
+    const yesterdayYmd = addCalendarDaysYmd(todayYmd, -1)
+    v2RebuildSuffix = resolveBorkAggRebuildSuffix() ?? '_v2'
+    v2CalendarStartYmd = yesterdayYmd
+    v2CalendarEndYmd = todayYmd
     try {
-      const todayYmd = calendarYmdInAmsterdam(new Date())
-      const yesterdayYmd = addCalendarDaysYmd(todayYmd, -1)
-      v2RebuildSuffix = resolveBorkAggRebuildSuffix() ?? '_v2'
-      v2CalendarStartYmd = yesterdayYmd
-      v2CalendarEndYmd = todayYmd
-
       // For today (realtime): include open/unsettled tickets; for yesterday: closed/settled only
       v2AggregationResult = await rebuildBorkSalesAggregationV2(db, yesterdayYmd, todayYmd, v2RebuildSuffix, true)
     } catch (e) {
@@ -399,7 +403,7 @@ export async function executeBorkJob (db: Db, jobType: string): Promise<BorkSync
     }
   }
 
-  if (syncOk && isIntegrationHistoricalJobType(jobType)) {
+  if (isIntegrationHistoricalJobType(jobType)) {
     try {
       const todayYmd = calendarYmdInAmsterdam(new Date())
       const endStr = addCalendarDaysYmd(todayYmd, -1)
@@ -427,13 +431,27 @@ export async function executeBorkJob (db: Db, jobType: string): Promise<BorkSync
   const finalMessage = `${message}${v2Message}${catalogSyncMessage}`
 
   let snapshots: BorkSyncJobResult['snapshots']
-  if (syncOk && v2AggregationResult && v2CalendarStartYmd && v2CalendarEndYmd) {
+  if (v2CalendarStartYmd && v2CalendarEndYmd) {
     try {
-      snapshots = await materializeIntegrationPipelineSnapshots(
-        db,
-        v2CalendarStartYmd,
-        v2CalendarEndYmd,
-      )
+      if (isIntegrationHistoricalJobType(jobType)) {
+        const { window, gaps } = await materializeHistoricalPipelineSnapshots(
+          db,
+          v2CalendarStartYmd,
+          v2CalendarEndYmd,
+        )
+        snapshots = window
+        if (gaps) {
+          console.info(
+            `[borkSyncService] Historical gap backfill ${gaps.gapDates.length} day(s) built=${gaps.built}`,
+          )
+        }
+      } else {
+        snapshots = await materializeIntegrationPipelineSnapshots(
+          db,
+          v2CalendarStartYmd,
+          v2CalendarEndYmd,
+        )
+      }
     } catch (e) {
       console.error('[borkSyncService] Snapshot materialization error:', e)
     }

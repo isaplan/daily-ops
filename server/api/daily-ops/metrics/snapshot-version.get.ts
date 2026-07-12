@@ -1,12 +1,14 @@
 /**
  * @registry-id: dailyOpsSnapshotVersionGet
  * @created: 2026-06-08T00:00:00.000Z
- * @last-modified: 2026-06-08T00:00:00.000Z
+ * @last-modified: 2026-07-02T00:00:00.000Z
  * @description: Lightweight snapshot version check — returns max(lastBuiltAt) for today's register day.
  *   Used by client to detect when a snapshot rebuild has landed after a Bork/Eitje cron run.
  *   Single indexed Mongo findOne per location; no aggregation math.
- * @last-fix: [2026-06-08] Initial — replaces illegal GET patch (patchTodayRevenueFromBork)
- * @adr-ref: ADR-004
+ * @last-fix: [2026-07-02] ADR-013 read-cache metadata
+ * @adr-ref: ADR-004, ADR-010, ADR-013
+ * @data-source: read-cache
+ * @read-cache-json: daily_ops_read_cache · profile=dashboard-bundle · levels=daily · Status: reserved
  *
  * @exports-to:
  * ✓ composables/useDailyOpsDashboardMetrics.ts

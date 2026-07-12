@@ -1,8 +1,21 @@
+/**
+ * @registry-id: useDailyOpsDashboardRoute
+ * @last-modified: 2026-07-02T00:00:00.000Z
+ * @description: Daily Ops URL period/location/anchor state (ADR-010)
+ * @last-fix: [2026-07-02] ADR-013 read-cache metadata
+ * @adr-ref: ADR-010, ADR-013
+ * @data-source: none
+ * @read-cache-json: none (period resolution only)
+ *
+ * @exports-to:
+ * ✓ pages/daily-ops/ (all pages)
+ * ✓ components/daily-ops/DailyOpsHomeDashboard.vue
+ */
 import { resolveDailyOpsPeriod } from '~/utils/dailyOpsPeriod'
 import { DAILY_OPS_PERIOD_IDS, DAILY_OPS_RANGE_PERIOD_IDS, DAILY_OPS_ROLLING_DAY_PERIOD_IDS, type DailyOpsPeriodId } from '~/types/daily-ops-dashboard'
 import { amsterdamOpenRegisterBusinessDateYmd, AMSTERDAM_TZ } from '~/utils/dailyOpsBusinessDate'
 
-export type DailyOpsNavKey = 'overview' | 'revenue' | 'productivity' | 'workload' | 'products' | 'staff' | 'insights' | 'inbox'
+export type DailyOpsNavKey = 'weekly-report' | 'overview' | 'revenue' | 'productivity' | 'workload' | 'products' | 'staff' | 'insights' | 'inbox'
 
 const PERIOD_SET = new Set<string>(DAILY_OPS_PERIOD_IDS)
 const RANGE_PERIOD_LABELS: Partial<Record<DailyOpsPeriodId, string>> = {
@@ -72,6 +85,7 @@ export function useDailyOpsDashboardRoute() {
   }
 
   function navKeyFromPath(path: string): DailyOpsNavKey {
+    if (path.startsWith('/daily-ops/analytics/weekly-report')) return 'weekly-report'
     if (path === '/daily-ops' || path === '/daily-ops/') return 'overview'
     if (path.startsWith('/daily-ops/revenue')) return 'revenue'
     if (path.startsWith('/daily-ops/productivity')) return 'staff'

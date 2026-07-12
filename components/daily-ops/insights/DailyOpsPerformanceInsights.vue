@@ -144,6 +144,16 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * @description: Performance insights charts and benchmarks
+ * @last-modified: 2026-07-02T00:00:00.000Z
+ * @last-fix: [2026-07-02] ADR-013 read-cache metadata
+ * @adr-ref: ADR-004, ADR-010, ADR-013
+ * @data-source: read-cache
+ * @read-cache-json: insights (via GET /api/daily-ops/insights)
+ * @imports-data-from: composables/useDailyOpsInsightsMetrics.ts
+ */
+
 import InsightsTrendSection from '~/components/daily-ops/insights/InsightsTrendSection.vue'
 import type { DailyOpsInsightsDelta } from '~/types/daily-ops-insights'
 import { formatDashboardEur } from '~/utils/dashboardEurFormat'

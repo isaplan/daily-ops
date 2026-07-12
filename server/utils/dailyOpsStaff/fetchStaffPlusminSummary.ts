@@ -1,9 +1,13 @@
 /**
  * @registry-id: dailyOpsStaffFetchPlusminSummary
  * @created: 2026-06-25T14:00:00.000Z
- * @last-modified: 2026-06-25T14:00:00.000Z
+ * @last-modified: 2026-07-02T00:00:00.000Z
  * @description: Staff plus/min summary — totals, per venue, month/week outlier KPIs
- * @last-fix: [2026-06-25] Plus/min tab API builder
+ * @last-fix: [2026-07-02] ADR-013 read-cache metadata
+ *   Prior: [2026-06-25] Plus/min tab API builder
+ * @adr-ref: ADR-004, ADR-010, ADR-013
+ * @data-source: mixed
+ * @read-cache-json: daily_ops_read_cache · profile=staff-plusmin · levels=monthly|yearly
  *
  * @exports-to:
  * ✓ server/api/daily-ops/staff/plusmin-summary.get.ts

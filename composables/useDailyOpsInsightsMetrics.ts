@@ -1,10 +1,13 @@
 /**
  * @registry-id: useDailyOpsInsightsMetrics
  * @created: 2026-06-30T20:00:00.000Z
- * @last-modified: 2026-06-30T20:00:00.000Z
+ * @last-modified: 2026-07-02T00:00:00.000Z
  * @description: Insights page fetch — monthly/yearly mode + slot
- * @last-fix: [2026-06-25] Benchmark client-only — not in API query
- * @adr-ref: ADR-004
+ * @last-fix: [2026-07-02] ADR-013 read-cache metadata
+ * @adr-ref: ADR-004, ADR-010, ADR-013
+ * @data-source: read-cache
+ * @read-cache-json: insights (via GET /api/daily-ops/insights)
+ * @imports-data-from: GET /api/daily-ops/insights
  *
  * @exports-to:
  * ✓ components/daily-ops/insights/DailyOpsPerformanceInsights.vue

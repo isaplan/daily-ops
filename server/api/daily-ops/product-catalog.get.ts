@@ -1,9 +1,13 @@
 /**
  * @registry-id: dailyOpsProductCatalogGet
  * @created: 2026-05-20T00:00:00.000Z
- * @last-modified: 2026-05-23T00:00:00.000Z
+ * @last-modified: 2026-07-02T00:00:00.000Z
  * @description: Unified product_catalog hub — menu + last-N-day sales per variant row
- * @last-fix: [2026-05-24] Menu Builder prices on hub rows (menu_prices)
+ * @last-fix: [2026-07-02] ADR-013 read-cache metadata
+ *
+ * @adr-ref: ADR-013
+ * @data-source: direct-db
+ * @read-cache-json: none
  *
  * @exports-to:
  * ✓ pages/daily-ops/inbox/product-catalog.vue

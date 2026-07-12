@@ -1,10 +1,10 @@
 /**
  * @registry-id: useDailyOpsRevenueNavV2
  * @created: 2026-06-08T00:00:00.000Z
- * @last-modified: 2026-06-24T00:00:00.000Z
+ * @last-modified: 2026-07-02T00:00:00.000Z
  * @description: Revenue Nav V2 — URL-synced mode/slot/compare state (ADR-011)
- * @last-fix: [2026-06-24] Strip legacy V1 period query keys on nav push
- * @adr-ref: ADR-011, ADR-010
+ * @last-fix: [2026-07-02] ADR-013 read-cache metadata
+ * @adr-ref: ADR-011, ADR-010, ADR-013
  *
  * @exports-to:
  * ✓ components/daily-ops/revenue/nav-v2/RevenueAnalyticsNavV2.vue

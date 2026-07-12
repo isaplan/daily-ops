@@ -1,0 +1,3661 @@
+{
+  "generatedAt": "2026-06-29T00:44:10.087Z",
+  "csvPath": "/Users/alviniomolina/Downloads/alle-teamleden-contract-info-dailyops-ai - 2024 to 28062026 - 2026-06-28-02-37-01 (65083).csv",
+  "summary": {
+    "csv_rows": 221,
+    "inactive_only": false,
+    "fill_missing": 3,
+    "fill_active": 0,
+    "fill_inactive": 3,
+    "create_member": 0,
+    "skip_ok": 218
+  },
+  "plan": [
+    {
+      "name": "Afwas Barbea",
+      "support_id": null,
+      "member_id": "69ca3a6c5d7c5fc3cb219ba6",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "zzp (0)",
+        "hourly_rate": 19
+      },
+      "csv": {
+        "contract_type": "zzp (0)",
+        "hourly_rate": 19
+      }
+    },
+    {
+      "name": "Afwas Nour Multiservices",
+      "support_id": null,
+      "member_id": "69ca3a6c5d7c5fc3cb219ba7",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "zzp",
+        "hourly_rate": 19
+      },
+      "csv": {
+        "contract_type": "zzp (0)",
+        "hourly_rate": 19
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Afwas Van Kinsbergen",
+      "support_id": null,
+      "member_id": "69ca3a6c5d7c5fc3cb219ba8",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "zzp (0)",
+        "hourly_rate": 19
+      },
+      "csv": {
+        "contract_type": "zzp (0)",
+        "hourly_rate": 19
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Aimée Van Leeuwen",
+      "support_id": null,
+      "member_id": "69ca3a6c5d7c5fc3cb219ba9",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren (0)",
+        "hourly_rate": 6.62
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 6.62
+      }
+    },
+    {
+      "name": "Akam Basim",
+      "support_id": null,
+      "member_id": "6a408a362a6ae5b623a8dd8f",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren",
+        "hourly_rate": 12.5
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 12.5
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Alix Stades",
+      "support_id": null,
+      "member_id": "6a408a362a6ae5b623a8dd90",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "zzp (0)",
+        "hourly_rate": 13.5
+      },
+      "csv": {
+        "contract_type": "zzp (0)",
+        "hourly_rate": 13.5
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Alvinio Molina",
+      "support_id": null,
+      "member_id": "69ca3a6c5d7c5fc3cb219baa",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "zzp (0)",
+        "hourly_rate": 24
+      },
+      "csv": {
+        "contract_type": "zzp (0)",
+        "hourly_rate": 20
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "André Rozhok",
+      "support_id": null,
+      "member_id": "69ca3a6c5d7c5fc3cb219bab",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (38.0)",
+        "hourly_rate": 17.28
+      },
+      "csv": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 16.36
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Anna Mout",
+      "support_id": null,
+      "member_id": "69ca3a6c5d7c5fc3cb219bac",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren (0)",
+        "hourly_rate": 11.03
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 11.03
+      }
+    },
+    {
+      "name": "Annabel Muijser",
+      "support_id": null,
+      "member_id": "69ca3a6c5d7c5fc3cb219bad",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren (0)",
+        "hourly_rate": 12.5
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 12.5
+      }
+    },
+    {
+      "name": "Ansel Van Polen",
+      "support_id": null,
+      "member_id": "6a408a362a6ae5b623a8dd91",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (40)",
+        "hourly_rate": 14.93
+      },
+      "csv": {
+        "contract_type": "uren contract (40)",
+        "hourly_rate": 14.93
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Astrid Van Der Hoek",
+      "support_id": null,
+      "member_id": "6a408a362a6ae5b623a8dd92",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (28)",
+        "hourly_rate": 15.88
+      },
+      "csv": {
+        "contract_type": "uren contract (28)",
+        "hourly_rate": 15.88
+      }
+    },
+    {
+      "name": "Ava Schriek",
+      "support_id": null,
+      "member_id": "69ca3a6c5d7c5fc3cb219bae",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren",
+        "hourly_rate": 14.4
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 14.71
+      }
+    },
+    {
+      "name": "Bart Koster",
+      "support_id": null,
+      "member_id": "69ca3a6c5d7c5fc3cb219baf",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren (0)",
+        "hourly_rate": 15.5
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 15.5
+      }
+    },
+    {
+      "name": "Bas Boudewijn",
+      "support_id": null,
+      "member_id": "6a4086ab34b57212b138a1f0",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren",
+        "hourly_rate": 14.71
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 14.71
+      }
+    },
+    {
+      "name": "Bas Butters Ruben",
+      "support_id": null,
+      "member_id": "69ca3a6c5d7c5fc3cb219bb0",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "zzp (0)",
+        "hourly_rate": 45
+      },
+      "csv": {
+        "contract_type": "zzp (0)",
+        "hourly_rate": 45
+      }
+    },
+    {
+      "name": "Bastiaan Klaver",
+      "support_id": null,
+      "member_id": "69ca3a6d5d7c5fc3cb219bb1",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "zzp",
+        "hourly_rate": 36
+      },
+      "csv": {
+        "contract_type": "zzp (0)",
+        "hourly_rate": 36
+      }
+    },
+    {
+      "name": "Beaudine Rakovic",
+      "support_id": null,
+      "member_id": "6a408a362a6ae5b623a8dd93",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren",
+        "hourly_rate": 13.27
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 13.27
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Benjamin Cloosterman",
+      "support_id": null,
+      "member_id": "6a408a362a6ae5b623a8dd94",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren",
+        "hourly_rate": 14.92
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 14.92
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Bertalan Ivan",
+      "support_id": null,
+      "member_id": "69ca3a6d5d7c5fc3cb219bb2",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren (0)",
+        "hourly_rate": 16.5
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 16.5
+      }
+    },
+    {
+      "name": "Brady Van Marwijk",
+      "support_id": null,
+      "member_id": "6a408a362a6ae5b623a8dd95",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren",
+        "hourly_rate": 15.27
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 15.27
+      }
+    },
+    {
+      "name": "Bram Uithof",
+      "support_id": null,
+      "member_id": "6a408a372a6ae5b623a8dd96",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "zzp (0)",
+        "hourly_rate": 33.5
+      },
+      "csv": {
+        "contract_type": "zzp (0)",
+        "hourly_rate": 33.5
+      }
+    },
+    {
+      "name": "Bram Van Den Berg",
+      "support_id": null,
+      "member_id": "69ca3a6d5d7c5fc3cb219bb3",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren (0)",
+        "hourly_rate": 13.5
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 9.36
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Bregje Nas",
+      "support_id": null,
+      "member_id": "69ca3a6d5d7c5fc3cb219bb4",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren (0)",
+        "hourly_rate": 15
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 15
+      }
+    },
+    {
+      "name": "Camiel Van Aken",
+      "support_id": null,
+      "member_id": "6a408a372a6ae5b623a8dd97",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren",
+        "hourly_rate": 10.55
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 10.55
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Carlota Reynolds",
+      "support_id": null,
+      "member_id": "6a4086ab34b57212b138a1f1",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren",
+        "hourly_rate": 14.4
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 14.4
+      }
+    },
+    {
+      "name": "Carmen Schmidt",
+      "support_id": null,
+      "member_id": "6a408a372a6ae5b623a8dd98",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (32)",
+        "hourly_rate": 17.74
+      },
+      "csv": {
+        "contract_type": "uren contract (32)",
+        "hourly_rate": 17.74
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Carmen Van Geest",
+      "support_id": null,
+      "member_id": "69ca3a6d5d7c5fc3cb219bb5",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren (0)",
+        "hourly_rate": 16
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 14.06
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Casper Schul",
+      "support_id": null,
+      "member_id": "69ca3a6d5d7c5fc3cb219bb6",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (38.0)",
+        "hourly_rate": 18.45
+      },
+      "csv": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 18.45
+      }
+    },
+    {
+      "name": "Cathelijn Te Koppele",
+      "support_id": null,
+      "member_id": "6a408a372a6ae5b623a8dd99",
+      "active": false,
+      "action": "fill_missing",
+      "fields": {
+        "contract_type": "nul uren"
+      },
+      "current": {
+        "contract_type": "nul uren",
+        "hourly_rate": null
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": null
+      }
+    },
+    {
+      "name": "Celine Doetalina",
+      "support_id": null,
+      "member_id": "6a408a372a6ae5b623a8dd9a",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren",
+        "hourly_rate": 15
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 15
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Chaya Libbenga",
+      "support_id": null,
+      "member_id": "69ca3a6d5d7c5fc3cb219bb7",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren (0)",
+        "hourly_rate": 14.71
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 14.71
+      }
+    },
+    {
+      "name": "Chelsea Cruz | Leerling",
+      "support_id": null,
+      "member_id": "69ca3a6d5d7c5fc3cb219bb8",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (16.0)",
+        "hourly_rate": 2
+      },
+      "csv": {
+        "contract_type": "uren contract (16)",
+        "hourly_rate": null
+      }
+    },
+    {
+      "name": "Chelsea Cruz | Sandsteps",
+      "support_id": null,
+      "member_id": "6a408a372a6ae5b623a8dd9b",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren",
+        "hourly_rate": 9.14
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 9.14
+      }
+    },
+    {
+      "name": "Christiaan Cloosterman",
+      "support_id": null,
+      "member_id": "6a408a372a6ae5b623a8dd9c",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren",
+        "hourly_rate": 8.63
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 8.63
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Cody Wijers",
+      "support_id": null,
+      "member_id": "69ca3a6d5d7c5fc3cb219bb9",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren (0)",
+        "hourly_rate": 11.03
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 11.03
+      }
+    },
+    {
+      "name": "Daan Bijvoets",
+      "support_id": null,
+      "member_id": "6a408a372a6ae5b623a8dd9d",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 13.79
+      },
+      "csv": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 13.79
+      }
+    },
+    {
+      "name": "Daniël Kaatee",
+      "support_id": null,
+      "member_id": "69ca3a6d5d7c5fc3cb219bba",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren",
+        "hourly_rate": 15
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 14.5
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Danko Coumans",
+      "support_id": null,
+      "member_id": "6a4086ab34b57212b138a1f2",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren",
+        "hourly_rate": 10.55
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 10.55
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Danny Nutbey",
+      "support_id": null,
+      "member_id": "6a408a372a6ae5b623a8dd9e",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 16.13
+      },
+      "csv": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 16.13
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Danny Struijve",
+      "support_id": null,
+      "member_id": "6a408a372a6ae5b623a8dd9f",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (40)",
+        "hourly_rate": 17.04
+      },
+      "csv": {
+        "contract_type": "uren contract (40)",
+        "hourly_rate": 17.04
+      }
+    },
+    {
+      "name": "Dario Zanon",
+      "support_id": null,
+      "member_id": "69ca3a6d5d7c5fc3cb219bbb",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (38.0)",
+        "hourly_rate": 16.6
+      },
+      "csv": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 14.91
+      }
+    },
+    {
+      "name": "Dario Zanon",
+      "support_id": null,
+      "member_id": "69ca3a6d5d7c5fc3cb219bbb",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (38.0)",
+        "hourly_rate": 16.6
+      },
+      "csv": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 14.33
+      }
+    },
+    {
+      "name": "Dario Zanon",
+      "support_id": null,
+      "member_id": "69ca3a6d5d7c5fc3cb219bbb",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (38.0)",
+        "hourly_rate": 16.6
+      },
+      "csv": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 16.6
+      }
+    },
+    {
+      "name": "Daudi Spit",
+      "support_id": null,
+      "member_id": "6a408a372a6ae5b623a8dda0",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren",
+        "hourly_rate": 1
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 1
+      }
+    },
+    {
+      "name": "David V",
+      "support_id": null,
+      "member_id": "69ca3a6d5d7c5fc3cb219bbc",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract",
+        "hourly_rate": 18.17
+      },
+      "csv": {
+        "contract_type": "uren contract (28)",
+        "hourly_rate": 18.17
+      }
+    },
+    {
+      "name": "Dawid Habel",
+      "support_id": null,
+      "member_id": "6a408a372a6ae5b623a8dda1",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren",
+        "hourly_rate": 16
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 16
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Dean Akeroyd",
+      "support_id": null,
+      "member_id": "69ca3a6d5d7c5fc3cb219bbd",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren (0)",
+        "hourly_rate": 15
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 15
+      }
+    },
+    {
+      "name": "Deniscio Ellis",
+      "support_id": null,
+      "member_id": "6a408a372a6ae5b623a8dda2",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (22.5)",
+        "hourly_rate": 14.35
+      },
+      "csv": {
+        "contract_type": "uren contract (22.5)",
+        "hourly_rate": 14.35
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Dennis Peters",
+      "support_id": null,
+      "member_id": "6a408a372a6ae5b623a8dda3",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 18.22
+      },
+      "csv": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 18.22
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Dianne Vos",
+      "support_id": null,
+      "member_id": "69ca3a6d5d7c5fc3cb219bbe",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren",
+        "hourly_rate": 15.5
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 15.5
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Django Den Heijer",
+      "support_id": null,
+      "member_id": "6a408a372a6ae5b623a8dda4",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren",
+        "hourly_rate": 14.4
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 14.4
+      }
+    },
+    {
+      "name": "Do Schiffeleers",
+      "support_id": null,
+      "member_id": "6a408a372a6ae5b623a8dda5",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (40)",
+        "hourly_rate": 13.53
+      },
+      "csv": {
+        "contract_type": "uren contract (40)",
+        "hourly_rate": 13.53
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Douwe Froom",
+      "support_id": null,
+      "member_id": "69ca3a6d5d7c5fc3cb219bbf",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren (0)",
+        "hourly_rate": 14.71
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 14.71
+      }
+    },
+    {
+      "name": "Duuk Jaspers Faijer",
+      "support_id": null,
+      "member_id": "6a408a372a6ae5b623a8dda6",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren",
+        "hourly_rate": 14.92
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 14.92
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Dyllan Gajapersad",
+      "support_id": null,
+      "member_id": "6a408a372a6ae5b623a8dda7",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 19.83
+      },
+      "csv": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 19.83
+      }
+    },
+    {
+      "name": "Eden Blom",
+      "support_id": null,
+      "member_id": "6a408a382a6ae5b623a8dda8",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (20)",
+        "hourly_rate": 15.52
+      },
+      "csv": {
+        "contract_type": "uren contract (20)",
+        "hourly_rate": 15.52
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Efe Altug",
+      "support_id": null,
+      "member_id": "6a408a382a6ae5b623a8dda9",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren",
+        "hourly_rate": 10.55
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 10.55
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Eline Mielen",
+      "support_id": null,
+      "member_id": "69ca3a6d5d7c5fc3cb219bc0",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren",
+        "hourly_rate": 14.05
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 14.05
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Eline Van Liere",
+      "support_id": null,
+      "member_id": "69ca3a6d5d7c5fc3cb219bc1",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract",
+        "hourly_rate": 18.17
+      },
+      "csv": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 18.17
+      }
+    },
+    {
+      "name": "Ella Van Der Sijde",
+      "support_id": null,
+      "member_id": "69ca3a6d5d7c5fc3cb219bc2",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren (0)",
+        "hourly_rate": 13.5
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 10.55
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Elliot Maunula",
+      "support_id": null,
+      "member_id": "6a408a382a6ae5b623a8ddaa",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren",
+        "hourly_rate": 16.27
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 16.27
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Emma Verhoeff",
+      "support_id": null,
+      "member_id": "69ca3a6d5d7c5fc3cb219bc3",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren (0)",
+        "hourly_rate": 16
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 14.5
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Eric Falter",
+      "support_id": null,
+      "member_id": "69ca3a6d5d7c5fc3cb219bc4",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (32.0)",
+        "hourly_rate": 17.81
+      },
+      "csv": {
+        "contract_type": "uren contract (32)",
+        "hourly_rate": 17.81
+      }
+    },
+    {
+      "name": "Eva Hambuckers",
+      "support_id": null,
+      "member_id": "69ca3a6d5d7c5fc3cb219bc5",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren (0)",
+        "hourly_rate": 11.03
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 11.03
+      }
+    },
+    {
+      "name": "Eva Muller",
+      "support_id": null,
+      "member_id": "6a408a382a6ae5b623a8ddab",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren",
+        "hourly_rate": 11.95
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 11.95
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Fleur Van Der Valk",
+      "support_id": null,
+      "member_id": "6a408a382a6ae5b623a8ddac",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren",
+        "hourly_rate": 14.06
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 14.06
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Fleur Van Straaten",
+      "support_id": null,
+      "member_id": "6a408a382a6ae5b623a8ddad",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren",
+        "hourly_rate": 14.5
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 14.5
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Floor Van Vuuren",
+      "support_id": null,
+      "member_id": "6a408a382a6ae5b623a8ddae",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren",
+        "hourly_rate": 9.36
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 9.36
+      }
+    },
+    {
+      "name": "Flora Drewes",
+      "support_id": null,
+      "member_id": "69ca3a6d5d7c5fc3cb219bc6",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (38.0)",
+        "hourly_rate": 17.55
+      },
+      "csv": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 17.55
+      }
+    },
+    {
+      "name": "Frederique Van Gulik",
+      "support_id": null,
+      "member_id": "69ca3a6d5d7c5fc3cb219bc7",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (32.0)",
+        "hourly_rate": 16.95
+      },
+      "csv": {
+        "contract_type": "uren contract (32)",
+        "hourly_rate": 16.95
+      }
+    },
+    {
+      "name": "Fulani Hall",
+      "support_id": null,
+      "member_id": "6a408a382a6ae5b623a8ddaf",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (32)",
+        "hourly_rate": 16.5
+      },
+      "csv": {
+        "contract_type": "uren contract (32)",
+        "hourly_rate": 16.5
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Gabriël De Winter",
+      "support_id": null,
+      "member_id": "69ca3a6d5d7c5fc3cb219bc8",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "zzp",
+        "hourly_rate": 35
+      },
+      "csv": {
+        "contract_type": "zzp (0)",
+        "hourly_rate": 35
+      }
+    },
+    {
+      "name": "Gail Sloot",
+      "support_id": null,
+      "member_id": "69ca3a6d5d7c5fc3cb219bc9",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "zzp (0)",
+        "hourly_rate": 37.5
+      },
+      "csv": {
+        "contract_type": "uren contract (32)",
+        "hourly_rate": 22.1
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Gail Sloot | Zzp",
+      "support_id": null,
+      "member_id": "6a41bac95ed892d0a8b6815c",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "zzp (0)",
+        "hourly_rate": 37.5
+      },
+      "csv": {
+        "contract_type": "zzp (0)",
+        "hourly_rate": 37.5
+      }
+    },
+    {
+      "name": "George Sleptsov",
+      "support_id": null,
+      "member_id": "6a408a382a6ae5b623a8ddb0",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 15.29
+      },
+      "csv": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 15.29
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Gunnar Klumperbeek",
+      "support_id": null,
+      "member_id": "6a408a382a6ae5b623a8ddb1",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (40)",
+        "hourly_rate": 23.68
+      },
+      "csv": {
+        "contract_type": "uren contract (40)",
+        "hourly_rate": 23.68
+      }
+    },
+    {
+      "name": "Guus Minderman",
+      "support_id": null,
+      "member_id": "6a408a382a6ae5b623a8ddb2",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 21.1
+      },
+      "csv": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 18.58
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Guus Minderman",
+      "support_id": null,
+      "member_id": "6a408a382a6ae5b623a8ddb2",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 21.1
+      },
+      "csv": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 21.1
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Hannah Lipman",
+      "support_id": null,
+      "member_id": "69ca3a6d5d7c5fc3cb219bca",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (38.0)",
+        "hourly_rate": 22.61
+      },
+      "csv": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 22.61
+      }
+    },
+    {
+      "name": "Hippolythe Loguhe",
+      "support_id": null,
+      "member_id": "6a408a382a6ae5b623a8ddb4",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (40)",
+        "hourly_rate": 13.97
+      },
+      "csv": {
+        "contract_type": "uren contract (40)",
+        "hourly_rate": 13.97
+      }
+    },
+    {
+      "name": "Hugo Bronkhorst | Leerling",
+      "support_id": null,
+      "member_id": "69ca3a6d5d7c5fc3cb219bcb",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract",
+        "hourly_rate": 2
+      },
+      "csv": {
+        "contract_type": "uren contract (16)",
+        "hourly_rate": null
+      }
+    },
+    {
+      "name": "Hugo Bronkhorst | Sandstepper",
+      "support_id": null,
+      "member_id": "6a4086ab34b57212b138a1f3",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren",
+        "hourly_rate": 7.92
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 7.92
+      }
+    },
+    {
+      "name": "Huub Janson",
+      "support_id": null,
+      "member_id": "69ca3a6e5d7c5fc3cb219bcc",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren",
+        "hourly_rate": 15
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 15
+      }
+    },
+    {
+      "name": "Imke Otten",
+      "support_id": null,
+      "member_id": "69ca3a6e5d7c5fc3cb219bcd",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren (0)",
+        "hourly_rate": 8.09
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 8.09
+      }
+    },
+    {
+      "name": "Inna Skotnikova",
+      "support_id": null,
+      "member_id": "69ca3a6e5d7c5fc3cb219bce",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (38.0)",
+        "hourly_rate": 17.27
+      },
+      "csv": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 16.66
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Isa Menheere",
+      "support_id": null,
+      "member_id": "6a408a382a6ae5b623a8ddb5",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren",
+        "hourly_rate": 13.27
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 13.27
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Ivar Groenewegen",
+      "support_id": null,
+      "member_id": "69ca3a6e5d7c5fc3cb219bcf",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract",
+        "hourly_rate": 18.55
+      },
+      "csv": {
+        "contract_type": "uren contract (40)",
+        "hourly_rate": 18.55
+      }
+    },
+    {
+      "name": "Jan Schavemaker",
+      "support_id": null,
+      "member_id": "69ca3a6e5d7c5fc3cb219bd0",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren (0)",
+        "hourly_rate": 15
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 15
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Jens Van Westendorp",
+      "support_id": null,
+      "member_id": "69ca3a743056b2a44dba1afa",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren (0)",
+        "hourly_rate": 9.56
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 8.09
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Jente Wilzing",
+      "support_id": null,
+      "member_id": "6a408a382a6ae5b623a8ddb6",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 10.94
+      },
+      "csv": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 10.94
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Jessica Van Rossum",
+      "support_id": null,
+      "member_id": "69ca3a743056b2a44dba1afb",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren",
+        "hourly_rate": 11.95
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 11.95
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Jim Van De Garde",
+      "support_id": null,
+      "member_id": "6a408a382a6ae5b623a8ddb7",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 17.72
+      },
+      "csv": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 17.72
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Johan Plugge",
+      "support_id": null,
+      "member_id": "6a408a382a6ae5b623a8ddb8",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 14.88
+      },
+      "csv": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 14.88
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Jolijn Van Der Knaap",
+      "support_id": null,
+      "member_id": "69ca3a743056b2a44dba1afc",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren (0)",
+        "hourly_rate": 10
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 7.73
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Jonas Welcker",
+      "support_id": null,
+      "member_id": "69ca3a743056b2a44dba1afd",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren",
+        "hourly_rate": 16
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 16
+      }
+    },
+    {
+      "name": "Jonathan Veldhuijzen",
+      "support_id": null,
+      "member_id": "6a408a382a6ae5b623a8ddb9",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren",
+        "hourly_rate": 10.55
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 10.55
+      }
+    },
+    {
+      "name": "Joost Hanse",
+      "support_id": null,
+      "member_id": "69ca3a743056b2a44dba1afe",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (38.0)",
+        "hourly_rate": 18.99
+      },
+      "csv": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 18.99
+      }
+    },
+    {
+      "name": "Jordy Wubben",
+      "support_id": null,
+      "member_id": "69ca3a743056b2a44dba1aff",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (38.0)",
+        "hourly_rate": 23.06
+      },
+      "csv": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 23.06
+      }
+    },
+    {
+      "name": "Jose Coelho Do Rosario",
+      "support_id": null,
+      "member_id": "6a408a382a6ae5b623a8ddba",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (40)",
+        "hourly_rate": 15.82
+      },
+      "csv": {
+        "contract_type": "uren contract (40)",
+        "hourly_rate": 15.82
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Julia Rouw",
+      "support_id": null,
+      "member_id": "69ca3a743056b2a44dba1b00",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren",
+        "hourly_rate": 14.4
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 14.71
+      }
+    },
+    {
+      "name": "Julius Dressen",
+      "support_id": null,
+      "member_id": "69ca3a743056b2a44dba1b01",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren (0)",
+        "hourly_rate": 10.8
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 10.8
+      }
+    },
+    {
+      "name": "Justin Duyvenbode",
+      "support_id": null,
+      "member_id": "69ca3a743056b2a44dba1b02",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "zzp (0)",
+        "hourly_rate": 35
+      },
+      "csv": {
+        "contract_type": "zzp (0)",
+        "hourly_rate": 35
+      }
+    },
+    {
+      "name": "Kay Kuhne",
+      "support_id": null,
+      "member_id": "6a408a392a6ae5b623a8ddbb",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren",
+        "hourly_rate": 15
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 15
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Kieran Mcwilliams",
+      "support_id": null,
+      "member_id": "6a408a392a6ae5b623a8ddbc",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (40)",
+        "hourly_rate": 12.75
+      },
+      "csv": {
+        "contract_type": "uren contract (40)",
+        "hourly_rate": 12.75
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Klaas De Rook",
+      "support_id": null,
+      "member_id": "6a408a392a6ae5b623a8ddbd",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "zzp (0)",
+        "hourly_rate": 25
+      },
+      "csv": {
+        "contract_type": "zzp (0)",
+        "hourly_rate": 25
+      }
+    },
+    {
+      "name": "Koen Van Den Bos",
+      "support_id": null,
+      "member_id": "69ca3a743056b2a44dba1b03",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (38.0)",
+        "hourly_rate": 20.33
+      },
+      "csv": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 20.33
+      }
+    },
+    {
+      "name": "Kyan Bommel",
+      "support_id": null,
+      "member_id": "6a408a392a6ae5b623a8ddbe",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (40)",
+        "hourly_rate": 24.62
+      },
+      "csv": {
+        "contract_type": "uren contract (40)",
+        "hourly_rate": 24.62
+      }
+    },
+    {
+      "name": "Kyan Van Bommel",
+      "support_id": null,
+      "member_id": "6a408a392a6ae5b623a8ddbf",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (40)",
+        "hourly_rate": 24.62
+      },
+      "csv": {
+        "contract_type": "uren contract (40)",
+        "hourly_rate": 24.62
+      }
+    },
+    {
+      "name": "Lana Pham",
+      "support_id": null,
+      "member_id": "69ca3a743056b2a44dba1b04",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren",
+        "hourly_rate": 14.74
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 9.56
+      }
+    },
+    {
+      "name": "Lars Zimmermann",
+      "support_id": null,
+      "member_id": "69ca3a743056b2a44dba1b06",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (38.0)",
+        "hourly_rate": 20.35
+      },
+      "csv": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 18.73
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Lars Zimmermann",
+      "support_id": null,
+      "member_id": "69ca3a743056b2a44dba1b06",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (38.0)",
+        "hourly_rate": 20.35
+      },
+      "csv": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 18.73
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Liam Hall",
+      "support_id": null,
+      "member_id": "69ca3a753056b2a44dba1b07",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (38.0)",
+        "hourly_rate": 20.35
+      },
+      "csv": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 20.35
+      }
+    },
+    {
+      "name": "Lieke Rijk",
+      "support_id": null,
+      "member_id": "6a408a392a6ae5b623a8ddc0",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren",
+        "hourly_rate": 14.5
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 14.5
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Lola Rumphorst",
+      "support_id": null,
+      "member_id": "6a408a392a6ae5b623a8ddc1",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren",
+        "hourly_rate": 14
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 14
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Lorenzo Goedhart",
+      "support_id": null,
+      "member_id": "6a408a392a6ae5b623a8ddc2",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 13.84
+      },
+      "csv": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 13.84
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Lucas Taal",
+      "support_id": null,
+      "member_id": "6a408a392a6ae5b623a8ddc3",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren",
+        "hourly_rate": 9.14
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 9.14
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Ludo Vesseur",
+      "support_id": null,
+      "member_id": "69ca3a753056b2a44dba1b08",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "zzp (0)",
+        "hourly_rate": 37.5
+      },
+      "csv": {
+        "contract_type": "zzp (0)",
+        "hourly_rate": 37.5
+      }
+    },
+    {
+      "name": "Lukas G. Johan",
+      "support_id": null,
+      "member_id": "69ca3a753056b2a44dba1b09",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren (0)",
+        "hourly_rate": 14.71
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 14.71
+      }
+    },
+    {
+      "name": "Luna Engelhard",
+      "support_id": null,
+      "member_id": "6a408a392a6ae5b623a8ddc4",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren",
+        "hourly_rate": 14.06
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 14.06
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Luna Van Der Kuij",
+      "support_id": null,
+      "member_id": "6a408a392a6ae5b623a8ddc5",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren",
+        "hourly_rate": 14.06
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 14.06
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Luuk Bloks",
+      "support_id": null,
+      "member_id": "69ca3a753056b2a44dba1b0a",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren (0)",
+        "hourly_rate": 9.56
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 9.56
+      }
+    },
+    {
+      "name": "Luuk De Brouwer",
+      "support_id": null,
+      "member_id": "69ca3a753056b2a44dba1b0b",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren (0)",
+        "hourly_rate": 15
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 15
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Macy Van Schie",
+      "support_id": null,
+      "member_id": "69ca3a753056b2a44dba1b0c",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren (0)",
+        "hourly_rate": 16
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 15
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Mahaut Sévaux",
+      "support_id": null,
+      "member_id": "69ca3a753056b2a44dba1b0d",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren",
+        "hourly_rate": 9.14
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 9.14
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Mara Polderman",
+      "support_id": null,
+      "member_id": "69ca3a753056b2a44dba1b0e",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren (0)",
+        "hourly_rate": 15
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 15
+      }
+    },
+    {
+      "name": "Mariska Sonneveld",
+      "support_id": null,
+      "member_id": "6a408a392a6ae5b623a8ddc6",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (34)",
+        "hourly_rate": 18.84
+      },
+      "csv": {
+        "contract_type": "uren contract (34)",
+        "hourly_rate": 18.84
+      }
+    },
+    {
+      "name": "Marlon Van Dam",
+      "support_id": null,
+      "member_id": "6a408a392a6ae5b623a8ddc7",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (32)",
+        "hourly_rate": 16.08
+      },
+      "csv": {
+        "contract_type": "uren contract (32)",
+        "hourly_rate": 16.08
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Martika Tanihatu",
+      "support_id": null,
+      "member_id": "6a408a392a6ae5b623a8ddc8",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 18.09
+      },
+      "csv": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 18.09
+      }
+    },
+    {
+      "name": "Martynas Lukauskas",
+      "support_id": null,
+      "member_id": "6a408a392a6ae5b623a8ddc9",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 18.01
+      },
+      "csv": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 18.01
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Mathilde Oberle",
+      "support_id": null,
+      "member_id": "69ca3a753056b2a44dba1b0f",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract",
+        "hourly_rate": 18.24
+      },
+      "csv": {
+        "contract_type": "uren contract (32)",
+        "hourly_rate": 18.24
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Matilde Fernandes",
+      "support_id": null,
+      "member_id": "69ca3a753056b2a44dba1b10",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren (0)",
+        "hourly_rate": 14
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 14
+      }
+    },
+    {
+      "name": "Maureen Van Groningen",
+      "support_id": null,
+      "member_id": "69ca3a753056b2a44dba1b11",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren",
+        "hourly_rate": 14.71
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 14.71
+      }
+    },
+    {
+      "name": "Max De Kok",
+      "support_id": null,
+      "member_id": "6a408a392a6ae5b623a8ddca",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (32)",
+        "hourly_rate": 14.66
+      },
+      "csv": {
+        "contract_type": "uren contract (32)",
+        "hourly_rate": 14.66
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Max Michelsen",
+      "support_id": null,
+      "member_id": "6a408a392a6ae5b623a8ddcb",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 13.27
+      },
+      "csv": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 13.27
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Meike Groen",
+      "support_id": null,
+      "member_id": "6a408a392a6ae5b623a8ddcc",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 14.06
+      },
+      "csv": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 14.06
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Merel Ippel",
+      "support_id": null,
+      "member_id": "6a408a3a2a6ae5b623a8ddcd",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 14.89
+      },
+      "csv": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 14.89
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Michael Newton",
+      "support_id": null,
+      "member_id": "69ca3a753056b2a44dba1b12",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "zzp",
+        "hourly_rate": 40
+      },
+      "csv": {
+        "contract_type": "zzp (0)",
+        "hourly_rate": 40
+      }
+    },
+    {
+      "name": "Michael Wong",
+      "support_id": null,
+      "member_id": "6a408a3a2a6ae5b623a8ddce",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (40)",
+        "hourly_rate": 19.43
+      },
+      "csv": {
+        "contract_type": "uren contract (40)",
+        "hourly_rate": 19.43
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Michel Groenenberg",
+      "support_id": null,
+      "member_id": "6a408a3a2a6ae5b623a8ddcf",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "zzp (0)",
+        "hourly_rate": 16.5
+      },
+      "csv": {
+        "contract_type": "zzp (0)",
+        "hourly_rate": 16.5
+      }
+    },
+    {
+      "name": "Michelle Veeke",
+      "support_id": null,
+      "member_id": "6a408a3a2a6ae5b623a8ddd0",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren",
+        "hourly_rate": 14.4
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 14.4
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Mija Glendenning",
+      "support_id": null,
+      "member_id": "69ca3a753056b2a44dba1b13",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren (0)",
+        "hourly_rate": 15.5
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 15.5
+      }
+    },
+    {
+      "name": "Mike Van Asperen",
+      "support_id": null,
+      "member_id": "69ca3a753056b2a44dba1b14",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (38.0)",
+        "hourly_rate": 20.41
+      },
+      "csv": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 20.41
+      }
+    },
+    {
+      "name": "Mitchel Van Oijen",
+      "support_id": null,
+      "member_id": "6a4086ab34b57212b138a1f4",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (38.0)",
+        "hourly_rate": 20.35
+      },
+      "csv": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 20.35
+      }
+    },
+    {
+      "name": "Morena Crivelli",
+      "support_id": null,
+      "member_id": "6a4086ab34b57212b138a1f5",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren (0)",
+        "hourly_rate": 14.71
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 14.71
+      }
+    },
+    {
+      "name": "Nathalie De Koff",
+      "support_id": null,
+      "member_id": "6a408a3a2a6ae5b623a8ddd1",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 14.27
+      },
+      "csv": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 14.27
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Neha Advani",
+      "support_id": null,
+      "member_id": "69ca3a753056b2a44dba1b16",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (38.0)",
+        "hourly_rate": 17.55
+      },
+      "csv": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 17.55
+      }
+    },
+    {
+      "name": "Nicky Canter Visscher | Leerling",
+      "support_id": null,
+      "member_id": "6a408a3a2a6ae5b623a8ddd2",
+      "active": false,
+      "action": "fill_missing",
+      "fields": {
+        "contract_type": "uren contract (16)"
+      },
+      "current": {
+        "contract_type": "uren contract (16)",
+        "hourly_rate": null
+      },
+      "csv": {
+        "contract_type": "uren contract (16)",
+        "hourly_rate": null
+      }
+    },
+    {
+      "name": "Nicky Canter Visscher | Sandstep",
+      "support_id": null,
+      "member_id": "6a408a3a2a6ae5b623a8ddd3",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren",
+        "hourly_rate": 7.52
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 7.52
+      }
+    },
+    {
+      "name": "Nicole Scheuner",
+      "support_id": null,
+      "member_id": "69ca3a753056b2a44dba1b17",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren",
+        "hourly_rate": 14.06
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 14.71
+      }
+    },
+    {
+      "name": "Nikki Tummers",
+      "support_id": null,
+      "member_id": "6a408a3a2a6ae5b623a8ddd4",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 14.66
+      },
+      "csv": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 14.66
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Noa Geertsma",
+      "support_id": null,
+      "member_id": "6a408a3a2a6ae5b623a8ddd5",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (32)",
+        "hourly_rate": 17.97
+      },
+      "csv": {
+        "contract_type": "uren contract (32)",
+        "hourly_rate": 17.97
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Nonna Kolomoitseva",
+      "support_id": null,
+      "member_id": "6a4086ab34b57212b138a1f6",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (38.0)",
+        "hourly_rate": 16.44
+      },
+      "csv": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 16.44
+      }
+    },
+    {
+      "name": "Olivia De Vries",
+      "support_id": null,
+      "member_id": "6a4086ab34b57212b138a1f7",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren",
+        "hourly_rate": 6.62
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 6.62
+      }
+    },
+    {
+      "name": "Olivia Wooning",
+      "support_id": null,
+      "member_id": "6a408a3a2a6ae5b623a8ddd6",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (28)",
+        "hourly_rate": 20.34
+      },
+      "csv": {
+        "contract_type": "uren contract (28)",
+        "hourly_rate": 20.34
+      }
+    },
+    {
+      "name": "Olivier Homoet",
+      "support_id": null,
+      "member_id": "6a4086ab34b57212b138a1f8",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren",
+        "hourly_rate": 15
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 15
+      }
+    },
+    {
+      "name": "Oud Pepijn Boes",
+      "support_id": null,
+      "member_id": "6a41baa45ed892d0a8b6810f",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (40)",
+        "hourly_rate": 17.48
+      },
+      "csv": {
+        "contract_type": "uren contract (40)",
+        "hourly_rate": 17.48
+      }
+    },
+    {
+      "name": "Patrick Van Aller",
+      "support_id": null,
+      "member_id": "69ca3a753056b2a44dba1b18",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "zzp",
+        "hourly_rate": 16.5
+      },
+      "csv": {
+        "contract_type": "zzp (0)",
+        "hourly_rate": 16.5
+      }
+    },
+    {
+      "name": "Pepijn Boes",
+      "support_id": null,
+      "member_id": "6a408a3a2a6ae5b623a8ddd8",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (40)",
+        "hourly_rate": 19.52
+      },
+      "csv": {
+        "contract_type": "uren contract (40)",
+        "hourly_rate": 19.52
+      }
+    },
+    {
+      "name": "Pepijn Boes",
+      "support_id": null,
+      "member_id": "6a408a3a2a6ae5b623a8ddd8",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (40)",
+        "hourly_rate": 19.52
+      },
+      "csv": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 16.83
+      }
+    },
+    {
+      "name": "Pepijn Boes",
+      "support_id": null,
+      "member_id": "6a408a3a2a6ae5b623a8ddd8",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (40)",
+        "hourly_rate": 19.52
+      },
+      "csv": {
+        "contract_type": "uren contract (40)",
+        "hourly_rate": 19.52
+      }
+    },
+    {
+      "name": "Philip Sjouke",
+      "support_id": null,
+      "member_id": "6a408a3a2a6ae5b623a8dddb",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 24.9
+      },
+      "csv": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 24.9
+      }
+    },
+    {
+      "name": "Philip Sjouke",
+      "support_id": null,
+      "member_id": "6a408a3a2a6ae5b623a8dddb",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 24.9
+      },
+      "csv": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 16
+      }
+    },
+    {
+      "name": "Philip Sjouke",
+      "support_id": null,
+      "member_id": "6a408a3a2a6ae5b623a8dddb",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 24.9
+      },
+      "csv": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 24.9
+      }
+    },
+    {
+      "name": "Quinten Koolen",
+      "support_id": null,
+      "member_id": "6a408a3b2a6ae5b623a8ddde",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "zzp (0)",
+        "hourly_rate": 32.5
+      },
+      "csv": {
+        "contract_type": "zzp (0)",
+        "hourly_rate": 32.5
+      }
+    },
+    {
+      "name": "Quinten Van Der Linden",
+      "support_id": null,
+      "member_id": "69ca3a753056b2a44dba1b19",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren",
+        "hourly_rate": 9.14
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 11.03
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Raitis Kravalis",
+      "support_id": null,
+      "member_id": "69ca3a753056b2a44dba1b1a",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren",
+        "hourly_rate": 24.5
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 24.5
+      }
+    },
+    {
+      "name": "Rene Ameling",
+      "support_id": null,
+      "member_id": "6a408a3b2a6ae5b623a8dddf",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 16.55
+      },
+      "csv": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 16.55
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Robbin Van Zanen",
+      "support_id": null,
+      "member_id": "6a408a3b2a6ae5b623a8dde0",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 14.03
+      },
+      "csv": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 14.03
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Robin Hendriks",
+      "support_id": null,
+      "member_id": "6a408a3b2a6ae5b623a8dde1",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren",
+        "hourly_rate": 18.78
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 18.78
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Robin Wühl",
+      "support_id": null,
+      "member_id": "69ca3a753056b2a44dba1b1b",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (38.0)",
+        "hourly_rate": 17.63
+      },
+      "csv": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 17.63
+      }
+    },
+    {
+      "name": "Roko Savic",
+      "support_id": null,
+      "member_id": "6a408a3b2a6ae5b623a8dde2",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 16
+      },
+      "csv": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 16
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Roland Warners",
+      "support_id": null,
+      "member_id": "6a408a3b2a6ae5b623a8dde3",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (36)",
+        "hourly_rate": 17.51
+      },
+      "csv": {
+        "contract_type": "uren contract (36)",
+        "hourly_rate": 17.51
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Roniro Boaventura",
+      "support_id": null,
+      "member_id": "69ca3a753056b2a44dba1b1c",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (28.0)",
+        "hourly_rate": 17.8
+      },
+      "csv": {
+        "contract_type": "uren contract (28)",
+        "hourly_rate": 17.8
+      }
+    },
+    {
+      "name": "Sander Raamsdonk",
+      "support_id": null,
+      "member_id": "6a408a3b2a6ae5b623a8dde4",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 19.65
+      },
+      "csv": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 19.65
+      }
+    },
+    {
+      "name": "Sander Van Raamsdonk",
+      "support_id": null,
+      "member_id": "69ca3a753056b2a44dba1b1e",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (38.0)",
+        "hourly_rate": 20.14
+      },
+      "csv": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 20.14
+      }
+    },
+    {
+      "name": "Sanno Moningka",
+      "support_id": null,
+      "member_id": "69ca3a753056b2a44dba1b1f",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (32.0)",
+        "hourly_rate": 17.07
+      },
+      "csv": {
+        "contract_type": "uren contract (32)",
+        "hourly_rate": 17.07
+      }
+    },
+    {
+      "name": "Sara Wams",
+      "support_id": null,
+      "member_id": "69ca3a763056b2a44dba1b20",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren",
+        "hourly_rate": 14.06
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 14.06
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Sarah De Vries",
+      "support_id": null,
+      "member_id": "69ca3a763056b2a44dba1b21",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren (0)",
+        "hourly_rate": 15
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 13.27
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Sarkis Biesaart",
+      "support_id": null,
+      "member_id": "69ca3a763056b2a44dba1b22",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren",
+        "hourly_rate": 16
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 16
+      }
+    },
+    {
+      "name": "Sasha Zwanenburg",
+      "support_id": null,
+      "member_id": "6a408a3b2a6ae5b623a8dde5",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (36)",
+        "hourly_rate": 14.59
+      },
+      "csv": {
+        "contract_type": "uren contract (36)",
+        "hourly_rate": 14.59
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Semme Blankestijn",
+      "support_id": null,
+      "member_id": "6a408a3b2a6ae5b623a8dde6",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 16.34
+      },
+      "csv": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 16.34
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Shif Van Witsen",
+      "support_id": null,
+      "member_id": "6a408a3b2a6ae5b623a8dde7",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren",
+        "hourly_rate": 15
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 15
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Shoef Achahbar",
+      "support_id": null,
+      "member_id": "69ca3a763056b2a44dba1b23",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract",
+        "hourly_rate": 22.03
+      },
+      "csv": {
+        "contract_type": "uren contract (40)",
+        "hourly_rate": 22.03
+      }
+    },
+    {
+      "name": "Shurrendall Cijntje",
+      "support_id": null,
+      "member_id": "6a408a3b2a6ae5b623a8dde8",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 19.65
+      },
+      "csv": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 19.65
+      }
+    },
+    {
+      "name": "Shurrendall Cijntje",
+      "support_id": null,
+      "member_id": "6a408a3b2a6ae5b623a8dde8",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 19.65
+      },
+      "csv": {
+        "contract_type": "uren contract (32)",
+        "hourly_rate": 17.5
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Simone Ekkelboom",
+      "support_id": null,
+      "member_id": "6a408a3b2a6ae5b623a8ddea",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren",
+        "hourly_rate": 14
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 14
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Sophia Van De Kamp",
+      "support_id": null,
+      "member_id": "69ca3a763056b2a44dba1b24",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren",
+        "hourly_rate": 14.71
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 14.71
+      }
+    },
+    {
+      "name": "Sophie De Kempenaer",
+      "support_id": null,
+      "member_id": "6a408a3b2a6ae5b623a8ddeb",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren",
+        "hourly_rate": 9.14
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 9.14
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Sophie Van Eijk",
+      "support_id": null,
+      "member_id": "69ca3a763056b2a44dba1b25",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract",
+        "hourly_rate": 18.91
+      },
+      "csv": {
+        "contract_type": "uren contract (36)",
+        "hourly_rate": 20.05
+      }
+    },
+    {
+      "name": "Stella Baijens",
+      "support_id": null,
+      "member_id": "6a408a3b2a6ae5b623a8ddec",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren",
+        "hourly_rate": 19.28
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 19.28
+      }
+    },
+    {
+      "name": "Stella Wolters",
+      "support_id": null,
+      "member_id": "6a408a3b2a6ae5b623a8dded",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren",
+        "hourly_rate": 14.4
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 14.4
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Storm Weimar",
+      "support_id": null,
+      "member_id": "6a408a3b2a6ae5b623a8ddee",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 15.96
+      },
+      "csv": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 15.96
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Suzan De Jong",
+      "support_id": null,
+      "member_id": "6a408a3b2a6ae5b623a8ddef",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (40)",
+        "hourly_rate": 28.85
+      },
+      "csv": {
+        "contract_type": "uren contract (40)",
+        "hourly_rate": 28.85
+      }
+    },
+    {
+      "name": "Tal Steenwijk",
+      "support_id": null,
+      "member_id": "6a408a3c2a6ae5b623a8ddf0",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren",
+        "hourly_rate": 10.55
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 10.55
+      }
+    },
+    {
+      "name": "Tess Van Den Berg",
+      "support_id": null,
+      "member_id": "6a408a3c2a6ae5b623a8ddf1",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren",
+        "hourly_rate": 9.14
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 9.14
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Tessa Nobbe",
+      "support_id": null,
+      "member_id": "6a408a3c2a6ae5b623a8ddf2",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 19.65
+      },
+      "csv": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 19.65
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Ties Rempt",
+      "support_id": null,
+      "member_id": "6a408a3c2a6ae5b623a8ddf3",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 15.99
+      },
+      "csv": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 15.99
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Tim Zuilhof",
+      "support_id": null,
+      "member_id": "69ca3a763056b2a44dba1b26",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (38.0)",
+        "hourly_rate": 16.44
+      },
+      "csv": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 16.44
+      }
+    },
+    {
+      "name": "Timo Sleiffer",
+      "support_id": null,
+      "member_id": "69ca3a763056b2a44dba1b27",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract",
+        "hourly_rate": 19.08
+      },
+      "csv": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 18.61
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Timothy Hamid",
+      "support_id": null,
+      "member_id": "69ca3a763056b2a44dba1b28",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (38.0)",
+        "hourly_rate": 18.11
+      },
+      "csv": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 18.11
+      }
+    },
+    {
+      "name": "Timur Waanders",
+      "support_id": null,
+      "member_id": "6a4086ab34b57212b138a1f9",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren (0)",
+        "hourly_rate": 18.6
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 18.6
+      }
+    },
+    {
+      "name": "Tj Luyten",
+      "support_id": null,
+      "member_id": "6a408a3c2a6ae5b623a8ddf4",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (32)",
+        "hourly_rate": 10.82
+      },
+      "csv": {
+        "contract_type": "uren contract (32)",
+        "hourly_rate": 10.82
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Tjalling Andringa",
+      "support_id": null,
+      "member_id": "69ca3a763056b2a44dba1b29",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren (0)",
+        "hourly_rate": 6.62
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 6.62
+      }
+    },
+    {
+      "name": "Tomasz Antochow",
+      "support_id": null,
+      "member_id": "6a408a3c2a6ae5b623a8ddf5",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 14.62
+      },
+      "csv": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 14.62
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Toon Overwijk",
+      "support_id": null,
+      "member_id": "6a408a3c2a6ae5b623a8ddf6",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren",
+        "hourly_rate": 14.06
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 14.06
+      }
+    },
+    {
+      "name": "Uitzend Afwasser Uitzend",
+      "support_id": null,
+      "member_id": "6a408a3c2a6ae5b623a8ddf7",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 24.29
+      },
+      "csv": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 24.29
+      }
+    },
+    {
+      "name": "Umberto Ceriani",
+      "support_id": null,
+      "member_id": "6a408a3c2a6ae5b623a8ddf8",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (40)",
+        "hourly_rate": 18.04
+      },
+      "csv": {
+        "contract_type": "uren contract (40)",
+        "hourly_rate": 18.04
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Vaïa Tzioras",
+      "support_id": null,
+      "member_id": "69ca3a763056b2a44dba1b2a",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren",
+        "hourly_rate": 10.8
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 10.8
+      }
+    },
+    {
+      "name": "Vera Van Der Duin",
+      "support_id": null,
+      "member_id": "69ca3a763056b2a44dba1b2b",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren (0)",
+        "hourly_rate": 16
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 14.06
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Vladimiros Grammatopoulos",
+      "support_id": null,
+      "member_id": "6a408a3c2a6ae5b623a8ddf9",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 13.66
+      },
+      "csv": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 13.66
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Wesley De Kuijper",
+      "support_id": null,
+      "member_id": "6a408a3c2a6ae5b623a8ddfa",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (40)",
+        "hourly_rate": 17.45
+      },
+      "csv": {
+        "contract_type": "uren contract (40)",
+        "hourly_rate": 17.45
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Wessel Plugge",
+      "support_id": null,
+      "member_id": "6a408a3c2a6ae5b623a8ddfb",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 17.07
+      },
+      "csv": {
+        "contract_type": "uren contract (38)",
+        "hourly_rate": 17.07
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Wies Van Nijnanten",
+      "support_id": null,
+      "member_id": "6a408a3c2a6ae5b623a8ddfc",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren",
+        "hourly_rate": 14.4
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 14.4
+      }
+    },
+    {
+      "name": "Xavi De Lange | Leerling",
+      "support_id": null,
+      "member_id": "69ca3a763056b2a44dba1b2d",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract",
+        "hourly_rate": 2
+      },
+      "csv": {
+        "contract_type": "uren contract (16)",
+        "hourly_rate": null
+      }
+    },
+    {
+      "name": "Xavi | Sandsteps Account",
+      "support_id": null,
+      "member_id": "69ca3a763056b2a44dba1b2e",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren",
+        "hourly_rate": 9.36
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 9.36
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Yasmina Kenswil",
+      "support_id": null,
+      "member_id": "6a408a3c2a6ae5b623a8ddfd",
+      "active": false,
+      "action": "fill_missing",
+      "fields": {
+        "contract_type": "uren contract (16)"
+      },
+      "current": {
+        "contract_type": "uren contract (16)",
+        "hourly_rate": null
+      },
+      "csv": {
+        "contract_type": "uren contract (16)",
+        "hourly_rate": null
+      }
+    },
+    {
+      "name": "Yde Buitelaar",
+      "support_id": null,
+      "member_id": "69ca3a763056b2a44dba1b2f",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren (0)",
+        "hourly_rate": 9.56
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 7.73
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Yetkin Metin | Leerling",
+      "support_id": null,
+      "member_id": "6a4086ab34b57212b138a1fa",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "uren contract (16.0)",
+        "hourly_rate": 2
+      },
+      "csv": {
+        "contract_type": "uren contract (16)",
+        "hourly_rate": null
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Youk Van Buren",
+      "support_id": null,
+      "member_id": "6a408a3c2a6ae5b623a8ddfe",
+      "active": false,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "zzp (0)",
+        "hourly_rate": 22.5
+      },
+      "csv": {
+        "contract_type": "zzp (0)",
+        "hourly_rate": 22.5
+      },
+      "reason": "Inactive — already has contract data"
+    },
+    {
+      "name": "Ziggy Bruijninckx",
+      "support_id": null,
+      "member_id": "69ca3a763056b2a44dba1b31",
+      "active": true,
+      "action": "skip_ok",
+      "fields": {},
+      "current": {
+        "contract_type": "nul uren",
+        "hourly_rate": 14.4
+      },
+      "csv": {
+        "contract_type": "nul uren",
+        "hourly_rate": 15
+      }
+    }
+  ]
+}

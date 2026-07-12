@@ -341,6 +341,16 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * @registry-id: dailyOpsInboxBorkStaff
+ * @last-modified: 2026-07-02T00:00:00.000Z
+ * @description: Bork staff inbox hub
+ * @last-fix: [2026-07-02] ADR-013 read-cache metadata
+ * @adr-ref: ADR-013
+ * @data-source: direct-db
+ * @read-cache-json: none
+ * @imports-data-from: GET /api/daily-ops/bork-staff
+ */
 import BorkStaffMemberProfilePanel from '~/components/daily-ops/inbox/BorkStaffMemberProfilePanel.vue'
 
 const FILTER_ALL = '__all__'

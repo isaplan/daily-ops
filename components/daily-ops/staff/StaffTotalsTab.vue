@@ -327,6 +327,16 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * @description: Staff totals charts — hours, headcount, revenue overlay
+ * @last-modified: 2026-07-02T00:00:00.000Z
+ * @last-fix: [2026-07-02] ADR-013 read-cache metadata
+ * @adr-ref: ADR-004, ADR-010, ADR-013
+ * @data-source: read-cache
+ * @read-cache-json: staff-timeseries (via GET /api/daily-ops/staff/timeseries)
+ * @imports-data-from: composables/useDailyOpsStaffMetrics.ts
+ */
+
 import D3GroupedBarChart from '~/components/charts/D3GroupedBarChart.vue'
 import D3StackedBarChart from '~/components/charts/D3StackedBarChart.vue'
 import type { GroupedBarDataPoint, GroupedBarReferenceLine, GroupedBarSeries } from '~/components/charts/D3GroupedBarChart.vue'

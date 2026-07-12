@@ -1,9 +1,12 @@
 /**
  * @registry-id: dailyOpsVenueStripGet
  * @created: 2026-05-16T23:30:00.000Z
- * @last-modified: 2026-05-16T23:30:00.000Z
- * @description: GET /api/daily-ops/metrics/venue-strip — 3-venue KPI strip for Today/Yesterday.
- * @last-fix: [2026-05-16] Initial v1.
+ * @last-modified: 2026-07-02T00:00:00.000Z
+ * @description: GET /api/daily-ops/metrics/venue-strip — read dashboard-bundle cache (ADR-013)
+ * @last-fix: [2026-07-02] Mongo read-cache lookup via loadCachedVenueStrip(db)
+ * @adr-ref: ADR-004, ADR-010, ADR-013
+ * @data-source: read-cache
+ * @read-cache-json: daily_ops_read_cache · profile=dashboard-bundle · venueStrip slice
  *
  * @exports-to:
  * ✓ components/daily-ops/DailyOpsVenueStrip.vue
@@ -21,12 +24,12 @@ export default defineEventHandler(async (event): Promise<VenueStripResponseDto> 
   const ctx = parseDailyOpsMetricsQuery(q)
   setResponseHeader(event, 'Cache-Control', snapshotCacheControl(ctx))
 
-  const cached = await loadCachedVenueStrip(ctx)
+  const db = await getDb()
+  const cached = await loadCachedVenueStrip(db, ctx)
   if (cached) {
     console.info(`[venue-strip:cache] HIT ${ctx.startDate}..${ctx.endDate}`)
     return cached
   }
 
-  const db = await getDb()
   return buildVenueStripResponse(db, ctx)
 })

@@ -19,13 +19,13 @@
         :summary="summary"
       />
 
-      <DailyOpsVenueStrip :period="period" :anchor="anchor" />
+      <DailyOpsVenueStrip :period="period" :anchor="anchor" :period-breakdown="periodBreakdown" />
 
       <UAlert
         v-if="snapshotCoverageAlert"
         color="warning"
         variant="soft"
-        title="Partial period — missing snapshot days"
+        title="Partial period — incomplete data"
         :description="snapshotCoverageAlert"
       />
 
@@ -82,6 +82,16 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * @description: Home dashboard — KPI, venue strip, revenue + labor sections
+ * @last-modified: 2026-07-02T00:00:00.000Z
+ * @last-fix: [2026-07-02] ADR-013 read-cache metadata
+ * @adr-ref: ADR-004, ADR-010, ADR-013
+ * @data-source: read-cache
+ * @read-cache-json: dashboard-bundle (via GET /api/daily-ops/metrics/bundle)
+ * @imports-data-from: composables/useDailyOpsDashboardMetrics.ts
+ */
+
 import WorkerDetailsDrawer from '~/components/daily-ops/WorkerDetailsDrawer.vue'
 
 const props = withDefaults(
@@ -115,17 +125,18 @@ const locationTitle = computed(() => {
   return hit?.name ?? 'Selected Location'
 })
 
-const { summary: summaryRef, revenue: revenueRef, labor: laborRef, pending, error, refresh: refreshMetrics } = useDailyOpsDashboardMetrics()
+const { summary: summaryRef, revenue: revenueRef, labor: laborRef, periodBreakdown: periodBreakdownRef, pending, error, refresh: refreshMetrics } = useDailyOpsDashboardMetrics()
 const summary = computed(() => summaryRef.value ?? null)
 const revenue = computed(() => revenueRef.value ?? null)
 const labor = computed(() => laborRef.value ?? null)
+const periodBreakdown = computed(() => periodBreakdownRef.value ?? null)
 
 const snapshotCoverageAlert = computed(() => {
   const cov = summary.value?.snapshotCoverage
   if (!cov?.missingDates?.length) return null
   const preview = cov.missingDates.slice(0, 8).join(', ')
   const more = cov.missingDates.length > 8 ? ` (+${cov.missingDates.length - 8} more)` : ''
-  return `${cov.daysFound}/${cov.daysExpected} days loaded. Missing: ${preview}${more}. Run snapshot backfill for those dates.`
+  return `${cov.daysFound}/${cov.daysExpected} days loaded. Missing: ${preview}${more}. Run pnpm snapshots:backfill:gaps to fix.`
 })
 
 const {

@@ -1,3 +1,12 @@
+/**
+ * @registry-id: useDailyOpsRevenueCompare
+ * @last-modified: 2026-07-02T00:00:00.000Z
+ * @description: Revenue delta formatting helpers
+ * @last-fix: [2026-07-02] ADR-013 read-cache metadata
+ * @adr-ref: ADR-013
+ * @data-source: none
+ * @read-cache-json: none
+ */
 export type RevenueDelta = { amount: number; pct: number | null }
 
 export function revenueDelta(current: number, compare: number | null | undefined): RevenueDelta | null {

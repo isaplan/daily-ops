@@ -315,6 +315,17 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * @registry-id: dailyOpsStaffIndexPage
+ * @created: 2026-06-20T00:00:00.000Z
+ * @last-modified: 2026-07-02T00:00:00.000Z
+ * @description: Staff member list — direct MongoDB member CRUD (not read-cache)
+ * @last-fix: [2026-07-02] ADR-013 read-cache metadata
+ * @adr-ref: ADR-004, ADR-013
+ * @data-source: direct-db
+ * @read-cache-json: none
+ * @imports-data-from: GET /api/daily-ops/staff
+ */
 import StaffMemberProfilePanel from '~/components/daily-ops/staff/StaffMemberProfilePanel.vue'
 import { staffContractTypeSelectOptions, STAGE_CONTRACT_HOURLY_EUR, isStageContractType } from '~/utils/staffContractTypeOptions'
 

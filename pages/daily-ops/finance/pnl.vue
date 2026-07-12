@@ -135,6 +135,16 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * @registry-id: dailyOpsFinancePnl
+ * @last-modified: 2026-07-02T00:00:00.000Z
+ * @description: Accounting P&L benchmarks
+ * @last-fix: [2026-07-02] ADR-013 read-cache metadata
+ * @adr-ref: ADR-013
+ * @data-source: direct-db
+ * @read-cache-json: none
+ * @imports-data-from: GET /api/daily-ops/finance/pnl
+ */
 import type { AccountingPnlBenchmarkResponseDto } from '~/types/accounting-pnl-benchmark'
 import type { AccountingPnlVenueId } from '~/utils/accountingPnlData'
 import {

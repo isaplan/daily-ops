@@ -42,6 +42,7 @@ flowchart TB
     SnapMaster[daily_ops_snapshot]
     SnapLabor[daily_ops_snapshot_section_labor]
     SnapRev[daily_ops_snapshot_section_revenue]
+    ReadCache[daily_ops_read_cache]
   end
   Gmail --> InboxHours
   Gmail --> InboxContracts
@@ -57,10 +58,11 @@ flowchart TB
   BorkAgg --> SnapRev
   SnapLabor --> SnapMaster
   SnapRev --> SnapMaster
-  SnapMaster --> UI[Daily_Ops_UI]
+  SnapMaster --> ReadCache
+  ReadCache --> UI[Daily_Ops_UI]
 ```
 
-**Rule:** Dashboard UI reads **snapshots only** (ADR-004). Member profile reads **`members`** (+ optional joins). Eitje inbox pages read **latest inbox rows** for operational review, not for dashboard KPIs.
+**Rule:** Writers materialize **`daily_ops_snapshot*`** from warm tier (ADR-004). **GET handlers read `daily_ops_read_cache` only** — small prebuilt JSON per page/period (ADR-013). Snapshots are not assembled on page load. Member profile reads **`members`** (+ optional joins). Eitje inbox pages read **latest inbox rows** for operational review, not for dashboard KPIs.
 
 ---
 
@@ -80,9 +82,10 @@ flowchart TB
 | `bork_raw_data` | Raw API | Bork daily tickets | — | Bork sync | `borkRebuildAggregationV2Service` |
 | `eitje_time_registration_aggregation` | Aggregation | Per user/team/location/period labor totals + resolved rates | Labor facts per period | `eitjeRebuildAggregationService` | Snapshot labor section, metrics |
 | `bork_sales_by_*` | Aggregation | Revenue rollups (hour, worker, product, …) | Revenue facts | `borkRebuildAggregationV2Service` | Snapshots, sales pages |
-| `daily_ops_snapshot` | Read model | Master KPIs per location × business date | Dashboard cards | `dailyOpsSnapshotService` | `bundle.get`, home dashboard |
-| `daily_ops_snapshot_section_labor` | Read model | Labor breakdown (teams, workers) | Dashboard labor detail | `buildLaborSection` | Dashboard, range rollups |
-| `daily_ops_snapshot_section_revenue` | Read model | Revenue breakdown | Dashboard revenue detail | `buildRevenueSection` | Dashboard |
+| `daily_ops_snapshot` | Read model | Master KPIs per location × business date | Snapshot cards (write path) | `dailyOpsSnapshotService` | Cache writers |
+| `daily_ops_snapshot_section_labor` | Read model | Labor breakdown (teams, workers) | Dashboard labor detail (write path) | `buildLaborSection` | Cache writers |
+| `daily_ops_snapshot_section_revenue` | Read model | Revenue breakdown | Dashboard revenue detail (write path) | `buildRevenueSection` | Cache writers |
+| `daily_ops_read_cache` | Read model | Small prebuilt JSON per profile × period (ADR-013) | **All Daily Ops GET UI** | Post-snapshot cache writers | `bundle.get`, staff/revenue GET APIs |
 | `notes` | App data | Notes, todos, agrees (BlockNote JSON) | Note content | Notes API | Member connections, notes UI |
 
 ---

@@ -1,22 +1,27 @@
 /**
+ * @registry-id: useDailyOpsDashboardMetrics
  * @created: 2026-05-18T00:00:00.000Z
- * @last-modified: 2026-06-08T00:00:00.000Z
+ * @last-modified: 2026-07-02T00:00:00.000Z
  * @description: Dashboard metrics via single snapshot bundle (ADR-004). One HTTP round-trip; progressive UI gates on summary only.
- * @last-fix: [2026-06-08] Snapshot-version poll replaces cron-hour cache guessing and illegal GET patch.
- *   Poll activates only 4–10 min after a scheduled cron hour; stops immediately on lastBuiltAt advance.
- *   Prior: [2026-06-07] Cache invalidation follows per-weekday Bork/Eitje cron SSOT
- * @adr-ref: ADR-004, ADR-010
+ * @last-fix: [2026-07-02] ADR-013 read-cache metadata
+ *   Prior: [2026-06-08] Snapshot-version poll replaces cron-hour cache guessing and illegal GET patch
+ * @adr-ref: ADR-004, ADR-010, ADR-013
+ * @data-source: read-cache
+ * @read-cache-json: dashboard-bundle (via GET /api/daily-ops/metrics/bundle)
+ * @imports-data-from: GET /api/daily-ops/metrics/bundle
  *
  * @exports-to:
  * ✓ components/daily-ops/DailyOpsHomeDashboard.vue
  * ✓ components/daily-ops/DailyOpsTodayRevenueCard.vue
  * ✓ components/daily-ops/DailyOpsProductivityLaborSection.vue
  * ✓ components/daily-ops/DailyOpsRevenueMetricsSection.vue (via useDailyOpsRevenueBreakdown)
+ * ✓ pages/daily-ops/index.vue
  */
 import type {
   DailyOpsLaborMetricsDto,
   DailyOpsRevenueBreakdownDto,
   DailyOpsSummaryDto,
+  PeriodBreakdownDto,
 } from '~/types/daily-ops-dashboard'
 import type { ComputedRef, Ref } from 'vue'
 import { amsterdamOpenRegisterBusinessDateYmd } from '~/utils/dailyOpsBusinessDate'
@@ -26,6 +31,7 @@ export type DailyOpsDashboardMetrics = {
   summary: ComputedRef<DailyOpsSummaryDto | null>
   revenue: ComputedRef<DailyOpsRevenueBreakdownDto | null>
   labor: ComputedRef<DailyOpsLaborMetricsDto | null>
+  periodBreakdown: ComputedRef<PeriodBreakdownDto | null>
   /** True while bundle request in flight */
   pending: Ref<boolean>
   /** True until summary slice is available (KPIs / header can render) */
@@ -38,6 +44,7 @@ type DashboardBundleResponse = {
   summary: DailyOpsSummaryDto
   revenue: DailyOpsRevenueBreakdownDto
   labor: DailyOpsLaborMetricsDto
+  periodBreakdown?: PeriodBreakdownDto
 }
 
 type SnapshotVersionResponse = {
@@ -78,6 +85,7 @@ export function useDailyOpsDashboardMetrics(): DailyOpsDashboardMetrics {
   const summary = computed(() => bundle.value?.summary ?? null)
   const revenue = computed(() => bundle.value?.revenue ?? null)
   const labor = computed(() => bundle.value?.labor ?? null)
+  const periodBreakdown = computed(() => bundle.value?.periodBreakdown ?? null)
   const summaryPending = computed(() => pending.value || !summary.value)
 
   /** Snapshot version polling — only active on today view, only in the 4–10 min cron window. */
@@ -140,6 +148,7 @@ export function useDailyOpsDashboardMetrics(): DailyOpsDashboardMetrics {
     summary,
     revenue,
     labor,
+    periodBreakdown,
     pending,
     summaryPending,
     error,

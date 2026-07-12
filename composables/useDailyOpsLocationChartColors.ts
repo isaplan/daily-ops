@@ -1,9 +1,13 @@
 /**
  * @registry-id: useDailyOpsLocationChartColors
  * @created: 2026-05-28T00:00:00.000Z
- * @last-modified: 2026-05-28T00:00:00.000Z
+ * @last-modified: 2026-07-02T00:00:00.000Z
  * @description: Client SSOT for venue graph colors from GET /api/daily-ops/locations (unified_location.chartColor).
- * @last-fix: [2026-05-28] Graph components reference DB-backed location colors.
+ * @last-fix: [2026-07-02] ADR-013 read-cache metadata
+ * @adr-ref: ADR-013
+ * @data-source: direct-db
+ * @read-cache-json: none
+ * @imports-data-from: GET /api/daily-ops/locations
  *
  * @exports-to:
  * ✓ components/daily-ops/DailyOpsTodayHourlyDualAxisChart.vue

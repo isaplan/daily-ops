@@ -1,13 +1,13 @@
 /**
  * @registry-id: dailyOpsMetricsBundle
  * @created: 2026-05-18T00:00:00.000Z
- * @last-modified: 2026-06-18T00:00:00.000Z
- * @description: Single dashboard metrics bundle — snapshot read only (ADR-004). Serves pre-generated JSON for sealed days.
- * @last-fix: [2026-06-20] Reject stale cache when drilldown or profit-by-interval missing
- *   Prior: [2026-06-18] Reject stale cache when profit-by-interval missing; fallback to live snapshot build
- *   Prior: [2026-06-10] Smart cache compose for YTD/year; cap partial periods via period resolver
- *   Prior: [2026-06-05] Check pre-generated bundle cache first (instant page loads)
- * @adr-ref: ADR-004
+ * @last-modified: 2026-07-02T00:00:00.000Z
+ * @description: Dashboard metrics bundle — read daily_ops_read_cache only (ADR-013)
+ * @last-fix: [2026-07-02] Mongo read-cache lookup before live snapshot fallback
+ *   Prior: [2026-06-20] Reject stale cache when drilldown or profit-by-interval missing
+ * @adr-ref: ADR-004, ADR-010, ADR-013
+ * @data-source: read-cache
+ * @read-cache-json: daily_ops_read_cache · profile=dashboard-bundle · levels=daily|weekly|monthly|yearly
  *
  * @exports-to:
  * ✓ composables/useDailyOpsDashboardMetrics.ts
@@ -26,7 +26,8 @@ export default defineEventHandler(async (event) => {
   const ctx = parseDailyOpsMetricsQuery(getQuery(event) as Record<string, unknown>)
   setResponseHeader(event, 'Cache-Control', snapshotCacheControl(ctx))
 
-  const cached = await loadCachedDashboardBundle(ctx)
+  const db = await getDb()
+  const cached = await loadCachedDashboardBundle(db, ctx)
   if (cached && !bundleDashboardSectionsIncomplete(cached)) {
     console.info(
       `[bundle:cache] HIT [composed] ${ctx.startDate}..${ctx.endDate} ${ctx.locationId ?? 'all'}`,
@@ -35,6 +36,7 @@ export default defineEventHandler(async (event) => {
       summary: cached.summary,
       revenue: cached.revenue,
       labor: cached.labor,
+      periodBreakdown: cached.periodBreakdown,
     }
   }
   if (cached && bundleDashboardSectionsIncomplete(cached)) {
@@ -43,11 +45,11 @@ export default defineEventHandler(async (event) => {
     )
   }
 
-  const db = await getDb()
   const bundle = await fetchDailyOpsDashboardBundle(db, ctx)
   return {
     summary: bundle.summary,
     revenue: bundle.revenue,
     labor: bundle.labor,
+    periodBreakdown: bundle.periodBreakdown,
   }
 })

@@ -1,305 +1,325 @@
-# Daily Ops Cache Cascade Architecture
+# Daily Ops Light Read-Cache (ADR-013 + ADR-010)
 
-**ADR-004 Extension** — Instant page loads for all historical data via pre-generated JSON hierarchy.
+**SSOT:** [ADR-013](../DECISIONS.md#adr-013--light-read-cache-small-hierarchical-json-in-mongo-all-daily-ops-pages) · [ADR-010 register business day](../DECISIONS.md#adr-010--register-business-day-is-ssot-for-daily-ops-today)
 
----
-
-## Architecture Overview
-
-```
-MongoDB Snapshots (source of truth)
-    ↓
-Daily JSON Files (from DB snapshots)
-    ↓ aggregate 7 days
-Weekly JSON Files (W01-W53, Mon-Sun ISO weeks)
-    ↓ aggregate days in month
-Monthly JSON Files (YYYY-MM)
-    ↓ aggregate 12 months
-Yearly JSON Files (YYYY)
-```
+**Goal:** Keep the **client light**. Server prebuilds small JSON after snapshot writes; GET handlers read cache only — no aggregation on request.
 
 ---
 
-## Cache Directory Structure
+## Architecture diagram
 
-```
-.cache/daily-ops-bundles/
-  daily/
-    2026-06-01-all.json    (single day, locationId=all)
-    2026-06-01-loc123.json (single day, specific location)
-    ...
-  weekly/
-    2026-W22-all.json      (ISO week 22: June 1-7)
-    2026-W22-loc123.json
-    ...
-  monthly/
-    2026-06-all.json       (entire June)
-    2026-06-loc123.json
-    ...
-  yearly/
-    2026-all.json          (entire 2026)
-    2026-loc123.json
-    ...
+```mermaid
+flowchart TB
+  subgraph ingest [Cron / seal]
+    Cron[Bork + Eitje + Inbox cron]
+    SnapWrite["buildDailyOpsSnapshot(business_date)"]
+  end
+
+  subgraph ssot [Write SSOT — Mongo]
+    SnapMaster["daily_ops_snapshot_master<br/>businessDate = register day"]
+    SnapSections["snapshot sections<br/>revenue · labor · hourly…"]
+  end
+
+  subgraph cache [Read cache — Mongo hot tier]
+    Core["core-daily/{business_date}<br/>revenue · labor · hours · headcount"]
+    Dash["profile: dashboard-bundle"]
+    Staff["profile: staff-timeseries"]
+    Rev["profile: revenue-timeseries"]
+    Other["profile: … per child page"]
+  end
+
+  subgraph hierarchy [Time keys — all business_date aligned]
+    Daily["level: daily<br/>key: 2026-06-15"]
+    Weekly["level: weekly<br/>key: 2026-W24"]
+    Monthly["level: monthly<br/>key: 2026-06"]
+    Yearly["level: yearly<br/>key: 2026"]
+  end
+
+  subgraph read [GET — light client]
+    Period["resolveDailyOpsPeriod()<br/>ADR-010 anchor"]
+    Lookup["findOne daily_ops_read_cache"]
+    UI[Daily Ops pages]
+  end
+
+  Cron --> SnapWrite
+  SnapWrite --> SnapMaster
+  SnapWrite --> SnapSections
+  SnapMaster --> Core
+  SnapSections --> Core
+  Core --> Dash
+  Core --> Staff
+  Core --> Rev
+  Core --> Other
+  Dash --> Daily
+  Daily --> Weekly
+  Weekly --> Monthly
+  Monthly --> Yearly
+  Period --> Lookup
+  Lookup --> Daily
+  Lookup --> Weekly
+  Lookup --> Monthly
+  Lookup --> Yearly
+  Lookup --> UI
 ```
 
 ---
 
-## Generation Flow
+## Profile × time matrix
 
-### 1. Daily JSON Generation (Source)
+```mermaid
+flowchart LR
+  subgraph time [Time spine — business_date]
+    D[daily YYYY-MM-DD]
+    W[weekly YYYY-Wxx]
+    M[monthly YYYY-MM]
+    Y[yearly YYYY]
+    D --> W --> M --> Y
+  end
 
-**Trigger:** After snapshot build or seal
-**Source:** `daily_ops_snapshot_*` collections
-**Output:** `.cache/daily-ops-bundles/daily/{YYYY-MM-DD}-{locationId}.json`
+  subgraph profiles [Profiles — small payloads]
+    P1[dashboard-bundle<br/>KPI + strip + daily drilldown]
+    P2[staff-timeseries<br/>hours · count · revenue copy]
+    P3[revenue-timeseries<br/>chart points]
+    P4[revenue-products/tables<br/>daily only]
+  end
 
-**Automated in:**
-- `server/services/dailyOpsSnapshotService.ts` → `buildDailyOpsSnapshot()`
-- `server/services/dailyOpsSnapshotService.ts` → `sealDailyOpsSnapshot()`
-- `server/services/dailyOpsSnapshotService.ts` → `buildDailyOpsSnapshotRange()`
+  time --- profiles
+```
 
-### 2. Weekly JSON Aggregation
+| Profile | daily | weekly | monthly | yearly | Status |
+|---------|-------|--------|---------|--------|--------|
+| `dashboard-bundle` | full detail + strip | totals | totals | totals | Partial → migrate to Mongo |
+| `staff-timeseries` | points + teams | summed | summed | summed | **Not built** |
+| `staff-plusmin` | — | — | totals | totals | **Not built** |
+| `revenue-summary` | KPI totals | totals | totals | totals | **Reserved** |
+| `revenue-timeseries` | point | point | point | point | **Reserved** |
+| `revenue-categories` | breakdown | — | — | — | **Reserved** |
+| `revenue-products` | top products | — | — | — | **Reserved** |
+| `revenue-rolling-medians` | median KPIs | point | point | point | **Reserved** |
 
-**Trigger:** After daily bundle generation complete
-**Source:** 7 daily JSON files (Monday-Sunday ISO week)
-**Output:** `.cache/daily-ops-bundles/weekly/{YYYY-WXX}-{locationId}.json`
-
-**Logic:**
-- ISO week calculation (Thursday determines year)
-- Aggregates revenue, labor, profit from 7 daily bundles
-- Clears detailed breakdowns (hourly, drilldown) for multi-day
-
-### 3. Monthly JSON Aggregation
-
-**Trigger:** After all daily bundles in month exist
-**Source:** All daily JSON files for calendar month
-**Output:** `.cache/daily-ops-bundles/monthly/{YYYY-MM}-{locationId}.json`
-
-**Logic:**
-- Finds all `YYYY-MM-*` daily files
-- Aggregates totals across entire month
-- Partial months supported (e.g., June 1-5 before month ends)
-
-### 4. Yearly JSON Aggregation
-
-**Trigger:** After monthly bundles exist
-**Source:** 12 monthly JSON files
-**Output:** `.cache/daily-ops-bundles/yearly/{YYYY}-{locationId}.json`
-
-**Logic:**
-- Aggregates 12 monthly bundles (or fewer for partial years)
-- Year-to-date totals
-- Highest-level cache for dashboard overview
+Rollups = **totals only**. Dimension breakdowns (products, tables, spaces) = **daily profiles only**.
 
 ---
 
-## API Smart Cache Serving
+## Register business day rules (ADR-010)
 
-**Endpoint:** `GET /api/daily-ops/metrics/bundle`
-**Handler:** `server/api/daily-ops/metrics/bundle.get.ts`
+All cache read/write paths must use the same SSOT as snapshots and UI.
 
-### Cache Selection Logic
+| Rule | Implementation |
+|------|----------------|
+| **Daily key** | `business_date` YYYY-MM-DD = register **opened** that calendar morning (08:00 Amsterdam), not UTC midnight |
+| **“Today”** | `amsterdamOpenRegisterBusinessDateYmd()` only — never `new Date().toISOString().slice(0,10)` |
+| **Period tabs** | `resolveDailyOpsPeriod()` → inclusive `startDate` / `endDate` as business dates |
+| **Partial periods** | `this-week`, `this-month`, `this-year` cap `endDate` to **open register** (not future calendar days) |
+| **Snapshot join** | Cache writers read snapshots where `businessDate === cache daily key` |
+| **Eitje labor** | `eitje_time_registration_aggregation.period === business_date` (already snapshot rule) |
+| **Hourly detail** | Wall-clock hour 00–07 → previous calendar date’s register day via `calendarHourToBusinessDate()` |
+| **Week boundaries** | ISO week keys (`YYYY-Wxx`); member days = business_date dailies inside that week |
+| **Forbidden** | ISO calendar “today” for cache keys, GET paths, or rollup iteration |
 
+**Open register day:** intraday cache refresh after each cron; same `business_date` key overwritten until next register day.
+
+---
+
+## End-to-end read example
+
+```mermaid
+sequenceDiagram
+  participant UI as Revenue page
+  participant API as GET /revenue/timeseries
+  participant Period as resolveDailyOpsPeriod
+  participant BD as dailyOpsBusinessDate
+  participant Mongo as daily_ops_read_cache
+
+  UI->>API: period=this-year anchor=open register
+  API->>Period: resolve
+  Period->>BD: endDate = amsterdamOpenRegisterBusinessDateYmd()
+  Period-->>API: 2026-01-01 .. 2026-07-01
+  API->>Mongo: profile=revenue-timeseries level=monthly keys Jan..Jul
+  Mongo-->>API: small monthly payloads
+  API-->>UI: chart points — no live agg
+```
+
+Staff revenue overlay: **`staff-timeseries`** points include `revenue_ex_vat` copied at write from the same snapshot as `core-daily` — no cross-profile GET at runtime.
+
+---
+
+## Mongo document shape
+
+**Collection:** `daily_ops_read_cache`
+
+| Field | Example |
+|-------|---------|
+| `profile` | `dashboard-bundle`, `staff-timeseries`, `revenue-timeseries` |
+| `level` | `daily` \| `weekly` \| `monthly` \| `yearly` |
+| `key` | `2026-06-15`, `2026-W24`, `2026-06`, `2026` (business-date aligned) |
+| `locationId` | `all` or venue id |
+| `businessDateStart` | optional — rollup range start (business_date) |
+| `businessDateEnd` | optional — rollup range end (business_date) |
+| `payload` | Small JSON blob |
+| `lastBuiltAt` | Invalidation vs snapshot |
+
+**Index:** unique `{ profile, level, key, locationId }`
+
+---
+
+## Write triggers + incremental cascade
+
+**Trigger:** after every `buildDailyOpsSnapshot({ businessDate })` — including intraday open register.
+
+**Incremental rule — only touch what changed:**
+
+```
+snapshot rebuilt for business_date = 2026-07-01
+ ↓
+1. rewrite daily/2026-07-01 (all profiles)
+2. rewrite weekly/2026-W27   ← contains Jul 1
+3. rewrite monthly/2026-07   ← contains Jul 1
+4. rewrite yearly/2026       ← contains Jul 1
+
+Past sealed periods (2026-06, 2025, etc.) → untouched
+```
+
+**Parent rollup rewrite condition:** only when a daily doc *inside* that period actually changed. No cron-wide rebuild of all months/years every time.
+
+**Backfill:** if a historical snapshot is corrected (e.g. via `buildDailyOpsSnapshotRange`), cascade upward for only the affected date's parent week/month/year.
+
+**Open register day:** overwrite same `business_date` key on each cron until register closes and day seals. Weekly/monthly/yearly follow same overwrite — no delete, upsert only.
+
+**Sealed days:** rewrite only when `forceReopenSealed` / warm tier newer (same guard as snapshot write).
+
+---
+
+## Read path (API)
+
+1. `resolveDailyOpsPeriod()` (ADR-010) → `{ startDate, endDate }` business dates
+2. Map to `{ profile, level, key, locationId }`
+3. `findOne` / compose from monthly/yearly docs
+4. Miss → `dataGap` + ops notification — **no** live assembly on GET
+
+---
+
+## Metadata headers — full stack (implementation plan)
+
+**Goal:** Every Daily Ops file in the data chain gets a metadata header with **correct JSON / cache refs**. No skipping. Headers are slightly bigger; AI can change code without re-discovering read-cache wiring.
+
+**Scope — header required on:**
+
+| Layer | Path pattern | When |
+|-------|--------------|------|
+| GET API | `server/api/daily-ops/**/*.ts` | Always |
+| Write / cache | `server/utils/dailyOpsSnapshot/*`, `server/services/dailyOpsSnapshotService.ts`, `server/plugins/bundle-cache-catchup.ts` | Always |
+| Fetch utils | `server/utils/dailyOps{Metrics,Staff,Revenue,Insights}/*.ts` | Always |
+| Composables | `composables/useDailyOps*.ts` | Always |
+| Pages | `pages/daily-ops/**/*.vue` | Always |
+| Components | `components/daily-ops/**/*.vue` | Always (any file that renders metrics or calls `/api/daily-ops/*`) |
+| Types | `types/daily-ops-*.ts` | When payload shape matches a cache profile |
+
+**Not read-cache (still need header + `@data-source: direct-db`):** `/daily-ops/staff` member list, inbox CRUD, Eitje/Bork admin, product-catalog sync.
+
+### Required header fields (ADR-013 extensions)
+
+Use existing metadata format (`.cursor/rules/METADATA-SYNC-GUIDE.md`) **plus**:
+
+| Tag | Who | Value |
+|-----|-----|--------|
+| `@adr-ref` | All in chain | `ADR-004`, `ADR-010`, `ADR-013` (+ `ADR-006` if retention) |
+| `@read-cache-json` | GET, composable, page, component | `daily_ops_read_cache` profile + levels, e.g. `dashboard-bundle · daily\|weekly\|monthly\|yearly` |
+| `@write-cache-json` | Snapshot/cache writers | Profiles written + cascade trigger, e.g. `dashboard-bundle · daily→weekly→monthly→yearly after buildDailyOpsSnapshot` |
+| `@data-source` | Any file | `read-cache` \| `snapshot-write-only` \| `direct-db` \| `mixed` |
+| `@imports-data-from` | Page / component | Composable or GET path (one hop) |
+| `@exports-to` / `@imports-from` | Unchanged | Keep dependency graph accurate |
+
+**`@read-cache-json: none`** only when `@data-source: direct-db` (e.g. staff member list).
+
+### Header templates
+
+**GET handler (read-cache target):**
 ```typescript
-if (startDate === endDate && sealed) {
-  → serve from daily/{date}-{locationId}.json
-}
-else if (exact ISO week range) {
-  → serve from weekly/{YYYY-WXX}-{locationId}.json
-}
-else if (exact calendar month) {
-  → serve from monthly/{YYYY-MM}-{locationId}.json
-}
-else if (exact calendar year) {
-  → serve from yearly/{YYYY}-{locationId}.json
-}
-else {
-  → fallback to dynamic DB fetch + aggregation
-}
+/**
+ * @registry-id: dailyOpsRevenueTimeseries
+ * @description: Revenue chart points — read-cache only (ADR-013)
+ * @adr-ref: ADR-004, ADR-010, ADR-013
+ * @data-source: read-cache
+ * @read-cache-json: daily_ops_read_cache · profile=revenue-timeseries · levels=daily|weekly|monthly|yearly
+ * @imports-from:
+ *   - server/utils/dailyOpsRevenue/fetchRevenueDailySeries.ts
+ * @exports-to:
+ *   ✓ composables/useDailyOpsRevenueMetrics.ts
+ */
 ```
 
-### Cache Miss Handling
+**Cache writer:**
+```typescript
+/**
+ * @registry-id: dailyOpsPreGenerateBundleCache
+ * @adr-ref: ADR-004, ADR-010, ADR-013
+ * @data-source: snapshot-write-only
+ * @write-cache-json: daily_ops_read_cache · dashboard-bundle · daily+weekly+monthly+yearly · after buildDailyOpsSnapshot(businessDate)
+ * @exports-to:
+ *   ✓ server/services/dailyOpsSnapshotService.ts
+ */
+```
 
-- Logs `[bundle:cache] MISS [level] ...`
-- Falls back to dynamic snapshot fetch
-- Returns correct data (slower, but always works)
+**Composable / page / component:**
+```typescript
+/**
+ * @description: Staff totals charts — consumes staff-timeseries JSON via API
+ * @adr-ref: ADR-013
+ * @data-source: read-cache
+ * @read-cache-json: staff-timeseries (via GET /api/daily-ops/staff/timeseries)
+ * @imports-data-from: composables/useDailyOpsStaffMetrics.ts
+ */
+```
+
+### Page → JSON profile map (SSOT for AI)
+
+| Route | Primary JSON profile | GET API | Composable | Header status |
+|-------|---------------------|---------|------------|---------------|
+| `/daily-ops` | `dashboard-bundle` | `/metrics/bundle`, `/metrics/venue-strip` | `useDailyOpsDashboardMetrics` | Partial — missing ADR-013 + `@read-cache-json` on several files |
+| `/daily-ops/staff` | — (`direct-db` members) | `/staff`, `/eitje-staff` | `useDailyOpsStaffMetrics` | Missing on page + GET |
+| `/daily-ops/staff/totals` | `staff-timeseries` | `/staff/timeseries` | `useDailyOpsStaffMetrics` | Missing on GET + page + chart components |
+| `/daily-ops/staff/plusmin` | `staff-plusmin` | `/staff/plusmin-summary` | `useDailyOpsStaffPlusmin` | Partial composable only |
+| `/daily-ops/revenue` | `revenue-summary`, `revenue-timeseries`, … | `/revenue/*` | `useDailyOpsRevenueMetrics` | **Reserved** — no revenue GET headers yet |
+| `/daily-ops/insights` | TBD (likely `dashboard-bundle` subset) | `/insights` | `useDailyOpsInsightsMetrics` | Partial composable only |
+| `/daily-ops/productivity` | `dashboard-bundle` labor slice | `/productivity`, `/metrics/labor` | mixed | Missing most headers |
+| Inbox / settings / datalab | `direct-db` | various | — | Needs `@data-source: direct-db` only |
+
+Revenue child APIs → profile mapping (wire when page is built; headers **now** with `@read-cache-json` + `Status: reserved`):
+
+| GET API | Profile | Levels |
+|---------|---------|--------|
+| `/revenue/summary` | `revenue-summary` | daily–yearly |
+| `/revenue/timeseries` | `revenue-timeseries` | daily–yearly |
+| `/revenue/categories` | `revenue-categories` | daily |
+| `/revenue/products` | `revenue-products` | daily |
+| `/revenue/rolling-medians` | `revenue-rolling-medians` | daily–yearly |
+| `/revenue/per-table`, `/per-location-space`, … | `revenue-*` daily breakdown | daily only |
+
+### Implementation checklist (do not skip layers)
+
+1. **Writers first** — `preGenerateBundleCache.ts`, `cacheCascade.ts`, `dailyOpsSnapshotService.ts`: add `@write-cache-json`, `@adr-ref: ADR-013`. ✅ **Done 2026-07-02** — Mongo `daily_ops_read_cache` writes + totals-only rollups
+2. **GET handlers** — all `server/api/daily-ops/**`: add full header; `@read-cache-json` = target profile (or `none` + `direct-db`). ✅ **Done 2026-07-02**
+3. **Fetch utils** — align `@read-cache-json` / `@write-cache-json` with GET and writers; update `@adr-ref`. ✅ **Partial** — snapshot/staff/revenue fetch utils done
+4. **Composables** — all `useDailyOps*`: `@read-cache-json` via API path; `@imports-data-from` chain. ✅ **Done 2026-07-02**
+5. **Pages** — all `pages/daily-ops/**`: `@read-cache-json` or `direct-db`; `@imports-data-from` composable. ✅ **Done 2026-07-02**
+6. **Components** — all `components/daily-ops/**` that display metrics: same as parent page or composable ref. 🔄 **Partial** — main metric components done; remaining chart shells TBD
+7. **Types** — `types/daily-ops-*.ts`: note matching profile in `@description` when DTO = cache payload shape. ⏳ **Pending**
+
+**Remaining code work:** staff/revenue profile **writers** (not just headers), backfill script for historical Mongo cache, types headers.
 
 ---
 
-## HTTP Caching Headers
+## Local dev
 
-**Set in:** `server/utils/dailyOpsSnapshot/fetchDashboardBundle.ts` → `snapshotCacheControl()`
-
-- **Today:** `no-store` (always fresh)
-- **Yesterday:** `public, max-age=3600, stale-while-revalidate=86400` (1h fresh, 24h stale-ok)
-- **Older sealed:** `public, max-age=86400, stale-while-revalidate=604800, immutable` (24h fresh, 7d stale-ok, never changes)
+`.cache/` may mirror Mongo for debugging. Production SSOT = **`daily_ops_read_cache`**.
 
 ---
 
-## Manual Cache Generation
+## Migration (from ADR-008 filesystem)
 
-### Generate Last 60 Days
+- Totals-only rollups; no fat PBI/drilldown merge into month/year
+- Mongo storage; staff + revenue profiles
+- All keys via `dailyOpsBusinessDate.ts` + `resolveDailyOpsPeriod`
 
-```bash
-pnpm bundles:pregen
-```
-
-### Generate Custom Range
-
-```bash
-pnpm bundles:pregen -- --days 90
-```
-
-### Script Details
-
-**File:** `scripts/pregenerate-dashboard-bundles.ts`
-**Flow:**
-1. Generate all daily bundles for range
-2. Cascade: aggregate into weekly bundles
-3. Cascade: aggregate into monthly bundles
-4. Cascade: aggregate into yearly bundles
-
-**Output:**
-```
-[bundle:pregen] Daily: 60 generated, 0 errors
-[cache:cascade] Generated weekly=8, monthly=2, yearly=1
-[bundle:pregen] Done: 60 daily + 11 aggregated
-```
-
----
-
-## Performance Impact
-
-### Before (Dynamic DB Fetch)
-
-- **Single day:** ~200-500ms (snapshot query + aggregation)
-- **7 days:** ~1-2s (multi-day aggregation)
-- **30 days:** ~5-10s (heavy aggregation)
-
-### After (Pre-Generated JSON)
-
-- **Single day:** ~20-50ms (static file read)
-- **7 days (exact week):** ~20-50ms (weekly cache)
-- **30 days (exact month):** ~20-50ms (monthly cache)
-
-**Speed improvement:** **10-200x faster** for historical data.
-
----
-
-## Cache Invalidation & Updates
-
-### Daily Rebuild (Scheduled)
-
-- Snapshot rebuild for yesterday triggers daily JSON regeneration
-- Weekly/monthly/yearly cascade updates automatically
-
-### Backfill Scenario
-
-```bash
-# If snapshots are backfilled for May 1-31
-pnpm bundles:pregen -- --days 60
-
-# Regenerates:
-# - 60 daily files
-# - ~8 weekly files
-# - 2 monthly files
-# - 1 yearly file
-```
-
-### Stale Data Handling
-
-- **Daily snapshots:** Rebuilt via `POST /api/daily-ops/snapshot/backfill-range`
-- **JSON cache:** Regenerate via `pnpm bundles:pregen`
-- **Browser cache:** Honors `Cache-Control` headers (auto-revalidates)
-
----
-
-## Files Modified
-
-### Core Cascade Logic
-
-- `server/utils/dailyOpsSnapshot/aggregateDailyBundles.ts` — Bundle aggregation math
-- `server/utils/dailyOpsSnapshot/cacheCascade.ts` — Weekly/monthly/yearly generation
-- `server/utils/dailyOpsSnapshot/preGenerateBundleCache.ts` — Daily cache generation
-
-### Integration Points
-
-- `server/services/dailyOpsSnapshotService.ts` — Auto-triggers daily cache on build/seal
-- `server/api/daily-ops/metrics/bundle.get.ts` — Smart cache serving
-- `scripts/pregenerate-dashboard-bundles.ts` — Manual CLI generation
-
----
-
-## Future Enhancements
-
-### 1. Client-Side Aggregation (Custom Ranges)
-
-For user-requested "last 10 days" or "March 15 - April 10":
-- Fetch multiple daily/weekly JSONs
-- Aggregate client-side in browser
-- Benefit: instant for any range without backend work
-
-### 2. Location-Specific Cascade
-
-Currently: generates `all` location aggregate
-Future: per-location weekly/monthly/yearly bundles
-
-### 3. CDN Distribution
-
-- Push `.cache/` to DO Spaces or Cloudflare R2
-- Serve static JSONs from CDN edge (10-30ms globally)
-- Update: sync after snapshot rebuild
-
----
-
-## Monitoring & Debugging
-
-### Check Cache Status
-
-```bash
-# Count bundles
-ls -1 .cache/daily-ops-bundles/daily/ | wc -l
-
-# List weekly bundles
-ls -lh .cache/daily-ops-bundles/weekly/
-
-# Check file sizes
-du -sh .cache/daily-ops-bundles/*
-```
-
-### API Cache Logs
-
-```
-# Cache hit
-[bundle:cache] HIT [daily] 2026-06-02..2026-06-02 all
-
-# Cache miss (fallback to DB)
-[bundle:cache] MISS [weekly] 2026-06-01..2026-06-07 all: ENOENT
-```
-
-### Regenerate After Snapshot Fix
-
-```bash
-# 1. Rebuild snapshots
-curl -X POST http://localhost:8080/api/daily-ops/snapshot/backfill-range \
-  -H "Content-Type: application/json" \
-  -d '{"startDate":"2026-05-01","endDate":"2026-05-31"}'
-
-# 2. Regenerate cache
-pnpm bundles:pregen -- --days 60
-```
-
----
-
-## Key Benefits
-
-✅ **Instant page loads** for all historical data (10-200x faster)
-✅ **Browser/CDN caching** via aggressive HTTP headers
-✅ **Automatic generation** after snapshot builds (zero manual work)
-✅ **Flexible queries** via smart cache level selection
-✅ **Fallback safety** dynamic DB fetch if cache miss
-✅ **Scalable architecture** ready for multi-month/multi-year dashboards
-
----
-
-**Last updated:** 2026-06-05 (Initial implementation)
-**Related:** ADR-004 (snapshot-only reads), ADR-006 (hot/warm/cold tiers)
+**Related:** ADR-004, ADR-006, ADR-008, ADR-010, ADR-011, `ARCHITECTURE.md`

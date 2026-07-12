@@ -1,3 +1,13 @@
+/**
+ * @registry-id: useDailyOpsRevenuePnlAssumptions
+ * @last-modified: 2026-07-02T00:00:00.000Z
+ * @description: P&L assumption overrides from app settings (not read-cache)
+ * @last-fix: [2026-07-02] ADR-013 read-cache metadata
+ * @adr-ref: ADR-013
+ * @data-source: direct-db
+ * @read-cache-json: none
+ * @imports-data-from: GET /api/app-settings/pnl-assumptions
+ */
 import type { DailyOpsSimplePnLAssumptions } from '~/types/daily-ops-revenue'
 import type { PnlAssumptionsSettingDto } from '~/types/app-settings'
 import { DEFAULT_PNL_ASSUMPTIONS, normalizePnlAssumptions } from '~/utils/dailyOpsPnlAssumptionsDefaults'

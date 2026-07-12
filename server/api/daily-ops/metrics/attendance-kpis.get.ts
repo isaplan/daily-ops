@@ -1,9 +1,12 @@
 /**
  * @registry-id: dailyOpsAttendanceKpisGet
  * @created: 2026-05-26T00:43:00.000Z
- * @last-modified: 2026-05-26T00:43:00.000Z
+ * @last-modified: 2026-07-02T00:00:00.000Z
  * @description: GET /api/daily-ops/metrics/attendance-kpis — lazy planned/leave/sick KPI drawer data.
- * @last-fix: [2026-05-26] Initial lazy drawer endpoint.
+ * @last-fix: [2026-07-02] ADR-013 read-cache metadata
+ * @adr-ref: ADR-004, ADR-010, ADR-013
+ * @data-source: read-cache
+ * @read-cache-json: daily_ops_read_cache · profile=dashboard-bundle · levels=daily|weekly|monthly|yearly · Status: reserved
  *
  * @exports-to:
  * ✓ components/daily-ops/DailyOpsKpiTiles.vue

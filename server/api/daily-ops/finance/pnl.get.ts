@@ -1,9 +1,13 @@
 /**
  * @registry-id: dailyOpsFinancePnlGet
  * @created: 2026-06-21T00:00:00.000Z
- * @last-modified: 2026-06-22T00:00:00.000Z
+ * @last-modified: 2026-07-02T00:00:00.000Z
  * @description: GET /api/daily-ops/finance/pnl — accounting P&L benchmarks from Mongo.
- * @last-fix: [2026-06-22] grid=years for year stack graph
+ * @last-fix: [2026-07-02] ADR-013 read-cache metadata
+ *
+ * @adr-ref: ADR-013
+ * @data-source: direct-db
+ * @read-cache-json: none
  *
  * @exports-to:
  * ✓ pages/daily-ops/finance/pnl.vue

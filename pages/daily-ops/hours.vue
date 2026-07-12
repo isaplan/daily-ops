@@ -225,6 +225,16 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * @registry-id: dailyOpsHoursPage
+ * @last-modified: 2026-07-02T00:00:00.000Z
+ * @description: Hours overview — direct DB reads
+ * @last-fix: [2026-07-02] ADR-013 read-cache metadata
+ * @adr-ref: ADR-013
+ * @data-source: direct-db
+ * @read-cache-json: none
+ * @imports-data-from: GET /api/hours/*
+ */
 const endpointOptions = [
   { label: 'Time Registration Shifts', value: 'time_registration_shifts' },
   { label: 'Revenue Days', value: 'revenue_days' },

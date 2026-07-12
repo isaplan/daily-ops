@@ -27,6 +27,16 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * @description: Revenue dimensions tab — products, staff, tables, spaces
+ * @last-modified: 2026-07-02T00:00:00.000Z
+ * @last-fix: [2026-07-02] ADR-013 read-cache metadata
+ * @adr-ref: ADR-004, ADR-010, ADR-013
+ * @data-source: read-cache
+ * @read-cache-json: revenue-products, revenue-per-staff, revenue-per-table, revenue-per-location-space
+ * @imports-data-from: composables/useDailyOpsRevenueMetrics.ts
+ */
+
 defineProps<{
   locationSpaces: Array<{
     space: string

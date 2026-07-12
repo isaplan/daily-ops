@@ -1,4 +1,14 @@
 <script setup lang="ts">
+/**
+ * @description: Labor by day tables and charts
+ * @last-modified: 2026-07-02T00:00:00.000Z
+ * @last-fix: [2026-07-02] ADR-013 read-cache metadata
+ * @adr-ref: ADR-004, ADR-010, ADR-013
+ * @data-source: read-cache
+ * @read-cache-json: dashboard-bundle labor slice (via useDailyOpsDashboardMetrics)
+ * @imports-data-from: composables/useDailyOpsLaborTables.ts
+ */
+
 import type { DailyOpsLaborMetricsDto } from '~/types/daily-ops-dashboard'
 import DashboardDayHoursShare from '~/components/daily-ops/DashboardDayHoursShare.vue'
 import { laborByDayMetricDefs } from '~/composables/useDailyOpsLaborTables'

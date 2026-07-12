@@ -1,8 +1,12 @@
 /**
  * @created: 2026-05-18T12:00:00.000Z
- * @last-modified: 2026-05-18T12:00:00.000Z
+ * @last-modified: 2026-07-02T00:00:00.000Z
  * @description: Labor-by-day tables, stacked chart, and cell formatters for Daily Ops productivity view.
- * @last-fix: [2026-05-18] Extracted from DailyOpsHomeDashboard.vue labor section.
+ * @last-fix: [2026-07-02] ADR-013 read-cache metadata
+ * @adr-ref: ADR-004, ADR-010, ADR-013
+ * @data-source: read-cache
+ * @read-cache-json: dashboard-bundle labor slice (via useDailyOpsDashboardMetrics)
+ * @imports-data-from: composables/useDailyOpsDashboardMetrics.ts
  *
  * @exports-to:
  * ✓ components/daily-ops/DailyOpsProductivityLaborSection.vue

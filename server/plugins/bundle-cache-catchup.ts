@@ -1,14 +1,28 @@
 /**
- * On production startup: rebuild JSON bundle cache from Mongo snapshots when disk is cold (post-deploy).
- * Disable with BUNDLE_CACHE_CATCHUP_ON_START=0.
+ * @registry-id: bundleCacheCatchupPlugin
+ * @created: 2026-07-01T00:00:00.000Z
+ * @last-modified: 2026-07-11T17:30:00.000Z
+ * @description: Warm daily_ops_read_cache from snapshots when Mongo cache is cold post-deploy
+ * @last-fix: [2026-07-11] Query daily_ops_snapshot master collection (was wrong daily_ops_snapshot_master)
+ *   Prior: [2026-07-09] Warm weekly-digest read-cache on cold startup
+ *   Prior: [2026-07-02] Check Mongo daily doc count instead of disk-only
+ * @adr-ref: ADR-004, ADR-013
+ * @data-source: snapshot-write-only
+ * @write-cache-json: daily_ops_read_cache · dashboard-bundle · weekly-digest
+ *
+ * @exports-to:
+ * ✓ nitro startup
  */
-import { readdir } from 'node:fs/promises'
-import { resolve } from 'node:path'
 import { getDb } from '../utils/db'
+import { countReadCacheDocs } from '../utils/dailyOpsReadCache/readCacheStore'
 import { refreshDashboardBundleCache } from '../utils/dailyOpsSnapshot/preGenerateBundleCache'
+import { warmRecentWeeklyDigestCache } from '../utils/dailyOpsSnapshot/aggregateWeeklyReadCache'
+import { WEEKLY_DIGEST_PROFILE } from '~/types/daily-ops-weekly-report'
+import { DAILY_OPS_SNAPSHOT_COLLECTIONS } from '~/types/daily-ops-snapshot'
 
-const CACHE_DAILY = resolve(process.cwd(), '.cache/daily-ops-bundles/daily')
-const MIN_DAILY_ALL_FILES = 60
+const SNAPSHOT_MASTER = DAILY_OPS_SNAPSHOT_COLLECTIONS.master
+
+const MIN_DAILY_ALL_DOCS = 60
 
 function catchupEnabled(): boolean {
   if (process.env.BUNDLE_CACHE_CATCHUP_ON_START === '0') return false
@@ -21,27 +35,20 @@ export default defineNitroPlugin((nitroApp) => {
     void (async () => {
       if (!catchupEnabled()) return
 
-      let dailyAllCount = 0
-      try {
-        const files = await readdir(CACHE_DAILY)
-        dailyAllCount = files.filter((f) => f.endsWith('-all.json')).length
-      }
-      catch {
-        // cold — no cache dir yet
-      }
+      const db = await getDb()
+      const dailyAllCount = await countReadCacheDocs(db, 'dashboard-bundle', 'daily', 'all')
 
-      if (dailyAllCount >= MIN_DAILY_ALL_FILES) {
-        nitroApp.logger?.info(`[bundle-cache-catchup] skip; ${dailyAllCount} daily all-location bundles present`)
+      if (dailyAllCount >= MIN_DAILY_ALL_DOCS) {
+        nitroApp.logger?.info(`[bundle-cache-catchup] skip; ${dailyAllCount} Mongo daily all-location docs`)
         return
       }
 
       nitroApp.logger?.info(
-        `[bundle-cache-catchup] cold cache (${dailyAllCount} daily) — rebuilding from snapshots`,
+        `[bundle-cache-catchup] cold Mongo cache (${dailyAllCount} daily) — rebuilding from snapshots`,
       )
 
-      const db = await getDb()
       const bounds = await db
-        .collection('daily_ops_snapshot_master')
+        .collection(SNAPSHOT_MASTER)
         .aggregate([
           { $group: { _id: null, minDate: { $min: '$businessDate' }, maxDate: { $max: '$businessDate' } } },
         ])
@@ -53,7 +60,7 @@ export default defineNitroPlugin((nitroApp) => {
       }
 
       const locationIds = await db
-        .collection('daily_ops_snapshot_master')
+        .collection(SNAPSHOT_MASTER)
         .distinct('locationId', { businessDate: { $gte: row.minDate, $lte: row.maxDate } })
 
       await refreshDashboardBundleCache(
@@ -62,6 +69,13 @@ export default defineNitroPlugin((nitroApp) => {
         row.maxDate,
         [...locationIds.map(String), 'all'],
       )
+
+      const weeklyCount = await countReadCacheDocs(db, WEEKLY_DIGEST_PROFILE, 'weekly', 'all')
+      if (weeklyCount < 4) {
+        nitroApp.logger?.info(`[bundle-cache-catchup] warming weekly-digest (${weeklyCount} docs)`)
+        const weekly = await warmRecentWeeklyDigestCache(db, 8)
+        nitroApp.logger?.info(`[bundle-cache-catchup] weekly-digest written=${weekly.written}`)
+      }
 
       nitroApp.logger?.info(`[bundle-cache-catchup] done ${row.minDate}..${row.maxDate}`)
     })().catch((e) => {

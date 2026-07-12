@@ -338,6 +338,16 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * @registry-id: dailyOpsInboxEitjeStaff
+ * @last-modified: 2026-07-02T00:00:00.000Z
+ * @description: Eitje staff inbox hub
+ * @last-fix: [2026-07-02] ADR-013 read-cache metadata
+ * @adr-ref: ADR-013
+ * @data-source: direct-db
+ * @read-cache-json: none
+ * @imports-data-from: GET /api/daily-ops/eitje-staff
+ */
 const EitjeStaffMemberProfilePanelLazy = defineAsyncComponent(
   () => import('~/components/daily-ops/inbox/EitjeStaffMemberProfilePanel.vue')
 )

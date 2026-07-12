@@ -1,8 +1,10 @@
 /**
  * @registry-id: dailyOpsMetricsLabor
- * @last-modified: 2026-05-25T00:00:00.000Z
- * @last-fix: [2026-05-25] Delegates to snapshot bundle (ADR-004).
- * @adr-ref: ADR-004
+ * @last-modified: 2026-07-02T00:00:00.000Z
+ * @last-fix: [2026-07-02] ADR-013 read-cache metadata
+ * @adr-ref: ADR-004, ADR-010, ADR-013
+ * @data-source: read-cache
+ * @read-cache-json: daily_ops_read_cache · profile=dashboard-bundle · levels=daily|weekly|monthly|yearly
  */
 
 import { getDb } from '../../../utils/db'

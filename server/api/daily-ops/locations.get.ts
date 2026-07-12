@@ -1,9 +1,13 @@
 /**
  * @registry-id: daily-ops-locations-api
  * @created: 2026-04-12T00:00:00.000Z
- * @last-modified: 2026-05-28T00:00:00.000Z
+ * @last-modified: 2026-07-02T00:00:00.000Z
  * @description: Fetch unified locations for Daily Ops UI (incl. chartColor from unified_location).
- * @last-fix: [2026-05-28] Expose chartColor SSOT for venue graph colors.
+ * @last-fix: [2026-07-02] ADR-013 read-cache metadata
+ *
+ * @adr-ref: ADR-013
+ * @data-source: direct-db
+ * @read-cache-json: none
  *
  * @exports-to:
  * ✓ components/daily-ops/DailyOpsDashboardShell.vue => /api/daily-ops/locations

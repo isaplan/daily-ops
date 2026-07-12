@@ -63,6 +63,7 @@ export type GroupedBarReferenceLine =
       strokeWidth?: number
       yAxis?: 'left' | 'right'
       strokeLinecap?: 'butt' | 'round' | 'square'
+      curve?: 'linear' | 'step'
     }
 
 const props = withDefaults(
@@ -75,7 +76,13 @@ const props = withDefaults(
     height?: number
     margin?: { top: number; right: number; bottom: number; left: number }
     showBars?: boolean
-    formatBarValue?: (value: number) => string
+    formatBarValue?: (value: number, seriesKey?: string) => string
+    formatBucketLabel?: (bucketKey: string) => string
+    /** Per-series max height — hides meaningful y-axis; use with alwaysShowBarLabels. */
+    normalizeSeriesScale?: boolean
+    /** Force value labels above bars (e.g. mixed € / count / €·h metrics). */
+    alwaysShowBarLabels?: boolean
+    hideYAxis?: boolean
   }>(),
   {
     width: 800,
@@ -85,6 +92,9 @@ const props = withDefaults(
     margin: () => ({ top: 28, right: 8, bottom: 52, left: 56 }),
     showBars: true,
     formatBarValue: undefined,
+    normalizeSeriesScale: false,
+    alwaysShowBarLabels: false,
+    hideYAxis: false,
   },
 )
 
@@ -100,7 +110,9 @@ const hasRightAxis = computed(() =>
 )
 
 const showLeftAxis = computed(
-  () => props.showBars || props.referenceLines.some((r) => r.yAxis !== 'right'),
+  () =>
+    !props.hideYAxis &&
+    (props.showBars || props.referenceLines.some((r) => r.yAxis !== 'right')),
 )
 
 const plotWidth = computed(() => {
@@ -130,14 +142,14 @@ function eurTick(v: d3.NumberValue): string {
   return `€${Math.round(n)}`
 }
 
-function defaultBarFormat(value: number): string {
+function defaultBarFormat(value: number, _seriesKey?: string): string {
   if (value >= 100) return String(Math.round(value))
   if (value >= 10) return value.toFixed(0)
   return value.toFixed(1)
 }
 
-function formatBar(value: number): string {
-  return (props.formatBarValue ?? defaultBarFormat)(value)
+function formatBar(value: number, seriesKey: string): string {
+  return (props.formatBarValue ?? defaultBarFormat)(value, seriesKey)
 }
 
 function appendLabelBadge(
@@ -199,12 +211,28 @@ function createChart() {
     .range([0, x0.bandwidth()])
     .padding(0.08)
 
-  const barMax = props.showBars
-    ? d3.max(props.data, (d) => d3.max(props.series, (s) => Number(d[s.key]) || 0)) ?? 0
-    : 0
+  const seriesMax = new Map<string, number>()
+  if (props.normalizeSeriesScale) {
+    for (const s of props.series) {
+      const max = d3.max(props.data, (d) => Number(d[s.key]) || 0) ?? 0
+      seriesMax.set(s.key, max > 0 ? max : 1)
+    }
+  }
+
   const leftRefMax = d3.max(refValues(leftRefs)) ?? 0
   const rightRefMax = d3.max(refValues(rightRefs)) ?? 0
-  const yMax = Math.max(barMax, leftRefMax, 1)
+
+  const barMaxRaw = props.showBars && !props.normalizeSeriesScale
+    ? d3.max(props.data, (d) => d3.max(props.series, (s) => Number(d[s.key]) || 0) ?? 0) ?? 0
+    : 0
+
+  const yMax = props.normalizeSeriesScale ? 1 : Math.max(barMaxRaw, leftRefMax, 1)
+
+  const scaledBarValue = (seriesKey: string, raw: number): number => {
+    if (!props.normalizeSeriesScale) return raw
+    const max = seriesMax.get(seriesKey) ?? 1
+    return max > 0 ? raw / max : 0
+  }
 
   const yScale = d3
     .scaleLinear()
@@ -254,26 +282,30 @@ function createChart() {
       const gx = g.append('g').attr('transform', `translate(${x0(row.date) ?? 0},0)`)
 
       for (const s of props.series) {
-        const val = Number(row[s.key]) || 0
-        const barH = innerHeight - yScale(val)
-        if (barH < 1) continue
+        const raw = Number(row[s.key]) || 0
+        const scaled = scaledBarValue(s.key, raw)
+        const barH = innerHeight - yScale(scaled)
+        if (barH < 1 && raw <= 0) continue
 
-        gx.append('rect')
-          .attr('x', x1(s.key) ?? 0)
-          .attr('y', yScale(val))
-          .attr('width', x1.bandwidth())
-          .attr('height', barH)
-          .attr('fill', s.color)
-          .attr('rx', 2)
-          .attr('class', 'transition-opacity hover:opacity-80')
+        if (barH >= 1) {
+          gx.append('rect')
+            .attr('x', x1(s.key) ?? 0)
+            .attr('y', yScale(scaled))
+            .attr('width', x1.bandwidth())
+            .attr('height', Math.max(barH, raw > 0 ? 2 : 0))
+            .attr('fill', s.color)
+            .attr('rx', 2)
+            .attr('class', 'transition-opacity hover:opacity-80')
+        }
 
-        if (barH >= 14 && val > 0) {
+        if (raw !== 0 && (props.alwaysShowBarLabels || barH >= 14)) {
+          const labelY = barH >= 1 ? yScale(scaled) - 4 : innerHeight - 12
           gx.append('text')
             .attr('x', (x1(s.key) ?? 0) + x1.bandwidth() / 2)
-            .attr('y', yScale(val) - 4)
+            .attr('y', labelY)
             .attr('text-anchor', 'middle')
             .attr('class', 'text-[9px] font-semibold fill-gray-900')
-            .text(formatBar(val))
+            .text(formatBar(raw, s.key))
         }
       }
     }
@@ -317,11 +349,13 @@ function createChart() {
     }
 
     if (ref.kind === 'series' && ref.points.length > 1) {
+      const useStep = ref.curve === 'step'
       const line = d3
         .line<{ date: string; value: number }>()
-        .defined((p) => p.value > 0 && x0(p.date) != null)
+        .defined((p) => (useStep || p.value > 0) && x0(p.date) != null)
         .x((p) => bucketCenter(p.date))
         .y((p) => yFor(p.value))
+        .curve(useStep ? d3.curveStepAfter : d3.curveLinear)
 
       applyStrokeDash(
         grid
@@ -347,7 +381,11 @@ function createChart() {
     .call(
       d3
         .axisBottom(x0)
-        .tickFormat((d) => formatStaffChartBucketLabel(String(d), props.dateGranularity)),
+        .tickFormat((d) =>
+          props.formatBucketLabel
+            ? props.formatBucketLabel(String(d))
+            : formatStaffChartBucketLabel(String(d), props.dateGranularity),
+        ),
     )
     .selectAll('text')
     .attr('class', 'text-[10px]')
@@ -399,6 +437,10 @@ watch(
     props.dateGranularity,
     props.showBars,
     props.formatBarValue,
+    props.formatBucketLabel,
+    props.normalizeSeriesScale,
+    props.alwaysShowBarLabels,
+    props.hideYAxis,
     hasRightAxis.value,
     showLeftAxis.value,
   ],
