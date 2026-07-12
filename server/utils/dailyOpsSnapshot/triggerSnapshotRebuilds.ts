@@ -1,17 +1,22 @@
 /**
  * @registry-id: dailyOpsSnapshotTriggerRebuilds
  * @created: 2026-05-27T00:00:00.000Z
- * @last-modified: 2026-07-11T17:30:00.000Z
+ * @last-modified: 2026-07-13T01:12:00.000Z
  * @description: Enqueue or run daily_ops_snapshot rebuilds after Bork/Eitje aggregation writes.
- * @last-fix: [2026-07-11] Gap scan endDate = open register day (ADR-010), not calendar yesterday
+ *   Per-venue source freshness tracking: if any source (Bork, Eitje, Inbox) has lastSyncAt > snapshot.lastBuiltAt,
+ *   trigger rebuild for that venue. Never skip venue from rebuild — always include all VENUE_STRIP_LOCATIONS.
+ * @last-fix: [2026-07-13] Add isSnapshotStaleVsAnySources() for per-venue, per-source freshness check (Phase 5).
+ *   Prior: [2026-07-11] Gap scan endDate = open register day (ADR-010), not calendar yesterday
  *   Prior: [2026-07-09] findSnapshotGapVenueDays + explicit startDate/endDate range scan
  *   Prior: [2026-07-09] Historical gap backfill — warm tier without master snapshot (60d lookback)
  *   Prior: [2026-07-01] Pipeline tail includes daily + weekly/monthly/yearly JSON cascade
  *   Prior: [2026-06-24] materializeIntegrationPipelineSnapshots — sync tail for integration crons
- * @adr-ref: ADR-004
+ * @adr-ref: ADR-004, ADR-006
  *
  * @architecture:
- *   - Warm tier (bork_*, eitje_time_registration_aggregation) updates must refresh hot snapshots.
+ *   - VENUE_STRIP_LOCATIONS = SSOT for 3 venues (always attempt snapshot for all, never selective skip).
+ *   - Warm tier (bork_*, eitje_time_registration_aggregation, inbox-bork-basis-report) updates must refresh hot snapshots.
+ *   - Source freshness per venue: if Bork/Eitje/Inbox lastSyncAt > snapshot.lastBuiltAt → rebuild that venue.
  *   - Coalesced enqueue for burst rebuilds; synchronous range build after daily cron (Bork then Eitje).
  *
  * @exports-to:
@@ -32,6 +37,7 @@ import { VENUE_STRIP_LOCATIONS } from '../venueStrip/constants'
 import { buildDailyOpsSnapshotRange } from '../../services/dailyOpsSnapshotService'
 import { eachBusinessDate } from '../dailyOpsRevenue/dateRange'
 import { enqueueSnapshotBuild } from './jobCoalescer'
+import { resolveSources } from './resolveSources'
 
 /** Historical cron scans beyond 7d/31d sync window for orphaned warm-tier days. */
 export const SNAPSHOT_GAP_LOOKBACK_DAYS = 60
@@ -40,6 +46,40 @@ function normalizeLocationId(raw: unknown): string {
   if (raw == null) return ''
   if (raw instanceof ObjectId) return raw.toString()
   return String(raw).trim()
+}
+
+/**
+ * Check if any source (Bork, Eitje, Inbox) has newer data than the snapshot.
+ * Per-venue, per-source freshness — if any source is newer, rebuild needed.
+ */
+async function isSnapshotStaleVsAnySources(
+  db: Db,
+  businessDate: string,
+  locationId: string,
+): Promise<boolean> {
+  const [snapshot, sources] = await Promise.all([
+    db
+      .collection(DAILY_OPS_SNAPSHOT_COLLECTIONS.master)
+      .findOne({ businessDate, locationId }, { projection: { lastBuiltAt: 1 } }),
+    resolveSources(db, businessDate, locationId),
+  ])
+
+  if (!snapshot?.lastBuiltAt) return true // No snapshot yet → stale
+
+  const builtMs = new Date(snapshot.lastBuiltAt).getTime()
+
+  // Check if any source is newer than snapshot
+  const checkSource = (lastSyncAt: Date | null | undefined): boolean => {
+    if (!lastSyncAt) return false
+    const syncMs = new Date(lastSyncAt).getTime()
+    return syncMs > builtMs
+  }
+
+  if (checkSource(sources.bork.lastSyncAt)) return true
+  if (checkSource(sources.eitje.lastSyncAt)) return true
+  if (checkSource(sources.inbox.lastSyncAt)) return true
+
+  return false // All sources older than snapshot
 }
 
 /** Locations with warm-tier rows for this business_date (Bork revenue and/or Eitje labor). */
@@ -69,15 +109,39 @@ export async function enqueueSnapshotsForBusinessDateRange(
 ): Promise<number> {
   let enqueued = 0
   for (const businessDate of eachBusinessDate(startDate, endDate)) {
-    const locationIds = await listAffectedLocationIdsForBusinessDate(db, businessDate)
-    for (const locationId of locationIds) {
-      enqueueSnapshotBuild({ businessDate, locationId })
+    // Always enqueue all 3 venues; no selective skip based on which sources have data
+    for (const venue of VENUE_STRIP_LOCATIONS) {
+      enqueueSnapshotBuild({ businessDate, locationId: venue.locationId })
       enqueued += 1
     }
   }
   if (enqueued > 0) {
     console.info(
-      `[snapshot:trigger] enqueued ${enqueued} rebuild(s) for business_date ${startDate}..${endDate}`,
+      `[snapshot:trigger] enqueued ${enqueued} rebuild(s) for business_date ${startDate}..${endDate} (all venues)`,
+    )
+  }
+  return enqueued
+}
+
+/**
+ * Enqueue rebuilds for venues where any source (Bork, Eitje, Inbox) has newer data than snapshot.
+ * Per-source, per-venue freshness check — non-blocking rebuild trigger.
+ */
+export async function enqueueSourceTriggeredSnapshotRebuild(
+  db: Db,
+  businessDate: string,
+): Promise<number> {
+  let enqueued = 0
+  for (const venue of VENUE_STRIP_LOCATIONS) {
+    const isStale = await isSnapshotStaleVsAnySources(db, businessDate, venue.locationId)
+    if (isStale) {
+      enqueueSnapshotBuild({ businessDate, locationId: venue.locationId })
+      enqueued += 1
+    }
+  }
+  if (enqueued > 0) {
+    console.info(
+      `[snapshot:trigger:source] enqueued ${enqueued}/${VENUE_STRIP_LOCATIONS.length} venue(s) for ${businessDate} (source freshness)`,
     )
   }
   return enqueued
