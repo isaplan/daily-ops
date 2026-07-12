@@ -18,6 +18,7 @@ export type OpsNotificationKind =
   | 'missing_master_snapshot'
   | 'revenue_snapshot_empty'
   | 'revenue_snapshot_stale_basis'
+  | 'snapshot_venue_coverage_incomplete'
   // Source cross-check (Bork API vs Inbox Basis)
   | 'bork_inbox_revenue_gap'
   | 'missing_bork_when_inbox_final'
@@ -28,6 +29,7 @@ export type OpsNotificationKind =
   | 'eitje_hours_inbox_missing'
   | 'gmail_oauth_invalid_grant'
   | 'unparsed_basis_attachment'
+  | 'integration_sync_partial_failure'
   // Data integrity
   | 'unmapped_basis_location'
   | 'bork_revenue_aggregation_stale'

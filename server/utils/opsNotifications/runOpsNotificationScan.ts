@@ -1,7 +1,9 @@
 /**
  * @registry-id: runOpsNotificationScan
- * @last-modified: 2026-06-28T17:30:00.000Z
- * @last-fix: [2026-06-28] Fix snapshot master loop; staff hub detector; labor Afwas rollup check
+ * @last-modified: 2026-07-13T01:12:00.000Z
+ * @last-fix: [2026-07-13] Add detectSnapshotVenueCoverageNotifications (Phase 5b: venue completeness check)
+ *   Prior: [2026-07-11] Integration sync partial-failure detector in scan
+ *   Prior: [2026-06-28] Fix snapshot master loop; staff hub detector; labor Afwas rollup check
  *   Prior: [2026-06-07] ADR-010 business-day ISO misuse detector on Daily Ops paths
  *   Prior: [2026-06-06] Added Eitje staff data quality detector (ADR-009 Option B).
  * @adr-ref: ADR-004, ADR-006, ADR-009, ADR-010
@@ -15,9 +17,11 @@ import { detectCronPipelineNotifications } from './detectors/cronPipeline'
 import { detectGmailOAuthNotifications } from './detectors/gmailOAuth'
 import { detectIntegrityNotifications } from './detectors/integrity'
 import { detectSnapshotGapNotifications } from './detectors/snapshotGaps'
+import { detectSnapshotVenueCoverageNotifications } from './detectors/snapshotVenueCoverage'
 import { detectSourceDiscrepancyNotifications } from './detectors/sourceDiscrepancy'
 import { detectUnparsedBasisAttachments } from './detectors/unparsedBasisAttachment'
 import { detectEitjeStaffDataNotifications } from './detectors/eitjeStaffData'
+import { detectIntegrationSyncFailureNotifications } from './detectors/integrationSyncFailures'
 import { countByCategory, sortNotifications } from './notificationItem'
 import { addCalendarDaysYmd } from '~/utils/dailyOpsBusinessDate'
 import { loadOpsScanContext, resolveScanWindow, type OpsScanWindow } from './scanContext'
@@ -56,11 +60,14 @@ export async function runOpsNotificationScan(
 
   const gmailOAuthItems = await detectGmailOAuthNotifications()
   const eitjeStaffDataItems = await detectEitjeStaffDataNotifications(db)
+  const integrationSyncItems = await detectIntegrationSyncFailureNotifications(db)
 
   const items = [
     ...gmailOAuthItems,
     ...eitjeStaffDataItems,
+    ...integrationSyncItems,
     ...detectSnapshotGapNotifications(ctx),
+    ...detectSnapshotVenueCoverageNotifications(ctx),
     ...detectSourceDiscrepancyNotifications(ctx),
     ...detectCronPipelineNotifications(ctx),
     ...detectIntegrityNotifications(ctx),
