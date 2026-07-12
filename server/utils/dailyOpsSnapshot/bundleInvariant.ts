@@ -1,11 +1,12 @@
 /**
  * @registry-id: dailyOpsBundleInvariant
  * @created: 2026-06-18T00:00:00.000Z
- * @last-modified: 2026-06-20T00:00:00.000Z
+ * @last-modified: 2026-07-11T00:00:00.000Z
  * @description: Dashboard bundle invariants — sections must reconcile with headline totals
- * @last-fix: [2026-06-20] Also reject cache missing drilldown when headline revenue exists
- *   Prior: [2026-06-18] Initial — reject stale cache when KPI revenue exists but interval sum is empty
- * @adr-ref: ADR-004, ADR-008
+ * @last-fix: [2026-07-11] Reject hourly cache missing staff headcount when labor hours exist
+ *   Prior: [2026-07-02] Skip drilldown/PBI checks for multi-day rollup cache (ADR-013)
+ *   Prior: [2026-06-20] Also reject cache missing drilldown when headline revenue exists
+ * @adr-ref: ADR-004, ADR-008, ADR-013
  *
  * @exports-to:
  * ✓ server/api/daily-ops/metrics/bundle.get.ts
@@ -51,7 +52,31 @@ export function bundleDrilldownIncomplete(bundle: DailyOpsDashboardBundleDto): b
   return !drilldownHasContent(bundle)
 }
 
-/** Reject stale pre-aggregated JSON when headline sections are incomplete. */
+/** True when cached bundle lacks periodBreakdown rows (pre–venue-strip graph cache). */
+export function bundlePeriodBreakdownMissing(bundle: DailyOpsDashboardBundleDto): boolean {
+  const headline = bundle.summary?.summary?.totalRevenue ?? 0
+  if (headline <= REV_EPS) return false
+  const pb = bundle.periodBreakdown
+  return !pb?.rows?.length || !pb?.byVenue?.length
+}
+
+/** True when hourly breakdown has labor but no staff headcount (pre–staff-hour cache). */
+export function bundlePeriodBreakdownStaffMissing(bundle: DailyOpsDashboardBundleDto): boolean {
+  const pb = bundle.periodBreakdown
+  if (pb?.granularity !== 'hour') return false
+  const hasLabor = pb.byVenue.some((v) =>
+    v.rows.some((r) => r.laborHours > 0 || r.laborCost > 0),
+  )
+  const hasStaff = pb.byVenue.some((v) => v.rows.some((r) => r.staffCount > 0))
+  return hasLabor && !hasStaff
+}
+
+/** Reject stale pre-aggregated JSON when headline sections are incomplete (daily only). */
 export function bundleDashboardSectionsIncomplete(bundle: DailyOpsDashboardBundleDto): boolean {
+  if (bundlePeriodBreakdownMissing(bundle)) return true
+  if (bundlePeriodBreakdownStaffMissing(bundle)) return true
+  const start = bundle.summary?.range?.startDate
+  const end = bundle.summary?.range?.endDate
+  if (start && end && start !== end) return false
   return bundleProfitByIntervalIncomplete(bundle) || bundleDrilldownIncomplete(bundle)
 }

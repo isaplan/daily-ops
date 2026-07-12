@@ -1,9 +1,14 @@
 /**
  * @registry-id: dailyOpsRevenueDrilldownHourly
  * @created: 2026-05-28T00:00:00.000Z
- * @last-modified: 2026-06-05T02:45:00.000Z
- * @description: Hourly revenue/labor/profit rows for revenue drilldown
- * @last-fix: [2026-06-05] Redistribute sparse sealed-day hourly revenue by labor hours
+ * @last-modified: 2026-07-13T01:03:00.000Z
+ * @description: Hourly revenue/labor/profit rows for revenue drilldown (venue-strip Graph view)
+ *   Reads from snapshot hourly + labor sections; redistributes sparse sealed-day totals by labor hours.
+ *   NOTE: Must use order-time for today (open register), paid-time for historical (sealed days).
+ *   Phase 2 TODO: Create shared resolveHourlyRevenueBasis() resolver to dedup this logic across 
+ *   buildHourlyRows, buildPeriodBreakdown, buildProfitByInterval, todayRevenueDetail.
+ * @last-fix: [2026-07-13] Updated metadata: Document today=order-time, sealed=paid-time basis rule + TODO shared resolver
+ *   Prior: [2026-06-05] Redistribute sparse sealed-day hourly revenue by labor hours
  * @adr-ref: ADR-004
  *
  * @exports-to:

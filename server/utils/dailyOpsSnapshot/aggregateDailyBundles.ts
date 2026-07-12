@@ -1,12 +1,11 @@
 /**
  * @registry-id: dailyOpsAggregateBundles
  * @created: 2026-06-05T18:48:00.000Z
- * @last-modified: 2026-06-20T00:00:00.000Z
+ * @last-modified: 2026-07-02T00:00:00.000Z
  * @description: Aggregate multiple daily dashboard bundles into weekly/monthly/yearly totals
- * @last-fix: [2026-06-20] Merge revenue drilldown (top-10, spaces, hourly) into period bundles
- *   Prior: [2026-06-18] Merge profit-by-interval + snapshot coverage; stop nulling interval totals
- *   Prior: [2026-06-07] Week bounds via addCalendarDaysYmd (ADR-010)
- * @adr-ref: ADR-004, ADR-008, ADR-010
+ * @last-fix: [2026-07-02] totalsOnly rollups omit drilldown/PBI (ADR-013)
+ *   Prior: [2026-06-20] Merge revenue drilldown (top-10, spaces, hourly) into period bundles
+ * @adr-ref: ADR-004, ADR-008, ADR-010, ADR-013
  *
  * @exports-to:
  * ✓ server/utils/dailyOpsSnapshot/cacheCascade.ts
@@ -19,6 +18,7 @@ import { mergeVenueStripResponses } from '../venueStrip/mergeCards'
 import { coverageFromDailyBundles, formatCoverageNote } from './bundleCoverage'
 import { mergeProfitByIntervalDtos } from './mergeProfitByInterval'
 import { mergeDrilldownDtos } from './mergeDrilldown'
+import { aggregatePeriodBreakdown } from './buildPeriodBreakdown'
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100
@@ -27,7 +27,7 @@ function round2(n: number): number {
 /** Aggregate multiple daily bundles into a single period bundle (week/month/year). */
 export function aggregateDailyBundles(
   dailyBundles: DailyOpsDashboardBundleDto[],
-  period: { startDate: string; endDate: string; label?: string },
+  period: { startDate: string; endDate: string; label?: string; totalsOnly?: boolean },
 ): DailyOpsDashboardBundleDto {
   if (dailyBundles.length === 0) {
     throw new Error('Cannot aggregate empty bundle array')
@@ -76,18 +76,29 @@ export function aggregateDailyBundles(
 
   const snapshotCoverage = coverageFromDailyBundles(dailyBundles, period.startDate, period.endDate)
   const coverageNote = formatCoverageNote(snapshotCoverage)
-  const profitByInterval = mergeProfitByIntervalDtos(
-    dailyBundles.map((b) => b.revenue?.profitByInterval),
-  )
-  if (coverageNote) {
+  const totalsOnly = period.totalsOnly === true
+
+  const profitByInterval = totalsOnly
+    ? undefined
+    : mergeProfitByIntervalDtos(
+        dailyBundles.map((b) => b.revenue?.profitByInterval),
+      )
+  if (!totalsOnly && profitByInterval && coverageNote) {
     profitByInterval.coverageNote = coverageNote
     profitByInterval.estimatesNote = `${profitByInterval.estimatesNote} ${coverageNote}`
   }
 
-  const drilldown = mergeDrilldownDtos(
-    dailyBundles.map((b) => b.revenue?.drilldown),
-    { coverageNote, multiDayRange: period.startDate !== period.endDate },
-  )
+  const drilldown = totalsOnly
+    ? undefined
+    : mergeDrilldownDtos(
+        dailyBundles.map((b) => b.revenue?.drilldown),
+        { coverageNote, multiDayRange: period.startDate !== period.endDate },
+      )
+
+  const periodBreakdown = aggregatePeriodBreakdown(dailyBundles, period.startDate, period.endDate)
+  if (periodBreakdown && coverageNote) {
+    periodBreakdown.coverageNote = coverageNote
+  }
 
   return {
     summary: {
@@ -130,6 +141,7 @@ export function aggregateDailyBundles(
       },
     },
     venueStrip,
+    periodBreakdown,
   }
 }
 

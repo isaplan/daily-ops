@@ -1,20 +1,22 @@
 /**
  * @registry-id: dailyOpsSnapshotBuildRevenueSection
  * @created: 2026-05-13T00:00:00.000Z
- * @last-modified: 2026-07-01T21:30:00.000Z
+ * @last-modified: 2026-07-13T01:03:00.000Z
  * @description: Builds DailyOpsSnapshotRevenueSection for one (businessDate, locationId).
- *   Reads only from aggregated collections: bork_business_days, bork_sales_by_hour,
- *   inbox-bork-basis-report. Never touches bork_raw_data.
- * @last-fix: [2026-07-01] Open register day headline = order-time hour sum; sealed days = inbox/paid SSOT
+ *   Reads only from aggregated collections via resolveBorkAggReadSuffix() (defaults _v2):
+ *   bork_business_days${suffix}, bork_sales_by_hour${suffix}, inbox-bork-basis-report.
+ *   Never touches bork_raw_data.
+ * @last-fix: [2026-07-13] Updated metadata: clarify bork reads use resolveBorkAggReadSuffix (v2 only, not stale base table)
+ *   Prior: [2026-07-01] Open register day headline = order-time hour sum; sealed days = inbox/paid SSOT
  *   Prior: [2026-06-24] Datalab daily benchmark fallback when inbox/Bork agg missing (2024 history)
  *   Prior: [2026-05-26] Snapshot carries order-time hourly Bork buckets beside paid-time buckets.
  *   Prior: [2026-05-25] Bork reads use resolveBorkAggReadSuffix (_v2) like products/hourly builders.
  *
  * @architecture:
- *   - Headline: open register day → sum `bork_sales_by_order_hour` (order-entry time).
- *     Sealed days → `resolveVenueDayHeadlineRevenue` (morning inbox 7|8 or paid Bork).
+ *   - Headline: open register day → sum `bork_sales_by_order_hour${suffix}` (order-entry time).
+ *     Sealed days → `resolveVenueDayHeadlineRevenue` (morning inbox 7|8 or paid Bork via suffix).
  *   - Hourly: pre-fill 24 slots (business_hour 0..23 → calendar_hour 8..7-next). Paid-time
- *     buckets come from bork_sales_by_hour; order-time buckets come from bork_sales_by_order_hour.
+ *     buckets come from `bork_sales_by_hour${suffix}`; order-time buckets from `bork_sales_by_order_hour${suffix}`.
  *     No intraday inbox per-hour split (inbox is daily-level).
  *   - Intraday inbox rows are not stored in Mongo (dropped on ingest).
  *

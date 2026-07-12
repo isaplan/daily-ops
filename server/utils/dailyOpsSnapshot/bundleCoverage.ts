@@ -61,5 +61,10 @@ export function formatCoverageNote(coverage: DailyOpsSnapshotCoverageDto): strin
   const preview = coverage.missingDates.slice(0, 5).join(', ')
   const more =
     coverage.missingDates.length > 5 ? ` (+${coverage.missingDates.length - 5} more)` : ''
-  return `Partial period: ${coverage.daysFound}/${coverage.daysExpected} days in snapshot. Missing: ${preview}${more}.`
+  return `Partial period: ${coverage.daysFound}/${coverage.daysExpected} days loaded. Missing: ${preview}${more}.`
+}
+
+/** True when a cached bundle was stitched from incomplete daily read-cache docs. */
+export function bundleHasCoverageGaps(bundle: DailyOpsDashboardBundleDto | null | undefined): boolean {
+  return (bundle?.summary?.snapshotCoverage?.missingDates?.length ?? 0) > 0
 }

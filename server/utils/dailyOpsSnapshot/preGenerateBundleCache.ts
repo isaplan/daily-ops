@@ -1,13 +1,13 @@
 /**
  * @registry-id: dailyOpsPreGenerateBundleCache
  * @created: 2026-06-05T17:50:00.000Z
- * @last-modified: 2026-07-01T00:00:00.000Z
- * @description: Pre-generate static JSON cache for dashboard bundles (all days — instant page loads)
- * @last-fix: [2026-07-01] refreshDashboardBundleCache — daily + weekly/monthly/yearly cascade after snapshot
- *   Prior: [2026-07-01] Write daily JSON for open register day after each snapshot rebuild
- *   Prior: [2026-06-07] Open register day check via amsterdamOpenRegisterBusinessDateYmd (ADR-010)
- *   Prior: [2026-06-05] Initial pre-generation after snapshot builds complete
- * @adr-ref: ADR-004, ADR-010
+ * @last-modified: 2026-07-02T00:00:00.000Z
+ * @description: Pre-generate dashboard bundle JSON after snapshot writes (Mongo SSOT + local mirror)
+ * @last-fix: [2026-07-02] Write daily_ops_read_cache on pregen (ADR-013)
+ *   Prior: [2026-07-01] refreshDashboardBundleCache — daily + weekly/monthly/yearly cascade after snapshot
+ * @adr-ref: ADR-004, ADR-010, ADR-013
+ * @data-source: snapshot-write-only
+ * @write-cache-json: daily_ops_read_cache · dashboard-bundle · daily+weekly+monthly+yearly · after buildDailyOpsSnapshot
  *
  * @exports-to:
  * ✓ server/services/dailyOpsSnapshotService.ts
@@ -15,19 +15,11 @@
  */
 
 import type { Db } from 'mongodb'
-import { writeFile, mkdir } from 'node:fs/promises'
-import { resolve } from 'node:path'
 import type { DailyOpsMetricsContext } from '../dailyOpsMetrics/context'
 import { addCalendarDaysYmd, amsterdamOpenRegisterBusinessDateYmd } from '~/utils/dailyOpsBusinessDate'
-import { cascadeGenerate } from './cacheCascade'
+import { cascadeGenerate, persistDashboardBundleCache } from './cacheCascade'
 import { fetchDailyOpsDashboardBundle } from './fetchDashboardBundle'
 import { buildVenueStripResponse } from '../dailyOpsVenueStrip'
-
-const CACHE_DIR = resolve(process.cwd(), '.cache/daily-ops-bundles/daily')
-
-function cacheFileName(businessDate: string, locationId: string): string {
-  return `${businessDate}-${locationId}.json`
-}
 
 /** Generate static bundle JSON after snapshot build completes (all days including today). */
 export async function preGenerateBundleForDate(
@@ -50,14 +42,13 @@ export async function preGenerateBundleForDate(
     if (locationId === 'all') {
       bundle.venueStrip = await buildVenueStripResponse(db, ctx)
     }
-    const json = JSON.stringify(bundle, null, 0)
 
-    await mkdir(CACHE_DIR, { recursive: true })
-    const fileName = cacheFileName(businessDate, locationId)
-    const filePath = resolve(CACHE_DIR, fileName)
+    await persistDashboardBundleCache(db, 'daily', businessDate, locationId, bundle, {
+      startDate: businessDate,
+      endDate: businessDate,
+    })
 
-    await writeFile(filePath, json, 'utf-8')
-    return { written: true, path: filePath }
+    return { written: true, path: `${businessDate}-${locationId}` }
   }
   catch (error) {
     return {
@@ -116,7 +107,7 @@ export async function refreshDashboardBundleCache(
   cascade: { weekly: number; monthly: number; yearly: number }
 }> {
   const daily = await preGenerateBundlesForRange(db, startDate, endDate, locationIds)
-  const cascade = await cascadeGenerate(startDate, endDate, locationIds)
+  const cascade = await cascadeGenerate(db, startDate, endDate, locationIds)
   console.info(
     `[bundle:cache] refresh ${startDate}..${endDate} daily=${daily.generated} weekly=${cascade.weekly} monthly=${cascade.monthly} yearly=${cascade.yearly}`,
   )

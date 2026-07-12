@@ -1,14 +1,16 @@
 /**
  * @registry-id: dailyOpsSnapshotBuildLaborSection
  * @created: 2026-05-13T00:00:00.000Z
- * @last-modified: 2026-05-26T00:06:00.000Z
+ * @last-modified: 2026-07-13T01:03:00.000Z
  * @description: Builds DailyOpsSnapshotLaborSection for one (businessDate, locationId)
  *   from eitje_time_registration_aggregation — full Eitje rollups including operational/gewerkt.
- * @last-fix: [2026-05-26] Operational/gewerkte rollup falls back to operational total_hours when gewerkt_* is all-zero/incomplete.
+ * @last-fix: [2026-07-13] Updated metadata: clarify Eitje labor-only read (ADR-004 snapshot sealed via revenue snapshot)
+ *   Prior: [2026-05-26] Operational/gewerkte rollup falls back to operational total_hours when gewerkt_* is all-zero/incomplete.
  *
  * @architecture:
+ *   - Reads only from eitje_time_registration_aggregation (period, locationId).
  *   - Writers: dailyOpsSnapshotService (cron + rebuild after Eitje agg).
- *   - Readers: venue strip, bundle, metrics — must not re-query eitje_* on GET when section exists.
+ *   - Readers: venue strip, bundle, metrics — must not re-query eitje_* on GET when section exists (ADR-004).
  *
  * @exports-to:
  *   ✓ server/services/dailyOpsSnapshotService.ts

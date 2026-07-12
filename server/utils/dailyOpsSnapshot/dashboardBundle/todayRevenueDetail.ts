@@ -1,9 +1,12 @@
 /**
  * @registry-id: dailyOpsDashboardBundleTodayDetail
  * @created: 2026-05-28T00:00:00.000Z
- * @last-modified: 2026-06-05T02:45:00.000Z
- * @description: Today revenue hourly detail + inbox cron snapshots for dashboard
- * @last-fix: [2026-06-05] Omit flat labor-synthesized productivity; shared sparse-hour redistribution
+ * @last-modified: 2026-07-13T01:03:00.000Z
+ * @description: Today revenue hourly detail + inbox cron snapshots for dashboard.
+ *   Uses snapshot orderHourly sections (order-time basis for today = SSOT).
+ *   Phase 2 TODO: Create shared resolveHourlyRevenueBasis() resolver to dedup this logic.
+ * @last-fix: [2026-07-13] Updated metadata: Document order-time basis for today + TODO shared resolver
+ *   Prior: [2026-06-05] Omit flat labor-synthesized productivity; shared sparse-hour redistribution
  * @adr-ref: ADR-004
  */
 

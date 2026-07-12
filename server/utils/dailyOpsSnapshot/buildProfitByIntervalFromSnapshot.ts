@@ -1,9 +1,13 @@
 /**
  * @registry-id: dailyOpsSnapshotBuildProfitByInterval
  * @created: 2026-05-25T00:00:00.000Z
- * @last-modified: 2026-06-05T00:00:00.000Z
+ * @last-modified: 2026-07-13T01:03:00.000Z
  * @description: Profit-by-interval cells from snapshot hourly revenue (no bork_* / eitje on GET).
- * @last-fix: [2026-06-05] Allocate headline revenue by labor hours when hourly revenue missing
+ *   Reads from snapshot hourly revenue + labor sections.
+ *   NOTE: Must use order-time for today (open register), paid-time for historical (sealed days).
+ *   Phase 2 TODO: Create shared resolveHourlyRevenueBasis() resolver to dedup this logic.
+ * @last-fix: [2026-07-13] Updated metadata: Document today=order-time, sealed=paid-time basis rule + TODO shared resolver
+ *   Prior: [2026-06-05] Allocate headline revenue by labor hours when hourly revenue missing
  * @adr-ref: ADR-004
  *
  * @exports-to:

@@ -23,7 +23,7 @@ import type { Db } from 'mongodb'
 import { ObjectId } from 'mongodb'
 import type { SnapshotSourceFingerprint } from '../../../types/daily-ops-snapshot'
 import { pickMorningFinalBasisReport, type BasisReportData } from '../inbox/basis-report-mapper'
-import { resolveBorkAggReadSuffix } from '../../borkAggVersionSuffix'
+import { resolveBorkAggReadSuffix } from '../borkAggVersionSuffix'
 
 export type SourcesFingerprint = {
   bork: SnapshotSourceFingerprint

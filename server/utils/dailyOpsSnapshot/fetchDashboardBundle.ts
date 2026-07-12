@@ -1,15 +1,22 @@
 /**
  * @registry-id: dailyOpsSnapshotFetchDashboardBundle
  * @created: 2026-05-25T00:00:00.000Z
- * @last-modified: 2026-07-01T21:30:00.000Z
- * @last-fix: [2026-07-01] Today ordered revenue from snapshot orderHourly only — no GET patch
+ * @last-modified: 2026-07-13T01:03:00.000Z
+ * @description: Snapshot-first Daily Ops dashboard bundle orchestrator (ADR-004/013)
+ *   Reads sealed snapshot sections only; no Bork/Eitje/Inbox on GET. Orchestrates section reads
+ *   → DTOs → write to read-cache (per ADR-013, snapshot write path SSOT).
+ * @last-fix: [2026-07-13] Updated metadata: snapshot-only, no live reads on GET
+ *   Prior: [2026-07-11] Hourly periodBreakdown staff headcount from shift overlap buckets
+ *   Prior: [2026-07-02] ADR-013 @write-cache-json — orchestrator feeds dashboard-bundle writer
+ *   Prior: [2026-07-01] Today ordered revenue from snapshot orderHourly only — no GET patch
  *   Prior: [2026-06-09] Merge live check_ins hourly labor into today P&L / profit-by-interval
  *   Prior: [2026-06-07] snapshotCacheControl uses open register business_date (ADR-010), not UTC ISO
  *   Prior: [2026-06-05] Cache sealed days 24h immutable; yesterday 1h + stale-while-revalidate
  *   Prior: [2026-06-05] Merge revenue-section hourly fallback + scale today hourly detail
- * @description: Snapshot-first Daily Ops dashboard bundle orchestrator (ADR-004)
- * @last-fix: [2026-05-31] Dashboard profit math uses Mongo P&L assumptions SSOT
- * @adr-ref: ADR-004, ADR-006, ADR-010
+ *   Prior: [2026-05-31] Dashboard profit math uses Mongo P&L assumptions SSOT
+ * @adr-ref: ADR-004, ADR-006, ADR-010, ADR-013
+ * @data-source: snapshot-write-only
+ * @write-cache-json: daily_ops_read_cache · dashboard-bundle · daily+weekly+monthly+yearly · orchestrator feeds preGenerateBundleCache after buildDailyOpsSnapshot
  *
  * @exports-to:
  * ✓ server/api/daily-ops/metrics/bundle.get.ts
@@ -24,6 +31,7 @@ import type {
   DailyOpsProfitByIntervalDto,
   DailyOpsRevenueBreakdownDto,
   DailyOpsSummaryDto,
+  PeriodBreakdownDto,
   VenueStripResponseDto,
 } from '~/types/daily-ops-dashboard'
 import type { DailyOpsMetricsContext } from '../dailyOpsMetrics/context'
@@ -57,6 +65,15 @@ import { snapshotRound2 } from './dashboardBundle/shared'
 import { buildTodayExtrasFromHourBundle } from './dashboardBundle/todayRevenueDetail'
 import { headlineExVatFromSnapshotSection } from './snapshotHeadlineRevenue'
 import { coverageFromSnapshotMasters, formatCoverageNote } from './bundleCoverage'
+import {
+  buildHourBreakdownFromDrilldown,
+  buildPeriodBreakdownFromLaborMetrics,
+} from './buildPeriodBreakdown'
+import {
+  fetchCheckInsStaffByBusinessDateHour,
+  fetchStaffByBusinessDateHour,
+  mergeStaffHourMaps,
+} from './staffHourBuckets'
 
 export type DailyOpsDashboardBundleDto = {
   summary: DailyOpsSummaryDto
@@ -64,6 +81,8 @@ export type DailyOpsDashboardBundleDto = {
   labor: DailyOpsLaborMetricsDto
   /** 3-venue strip (locationId=all daily files only; aggregated on week/month/year). */
   venueStrip?: VenueStripResponseDto
+  /** Hour/day/week/month bars for venue strip graph + period charts. */
+  periodBreakdown?: PeriodBreakdownDto
 }
 
 const EMPTY_PROFIT_BY_INTERVAL: DailyOpsProfitByIntervalDto = {
@@ -129,7 +148,12 @@ export async function fetchDashboardBundleLight(
     contractTypeByDay: snapshotContracts.contractTypeByDay,
   })
 
-  return { summary, revenue, labor }
+  return {
+    summary,
+    revenue,
+    labor,
+    periodBreakdown: buildPeriodBreakdownFromLaborMetrics(labor, ctx.startDate, ctx.endDate),
+  }
 }
 
 /** Snapshot-only dashboard bundle — single coordinated read (ADR-004). */
@@ -248,7 +272,30 @@ export async function fetchDailyOpsDashboardBundle(
     contractTypeByDay: snapshotContracts.contractTypeByDay,
   })
 
-  return { summary, revenue, labor }
+  let staffByLocHour = await fetchStaffByBusinessDateHour(db, {
+    startDate: ctx.startDate,
+    endDate: ctx.endDate,
+    locationId: ctx.locationId,
+  })
+  if (ctx.startDate === ctx.endDate && ctx.startDate === openRegister) {
+    const checkInStaff = await fetchCheckInsStaffByBusinessDateHour(db, {
+      startDate: ctx.startDate,
+      endDate: ctx.endDate,
+      locationId: ctx.locationId,
+    })
+    staffByLocHour = mergeStaffHourMaps(staffByLocHour, checkInStaff)
+  }
+
+  const periodBreakdown =
+    ctx.startDate === ctx.endDate
+      ? buildHourBreakdownFromDrilldown(drilldown, {
+          businessDate: ctx.startDate,
+          laborByLocHour,
+          staffByLocHour,
+        })
+      : buildPeriodBreakdownFromLaborMetrics(labor, ctx.startDate, ctx.endDate)
+
+  return { summary, revenue, labor, periodBreakdown }
 }
 
 export function snapshotCacheControl(ctx: DailyOpsMetricsContext): string {
