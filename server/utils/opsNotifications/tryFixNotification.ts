@@ -1,9 +1,10 @@
 /**
  * @registry-id: tryFixOpsNotification
  * @created: 2026-05-28T00:00:00.000Z
- * @last-modified: 2026-07-11T17:30:00.000Z
+ * @last-modified: 2026-07-13T10:12:00.000Z
  * @description: One-shot fix + self-healing for ops notification rows
- * @last-fix: [2026-07-11] Integration sync re-run + snapshot/cache backfill; refresh read-cache after snapshot fix
+ * @last-fix: [2026-07-13] Try fix missing_bork_when_inbox_final via Bork V2 rebuild
+ *   Prior: [2026-07-11] Integration sync re-run + snapshot/cache backfill; refresh read-cache after snapshot fix
  *   Prior: [2026-05-28] Bork V2 rebuild + snapshot rebuild for warm-tier / gap alerts
  * @adr-ref: ADR-004, ADR-013
  *
@@ -42,6 +43,7 @@ export type TryFixResult = {
 const BORK_WARM_FIX_KINDS: OpsNotificationKind[] = [
   'bork_revenue_aggregation_stale',
   'bork_inbox_revenue_gap',
+  'missing_bork_when_inbox_final',
 ]
 
 const SNAPSHOT_ONLY_KINDS: OpsNotificationKind[] = [

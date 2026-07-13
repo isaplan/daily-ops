@@ -1,11 +1,10 @@
 /**
  * @registry-id: eitjeSyncService
  * @created: 2026-04-05T12:00:00.000Z
- * @last-modified: 2026-07-09T00:00:00.000Z
- * @last-fix: [2026-07-09] Always materialize snapshots — remove ok/hasWork gate; historical gap backfill
- *   Prior: [2026-06-24] Await snapshot+JSON materialization after daily/historical; 7d/31d job types
- * @description: Fetches Eitje Open API resources and upserts eitje_raw_data; drives cron/sync handlers
- * @last-fix: [2026-06-09] Daily sync includes check_ins (yesterday + today window)
+ * @last-modified: 2026-07-13T10:12:00.000Z
+ * @last-fix: [2026-07-13] Tolerate check_ins HTTP 404 on daily-data (optional Eitje endpoint)
+ *   Prior: [2026-07-09] Always materialize snapshots — remove ok/hasWork gate; historical gap backfill
+ *   Prior: [2026-06-09] Daily sync includes check_ins (yesterday + today window)
  *   Prior: [2026-05-25] Daily/historical sync now fetches planning_shifts, leave_requests, and events; planning_shifts rebuilds planned-hours aggregation.
  *   Prior: [2026-05-19] Per-day shift counts in sync messages; Amsterdam calendar windows for all job types.
  *   Prior: [2026-05-19] Daily/historical sync windows use Europe/Amsterdam calendar days (not toISOString UTC).
@@ -803,6 +802,7 @@ export async function executeEitjeJob (db: Db, jobType: string): Promise<EitjeSy
       'check_ins',
       yesterdayYmd,
       todayYmd,
+      { tolerateEmptyWindow404: true },
     )
     const futureEndpoints = await syncRawDateEndpoints(
       db,

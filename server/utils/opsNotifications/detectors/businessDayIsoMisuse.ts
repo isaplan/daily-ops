@@ -1,6 +1,8 @@
 /**
  * ADR-010 guard: Daily Ops read/UI paths must not use ISO calendar date for “today”.
  * See utils/dailyOpsBusinessDate.ts (SSOT) and ADR-010 in DECISIONS.md.
+ * @last-modified: 2026-07-13T10:06:00.000Z
+ * @last-fix: [2026-07-13] Strip comments before pattern scan (avoid doc-only false positives)
  */
 
 import { readdirSync, readFileSync, statSync } from 'node:fs'
@@ -77,6 +79,12 @@ function listSourceFiles(dir: string, out: string[] = []): string[] {
   return out
 }
 
+function stripCommentsForScan(content: string): string {
+  return content
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/\/\/.*$/gm, '')
+}
+
 function relPath(abs: string): string {
   return relative(ROOT, abs).replace(/\\/g, '/')
 }
@@ -112,9 +120,10 @@ export function detectBusinessDayIsoMisuseNotifications(): OpsNotificationDto[] 
     } catch {
       continue
     }
+    const scanned = stripCommentsForScan(content)
 
     for (const { id, re, hint } of FORBIDDEN_PATTERNS) {
-      if (!re.test(content)) continue
+      if (!re.test(scanned)) continue
       items.push(
         buildNotificationItem({
           kind: 'daily_ops_iso_calendar_misuse',

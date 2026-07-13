@@ -1,5 +1,7 @@
 /**
  * Shared scan window + preloaded Mongo rows for all ops notification detectors.
+ * @last-modified: 2026-07-13T10:12:00.000Z
+ * @last-fix: [2026-07-13] Bork warm-tier reads union suffix candidates (_v2 vs _test)
  */
 
 import type { Db } from 'mongodb'
@@ -17,7 +19,7 @@ import {
   addCalendarDaysYmd,
   amsterdamOpenRegisterBusinessDateYmd,
 } from '~/utils/dailyOpsBusinessDate'
-import { resolveBorkAggReadSuffix } from '../borkAggVersionSuffix'
+import { listBorkAggReadSuffixCandidates } from '../borkAggVersionSuffix'
 
 export const REV_EPS = 0.02
 export const GAP_PCT_THRESHOLD = 10
@@ -57,6 +59,39 @@ export function resolveScanWindow(opts?: { lookbackDays?: number; endDate?: stri
   return { lookbackDays, endDate, startDate }
 }
 
+async function loadBorkBusinessDayRows(
+  db: Db,
+  dateFilter: { $gte: string; $lte: string },
+  locIds: string[],
+  suffixCandidates: string[],
+): Promise<Array<{ business_date?: string; locationId?: unknown; total_revenue_ex_vat?: number }>> {
+  const merged = new Map<string, { business_date?: string; locationId?: unknown; total_revenue_ex_vat?: number }>()
+  const locObjectIds = locIds.map((id) => new ObjectId(id))
+
+  for (const suffix of suffixCandidates) {
+    const coll = `bork_business_days${suffix}`
+    if (!(await db.listCollections({ name: coll }).hasNext())) continue
+    const rows = await db
+      .collection(coll)
+      .find({
+        business_date: dateFilter,
+        locationId: { $in: locObjectIds },
+      })
+      .project({ business_date: 1, locationId: 1, total_revenue_ex_vat: 1 })
+      .toArray()
+    for (const row of rows) {
+      const lid =
+        row.locationId instanceof ObjectId ? row.locationId.toHexString() : String(row.locationId ?? '')
+      const key = snapKey(String(row.business_date ?? ''), lid)
+      const ex = Number(row.total_revenue_ex_vat ?? 0)
+      const prev = merged.get(key)
+      if (!prev || ex > Number(prev.total_revenue_ex_vat ?? 0)) merged.set(key, row)
+    }
+  }
+
+  return [...merged.values()]
+}
+
 export async function loadOpsScanContext(
   db: Db,
   window: Pick<OpsScanWindow, 'startDate' | 'endDate'>,
@@ -65,14 +100,12 @@ export async function loadOpsScanContext(
   const dateFilter = { $gte: startDate, $lte: endDate }
   const locIds = VENUE_STRIP_LOCATIONS.map((v) => v.locationId)
   const locName = new Map(VENUE_STRIP_LOCATIONS.map((v) => [v.locationId, v.locationName]))
-  const borkSuffix = resolveBorkAggReadSuffix()
-  const borkDaysColl = `bork_business_days${borkSuffix}`
+  const borkSuffixCandidates = listBorkAggReadSuffixCandidates()
 
   const [
     revenueRows,
     laborRows,
     masterRows,
-    borkRows,
     eitjeRows,
     inboxRows,
     inboxUnmapped,
@@ -101,14 +134,6 @@ export async function loadOpsScanContext(
       .collection(DAILY_OPS_SNAPSHOT_COLLECTIONS.master)
       .find({ businessDate: dateFilter, locationId: { $in: locIds } })
       .project({ businessDate: 1, locationId: 1 })
-      .toArray(),
-    db
-      .collection(borkDaysColl)
-      .find({
-        business_date: dateFilter,
-        locationId: { $in: locIds.map((id) => new ObjectId(id)) },
-      })
-      .project({ business_date: 1, locationId: 1, total_revenue_ex_vat: 1 })
       .toArray(),
     db
       .collection('eitje_time_registration_aggregation')
@@ -143,6 +168,8 @@ export async function loadOpsScanContext(
       .project({ date: 1, location_id: 1 })
       .toArray(),
   ])
+
+  const borkRows = await loadBorkBusinessDayRows(db, dateFilter, locIds, borkSuffixCandidates)
 
   const revenueByKey = new Map<string, { ex: number; inc: number }>()
   for (const r of revenueRows) {

@@ -1,9 +1,10 @@
 /**
  * @registry-id: dailyOpsVenueStripCheckIns
  * @created: 2026-06-09T18:00:00.000Z
- * @last-modified: 2026-06-09T18:00:00.000Z
+ * @last-modified: 2026-07-13T10:06:00.000Z
  * @description: Eitje check_ins for Active KPI (live clock-in, start_datetime only)
- * @last-fix: [2026-06-09] Live fetch on open register day + raw fallback from eitje_raw_data
+ * @last-fix: [2026-07-13] registerBusinessDateForInstant for check-in filter (ADR-010)
+ *   Prior: [2026-06-09] Live fetch on open register day + raw fallback from eitje_raw_data
  * @adr-ref: ADR-004, ADR-010
  *
  * @exports-to:
@@ -14,7 +15,7 @@
 import { ObjectId, type Db } from 'mongodb'
 import { loadActiveEitjeCredentials } from '../../services/eitjeSyncService'
 import { eitjeFetchJson } from '../../services/eitjeOpenApiFetch'
-import { amsterdamOpenRegisterBusinessDateYmd, calendarYmdInAmsterdam } from '~/utils/dailyOpsBusinessDate'
+import { amsterdamOpenRegisterBusinessDateYmd, registerBusinessDateForInstant } from '~/utils/dailyOpsBusinessDate'
 import { VENUE_STRIP_LOCATIONS } from './constants'
 import { isExcludedFromFloorActive } from './floorActiveFilters'
 
@@ -103,7 +104,7 @@ function parseCheckInRecords(
   for (const raw of records) {
     const checkInStart = startFromRaw(raw)
     if (!checkInStart) continue
-    if (calendarYmdInAmsterdam(checkInStart) !== businessDate) continue
+    if (registerBusinessDateForInstant(checkInStart) !== businessDate) continue
 
     const userObj = raw.user && typeof raw.user === 'object' ? (raw.user as Record<string, unknown>) : null
     const teamObj = raw.team && typeof raw.team === 'object' ? (raw.team as Record<string, unknown>) : null

@@ -19,7 +19,7 @@
         type="date"
         class="rounded border border-gray-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
         :value="query.pick ?? ''"
-        :max="todayIso"
+        :max="openRegisterYmd"
         @change="onDatePick"
       />
       <button
@@ -76,7 +76,14 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * @description: Revenue Nav V2 shell — mode tabs, date pick, compare, venue bar
+ * @last-modified: 2026-07-13T10:06:00.000Z
+ * @last-fix: [2026-07-13] Date picker max = open register business_date (ADR-010)
+ * @adr-ref: ADR-010, ADR-011
+ */
 import type { RevenueNavV2Mode, RevenueNavV2Slot } from '~/types/daily-ops-revenue-nav-v2'
+import { amsterdamOpenRegisterBusinessDateYmd } from '~/utils/dailyOpsBusinessDate'
 
 const {
   query,
@@ -89,7 +96,7 @@ const {
   setPick,
 } = useDailyOpsRevenueNavV2()
 
-const todayIso = new Date().toISOString().slice(0, 10)
+const openRegisterYmd = amsterdamOpenRegisterBusinessDateYmd()
 
 function onDatePick(e: Event) {
   const v = (e.target as HTMLInputElement).value

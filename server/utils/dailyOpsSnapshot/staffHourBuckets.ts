@@ -1,10 +1,11 @@
 /**
  * @registry-id: dailyOpsStaffHourBuckets
  * @created: 2026-07-11T18:30:00.000Z
- * @last-modified: 2026-07-11T18:30:00.000Z
+ * @last-modified: 2026-07-13T10:06:00.000Z
  * @description: Distinct staff headcount per location × business_date × calendar_hour (shift overlap)
- * @last-fix: [2026-07-11] Hourly staff buckets for venue strip period breakdown
- * @adr-ref: ADR-004, ADR-013
+ * @last-fix: [2026-07-13] registerBusinessDateForInstant for check-in business_date (ADR-010)
+ *   Prior: [2026-07-11] Hourly staff buckets for venue strip period breakdown
+ * @adr-ref: ADR-004, ADR-010, ADR-013
  *
  * @exports-to:
  * ✓ server/utils/dailyOpsSnapshot/fetchDashboardBundle.ts
@@ -18,7 +19,7 @@ import {
   buildEitjeOpenShiftHoursAddFields,
   buildEitjeShiftEndField,
 } from '../eitjeHours'
-import { amsterdamOpenRegisterBusinessDateYmd, calendarYmdInAmsterdam } from '~/utils/dailyOpsBusinessDate'
+import { amsterdamOpenRegisterBusinessDateYmd, registerBusinessDateForInstant } from '~/utils/dailyOpsBusinessDate'
 import {
   EITJE_CONTRACT_CPH_LOOKUP,
   EITJE_NORM_NAME_FIELD,
@@ -377,7 +378,7 @@ export async function fetchCheckInsStaffByBusinessDateHour(
     (await fetchVenueStripCheckIns(db, openRegister, ctx.locationId ? [ctx.locationId] : undefined))
 
   const scoped = rows.filter((row) => {
-    const ymd = calendarYmdInAmsterdam(row.checkInStart)
+    const ymd = registerBusinessDateForInstant(row.checkInStart)
     if (ymd < ctx.startDate || ymd > ctx.endDate) return false
     if (ctx.locationId && row.locationId !== ctx.locationId) return false
     return true
@@ -392,7 +393,7 @@ export async function fetchCheckInsStaffByBusinessDateHour(
   for (const row of scoped) {
     const hit = resolveMemberCompensationHit(row.userId, row.userName, comp)
     const contractType = hit?.contractType ?? ''
-    const businessDate = calendarYmdInAmsterdam(row.checkInStart)
+    const businessDate = registerBusinessDateForInstant(row.checkInStart)
     allocateShiftStaff(
       buckets,
       businessDate,

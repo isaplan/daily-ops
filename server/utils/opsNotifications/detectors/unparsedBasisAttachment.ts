@@ -1,8 +1,10 @@
 /**
  * @registry-id: opsNotificationDetectorUnparsedBasis
  * @created: 2026-05-28T00:00:00.000Z
+ * @last-modified: 2026-07-13T10:48:00.000Z
  * @description: Morning Basis row €0 with attachment data — auto-retry parse once, then open/fixed alert.
- * @last-fix: [2026-05-28] One-shot retry via retryProcessEmailAttachments; fixed when revenue/categories populate.
+ * @last-fix: [2026-07-13] Skip when sealed snapshot or Bork warm-tier already has headline revenue
+ *   Prior: [2026-05-28] One-shot retry via retryProcessEmailAttachments; fixed when revenue/categories populate.
  */
 
 import type { Db } from 'mongodb'
@@ -10,6 +12,9 @@ import { ObjectId, type ObjectId as ObjectIdType } from 'mongodb'
 import type { OpsNotificationDto } from '~/types/ops-notifications'
 import { INBOX_COLLECTIONS } from '../../inbox/constants'
 import { retryProcessEmailAttachments } from '../../../services/inboxProcessService'
+import { DAILY_OPS_SNAPSHOT_COLLECTIONS } from '~/types/daily-ops-snapshot'
+import { listBorkAggReadSuffixCandidates } from '../../borkAggVersionSuffix'
+import { REV_EPS } from '../scanContext'
 
 function toObjectId(id: string): ObjectIdType | null {
   try {
@@ -26,6 +31,39 @@ function basisRowLooksParsed(row: {
   const ex = Number(row.final_revenue_ex_vat ?? 0)
   const cats = row.sections?.netto_sales?.categories?.length ?? 0
   return ex > 0 || cats > 0
+}
+
+async function headlineAlreadySealed(
+  db: Db,
+  businessDate: string,
+  locationId: string,
+): Promise<boolean> {
+  const snap = await db.collection(DAILY_OPS_SNAPSHOT_COLLECTIONS.revenueSection).findOne({
+    businessDate,
+    locationId,
+  })
+  if (Number((snap?.totals as { ex_vat?: number } | undefined)?.ex_vat ?? 0) > REV_EPS) {
+    return true
+  }
+
+  let locOid: ObjectIdType | null = null
+  try {
+    locOid = ObjectId.isValid(locationId) ? new ObjectId(locationId) : null
+  } catch {
+    locOid = null
+  }
+  if (!locOid) return false
+
+  for (const suffix of listBorkAggReadSuffixCandidates()) {
+    const coll = `bork_business_days${suffix}`
+    if (!(await db.listCollections({ name: coll }).hasNext())) continue
+    const bork = await db.collection(coll).findOne({
+      business_date: businessDate,
+      locationId: locOid,
+    })
+    if (Number(bork?.total_revenue_ex_vat ?? 0) > REV_EPS) return true
+  }
+  return false
 }
 
 export async function detectUnparsedBasisAttachments(
@@ -62,12 +100,17 @@ export async function detectUnparsedBasisAttachments(
       Number(attachment.fileSize ?? 0) > 0
     if (!hasData) continue
 
+    const locationId = String(row.location_id ?? '')
+    if (locationId && (await headlineAlreadySealed(db, businessDate, locationId))) continue
+
     const parsedData = await db.collection(INBOX_COLLECTIONS.parsedData).findOne({
       attachmentId: attId,
     })
 
     const needsRetry = !parsedData || !basisRowLooksParsed(row)
     if (!needsRetry) continue
+
+    if (row.metadata?.parsed_at) continue
 
     const retry =
       opts?.allowAutoRetry !== false

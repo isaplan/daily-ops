@@ -1,9 +1,10 @@
 /**
  * @registry-id: dailyOpsBundleCoverage
  * @created: 2026-06-18T00:00:00.000Z
- * @last-modified: 2026-06-18T00:00:00.000Z
+ * @last-modified: 2026-07-13T09:58:00.000Z
  * @description: Snapshot coverage for multi-day dashboard bundles (missing business dates)
- * @last-fix: [2026-06-18] Initial — daysFound / missingDates for week/month/year partial compile
+ * @last-fix: [2026-07-13] Merge nested snapshotCoverage from rollup children (month→year)
+ *   Prior: [2026-06-18] Initial — daysFound / missingDates for week/month/year partial compile
  * @adr-ref: ADR-004, ADR-008
  *
  * @exports-to:
@@ -33,15 +34,60 @@ export function computeBundleCoverage(
   }
 }
 
+function clipYmdRange(
+  start: string,
+  end: string,
+  clipStart: string,
+  clipEnd: string,
+): { start: string; end: string } | null {
+  const sliceStart = start > clipStart ? start : clipStart
+  const sliceEnd = end < clipEnd ? end : clipEnd
+  if (sliceStart > sliceEnd) return null
+  return { start: sliceStart, end: sliceEnd }
+}
+
+/** Found business dates contributed by one child bundle within a parent range. */
+function foundDatesFromBundle(
+  bundle: DailyOpsDashboardBundleDto,
+  parentStart: string,
+  parentEnd: string,
+): string[] {
+  const range = bundle.summary?.range
+  if (!range?.startDate || !range?.endDate) return []
+
+  const clipped = clipYmdRange(range.startDate, range.endDate, parentStart, parentEnd)
+  if (!clipped) return []
+
+  const { start: sliceStart, end: sliceEnd } = clipped
+  const cov = bundle.summary.snapshotCoverage
+
+  if (cov) {
+    const expected = enumerateUtcDatesInclusive(sliceStart, sliceEnd)
+    const missing = new Set(
+      cov.missingDates.filter((d) => d >= sliceStart && d <= sliceEnd),
+    )
+    return expected.filter((d) => !missing.has(d))
+  }
+
+  if (range.startDate === range.endDate) {
+    return range.startDate >= parentStart && range.startDate <= parentEnd ? [range.startDate] : []
+  }
+
+  return enumerateUtcDatesInclusive(sliceStart, sliceEnd)
+}
+
 export function coverageFromDailyBundles(
   bundles: DailyOpsDashboardBundleDto[],
   startDate: string,
   endDate: string,
 ): DailyOpsSnapshotCoverageDto {
-  const dates = bundles
-    .map((b) => b.summary?.range?.startDate)
-    .filter((d): d is string => !!d && d >= startDate && d <= endDate)
-  return computeBundleCoverage(startDate, endDate, dates)
+  const found = new Set<string>()
+  for (const bundle of bundles) {
+    for (const d of foundDatesFromBundle(bundle, startDate, endDate)) {
+      found.add(d)
+    }
+  }
+  return computeBundleCoverage(startDate, endDate, found)
 }
 
 export function coverageFromSnapshotMasters(

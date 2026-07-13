@@ -1,10 +1,11 @@
 /**
  * @registry-id: dailyOpsVenueStripWorkerShiftTimes
  * @created: 2026-06-07T00:00:00.000Z
- * @last-modified: 2026-06-08T00:00:00.000Z
+ * @last-modified: 2026-07-13T10:06:00.000Z
  * @description: Shift start/end labels for venue-strip KPI staff drawers (Eitje raw + inbox fallback)
- * @last-fix: [2026-06-09] Active shift = end missing or end in future (Eitje planned end ≠ clock-out)
- * @adr-ref: ADR-004
+ * @last-fix: [2026-07-13] registerBusinessDateForInstant for shift business_date (ADR-010)
+ *   Prior: [2026-06-09] Active shift = end missing or end in future (Eitje planned end ≠ clock-out)
+ * @adr-ref: ADR-004, ADR-010
  *
  * @exports-to:
  * ✓ server/utils/venueStrip/labor.ts
@@ -12,7 +13,7 @@
 
 import { ObjectId, type Db } from 'mongodb'
 import type { VenueStripWorkerLineDto } from '~/types/daily-ops-dashboard'
-import { amsterdamOpenRegisterBusinessDateYmd, calendarYmdInAmsterdam } from '~/utils/dailyOpsBusinessDate'
+import { amsterdamOpenRegisterBusinessDateYmd, registerBusinessDateForInstant } from '~/utils/dailyOpsBusinessDate'
 import { isEitjeShiftClockedOut } from '~/utils/dailyOpsOpenShiftLabor'
 import { VENUE_STRIP_LOCATIONS } from './constants'
 
@@ -241,7 +242,7 @@ async function fetchEitjeShiftRows(
     const extracted = (doc.extracted ?? {}) as Record<string, unknown>
     const shiftStart = shiftStartFromRaw(raw)
     if (!shiftStart) continue
-    const period = calendarYmdInAmsterdam(shiftStart)
+    const period = registerBusinessDateForInstant(shiftStart)
     if (period !== businessDate) continue
 
     const environmentId = String(

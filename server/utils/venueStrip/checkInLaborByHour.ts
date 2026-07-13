@@ -1,9 +1,10 @@
 /**
  * @registry-id: dailyOpsVenueStripCheckInLaborByHour
  * @created: 2026-06-09T20:00:00.000Z
- * @last-modified: 2026-06-09T20:00:00.000Z
+ * @last-modified: 2026-07-13T10:06:00.000Z
  * @description: Allocate live check_in labor to hourly buckets for P&L / profit-by-interval
- * @last-fix: [2026-06-09] check_ins SSOT for open-register floor staff hourly loaded cost
+ * @last-fix: [2026-07-13] registerBusinessDateForInstant for check-in business_date (ADR-010)
+ *   Prior: [2026-06-09] check_ins SSOT for open-register floor staff hourly loaded cost
  * @adr-ref: ADR-004, ADR-010
  *
  * @exports-to:
@@ -11,7 +12,7 @@
  */
 
 import type { Db } from 'mongodb'
-import { amsterdamOpenRegisterBusinessDateYmd, calendarYmdInAmsterdam } from '~/utils/dailyOpsBusinessDate'
+import { amsterdamOpenRegisterBusinessDateYmd, registerBusinessDateForInstant } from '~/utils/dailyOpsBusinessDate'
 import { elapsedOpenShiftHours, loadedCostFromCph } from '~/utils/dailyOpsOpenShiftLabor'
 import {
   allocateShiftLabor,
@@ -54,7 +55,7 @@ export async function fetchCheckInsLaborByBusinessDateHour (
     (await fetchVenueStripCheckIns(db, openRegister, ctx.locationId ? [ctx.locationId] : undefined))
 
   const scoped = rows.filter((row) => {
-    const ymd = calendarYmdInAmsterdam(row.checkInStart)
+    const ymd = registerBusinessDateForInstant(row.checkInStart)
     if (ymd < ctx.startDate || ymd > ctx.endDate) return false
     if (ctx.locationId && row.locationId !== ctx.locationId) return false
     return true
@@ -72,7 +73,7 @@ export async function fetchCheckInsLaborByBusinessDateHour (
     const hit = resolveMemberCompensationHit(row.userId, row.userName, comp)
     const loaded = loadedCostFromCph(hours, hit?.costPerHour ?? 0)
     if (loaded <= 0) continue
-    const businessDate = calendarYmdInAmsterdam(row.checkInStart)
+    const businessDate = registerBusinessDateForInstant(row.checkInStart)
     allocateShiftLabor(
       buckets,
       businessDate,
