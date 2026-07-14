@@ -343,3 +343,44 @@ API endpoint (`bundle.get.ts`) intelligently serves from the appropriate cache l
 **Docs:** `dev-docs/CACHE_CASCADE.md`, `ARCHITECTURE.md` §2–3
 
 ---
+
+## ADR-014 — Single net-profit formula (SSOT) for all Daily Ops surfaces
+
+**Status:** Accepted (2026-07-14)
+
+**Context:** Dashboard summary KPIs, period-breakdown chart bars (day/week/month/year), and cached rollups used `profit = revenue − labor` while hourly drilldown and profit-by-interval used the full estimated P&L (`revenue − labor − COGS − fixed overhead`). Yearly monthly bars therefore showed much higher “profit” than daily hourly views for the same business.
+
+**Decision:**
+
+1. **Formula SSOT:** `pnlFromRevenueLabor()` in `server/utils/dailyOpsInsights/pnlFromRevenueLabor.ts`.  
+   `net_profit = revenue − loadedLabor − COGS − fixed_overhead`  
+   - COGS: period food share × food COGS% + beverage share × bev COGS% (50/50 when category mix unknown).  
+   - Fixed overhead: revenue × overhead%.  
+   - Convenience wrapper: `netProfitFromHeadline(revenue, labor, categoryTotals, assumptions)`.
+
+2. **Assumptions SSOT (dashboard):** Mongo app setting via `loadPnlAssumptions()` (`server/utils/appSettings/pnlAssumptionsSetting.ts`), defaults in `utils/dailyOpsPnlAssumptionsDefaults.ts`. User-adjustable via app settings API. Insights page may additionally resolve accounting benchmarks (`utils/accountingPnlAssumptions.ts`) — same formula, different assumption source.
+
+3. **Category mix:** Sum `revenue.revenueByCategory` food/drinks from daily bundles when rolling up; unknown mix → 50/50 food/bev COGS split.
+
+4. **All profit outputs must call the SSOT** — no inline `revenue − labor` for headline profit, summary KPIs, or period-breakdown bars. Hourly drilldown and profit-by-interval delegate to the same function.
+
+5. **Cache invalidation:** Bump `DAILY_OPS_BUNDLE_CACHE_VERSION` when profit math changes; rebuild read-cache rollups.
+
+**Apply map:**
+
+| Surface | File |
+|--------|------|
+| Formula + helpers | `server/utils/dailyOpsInsights/pnlFromRevenueLabor.ts` |
+| Summary KPI | `server/utils/dailyOpsMetrics/dtoBuilders.ts` → `buildDailyOpsSummaryDto` |
+| Week/month/year rollups | `server/utils/dailyOpsSnapshot/aggregateDailyBundles.ts` |
+| Period breakdown bars | `server/utils/dailyOpsSnapshot/buildPeriodBreakdown.ts` |
+| Hourly drilldown | `server/utils/dailyOpsSnapshot/drilldown/buildRevenueDrilldownHourly.ts` |
+| Profit-by-interval | `server/utils/dailyOpsSnapshot/buildProfitByIntervalFromSnapshot.ts` |
+| Revenue P&L API | `server/utils/dailyOpsRevenue/computeSimplePnL.ts` |
+| Assumptions (configurable) | `server/utils/appSettings/pnlAssumptionsSetting.ts` |
+
+**Consequences:** Yearly/monthly profit bars align with daily hourly math. Rollup cache must be regenerated after deploy. `profitMarginPct` on summary reflects net margin (after COGS + overhead), not gross margin after labor only.
+
+**Related:** ADR-004, ADR-013
+
+---

@@ -18,8 +18,6 @@ import type { DailyOpsMetricsContext } from '../dailyOpsMetrics/context'
 import { enumerateUtcDatesInclusive } from '../dailyOpsMetrics/context'
 import {
   formatProfitEstimatesNote,
-  profitHourDefaultsFromPnlAssumptions,
-  type ProfitHourDefaults,
 } from '../dailyOpsMetrics/profitHour'
 import type { DailyOpsSimplePnLAssumptions } from '~/types/daily-ops-revenue'
 import { DEFAULT_PNL_ASSUMPTIONS } from '~/utils/dailyOpsPnlAssumptionsDefaults'
@@ -36,6 +34,7 @@ import {
 import { snapshotLocDayKey } from './dashboardBundle/shared'
 import type { SnapshotLaborByBusinessDateHourBucket } from './dashboardBundle/laborHourMaps'
 import { roundDashboardEur } from '~/utils/dashboardEurFormat'
+import { pnlFromRevenueLabor } from '~/server/utils/dailyOpsInsights/pnlFromRevenueLabor'
 import { amsterdamOpenRegisterBusinessDateYmd } from '~/utils/dailyOpsBusinessDate'
 
 const INTERVAL_MATCHERS: Record<DailyOpsProfitIntervalKey, (hour: number) => boolean> = {
@@ -129,16 +128,10 @@ function dayPnlFromHeadline(
   dayRevenue: number,
   dayLoadedLabor: number,
   foodShare: number,
-  profitDefaults: ProfitHourDefaults,
+  assumptions: DailyOpsSimplePnLAssumptions,
 ): { cogs: number; fixed: number; profit: number } {
-  const foodRev = dayRevenue * foodShare
-  const bevRev = dayRevenue - foodRev
-  const cogs = roundDashboardEur(
-    foodRev * profitDefaults.foodCogsPct + bevRev * profitDefaults.beverageCogsPct,
-  )
-  const fixed = roundDashboardEur(dayRevenue * profitDefaults.fixedOverheadPct)
-  const profit = roundDashboardEur(dayRevenue - dayLoadedLabor - cogs - fixed)
-  return { cogs, fixed, profit }
+  const slice = pnlFromRevenueLabor(dayRevenue, dayLoadedLabor, foodShare, assumptions)
+  return { cogs: slice.cogs, fixed: slice.fixed_overhead, profit: slice.net_profit }
 }
 
 function computeCell(
@@ -152,7 +145,7 @@ function computeCell(
   intervalKey: DailyOpsProfitIntervalKey,
   intervalLabel: string,
   locationName: string,
-  profitDefaults: ProfitHourDefaults,
+  assumptions: DailyOpsSimplePnLAssumptions,
 ): DailyOpsProfitIntervalCellDto {
   const def = INTERVAL_MATCHERS[intervalKey]
   let revenue = 0
@@ -199,7 +192,7 @@ function computeCell(
         : dayRevenue > 0
           ? revenue / dayRevenue
           : 0
-    const dayPnl = dayPnlFromHeadline(dayRevenue, dayLoadedLabor, foodShare, profitDefaults)
+    const dayPnl = dayPnlFromHeadline(dayRevenue, dayLoadedLabor, foodShare, assumptions)
     return {
       date,
       locationId,
@@ -219,13 +212,7 @@ function computeCell(
   const laborCost =
     dayRevenue > 0 && dayLoadedLabor > 0 ? roundDashboardEur(dayLoadedLabor * (revenue / dayRevenue)) : 0
 
-  const foodRev = revenue * foodShare
-  const bevRev = revenue - foodRev
-  const cogs =
-    foodRev * profitDefaults.foodCogsPct +
-    bevRev * profitDefaults.beverageCogsPct
-  const fixed = revenue * profitDefaults.fixedOverheadPct
-  const profit = revenue - laborCost - cogs - fixed
+  const intervalPnl = pnlFromRevenueLabor(revenue, laborCost, foodShare, assumptions)
 
   return {
     date,
@@ -235,9 +222,9 @@ function computeCell(
     intervalLabel,
     revenue: roundDashboardEur(revenue),
     laborCost,
-    cogsCost: roundDashboardEur(cogs),
-    fixedCost: roundDashboardEur(fixed),
-    profit: roundDashboardEur(profit),
+    cogsCost: intervalPnl.cogs,
+    fixedCost: intervalPnl.fixed_overhead,
+    profit: intervalPnl.net_profit,
     dayLoadedLabor,
     chartColor: DAILY_OPS_PROFIT_INTERVAL_CHART_COLORS[intervalKey],
   }
@@ -252,7 +239,7 @@ export async function buildProfitByIntervalFromSnapshotHourly(
   pnlAssumptions?: DailyOpsSimplePnLAssumptions,
   laborByLocHour: Map<string, SnapshotLaborByBusinessDateHourBucket> = new Map(),
 ): Promise<DailyOpsProfitByIntervalDto> {
-  const profitDefaults = profitHourDefaultsFromPnlAssumptions(pnlAssumptions)
+  const assumptions = pnlAssumptions ?? DEFAULT_PNL_ASSUMPTIONS
   const catTotal = categoryTotals.food + categoryTotals.drinks
   const foodShare = catTotal > 0 ? categoryTotals.food / catTotal : 0.5
   const dates = enumerateUtcDatesInclusive(ctx.startDate, ctx.endDate)
@@ -290,7 +277,7 @@ export async function buildProfitByIntervalFromSnapshotHourly(
             interval.key,
             interval.label,
             loc.locationName,
-            profitDefaults,
+            assumptions,
           ),
         )
       }

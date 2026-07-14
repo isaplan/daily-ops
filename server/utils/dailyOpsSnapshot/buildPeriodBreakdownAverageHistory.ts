@@ -19,6 +19,7 @@ import {
   monthEndYmd,
 } from './aggregateDailyBundles'
 import { aggregatePeriodBreakdown } from './buildPeriodBreakdown'
+import { loadPnlAssumptions } from '../appSettings/pnlAssumptionsSetting'
 import { loadDailyBundlesInRange, readCachedBundle } from './cacheCascade'
 import type { DailyOpsDashboardBundleDto } from './fetchDashboardBundle'
 
@@ -28,6 +29,7 @@ async function loadMonthBundleParts(
   endDate: string,
   locationId: string,
 ): Promise<DailyOpsDashboardBundleDto[]> {
+  const pnlAssumptions = await loadPnlAssumptions(db)
   const parts: DailyOpsDashboardBundleDto[] = []
   for (const mk of enumerateMonthKeys(startDate, endDate)) {
     const monthly = await readCachedBundle(db, 'monthly', mk, locationId)
@@ -40,7 +42,7 @@ async function loadMonthBundleParts(
     const dailies = await loadDailyBundlesInRange(db, mStart, mEnd, locationId)
     if (dailies.length > 0) {
       parts.push(
-        aggregateDailyBundles(dailies, { startDate: mStart, endDate: mEnd, label: mk }),
+        aggregateDailyBundles(dailies, { startDate: mStart, endDate: mEnd, label: mk, pnlAssumptions }),
       )
     }
   }

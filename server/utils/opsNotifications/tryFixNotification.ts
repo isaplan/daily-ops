@@ -3,7 +3,7 @@
  * @created: 2026-05-28T00:00:00.000Z
  * @last-modified: 2026-07-13T10:12:00.000Z
  * @description: One-shot fix + self-healing for ops notification rows
- * @last-fix: [2026-07-13] Try fix missing_bork_when_inbox_final via Bork V2 rebuild
+ * @last-fix: [2026-07-14] Integration try-fix returns after sync; gap/cache runs in background
  *   Prior: [2026-07-11] Integration sync re-run + snapshot/cache backfill; refresh read-cache after snapshot fix
  *   Prior: [2026-05-28] Bork V2 rebuild + snapshot rebuild for warm-tier / gap alerts
  * @adr-ref: ADR-004, ADR-013
@@ -100,13 +100,18 @@ async function healIntegrationSyncFailure(
   const startDate = window?.startDate ?? openRegister
   const endDate = window?.endDate ?? openRegister
 
-  const gaps = await materializeSnapshotGaps(db, { startDate, endDate: openRegister })
-  const gapBuilt = gaps?.built ?? 0
-  await refreshDashboardBundleCache(db, startDate, openRegister, VENUE_LOCATION_IDS)
+  void (async () => {
+    try {
+      await materializeSnapshotGaps(db, { startDate, endDate: openRegister })
+      await refreshDashboardBundleCache(db, startDate, openRegister, VENUE_LOCATION_IDS)
+    } catch {
+      // Best-effort — sync success already clears integration alert on rescan
+    }
+  })()
 
   return {
     ok: true,
-    detail: `Re-ran ${source} ${jobType} · gap backfill built=${gapBuilt} · cache ${startDate}..${endDate}`,
+    detail: `Re-ran ${source} ${jobType} · snapshot/cache backfill started in background (${startDate}..${endDate})`,
   }
 }
 

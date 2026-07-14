@@ -123,10 +123,12 @@ export async function fetchDashboardBundleLight(
     locationId: ctx.locationId,
   })
 
+  const pnlAssumptions = await loadPnlAssumptions(db)
+
   const summary = buildDailyOpsSummaryDto(ctx, revMap, labMap, {
     apiBusinessDaysTotal: snapshotRound2(apiMergedTotal),
     inboxBasisExVat: null,
-  })
+  }, { assumptions: pnlAssumptions, categoryTotals: { food: 0, drinks: 0 } })
   if (laborBreakdown.coverage.daysFound > 0) {
     summary.summary.laborBreakdown = laborBreakdown
   }
@@ -152,7 +154,10 @@ export async function fetchDashboardBundleLight(
     summary,
     revenue,
     labor,
-    periodBreakdown: buildPeriodBreakdownFromLaborMetrics(labor, ctx.startDate, ctx.endDate),
+    periodBreakdown: buildPeriodBreakdownFromLaborMetrics(labor, ctx.startDate, ctx.endDate, {
+      assumptions: pnlAssumptions,
+      categoryTotals: { food: 0, drinks: 0 },
+    }),
   }
 }
 
@@ -236,7 +241,7 @@ export async function fetchDailyOpsDashboardBundle(
     apiBusinessDaysTotal: snapshotRound2(apiMergedTotal),
     inboxBasisExVat: null,
     useOrderTimeHeadline: ctx.startDate === ctx.endDate && ctx.startDate === openRegister,
-  })
+  }, { assumptions: pnlAssumptions, categoryTotals: cat })
   if (laborBreakdown.coverage.daysFound > 0) {
     summary.summary.laborBreakdown = laborBreakdown
   }
@@ -293,7 +298,10 @@ export async function fetchDailyOpsDashboardBundle(
           laborByLocHour,
           staffByLocHour,
         })
-      : buildPeriodBreakdownFromLaborMetrics(labor, ctx.startDate, ctx.endDate)
+      : buildPeriodBreakdownFromLaborMetrics(labor, ctx.startDate, ctx.endDate, {
+          assumptions: pnlAssumptions,
+          categoryTotals: cat,
+        })
 
   return { summary, revenue, labor, periodBreakdown }
 }

@@ -16,7 +16,7 @@ import type { AccountingPnlVenueId, AccountingPnlYear } from '~/utils/accounting
 import { DAILY_OPS_PROFIT_VENUE_LOCATIONS } from '~/utils/dailyOpsProfitIntervals'
 
 /** Bump when profit math or assumptions change — invalidates pre-generated bundle JSON. */
-export const DAILY_OPS_BUNDLE_CACHE_VERSION = 2
+export const DAILY_OPS_BUNDLE_CACHE_VERSION = 3
 
 const LOCATION_TO_VENUE = Object.fromEntries(
   DAILY_OPS_PROFIT_VENUE_LOCATIONS.map((v) => [v.locationId, v.short.toLowerCase() as AccountingPnlVenueId]),

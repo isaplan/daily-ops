@@ -188,7 +188,7 @@
                   :disabled="displayStatus(entry.item) === 'fixed'"
                   @click="tryFixOne(entry.item)"
                 >
-                  Try fix
+                  {{ isIntegrationSyncFix(entry.item) ? 'Retry sync' : 'Try fix' }}
                 </UButton>
                 <UButton
                   v-else-if="canRebuild(entry.item)"
@@ -319,6 +319,8 @@ const toast = useToast()
 const TRY_FIX_KINDS: OpsNotificationKind[] = [
   'bork_revenue_aggregation_stale',
   'bork_inbox_revenue_gap',
+  'missing_bork_when_inbox_final',
+  'integration_sync_partial_failure',
   'missing_revenue_snapshot',
   'missing_labor_snapshot',
   'missing_master_snapshot',
@@ -363,6 +365,10 @@ function canTryFix(item: OpsNotificationDto): boolean {
   )
 }
 
+function isIntegrationSyncFix(item: OpsNotificationDto): boolean {
+  return item.kind === 'integration_sync_partial_failure'
+}
+
 function fixOverlay(item: OpsNotificationDto) {
   return fixOverlays.value[item.id]
 }
@@ -381,6 +387,7 @@ function formatTime(iso: string): string {
 
 async function tryFixOne(item: OpsNotificationDto) {
   fixingId.value = item.id
+  const isIntegrationSync = item.kind === 'integration_sync_partial_failure'
   try {
     const res = await $fetch<{
       ok: boolean
@@ -389,6 +396,7 @@ async function tryFixOne(item: OpsNotificationDto) {
       message: string
     }>('/api/ops-notifications/try-fix', {
       method: 'POST',
+      timeout: isIntegrationSync ? 900_000 : 120_000,
       body: {
         kind: item.kind,
         businessDate: item.businessDate,

@@ -7,9 +7,8 @@
  *   NOTE: Must use order-time for today (open register), paid-time for historical (sealed days).
  *   Phase 2 TODO: Create shared resolveHourlyRevenueBasis() resolver to dedup this logic across 
  *   buildHourlyRows, buildPeriodBreakdown, buildProfitByInterval, todayRevenueDetail.
- * @last-fix: [2026-07-13] Updated metadata: Document today=order-time, sealed=paid-time basis rule + TODO shared resolver
- *   Prior: [2026-07-12] Week bucket labels include month — e.g. jul-wk26
- * @adr-ref: ADR-004, ADR-013
+ * @last-fix: [2026-07-14] Period breakdown profit via ADR-014 net-profit SSOT
+ * @adr-ref: ADR-004, ADR-013, ADR-014
  * @data-source: snapshot-write-only
  * @write-cache-json: daily_ops_read_cache · dashboard-bundle · periodBreakdown slice
  *
@@ -36,6 +35,19 @@ import { getIsoWeek, getMonthKey } from './aggregateDailyBundles'
 import { hourLabel } from './drilldown/drilldownShared'
 import { weekdayShortForYmd } from '~/utils/inbox/importTableQuickDates'
 import { formatIsoWeekBucketLabel } from '~/utils/dailyOpsPeriodBreakdownChart'
+import {
+  defaultPeriodBreakdownPnlContext,
+  netProfitFromHeadline,
+  type PeriodBreakdownPnlContext,
+} from '~/server/utils/dailyOpsInsights/pnlFromRevenueLabor'
+
+function periodProfit(
+  revenue: number,
+  laborCost: number,
+  pnl: PeriodBreakdownPnlContext,
+): number {
+  return netProfitFromHeadline(revenue, laborCost, pnl.categoryTotals, pnl.assumptions)
+}
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100
@@ -246,6 +258,7 @@ function venueDayRowFromStrip(
   bundle: DailyOpsDashboardBundleDto,
   locationId: string,
   date: string,
+  pnl: PeriodBreakdownPnlContext,
 ): PeriodBreakdownRowDto | null {
   const venue = bundle.venueStrip?.venues.find((v) => v.locationId === locationId)
   if (!venue) return null
@@ -257,19 +270,20 @@ function venueDayRowFromStrip(
     laborHours: venue.labor.gewerkt.hours,
     productivity: venue.productivity.totalPerHour,
     staffCount: venue.labor.gewerkt.workers,
-    profit: round2(venue.revenue.total - venue.labor.all.loaded),
+    profit: periodProfit(venue.revenue.total, venue.labor.all.loaded, pnl),
   })
 }
 
 function dayRowsByVenueFromDailyBundle(
   bundle: DailyOpsDashboardBundleDto,
+  pnl: PeriodBreakdownPnlContext,
 ): Map<string, PeriodBreakdownRowDto> {
   const date = bundle.summary.range.startDate
   const label = weekdayShortForYmd(date)
   const byVenue = new Map<string, PeriodBreakdownRowDto>()
 
   for (const venue of VENUE_STRIP_LOCATIONS) {
-    const fromStrip = venueDayRowFromStrip(bundle, venue.locationId, date)
+    const fromStrip = venueDayRowFromStrip(bundle, venue.locationId, date, pnl)
     byVenue.set(venue.locationId, fromStrip ?? emptyRow(date, label))
   }
 
@@ -314,6 +328,7 @@ export function aggregatePeriodBreakdown(
   parts: DailyOpsDashboardBundleDto[],
   startDate: string,
   endDate: string,
+  pnl: PeriodBreakdownPnlContext = defaultPeriodBreakdownPnlContext(),
 ): PeriodBreakdownDto | undefined {
   if (parts.length === 0) return undefined
 
@@ -328,7 +343,7 @@ export function aggregatePeriodBreakdown(
       locationId: venue.locationId,
       locationName: venue.locationName,
       rows: sorted.map((bundle) => {
-        const map = dayRowsByVenueFromDailyBundle(bundle)
+        const map = dayRowsByVenueFromDailyBundle(bundle, pnl)
         return map.get(venue.locationId) ?? emptyRow(bundle.summary.range.startDate, weekdayShortForYmd(bundle.summary.range.startDate))
       }),
     }))
@@ -354,7 +369,7 @@ export function aggregatePeriodBreakdown(
       const prev = byWeek.get(weekKey)
       byWeek.set(weekKey, prev ? mergeRows(prev, weekRow) : weekRow)
 
-      const venueDayMap = dayRowsByVenueFromDailyBundle(bundle)
+      const venueDayMap = dayRowsByVenueFromDailyBundle(bundle, pnl)
       for (const venue of VENUE_STRIP_LOCATIONS) {
         const vDay = venueDayMap.get(venue.locationId)!
         const vWeek = { ...vDay, bucketKey: weekKey, bucketLabel: wLabel }
@@ -396,21 +411,24 @@ export function aggregatePeriodBreakdown(
         laborHours: fromStrip.labor.gewerkt.hours,
         productivity: fromStrip.productivity.totalPerHour,
         staffCount: fromStrip.labor.gewerkt.workers,
-        profit: round2(fromStrip.revenue.total - fromStrip.labor.all.loaded),
+        profit: periodProfit(fromStrip.revenue.total, fromStrip.labor.all.loaded, pnl),
       })
     }),
   }))
   return { granularity: 'month', rows, byVenue }
 }
 
-function laborDayRow(day: {
-  date: string
-  revenue: number
-  laborCost: number
-  hours: number
-  distinctWorkerCount: number
-  revenuePerLaborHour: number | null
-}): PeriodBreakdownRowDto {
+function laborDayRow(
+  day: {
+    date: string
+    revenue: number
+    laborCost: number
+    hours: number
+    distinctWorkerCount: number
+    revenuePerLaborHour: number | null
+  },
+  pnl: PeriodBreakdownPnlContext,
+): PeriodBreakdownRowDto {
   return finalizeRow({
     bucketKey: day.date,
     bucketLabel: weekdayShortForYmd(day.date),
@@ -419,7 +437,7 @@ function laborDayRow(day: {
     laborHours: day.hours,
     productivity: day.revenuePerLaborHour,
     staffCount: day.distinctWorkerCount,
-    profit: round2(day.revenue - day.laborCost),
+    profit: periodProfit(day.revenue, day.laborCost, pnl),
   })
 }
 
@@ -427,6 +445,7 @@ function venueDayRowFromLabor(
   labor: DailyOpsLaborMetricsDto,
   venue: (typeof VENUE_STRIP_LOCATIONS)[number],
   date: string,
+  pnl: PeriodBreakdownPnlContext,
 ): PeriodBreakdownRowDto {
   const rev =
     labor.revenueByLocationDay.find((r) => r.date === date && r.locationId === venue.locationId)?.revenue ?? 0
@@ -444,7 +463,7 @@ function venueDayRowFromLabor(
     laborHours: hours,
     productivity: hours > 0 ? round2(rev / hours) : null,
     staffCount,
-    profit: round2(rev - laborCost),
+    profit: periodProfit(rev, laborCost, pnl),
   })
 }
 
@@ -452,15 +471,16 @@ export function buildPeriodBreakdownFromLaborMetrics(
   labor: DailyOpsLaborMetricsDto,
   startDate: string,
   endDate: string,
+  pnl: PeriodBreakdownPnlContext = defaultPeriodBreakdownPnlContext(),
 ): PeriodBreakdownDto {
   const granularity = resolveBreakdownGranularity(startDate, endDate, [])
 
   if (granularity === 'day') {
-    const rows = labor.daily.map(laborDayRow)
+    const rows = labor.daily.map((day) => laborDayRow(day, pnl))
     const byVenue = VENUE_STRIP_LOCATIONS.map((venue) => ({
       locationId: venue.locationId,
       locationName: venue.locationName,
-      rows: labor.daily.map((day) => venueDayRowFromLabor(labor, venue, day.date)),
+      rows: labor.daily.map((day) => venueDayRowFromLabor(labor, venue, day.date, pnl)),
     }))
     return { granularity, rows, byVenue }
   }
@@ -475,13 +495,13 @@ export function buildPeriodBreakdownFromLaborMetrics(
     for (const day of labor.daily) {
       const weekKey = getIsoWeek(day.date)
       const wLabel = weekLabel(weekKey)
-      const dayRow = laborDayRow(day)
+      const dayRow = laborDayRow(day, pnl)
       const weekRow = { ...dayRow, bucketKey: weekKey, bucketLabel: wLabel }
       const prev = byWeek.get(weekKey)
       byWeek.set(weekKey, prev ? mergeRows(prev, weekRow) : weekRow)
 
       for (const venue of VENUE_STRIP_LOCATIONS) {
-        const vDay = venueDayRowFromLabor(labor, venue, day.date)
+        const vDay = venueDayRowFromLabor(labor, venue, day.date, pnl)
         const vWeek = { ...vDay, bucketKey: weekKey, bucketLabel: wLabel }
         const vMap = byVenueWeek.get(venue.locationId)!
         const vPrev = vMap.get(weekKey)
@@ -511,13 +531,13 @@ export function buildPeriodBreakdownFromLaborMetrics(
   for (const day of labor.daily) {
     const monthKey = getMonthKey(day.date)
     const mLabel = monthLabel(monthKey)
-    const dayRow = laborDayRow(day)
+    const dayRow = laborDayRow(day, pnl)
     const monthRow = { ...dayRow, bucketKey: monthKey, bucketLabel: mLabel }
     const prev = byMonth.get(monthKey)
     byMonth.set(monthKey, prev ? mergeRows(prev, monthRow) : monthRow)
 
     for (const venue of VENUE_STRIP_LOCATIONS) {
-      const vDay = venueDayRowFromLabor(labor, venue, day.date)
+      const vDay = venueDayRowFromLabor(labor, venue, day.date, pnl)
       const vMonth = { ...vDay, bucketKey: monthKey, bucketLabel: mLabel }
       const vMap = byVenueMonth.get(venue.locationId)!
       const vPrev = vMap.get(monthKey)
@@ -541,6 +561,7 @@ export function buildPeriodBreakdownFromLaborMetrics(
 export function buildPeriodBreakdownForBundle(
   bundle: DailyOpsDashboardBundleDto,
   parts?: DailyOpsDashboardBundleDto[],
+  pnl: PeriodBreakdownPnlContext = defaultPeriodBreakdownPnlContext(),
 ): PeriodBreakdownDto | undefined {
   const { startDate, endDate } = bundle.summary.range
   if (startDate === endDate) {
@@ -549,7 +570,7 @@ export function buildPeriodBreakdownForBundle(
     })
   }
   if (parts && parts.length > 0) {
-    return aggregatePeriodBreakdown(parts, startDate, endDate)
+    return aggregatePeriodBreakdown(parts, startDate, endDate, pnl)
   }
-  return aggregatePeriodBreakdown([bundle], startDate, endDate)
+  return aggregatePeriodBreakdown([bundle], startDate, endDate, pnl)
 }

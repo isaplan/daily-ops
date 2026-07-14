@@ -3,10 +3,8 @@
  * @created: 2026-06-05T18:48:00.000Z
  * @last-modified: 2026-07-02T00:00:00.000Z
  * @description: Cascading cache: daily → weekly → monthly → yearly bundle aggregation
- * @last-fix: [2026-07-09] Reject partial read-cache rollups — fall back to snapshot live read
- *   Prior: [2026-07-02] Mongo daily_ops_read_cache SSOT + totals-only rollups (ADR-013)
- *   Prior: [2026-07-01] Serve daily JSON for open register day (written after each snapshot rebuild)
- * @adr-ref: ADR-004, ADR-010, ADR-013
+ * @last-fix: [2026-07-14] Cascade rollups pass P&L assumptions for ADR-014 profit SSOT
+ * @adr-ref: ADR-004, ADR-010, ADR-013, ADR-014
  * @data-source: read-cache
  * @write-cache-json: daily_ops_read_cache · dashboard-bundle · daily→weekly→monthly→yearly after buildDailyOpsSnapshot
  * @read-cache-json: daily_ops_read_cache · profile=dashboard-bundle · levels=daily|weekly|monthly|yearly
@@ -41,6 +39,7 @@ import {
 } from './aggregateDailyBundles'
 import type { DailyOpsDashboardBundleDto } from './fetchDashboardBundle'
 import { bundleHasCoverageGaps } from './bundleCoverage'
+import { loadPnlAssumptions } from '../appSettings/pnlAssumptionsSetting'
 
 const DASHBOARD_PROFILE = 'dashboard-bundle'
 const CACHE_ROOT = resolve(process.cwd(), '.cache/daily-ops-bundles')
@@ -191,6 +190,7 @@ export async function loadCachedDashboardBundle(
     if (hit) return hit
   }
 
+  const pnlAssumptions = await loadPnlAssumptions(db)
   const monthParts: DailyOpsDashboardBundleDto[] = []
   for (const mk of enumerateMonthKeys(startDate, endDate)) {
     const mStart = `${mk}-01`
@@ -216,6 +216,7 @@ export async function loadCachedDashboardBundle(
           startDate: sliceStart,
           endDate: sliceEnd,
           label: mk,
+          pnlAssumptions,
         }),
       )
     }
@@ -238,6 +239,7 @@ export async function loadCachedDashboardBundle(
     endDate,
     label: ctx.period,
     totalsOnly: true,
+    pnlAssumptions,
   })
 }
 
@@ -269,12 +271,14 @@ export async function generateWeeklyBundle(
       dailyBundles.push(bundle)
     }
 
+    const pnlAssumptions = await loadPnlAssumptions(db)
     const weekEnd = getWeekEnd(weekStart)
     const aggregated = aggregateDailyBundles(dailyBundles, {
       startDate: weekStart,
       endDate: weekEnd,
       label: weekKey,
       totalsOnly: true,
+      pnlAssumptions,
     })
 
     await writeCachedBundle(db, 'weekly', weekKey, locationId, aggregated, {
@@ -308,11 +312,13 @@ export async function generateMonthlyBundle(
       return { written: false, path: null, error: `No daily bundles for ${monthKey}` }
     }
 
+    const pnlAssumptions = await loadPnlAssumptions(db)
     const aggregated = aggregateDailyBundles(monthlyBundles, {
       startDate,
       endDate,
       label: monthKey,
       totalsOnly: true,
+      pnlAssumptions,
     })
 
     await writeCachedBundle(db, 'monthly', monthKey, locationId, aggregated, { startDate, endDate })
@@ -349,11 +355,13 @@ export async function generateYearlyBundle(
 
     const startDate = `${yearKey}-01-01`
     const endDate = `${yearKey}-12-31`
+    const pnlAssumptions = await loadPnlAssumptions(db)
     const aggregated = aggregateDailyBundles(yearlyBundles, {
       startDate,
       endDate,
       label: yearKey,
       totalsOnly: true,
+      pnlAssumptions,
     })
 
     await writeCachedBundle(db, 'yearly', yearKey, locationId, aggregated, { startDate, endDate })
@@ -378,6 +386,7 @@ export async function generatePartialYearlyBundle(
 ): Promise<{ written: boolean; error?: string }> {
   try {
     const startDate = `${yearKey}-01-01`
+    const pnlAssumptions = await loadPnlAssumptions(db)
     const monthParts: DailyOpsDashboardBundleDto[] = []
 
     for (const mk of enumerateMonthKeys(startDate, endDate)) {
@@ -401,6 +410,7 @@ export async function generatePartialYearlyBundle(
             endDate: sliceEnd,
             label: mk,
             totalsOnly: true,
+            pnlAssumptions,
           }),
         )
       }
@@ -417,6 +427,7 @@ export async function generatePartialYearlyBundle(
           endDate,
           label: partialYearCacheKey(yearKey, endDate),
           totalsOnly: true,
+          pnlAssumptions,
         })
 
     aggregated.summary.range = { period: 'custom' as any, startDate, endDate }

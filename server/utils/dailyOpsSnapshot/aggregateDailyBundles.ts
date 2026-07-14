@@ -3,9 +3,8 @@
  * @created: 2026-06-05T18:48:00.000Z
  * @last-modified: 2026-07-02T00:00:00.000Z
  * @description: Aggregate multiple daily dashboard bundles into weekly/monthly/yearly totals
- * @last-fix: [2026-07-02] totalsOnly rollups omit drilldown/PBI (ADR-013)
- *   Prior: [2026-06-20] Merge revenue drilldown (top-10, spaces, hourly) into period bundles
- * @adr-ref: ADR-004, ADR-008, ADR-010, ADR-013
+ * @last-fix: [2026-07-14] Rollup profit via ADR-014 net-profit SSOT
+ * @adr-ref: ADR-004, ADR-008, ADR-010, ADR-013, ADR-014
  *
  * @exports-to:
  * ✓ server/utils/dailyOpsSnapshot/cacheCascade.ts
@@ -18,16 +17,38 @@ import { mergeVenueStripResponses } from '../venueStrip/mergeCards'
 import { coverageFromDailyBundles, formatCoverageNote } from './bundleCoverage'
 import { mergeProfitByIntervalDtos } from './mergeProfitByInterval'
 import { mergeDrilldownDtos } from './mergeDrilldown'
+import type { DailyOpsSimplePnLAssumptions } from '~/types/daily-ops-revenue'
+import {
+  aggregateCategoryTotalsFromBundles,
+  netProfitFromHeadline,
+} from '~/server/utils/dailyOpsInsights/pnlFromRevenueLabor'
+import { DEFAULT_PNL_ASSUMPTIONS } from '~/utils/dailyOpsPnlAssumptionsDefaults'
 import { aggregatePeriodBreakdown } from './buildPeriodBreakdown'
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100
 }
 
+function mergeRevenueByCategory(bundles: DailyOpsDashboardBundleDto[]) {
+  const totals = aggregateCategoryTotalsFromBundles(bundles)
+  return [
+    { key: 'drinks', label: 'Drinks', amount: round2(totals.drinks) },
+    { key: 'food', label: 'Food', amount: round2(totals.food) },
+  ]
+}
+
+export type AggregateDailyBundlesPeriod = {
+  startDate: string
+  endDate: string
+  label?: string
+  totalsOnly?: boolean
+  pnlAssumptions?: DailyOpsSimplePnLAssumptions
+}
+
 /** Aggregate multiple daily bundles into a single period bundle (week/month/year). */
 export function aggregateDailyBundles(
   dailyBundles: DailyOpsDashboardBundleDto[],
-  period: { startDate: string; endDate: string; label?: string; totalsOnly?: boolean },
+  period: AggregateDailyBundlesPeriod,
 ): DailyOpsDashboardBundleDto {
   if (dailyBundles.length === 0) {
     throw new Error('Cannot aggregate empty bundle array')
@@ -48,7 +69,9 @@ export function aggregateDailyBundles(
     totalLoaded += bundle.labor?.breakdown?.loaded ?? 0
   }
 
-  const profit = totalRevenue - totalLaborCost
+  const assumptions = period.pnlAssumptions ?? DEFAULT_PNL_ASSUMPTIONS
+  const categoryTotals = aggregateCategoryTotalsFromBundles(dailyBundles)
+  const profit = netProfitFromHeadline(totalRevenue, totalLaborCost, categoryTotals, assumptions)
   const profitMarginPct = totalRevenue > 0 ? round2((profit / totalRevenue) * 100) : 0
   const revenuePerLaborHour = totalLaborHours > 0 ? round2(totalRevenue / totalLaborHours) : null
   const laborCostPctOfRevenue = totalRevenue > 0 ? round2((totalLaborCost / totalRevenue) * 100) : 0
@@ -95,7 +118,10 @@ export function aggregateDailyBundles(
         { coverageNote, multiDayRange: period.startDate !== period.endDate },
       )
 
-  const periodBreakdown = aggregatePeriodBreakdown(dailyBundles, period.startDate, period.endDate)
+  const periodBreakdown = aggregatePeriodBreakdown(dailyBundles, period.startDate, period.endDate, {
+    assumptions,
+    categoryTotals,
+  })
   if (periodBreakdown && coverageNote) {
     periodBreakdown.coverageNote = coverageNote
   }
@@ -127,6 +153,7 @@ export function aggregateDailyBundles(
         startDate: period.startDate,
         endDate: period.endDate,
       },
+      revenueByCategory: mergeRevenueByCategory(dailyBundles),
       todayExtras: undefined,
       profitByInterval,
       drilldown,

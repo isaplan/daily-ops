@@ -22,9 +22,6 @@ import type {
 } from '~/types/daily-ops-insights'
 import { scaleEitjeLoadedLabor } from '~/utils/accountingPnlLaborMultiplier'
 import { formatAccountingProfitEstimatesNote, resolveAccountingPnlAssumptions } from '~/utils/accountingPnlAssumptions'
-import {
-  profitHourDefaultsFromPnlAssumptions,
-} from '~/server/utils/dailyOpsMetrics/profitHour'
 import { fetchStaffTimeseries } from '~/server/utils/dailyOpsStaff/fetchStaffTimeseries'
 import { roundDashboardEur, formatDashboardEur } from '~/utils/dashboardEurFormat'
 import { pnlFromRevenueLabor } from '~/server/utils/dailyOpsInsights/pnlFromRevenueLabor'
@@ -51,8 +48,7 @@ function metricsFromPoint(
   const dateForAssumptions = p.date.length === 7 ? `${p.date}-15` : p.date
   const laborCalibrated = scaleEitjeLoadedLabor(eitjeLoaded, dateForAssumptions, locationId ?? null)
   const { assumptions } = resolveAccountingPnlAssumptions(dateForAssumptions, locationId ?? null)
-  const defaults = profitHourDefaultsFromPnlAssumptions(assumptions)
-  const slice = pnlFromRevenueLabor(rev, laborCalibrated, FOOD_SHARE_WHEN_UNKNOWN, defaults)
+  const slice = pnlFromRevenueLabor(rev, laborCalibrated, FOOD_SHARE_WHEN_UNKNOWN, assumptions)
   const gewerkt_hours = round2(p.gewerkt_hours)
   const revenue = roundDashboardEur(rev)
   const labor = roundDashboardEur(laborCalibrated)

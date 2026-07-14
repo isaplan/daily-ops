@@ -56,7 +56,7 @@ export const OPS_NOTIFICATION_RULE_SECTIONS: OpsNotificationRuleSection[] = [
       'Inbox polls (Amsterdam): 08:05 morning final, 18:05 and 23:05 intraday partials. See server/tasks/inbox/gmail-sync.ts.',
     ],
     bullets: [
-      'Morning Basis missing — Bork has sales but no cron 7/8 row for that business_date.',
+      'Morning Basis missing — Bork has sales but no cron 7/8 row for that business_date (skipped on open register day — live Bork only).',
       'Only intraday partial — rows for cron 18/23 only; no morning final (headline revenue unreliable).',
       'Eitje hours inbox missing — Eitje aggregation has hours but no inbox-eitje-hours row for control.',
       'Integration sync partial failure — Bork/Eitje cron reported success but one or more locations failed (e.g. historical-data-7d 1/3). Auto-retry re-runs the job and rebuilds snapshots + read-cache.',

@@ -3,7 +3,8 @@
  * @created: 2026-05-28T00:00:00.000Z
  * @last-modified: 2026-05-28T00:00:00.000Z
  * @description: Daily Ops dashboard summary + revenue breakdown DTO builders (snapshot inputs)
- * @adr-ref: ADR-004
+ * @last-fix: [2026-07-14] Summary profit via ADR-014 net-profit SSOT
+ * @adr-ref: ADR-004, ADR-014
  *
  * @exports-to:
  * ✓ server/utils/dailyOpsDashboardMetrics.ts (barrel)
@@ -27,6 +28,11 @@ import {
   roundProfitHourSnapshot,
 } from './profitHour'
 import type { DailyOpsSimplePnLAssumptions } from '~/types/daily-ops-revenue'
+import {
+  netProfitFromHeadline,
+  type PnlCategoryTotals,
+} from '~/server/utils/dailyOpsInsights/pnlFromRevenueLabor'
+import { DEFAULT_PNL_ASSUMPTIONS } from '~/utils/dailyOpsPnlAssumptionsDefaults'
 import type { BorkHourAggregatesBundle, DailyOpsLabMap, TodayRevenueExtras } from './types'
 
 export const VAT_DISCLAIMER = 'All revenue values shown are excluding VAT (ex VAT)'
@@ -63,6 +69,10 @@ export function buildDailyOpsSummaryDto(
     inboxBasisExVat: number | null
     useOrderTimeHeadline?: boolean
   },
+  pnl?: {
+    assumptions: DailyOpsSimplePnLAssumptions
+    categoryTotals: PnlCategoryTotals
+  },
 ): DailyOpsSummaryDto {
   let apiMergedTotal = 0
   for (const v of revMap.values()) apiMergedTotal += v
@@ -76,7 +86,9 @@ export function buildDailyOpsSummaryDto(
     totalLaborCost += v.laborCost
     totalLaborHours += v.hours
   }
-  const profit = totalRevenue - totalLaborCost
+  const assumptions = pnl?.assumptions ?? DEFAULT_PNL_ASSUMPTIONS
+  const categoryTotals = pnl?.categoryTotals ?? { food: 0, drinks: 0 }
+  const profit = netProfitFromHeadline(totalRevenue, totalLaborCost, categoryTotals, assumptions)
   const profitMarginPct = totalRevenue > 0 ? (profit / totalRevenue) * 100 : 0
   const revenuePerLaborHour = totalLaborHours > 0 ? totalRevenue / totalLaborHours : null
   const laborCostPctOfRevenue = totalRevenue > 0 ? (totalLaborCost / totalRevenue) * 100 : null
