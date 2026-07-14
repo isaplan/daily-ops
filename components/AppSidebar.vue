@@ -223,12 +223,12 @@
         </li>
         <li>
           <UTooltip v-if="collapsed" text="Last week" :popper="{ placement: 'right' }">
-            <NuxtLink to="/weekly-reports?period=last-week" :class="navLinkClass(false)">
+            <NuxtLink :to="lastWeekReportHref" :class="navLinkClass(false)">
               <UIcon name="i-lucide-file-bar-chart" class="size-5 shrink-0" />
               <span v-if="!collapsed">Last week</span>
             </NuxtLink>
           </UTooltip>
-          <NuxtLink v-else to="/weekly-reports?period=last-week" :class="navLinkClass(false)">
+          <NuxtLink v-else :to="lastWeekReportHref" :class="navLinkClass(false)">
             <UIcon name="i-lucide-file-bar-chart" class="size-4 shrink-0" />
             <span>Last week</span>
           </NuxtLink>
@@ -364,6 +364,10 @@
 <script setup lang="ts">
 import type { EnvironmentId } from '~/types/environment'
 import { ENVIRONMENT_INITIALS, ENVIRONMENT_LABELS } from '~/types/environment'
+import { useEnvironment } from '~/composables/useEnvironment'
+import { DAILY_OPS_PROFIT_VENUE_LOCATIONS } from '~/utils/dailyOpsProfitIntervals'
+import { resolveDailyOpsPeriod } from '~/utils/dailyOpsPeriod'
+import { getIsoWeekFromYmd } from '~/utils/dailyOpsPeriodBreakdownChart'
 
 const props = withDefaults(
   defineProps<{ collapsed?: boolean }>(),
@@ -455,6 +459,13 @@ const isTodos = computed(() => route.path === '/notes/todos')
 const isAgreed = computed(() => route.path === '/notes/agreed')
 const isProjects = computed(() => route.path === '/notes/projects')
 const isWeeklyReportsList = computed(() => route.path === '/weekly-reports' || route.path.startsWith('/weekly-reports/'))
+const lastWeekReportHref = computed(() => {
+  const range = resolveDailyOpsPeriod('last-week')
+  const weekKey = getIsoWeekFromYmd(range.startDate)
+  const locationId = DAILY_OPS_PROFIT_VENUE_LOCATIONS[0]?.locationId ?? ''
+  const q = locationId ? `?location=${locationId}` : ''
+  return `/weekly-reports/${weekKey}${q}`
+})
 const isOpsNotifications = computed(() => route.path === '/ops-notifications')
 const isOrganisation = computed(() => route.path === '/organisation')
 

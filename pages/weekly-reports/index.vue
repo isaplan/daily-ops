@@ -49,16 +49,31 @@
 /**
  * @registry-id: weeklyReportsIndexPage
  * @created: 2026-07-14T21:00:00.000Z
- * @last-modified: 2026-07-14T21:00:00.000Z
+ * @last-modified: 2026-07-14T22:00:00.000Z
  * @description: Weekly Reports list page
+ * @last-fix: [2026-07-14] Redirect ?period=last-week to sealed week document
  * @adr-ref: ADR-015
  */
 
+import { resolveDailyOpsPeriod } from '~/utils/dailyOpsPeriod'
+import { getIsoWeekFromYmd } from '~/utils/dailyOpsPeriodBreakdownChart'
+import { useWeeklyReportDocument } from '~/composables/useWeeklyReportDocument'
+
 definePageMeta({ keepalive: false })
 
+const route = useRoute()
+const router = useRouter()
 const { list, listPending, locationId, venueOptions, setLocation, refreshList } = useWeeklyReportDocument()
 
 onMounted(() => {
+  const period = route.query.period
+  if (period === 'last-week') {
+    const range = resolveDailyOpsPeriod('last-week')
+    const weekKey = getIsoWeekFromYmd(range.startDate)
+    const loc = typeof route.query.location === 'string' ? route.query.location : locationId.value
+    router.replace(`/weekly-reports/${weekKey}?location=${loc}`)
+    return
+  }
   refreshList()
 })
 

@@ -152,7 +152,7 @@ const activeAverages = ref<Set<AverageId>>(new Set(['trend']))
 const showBars = ref(true)
 
 function dayChartValues(row: WeeklyDayBreakdown) {
-  const profit = row.profit ?? row.margin ?? row.revenue - row.laborCost
+  const profit = row.pnlResult ?? row.profit ?? row.margin ?? row.revenue - row.laborCost
   const productivity =
     row.productivity ?? (row.laborHours > 0 ? row.revenue / row.laborHours : 0)
   return {

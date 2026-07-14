@@ -249,6 +249,11 @@ function navQueryFor(key: DailyOpsNavKey): Record<string, string> {
     if (locationId.value) q.location = locationId.value
     return q
   }
+  if (isWeeklyReportRoute.value) {
+    const q: Record<string, string> = { period: 'today', anchor: openRegisterYmd.value }
+    if (locationId.value) q.location = locationId.value
+    return q
+  }
   return dashboardQuery.value
 }
 

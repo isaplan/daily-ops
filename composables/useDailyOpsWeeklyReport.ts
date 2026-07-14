@@ -1,9 +1,9 @@
 /**
  * @registry-id: useDailyOpsWeeklyReport
  * @created: 2026-07-09T00:00:00.000Z
- * @last-modified: 2026-07-09T00:00:00.000Z
+ * @last-modified: 2026-07-14T22:00:00.000Z
  * @description: Weekly report state + fetch via read-cache API
- * @last-fix: [2026-07-09] Initial weekly report composable
+ * @last-fix: [2026-07-14] shiftWeek works before digest loads; shared getIsoWeekFromYmd
  * @adr-ref: ADR-004, ADR-013
  * @data-source: read-cache
  * @read-cache-json: weekly-digest (via GET /api/daily-ops/analytics/weekly-digest)
@@ -16,6 +16,8 @@
 import type { WeeklyDigestDto, WeeklyPerformanceStatus, WeeklyTargetPresetId } from '~/types/daily-ops-weekly-report'
 import { WEEKLY_TARGET_PRESETS } from '~/types/daily-ops-weekly-report'
 import { addCalendarDaysYmd } from '~/utils/dailyOpsBusinessDate'
+import { resolveDailyOpsPeriod } from '~/utils/dailyOpsPeriod'
+import { getIsoWeekFromYmd, isoWeekMondayYmd } from '~/utils/dailyOpsPeriodBreakdownChart'
 
 export type WeeklyReportTabId = 'overview' | 'revenue' | 'labor' | 'staff' | 'loss'
 
@@ -113,12 +115,17 @@ export function useDailyOpsWeeklyReport() {
   const isLastWeek = computed(() => period.value === 'last-week' && !week.value)
 
   function shiftWeek(deltaWeeks: number) {
-    const current = digest.value
-    if (!current) return
-    const days = deltaWeeks * 7
-    const start = addCalendarDaysYmd(current.startDate, days)
-    const weekKey = isoWeekFromStart(start)
-    setWeek(weekKey)
+    let baseStart: string | undefined
+    if (digest.value) {
+      baseStart = digest.value.startDate
+    } else if (week.value) {
+      baseStart = isoWeekMondayYmd(week.value) ?? undefined
+    } else {
+      baseStart = resolveDailyOpsPeriod(period.value).startDate
+    }
+    if (!baseStart) return
+    const start = addCalendarDaysYmd(baseStart, deltaWeeks * 7)
+    setWeek(getIsoWeekFromYmd(start))
   }
 
   function statusBadgeClass(status: WeeklyPerformanceStatus): string {
@@ -158,13 +165,3 @@ export function useDailyOpsWeeklyReport() {
   }
 }
 
-function isoWeekFromStart(startDate: string): string {
-  const [y, m, d] = startDate.split('-').map(Number)
-  const date = new Date(Date.UTC(y!, m! - 1, d!))
-  const thursday = new Date(date)
-  thursday.setUTCDate(date.getUTCDate() + 3 - ((date.getUTCDay() + 6) % 7))
-  const year = thursday.getUTCFullYear()
-  const jan4 = new Date(Date.UTC(year, 0, 4))
-  const weekNo = Math.ceil(((thursday.getTime() - jan4.getTime()) / 86400000 + jan4.getUTCDay() + 1) / 7)
-  return `${year}-W${String(weekNo).padStart(2, '0')}`
-}

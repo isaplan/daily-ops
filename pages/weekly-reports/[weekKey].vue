@@ -38,7 +38,7 @@
         :section-key="section.key"
         :content="doc.sections[section.key]"
         :is-frozen="isFrozen"
-        @save="saveSection(section.key, $event)"
+        :on-save="(text) => saveSection(section.key, text)"
       >
         <DailyOpsAnalyticsWeeklyOverviewTab
           v-if="section.key === 'kpi' && digestDto"
@@ -75,13 +75,14 @@
 /**
  * @registry-id: weeklyReportsDetailPage
  * @created: 2026-07-14T21:00:00.000Z
- * @last-modified: 2026-07-14T21:00:00.000Z
+ * @last-modified: 2026-07-14T22:00:00.000Z
  * @description: Weekly report document detail — data + comments/todos/agreements
  * @adr-ref: ADR-015
  */
 
 import type { WeeklyReportSectionKey } from '~/types/weeklyReportDocument'
 import { buildWeeklyReportPdfDocumentForPrint } from '~/lib/pdf/weeklyReportPdfDocument'
+import { useWeeklyReportDocument } from '~/composables/useWeeklyReportDocument'
 
 definePageMeta({ keepalive: false })
 

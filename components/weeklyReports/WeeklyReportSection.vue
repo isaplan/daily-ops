@@ -49,9 +49,8 @@ const props = defineProps<{
   sectionKey: WeeklyReportSectionKey
   content: WeeklyReportSectionContent
   isFrozen: boolean
+  onSave: (text: string) => Promise<void>
 }>()
-
-const emit = defineEmits<{ save: [text: string] }>()
 
 const localText = ref(props.content.text)
 const dirty = ref(false)
@@ -71,8 +70,9 @@ function onInput(e: Event) {
 
 async function save() {
   saving.value = true
+  saved.value = false
   try {
-    emit('save', localText.value)
+    await props.onSave(localText.value)
     dirty.value = false
     saved.value = true
   } finally {

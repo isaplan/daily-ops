@@ -508,7 +508,7 @@ function mapHourOverlayPoints(
 function historyMetricSeries(locationId: string, metric: MetricKey) {
   return historyRowsForVenue(locationId)
     .map((row) => ({ date: row.bucketKey, value: metricValue(row, metric) }))
-    .filter((r) => r.value > 0)
+    .filter((r) => Number.isFinite(r.value))
     .sort((a, b) => a.date.localeCompare(b.date, undefined, { numeric: true }))
 }
 
@@ -591,7 +591,7 @@ function buildOverlayLines(
 
   if (activeAverages.value.has('median')) {
     const stat = chartPeriodMedian(history)
-    if (stat.median > 0) {
+    if (Number.isFinite(stat.median)) {
       const style = referenceLineStyleForAverage('median')
       lines.push({
         id: `${locationId}-median`,
@@ -617,7 +617,7 @@ function buildOverlayLines(
       )
       if (!buckets) continue
       const points = mapHourOverlayPoints(chartRollingMedianByBuckets(history, buckets))
-      const last = [...points].reverse().find((p) => p.value > 0)
+      const last = [...points].reverse().find((p) => Number.isFinite(p.value))
       if (!last) continue
       const style = referenceLineStyleForAverage('rolling')
       lines.push({
@@ -638,20 +638,47 @@ function buildOverlayLines(
   return lines
 }
 
+function seriesMaxForNormalizedOverlay(seriesKey: string): number {
+  const vals = chartData.value.map((d) => Number(d[seriesKey]) || 0)
+  return Math.max(...vals, 1)
+}
+
+function scaleReferenceLinesForNormalizedScale(
+  lines: GroupedBarReferenceLine[],
+  seriesKey: string,
+): GroupedBarReferenceLine[] {
+  const max = seriesMaxForNormalizedOverlay(seriesKey)
+  return lines.map((line) => {
+    if (line.kind === 'flat' && line.value != null) {
+      return { ...line, value: line.value / max }
+    }
+    if (line.kind === 'series' && line.points) {
+      return {
+        ...line,
+        points: line.points.map((p) => ({ ...p, value: p.value / max })),
+      }
+    }
+    return line
+  })
+}
+
 const chartReferenceLines = computed((): GroupedBarReferenceLine[] => {
   if (!showAverageControls.value || !activeAverages.value.size) return []
 
   const metric = activeMetricKey.value
+  const normalize = effectiveNormalizeScale.value
 
   if (multiLocationMode.value) {
-    return visibleSeries.value.flatMap((s) =>
-      buildOverlayLines(s.key, s.label, s.color, metric, true),
-    )
+    return visibleSeries.value.flatMap((s) => {
+      const lines = buildOverlayLines(s.key, s.label, s.color, metric, true)
+      return normalize ? scaleReferenceLinesForNormalizedScale(lines, s.key) : lines
+    })
   }
 
   const locationId = [...activeLocationIds.value][0]
   const def = METRIC_DEFS.find((m) => m.key === metric)
   if (!locationId || !def) return []
-  return buildOverlayLines(locationId, def.label, def.color, metric, false)
+  const lines = buildOverlayLines(locationId, def.label, def.color, metric, false)
+  return normalize ? scaleReferenceLinesForNormalizedScale(lines, metric) : lines
 })
 </script>

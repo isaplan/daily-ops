@@ -10,6 +10,18 @@ const MONTH_SHORT_EN = [
   'jul', 'aug', 'sep', 'oct', 'nov', 'dec',
 ] as const
 
+/** ISO week key `YYYY-Wnn` for a calendar date. */
+export function getIsoWeekFromYmd(ymd: string): string {
+  const [y, m, d] = ymd.split('-').map(Number)
+  const date = new Date(Date.UTC(y!, m! - 1, d!))
+  const thursday = new Date(date)
+  thursday.setUTCDate(date.getUTCDate() + 3 - ((date.getUTCDay() + 6) % 7))
+  const year = thursday.getUTCFullYear()
+  const jan4 = new Date(Date.UTC(year, 0, 4))
+  const weekNo = Math.ceil(((thursday.getTime() - jan4.getTime()) / 86400000 + jan4.getUTCDay() + 1) / 7)
+  return `${year}-W${String(weekNo).padStart(2, '0')}`
+}
+
 /** Monday (UTC) of an ISO week key `YYYY-Wnn`. */
 export function isoWeekMondayYmd(weekKey: string): string | null {
   const match = weekKey.match(/^(\d{4})-W(\d{2})$/)
