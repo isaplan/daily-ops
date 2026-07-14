@@ -85,7 +85,7 @@ async function readCachedBundleRaw(
 }
 
 /** Skip stitched rollups with missing daily docs — bundle.get falls back to snapshot read. */
-async function readCachedBundle(
+export async function readCachedBundle(
   db: Db,
   level: CacheLevel,
   key: string,
@@ -124,7 +124,7 @@ async function writeCachedBundle(
   await writeFile(path, JSON.stringify(bundle, null, 0), 'utf-8')
 }
 
-async function loadDailyBundlesInRange(
+export async function loadDailyBundlesInRange(
   db: Db,
   startDate: string,
   endDate: string,

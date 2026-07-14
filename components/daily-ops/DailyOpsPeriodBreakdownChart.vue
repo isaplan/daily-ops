@@ -56,6 +56,38 @@
             Hide
           </button>
         </div>
+
+        <div v-if="showAverageControls" class="flex flex-col gap-2">
+          <div class="flex flex-wrap items-center gap-1">
+            <span class="mr-1 w-20 shrink-0 text-xs font-medium text-gray-500">Averages</span>
+            <button
+              v-for="opt in averageOptions"
+              :key="opt.id"
+              type="button"
+              class="rounded-md border px-2.5 py-1 text-xs font-semibold transition-colors"
+              :class="activeAverages.has(opt.id)
+                ? 'border-gray-900 bg-gray-900 text-white'
+                : 'border-gray-300 bg-white text-gray-600 hover:bg-gray-50'"
+              @click="toggleAverage(opt.id)"
+            >
+              {{ opt.label }}
+            </button>
+            <div v-if="activeAverages.has('rolling')" class="ml-1 flex flex-wrap items-center gap-1">
+              <button
+                v-for="w in rollingWindowLabels"
+                :key="w"
+                type="button"
+                class="rounded-md border px-2.5 py-1 text-xs font-semibold transition-colors"
+                :class="activeRolling.has(w)
+                  ? 'border-gray-900 bg-gray-900 text-white'
+                  : 'border-gray-300 bg-white text-gray-600 hover:bg-gray-50'"
+                @click="toggleRolling(w)"
+              >
+                {{ w }}
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -81,7 +113,7 @@
             v-else-if="chartData.length && visibleSeries.length"
             :data="chartData"
             :series="visibleSeries"
-            :reference-lines="[]"
+            :reference-lines="chartReferenceLines"
             :width="width"
             :height="Math.max(280, Math.round(height))"
             :show-bars="showBars"
@@ -108,10 +140,21 @@
 <script setup lang="ts">
 import D3GroupedBarChart from '~/components/charts/D3GroupedBarChart.vue'
 import D3StackedBarChart from '~/components/charts/D3StackedBarChart.vue'
-import type { GroupedBarSeries } from '~/components/charts/D3GroupedBarChart.vue'
+import type { GroupedBarReferenceLine, GroupedBarSeries } from '~/components/charts/D3GroupedBarChart.vue'
 import type { StackedBarDataPoint } from '~/components/charts/D3StackedBarChart.vue'
-import type { PeriodBreakdownDto, PeriodBreakdownGranularity } from '~/types/daily-ops-dashboard'
+import type { PeriodBreakdownDto, PeriodBreakdownGranularity, PeriodBreakdownRowDto } from '~/types/daily-ops-dashboard'
 import type { StaffContractBucketKey } from '~/utils/dailyOpsStaffContractBuckets'
+import { referenceLineColor, referenceLineColorForOverlay, referenceLineStyleForAverage } from '~/utils/chartReferenceColor'
+import { chartPeriodMedian, chartTrendSeriesProjected } from '~/utils/dailyOpsStaffChartMedians'
+import {
+  PERIOD_HOUR_OVERLAY_LOOKBACK_DAYS,
+  PERIOD_ROLLING_BUCKETS,
+  PERIOD_TREND_BUCKETS,
+  chartHourTrendProjected,
+  chartRollingMedianByBuckets,
+  periodRollingWindowLabel,
+  periodTrendWindowLabel,
+} from '~/utils/dailyOpsPeriodBreakdownAverages'
 import {
   filterHourRowsForVenues,
   formatPeriodBreakdownBucketLabel,
@@ -231,11 +274,38 @@ function formatStaffCount(value: number): string {
 
 const showBars = ref(true)
 
+const averageOptions = [
+  { id: 'trend' as const, label: 'Trend' },
+  { id: 'median' as const, label: 'Median' },
+  { id: 'rolling' as const, label: 'Rolling' },
+]
+
+type AverageType = (typeof averageOptions)[number]['id']
+
+const activeAverages = ref(new Set<AverageType>(['trend']))
+const activeRolling = ref(new Set<string>())
+
+function toggleAverage(avg: AverageType) {
+  const next = new Set(activeAverages.value)
+  if (next.has(avg)) next.delete(avg)
+  else next.add(avg)
+  activeAverages.value = next
+}
+
+function toggleRolling(label: string) {
+  const next = new Set(activeRolling.value)
+  if (next.has(label)) next.delete(label)
+  else next.add(label)
+  activeRolling.value = next
+}
+
 function rowsForVenue(locationId: string) {
   const venue = venueOptions.value.find((v) => v.locationId === locationId)
   let rows = venue?.rows ?? []
   if (props.breakdown.granularity === 'hour' && props.businessDate) {
     rows = filterHourRowsForVenues(rows, [locationId], props.businessDate)
+  } else if (props.breakdown.granularity === 'month') {
+    return rows
   } else {
     rows = rows.filter((r) => r.revenue > 0 || r.laborCost > 0 || r.profit !== 0 || r.staffCount > 0)
   }
@@ -385,4 +455,203 @@ function formatBarValue(value: number, seriesKey: string): string {
   if (def.scale === 'eurPerHour') return formatPeriodBreakdownEurPerHour(value)
   return formatPeriodBreakdownMoney(value)
 }
+
+const rollingWindowLabels = computed(() =>
+  PERIOD_ROLLING_BUCKETS[props.breakdown.granularity].map((b) =>
+    periodRollingWindowLabel(props.breakdown.granularity, b),
+  ),
+)
+
+watch(
+  rollingWindowLabels,
+  (labels) => {
+    if (!labels.length) return
+    const valid = [...activeRolling.value].filter((w) => labels.includes(w))
+    activeRolling.value = new Set(valid.length ? valid : [labels[0]!])
+  },
+  { immediate: true },
+)
+
+const showAverageControls = computed(
+  () =>
+    !showStaffStacked.value
+    && props.breakdown.granularity !== 'day'
+    && !(props.breakdown.granularity === 'hour' && props.businessDate)
+    && chartData.value.length > 0
+    && (multiLocationMode.value || activeMetrics.value.size === 1),
+)
+
+function historyRowsForVenue(locationId: string): PeriodBreakdownRowDto[] {
+  const historyVenue = props.breakdown.averageHistory?.byVenue.find((v) => v.locationId === locationId)
+  if (historyVenue?.rows?.length) {
+    return historyVenue.rows.filter(
+      (r) => r.revenue > 0 || r.laborCost > 0 || r.profit !== 0 || r.staffCount > 0,
+    )
+  }
+  return rowsForVenue(locationId)
+}
+
+function mapHourOverlayPoints(
+  points: Array<{ date: string; value: number }>,
+): Array<{ date: string; value: number }> {
+  if (props.breakdown.granularity !== 'hour' || !props.businessDate) return points
+  const prefix = `${props.businessDate}T`
+  return points
+    .filter((p) => p.date.startsWith(prefix))
+    .map((p) => ({
+      date: p.date.slice(prefix.length),
+      value: p.value,
+    }))
+    .filter((p) => bucketKeys.value.includes(p.date))
+}
+
+function historyMetricSeries(locationId: string, metric: MetricKey) {
+  return historyRowsForVenue(locationId)
+    .map((row) => ({ date: row.bucketKey, value: metricValue(row, metric) }))
+    .filter((r) => r.value > 0)
+    .sort((a, b) => a.date.localeCompare(b.date, undefined, { numeric: true }))
+}
+
+function visibleMetricRows(locationId: string, metric: MetricKey) {
+  const history = historyMetricSeries(locationId, metric)
+  return bucketKeys.value.map((date) => ({
+    date,
+    value: history.find((h) => h.date === date)?.value
+      ?? metricValue(rowsForVenue(locationId).find((r) => r.bucketKey === date), metric),
+  }))
+}
+
+function granularityUnit(granularity: PeriodBreakdownGranularity): string {
+  switch (granularity) {
+    case 'hour':
+      return 'hr'
+    case 'day':
+      return 'day'
+    case 'week':
+      return 'wk'
+    case 'month':
+      return 'mo'
+  }
+}
+
+function formatOverlayValue(value: number, metric: MetricKey): string {
+  const def = METRIC_DEFS.find((m) => m.key === metric)
+  if (!def || !Number.isFinite(value)) return '—'
+  if (def.scale === 'count') return String(Math.round(value))
+  if (def.scale === 'eurPerHour') return formatPeriodBreakdownEurPerHour(value)
+  return formatPeriodBreakdownMoney(value)
+}
+
+function medianHistoryLabel(): string {
+  if (!props.breakdown.averageHistory) return 'on chart'
+  if (props.breakdown.granularity === 'hour') return `last ${PERIOD_HOUR_OVERLAY_LOOKBACK_DAYS}d`
+  return 'since 2024'
+}
+
+function buildOverlayLines(
+  locationId: string,
+  labelPrefix: string,
+  color: string,
+  metric: MetricKey,
+  useVenueColor: boolean,
+): GroupedBarReferenceLine[] {
+  if (!activeAverages.value.size) return []
+
+  const granularity = props.breakdown.granularity
+  const unit = granularityUnit(granularity)
+  const history = historyMetricSeries(locationId, metric)
+  if (!history.length) return []
+
+  const visible = visibleMetricRows(locationId, metric)
+  const lines: GroupedBarReferenceLine[] = []
+
+  if (activeAverages.value.has('trend')) {
+    const trendWindow = history.slice(-PERIOD_TREND_BUCKETS[granularity])
+    const trend =
+      granularity === 'hour' && props.businessDate
+        ? chartHourTrendProjected(visible, history, props.businessDate, PERIOD_TREND_BUCKETS.hour)
+        : chartTrendSeriesProjected(visible, trendWindow)
+    if (trend.points.length >= 2) {
+      const slopeLabel = `${trend.slopePerBucket >= 0 ? '+' : ''}${formatOverlayValue(trend.slopePerBucket, metric)}/${unit}`
+      const style = referenceLineStyleForAverage('trend')
+      lines.push({
+        id: `${locationId}-trend`,
+        kind: 'series',
+        points: granularity === 'hour' ? trend.points : mapHourOverlayPoints(trend.points),
+        label: `${labelPrefix} ${slopeLabel} · ${periodTrendWindowLabel(granularity)} · n=${trend.sampleCount}`,
+        color: useVenueColor
+          ? referenceLineColorForOverlay(color, { average: 'trend' })
+          : referenceLineColor(color, 'trend'),
+        strokeWidth: style.strokeWidth,
+        dashArray: style.dashArray,
+        strokeLinecap: 'strokeLinecap' in style ? style.strokeLinecap : undefined,
+      })
+    }
+  }
+
+  if (activeAverages.value.has('median')) {
+    const stat = chartPeriodMedian(history)
+    if (stat.median > 0) {
+      const style = referenceLineStyleForAverage('median')
+      lines.push({
+        id: `${locationId}-median`,
+        kind: 'flat',
+        value: stat.median,
+        fromDate: stat.fromDate ?? undefined,
+        toDate: stat.toDate ?? undefined,
+        label: `${labelPrefix} med ${formatOverlayValue(stat.median, metric)}/${unit} · ${medianHistoryLabel()} · n=${stat.sampleCount}`,
+        color: useVenueColor
+          ? referenceLineColorForOverlay(color, { average: 'median' })
+          : referenceLineColor(color, 'median'),
+        strokeWidth: style.strokeWidth,
+        dashArray: style.dashArray,
+      })
+    }
+  }
+
+  if (activeAverages.value.has('rolling')) {
+    for (const windowLabel of rollingWindowLabels.value) {
+      if (!activeRolling.value.has(windowLabel)) continue
+      const buckets = PERIOD_ROLLING_BUCKETS[granularity].find(
+        (b) => periodRollingWindowLabel(granularity, b) === windowLabel,
+      )
+      if (!buckets) continue
+      const points = mapHourOverlayPoints(chartRollingMedianByBuckets(history, buckets))
+      const last = [...points].reverse().find((p) => p.value > 0)
+      if (!last) continue
+      const style = referenceLineStyleForAverage('rolling')
+      lines.push({
+        id: `${locationId}-${windowLabel}`,
+        kind: 'series',
+        points,
+        label: `${labelPrefix} ${windowLabel} ${formatOverlayValue(last.value, metric)}`,
+        color: useVenueColor
+          ? referenceLineColorForOverlay(color, { average: 'rolling' })
+          : referenceLineColor(color, 'rolling'),
+        strokeWidth: style.strokeWidth,
+        dashArray: style.dashArray,
+        strokeLinecap: 'strokeLinecap' in style ? style.strokeLinecap : undefined,
+      })
+    }
+  }
+
+  return lines
+}
+
+const chartReferenceLines = computed((): GroupedBarReferenceLine[] => {
+  if (!showAverageControls.value || !activeAverages.value.size) return []
+
+  const metric = activeMetricKey.value
+
+  if (multiLocationMode.value) {
+    return visibleSeries.value.flatMap((s) =>
+      buildOverlayLines(s.key, s.label, s.color, metric, true),
+    )
+  }
+
+  const locationId = [...activeLocationIds.value][0]
+  const def = METRIC_DEFS.find((m) => m.key === metric)
+  if (!locationId || !def) return []
+  return buildOverlayLines(locationId, def.label, def.color, metric, false)
+})
 </script>

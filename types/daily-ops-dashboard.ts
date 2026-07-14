@@ -257,6 +257,12 @@ export type PeriodBreakdownDto = {
   granularity: PeriodBreakdownGranularity
   rows: PeriodBreakdownRowDto[]
   byVenue: PeriodBreakdownVenueDto[]
+  /** Extended buckets for overlay trend/median — same granularity, not shown as bars. */
+  averageHistory?: {
+    startDate: string
+    endDate: string
+    byVenue: PeriodBreakdownVenueDto[]
+  }
   estimatesNote?: string
   coverageNote?: string | null
 }

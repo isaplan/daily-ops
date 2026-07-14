@@ -1,3 +1,8 @@
+/**
+ * @description: Staff chart median, trend, and rolling overlay helpers
+ * @last-modified: 2026-07-14T00:15:00.000Z
+ * @last-fix: [2026-07-14] chartTrendSeriesProjected for period-breakdown overlays
+ */
 import type { DailyOpsStaffTimeseriesPoint } from '~/types/daily-ops-staff'
 import { addCalendarDaysYmd } from '~/utils/dailyOpsBusinessDate'
 import type { StaffChartGranularity } from '~/utils/dailyOpsStaffNav/modes'
@@ -145,6 +150,40 @@ export function chartTrendSeries(
     })),
     slopePerBucket: round2(slope),
     sampleCount: n,
+  }
+}
+
+/** Fit trend on `windowRows`, project across every `visibleRows` bucket (chart x-axis). */
+export function chartTrendSeriesProjected(
+  visibleRows: Array<{ date: string; value: number }>,
+  windowRows: Array<{ date: string; value: number }>,
+): StaffTrendResult {
+  const sortedVisible = [...visibleRows].sort((a, b) =>
+    a.date.localeCompare(b.date, undefined, { numeric: true }),
+  )
+  const fit = chartTrendSeries(windowRows)
+  if (fit.points.length < 2 || sortedVisible.length < 2) {
+    return { points: [], slopePerBucket: fit.slopePerBucket, sampleCount: fit.sampleCount }
+  }
+
+  const sortedWindow = [...windowRows]
+    .sort((a, b) => a.date.localeCompare(b.date, undefined, { numeric: true }))
+    .filter((r) => r.value > 0)
+  const anchorDate = sortedWindow[0]?.date
+  if (!anchorDate) return { points: [], slopePerBucket: fit.slopePerBucket, sampleCount: fit.sampleCount }
+
+  const anchorIdx = sortedVisible.findIndex((r) => r.date === anchorDate)
+  const anchorValue = fit.points.find((p) => p.date === anchorDate)?.value ?? fit.points[0]!.value
+  if (anchorIdx < 0) return fit
+
+  const slope = fit.slopePerBucket
+  return {
+    points: sortedVisible.map((r, i) => ({
+      date: r.date,
+      value: round2(anchorValue + slope * (i - anchorIdx)),
+    })),
+    slopePerBucket: slope,
+    sampleCount: fit.sampleCount,
   }
 }
 
