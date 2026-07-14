@@ -207,6 +207,33 @@
           </NuxtLink>
         </li>
       </ul>
+      <!-- Weekly Reports environment -->
+      <ul v-else-if="activeEnvironment === 'weekly-reports'" class="space-y-1">
+        <li>
+          <UTooltip v-if="collapsed" text="All weeks" :popper="{ placement: 'right' }">
+            <NuxtLink to="/weekly-reports" :class="navLinkClass(isWeeklyReportsList)">
+              <UIcon name="i-lucide-calendar-range" class="size-5 shrink-0" />
+              <span v-if="!collapsed">All weeks</span>
+            </NuxtLink>
+          </UTooltip>
+          <NuxtLink v-else to="/weekly-reports" :class="navLinkClass(isWeeklyReportsList)">
+            <UIcon name="i-lucide-calendar-range" class="size-4 shrink-0" />
+            <span>All weeks</span>
+          </NuxtLink>
+        </li>
+        <li>
+          <UTooltip v-if="collapsed" text="Last week" :popper="{ placement: 'right' }">
+            <NuxtLink to="/weekly-reports?period=last-week" :class="navLinkClass(false)">
+              <UIcon name="i-lucide-file-bar-chart" class="size-5 shrink-0" />
+              <span v-if="!collapsed">Last week</span>
+            </NuxtLink>
+          </UTooltip>
+          <NuxtLink v-else to="/weekly-reports?period=last-week" :class="navLinkClass(false)">
+            <UIcon name="i-lucide-file-bar-chart" class="size-4 shrink-0" />
+            <span>Last week</span>
+          </NuxtLink>
+        </li>
+      </ul>
       <!-- Daily Notes / other environments -->
       <ul v-else class="space-y-1">
         <li>
@@ -427,6 +454,7 @@ const isAllNotes = computed(() => route.path === '/notes/all')
 const isTodos = computed(() => route.path === '/notes/todos')
 const isAgreed = computed(() => route.path === '/notes/agreed')
 const isProjects = computed(() => route.path === '/notes/projects')
+const isWeeklyReportsList = computed(() => route.path === '/weekly-reports' || route.path.startsWith('/weekly-reports/'))
 const isOpsNotifications = computed(() => route.path === '/ops-notifications')
 const isOrganisation = computed(() => route.path === '/organisation')
 

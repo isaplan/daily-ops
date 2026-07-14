@@ -87,6 +87,9 @@ flowchart TB
 | `daily_ops_snapshot_section_revenue` | Read model | Revenue breakdown | Dashboard revenue detail (write path) | `buildRevenueSection` | Cache writers |
 | `daily_ops_read_cache` | Read model | Small prebuilt JSON per profile × period (ADR-013) | **All Daily Ops GET UI** | Post-snapshot cache writers | `bundle.get`, staff/revenue GET APIs |
 | `notes` | App data | Notes, todos, agrees (BlockNote JSON) | Note content | Notes API | Member connections, notes UI |
+| `weather_observations` | App data | Daily weather for Den Haag (Open-Meteo) | Weather per calendar day | `daily-ops:weather-sync` cron, backfill script | `weekly_reports` builder |
+| `calendar_events` | App data | NL holidays, regio Midden school holidays, custom events | Event calendar for context | Seed script, weekly report UI | `weekly_reports` builder |
+| `weekly_reports` | App data | Sealed weekly document per venue (digest + weather + events + comments) | Interactive weekly report | `daily-ops:weekly-report-build` cron, section PUT API | Weekly Reports environment UI, PDF export |
 
 ---
 

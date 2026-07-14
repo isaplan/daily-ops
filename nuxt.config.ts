@@ -69,6 +69,10 @@ if (enableNitroScheduled && !disableIntegrationsSchedule) {
   Object.assign(scheduledTasks, buildBorkEitjeDailyNitroCronEntries())
   /** Weekly digest read-cache — Monday 01:00 Amsterdam (last completed ISO week). */
   scheduledTasks['0 1 * * 1'] = ['daily-ops:weekly-digest-cache']
+  /** Weekly report sealed documents — Monday 01:15 Amsterdam. */
+  scheduledTasks['15 1 * * 1'] = ['daily-ops:weekly-report-build']
+  /** The Hague weather sync — daily 06:15 Amsterdam. */
+  scheduledTasks['15 6 * * *'] = ['daily-ops:weather-sync']
 }
 if (enableNitroScheduled && enableOpsAutoRetry) {
   // Staggered away from :00/:05 integration/inbox windows.

@@ -42,6 +42,13 @@
       <option value="strict">Targets: Strict</option>
       <option value="relaxed">Targets: Relaxed</option>
     </select>
+    <NuxtLink
+      v-if="fullReportLink"
+      :to="fullReportLink"
+      class="rounded px-3 py-1.5 text-sm font-semibold text-indigo-700 transition-colors hover:bg-indigo-50"
+    >
+      See full report →
+    </NuxtLink>
   </nav>
 </template>
 
@@ -56,7 +63,17 @@ const {
   goToLastWeek,
   isThisWeek,
   isLastWeek,
+  week,
+  locationId,
 } = useDailyOpsWeeklyReport()
+
+const fullReportLink = computed(() => {
+  const w = week.value
+  if (!w) return null
+  const loc = locationId.value
+  if (!loc || loc === 'all') return `/weekly-reports/${w}`
+  return `/weekly-reports/${w}?location=${loc}`
+})
 
 function onTargetsChange(e: Event) {
   setTargetsPreset((e.target as HTMLSelectElement).value as WeeklyTargetPresetId)

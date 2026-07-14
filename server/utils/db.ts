@@ -1,8 +1,9 @@
 /**
  * @registry-id: mongoDb
- * @last-modified: 2026-04-19T12:00:00.000Z
+ * @last-modified: 2026-07-14T21:00:00.000Z
  * @description: Single MongoClient + DB name resolution for Nitro routes and services
- * @last-fix: [2026-04-19] Accept DATABASE_URL when MONGODB_URI unset (DO App Platform database binding)
+ * @last-fix: [2026-07-14] Weekly reports, weather, calendar_events collection getters (ADR-015)
+ *   Prior: [2026-04-19] Accept DATABASE_URL when MONGODB_URI unset (DO App Platform database binding)
  */
 import { MongoClient, type Collection } from 'mongodb'
 import { readFileSync, existsSync } from 'fs'
@@ -113,6 +114,21 @@ export async function getMenusCollection(): Promise<Collection> {
 export async function getMenuVersionsCollection(): Promise<Collection> {
   const db = await getDb()
   return db.collection('menu_versions')
+}
+
+export async function getWeeklyReportsCollection(): Promise<Collection> {
+  const db = await getDb()
+  return db.collection('weekly_reports')
+}
+
+export async function getWeatherObservationsCollection(): Promise<Collection> {
+  const db = await getDb()
+  return db.collection('weather_observations')
+}
+
+export async function getCalendarEventsCollection(): Promise<Collection> {
+  const db = await getDb()
+  return db.collection('calendar_events')
 }
 
 export async function connectToDatabase() {

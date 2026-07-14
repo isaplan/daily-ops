@@ -10,10 +10,10 @@ export function useEnvironment() {
     const path = route.path
     if (path.startsWith('/daily-ops')) return 'daily-ops'
     if (path.startsWith('/daily-menu-products')) return 'daily-menu-products'
+    if (path.startsWith('/weekly-reports')) return 'weekly-reports'
     return 'daily-notes'
   })
 
-  // Keep active environment in sync with route when navigating
   watch(derivedEnvironment, (env) => {
     activeEnvironment.value = env
   }, { immediate: true })
@@ -29,6 +29,8 @@ export function useEnvironment() {
       router.push('/daily-ops')
     } else if (env === 'daily-menu-products') {
       router.push('/daily-menu-products')
+    } else if (env === 'weekly-reports') {
+      router.push('/weekly-reports')
     }
   }
 

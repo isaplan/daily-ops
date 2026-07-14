@@ -384,3 +384,43 @@ API endpoint (`bundle.get.ts`) intelligently serves from the appropriate cache l
 **Related:** ADR-004, ADR-013
 
 ---
+
+## ADR-015 — Weekly Reports environment (sealed documents)
+
+**Status:** Accepted (2026-07-14)
+
+**Context:** The Daily Ops weekly digest (`daily_ops_read_cache` · `profile=weekly-digest`) is a read-only analytics view. Operations teams need an interactive weekly document with per-topic findings, todos, agreements, weather context, and calendar events — without changing the existing Daily Ops page or read-cache path.
+
+**Decision:**
+
+1. **New environment:** `weekly-reports` — fourth app environment alongside Daily Ops, Daily Notes, and Daily Menu. Routes under `/weekly-reports/*`.
+
+2. **New collections (additive, hot tier):**
+   - `weather_observations` — daily rows for Den Haag (all venues share city-level weather). Source: Open-Meteo. Written by `daily-ops:weather-sync` cron + one-time backfill.
+   - `calendar_events` — national holidays, regio Midden school holidays, religious observances, and custom one-off events. Seeded via script; custom events via Weekly Reports UI.
+   - `weekly_reports` — one sealed document per `weekKey` + `locationId` (per venue only, no combined "all" doc). Contains denormalized `digest` (from `buildWeeklyDigest`), `weather`, `events`, and user `sections` (comments/todos/agrees per topic).
+
+3. **Build path:** `buildWeeklyDigest` unchanged. New `buildWeeklyReportComputed` enriches digest with weather + events and writes to `weekly_reports`. Cron `daily-ops:weekly-report-build` runs Monday 01:15 Amsterdam for last 5 weeks × 3 venues.
+
+4. **Freeze rule:** Computed fields (digest, weather, events) auto-refresh until **14 days after week end**, then `frozenAt` is set and computed fields stop updating. User sections (comments/todos/agreements) remain editable always.
+
+5. **Daily Ops unchanged:** `pages/daily-ops/analytics/weekly-report.vue` keeps reading read-cache. Single "See full report" link to `/weekly-reports/[weekKey]`.
+
+6. **PDF:** Browser print via `lib/pdf/weeklyReportPdfDocument.ts` (same pattern as notes PDF).
+
+**Apply map:**
+
+| Surface | File |
+|--------|------|
+| Weather fetch/upsert | `server/utils/dailyOpsWeather/*` |
+| Calendar seed/query | `server/utils/dailyOpsCalendarEvents/*` |
+| Document builder | `server/utils/weeklyReportDocument/*` |
+| API | `server/api/weekly-reports/*` |
+| UI | `pages/weekly-reports/*`, `components/weeklyReports/*` |
+| Crons | `server/tasks/daily-ops/weather-sync.ts`, `weekly-report-build.ts` |
+
+**Consequences:** Three new Mongo collections. Weather backfill required once (`pnpm weather:backfill`). Calendar seed once (`pnpm calendar:seed`). Daily Ops weekly digest remains ADR-013 read-cache SSOT; `weekly_reports` is a separate sealed document layer.
+
+**Related:** ADR-004, ADR-013, ADR-014
+
+---
