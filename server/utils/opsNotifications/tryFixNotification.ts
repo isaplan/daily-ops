@@ -1,9 +1,10 @@
 /**
  * @registry-id: tryFixOpsNotification
  * @created: 2026-05-28T00:00:00.000Z
- * @last-modified: 2026-07-13T10:12:00.000Z
+ * @last-modified: 2026-07-15T00:00:00.000Z
  * @description: One-shot fix + self-healing for ops notification rows
- * @last-fix: [2026-07-14] Integration try-fix returns after sync; gap/cache runs in background
+ * @last-fix: [2026-07-15] Retry failed Bork locations only; track per-location retry streaks
+ *   Prior: [2026-07-14] Integration try-fix returns after sync; gap/cache runs in background
  *   Prior: [2026-07-11] Integration sync re-run + snapshot/cache backfill; refresh read-cache after snapshot fix
  *   Prior: [2026-05-28] Bork V2 rebuild + snapshot rebuild for warm-tier / gap alerts
  * @adr-ref: ADR-004, ADR-013
@@ -17,14 +18,22 @@ import type { Db } from 'mongodb'
 import { buildDailyOpsSnapshot } from '../../services/dailyOpsSnapshotService'
 import { rebuildBorkSalesAggregationV2 } from '../../services/borkRebuildAggregationV2Service'
 import { runIntegrationCronJob } from '../../services/integrationCronRunner'
+import { syncBorkSingleLocation } from '../../services/borkSyncService'
 import { resolveV2RebuildCollectionSuffix } from '../borkV2RebuildSuffix'
 import { runOpsNotificationScan } from './runOpsNotificationScan'
+import {
+  recordIntegrationLocationRetryOutcome,
+} from './integrationSyncRetryStreak'
 import type { OpsNotificationKind, OpsNotificationStatus } from '~/types/ops-notifications'
 import { retryProcessEmailAttachments } from '../../services/inboxProcessService'
 import { refreshDashboardBundleCache } from '../dailyOpsSnapshot/preGenerateBundleCache'
-import { materializeSnapshotGaps } from '../dailyOpsSnapshot/triggerSnapshotRebuilds'
+import {
+  materializeHistoricalPipelineSnapshots,
+  materializeSnapshotGaps,
+} from '../dailyOpsSnapshot/triggerSnapshotRebuilds'
 import { VENUE_STRIP_LOCATIONS } from '../venueStrip/constants'
 import { amsterdamOpenRegisterBusinessDateYmd } from '~/utils/dailyOpsBusinessDate'
+import { isIntegrationHistoricalJobType } from '~/utils/integrations/historicalJobTypes'
 
 export type TryFixInput = {
   kind: OpsNotificationKind
@@ -83,6 +92,7 @@ async function rebuildSnapshotWithCache(
 async function healIntegrationSyncFailure(
   db: Db,
   meta?: Record<string, unknown>,
+  notificationId?: string,
 ): Promise<{ ok: boolean; detail: string }> {
   const source = meta?.source === 'eitje' ? 'eitje' : 'bork'
   const jobType = String(meta?.jobType ?? '')
@@ -90,15 +100,43 @@ async function healIntegrationSyncFailure(
     return { ok: false, detail: 'missing jobType in alert meta' }
   }
 
-  const sync = await runIntegrationCronJob(db, source, jobType)
-  if (!sync.syncResult.ok) {
-    return { ok: false, detail: sync.syncResult.message }
-  }
-
   const window = meta?.syncWindow as { startDate?: string; endDate?: string } | undefined
   const openRegister = amsterdamOpenRegisterBusinessDateYmd()
   const startDate = window?.startDate ?? openRegister
   const endDate = window?.endDate ?? openRegister
+  const failedLocations = (meta?.failedLocations as Array<{ locationId?: string }>) ?? []
+
+  let syncDetail = ''
+  if (source === 'bork' && failedLocations.length > 0) {
+    const locationResults: string[] = []
+    let allLocationsOk = true
+    for (const loc of failedLocations) {
+      const locationId = loc.locationId != null ? String(loc.locationId) : ''
+      if (!locationId) continue
+      const result = await syncBorkSingleLocation(db, locationId, 'daily', jobType)
+      const fixed = result.ok
+      if (notificationId) {
+        await recordIntegrationLocationRetryOutcome(db, notificationId, locationId, fixed)
+      }
+      if (!fixed) allLocationsOk = false
+      locationResults.push(`${locationId}: ${result.message}`)
+    }
+    syncDetail = locationResults.join(' · ')
+    if (!allLocationsOk) {
+      return { ok: false, detail: syncDetail || 'failed location retry' }
+    }
+    if (isIntegrationHistoricalJobType(jobType)) {
+      const suffix = resolveV2RebuildCollectionSuffix()
+      await rebuildBorkSalesAggregationV2(db, startDate, endDate, suffix)
+      await materializeHistoricalPipelineSnapshots(db, startDate, endDate)
+    }
+  } else {
+    const sync = await runIntegrationCronJob(db, source, jobType)
+    syncDetail = sync.syncResult.message
+    if (!sync.syncResult.ok) {
+      return { ok: false, detail: syncDetail }
+    }
+  }
 
   void (async () => {
     try {
@@ -111,7 +149,7 @@ async function healIntegrationSyncFailure(
 
   return {
     ok: true,
-    detail: `Re-ran ${source} ${jobType} · snapshot/cache backfill started in background (${startDate}..${endDate})`,
+    detail: `Re-ran ${source} ${jobType} for failed location(s) · ${syncDetail} · snapshot/cache backfill started (${startDate}..${endDate})`,
   }
 }
 
@@ -134,7 +172,8 @@ export async function tryFixOpsNotification(db: Db, input: TryFixInput): Promise
 
   try {
     if (kind === 'integration_sync_partial_failure') {
-      const healed = await healIntegrationSyncFailure(db, input.meta)
+      const notificationId = `${kind}:${businessDate}:${locationId}`
+      const healed = await healIntegrationSyncFailure(db, input.meta, notificationId)
       steps.push(healed.detail)
       if (!healed.ok) {
         return {

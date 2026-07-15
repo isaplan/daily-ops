@@ -70,7 +70,7 @@
       </div>
     </div>
 
-    <div class="overflow-x-auto rounded-lg border border-gray-200 bg-white shadow-sm">
+    <div v-if="!hideTables" class="overflow-x-auto rounded-lg border border-gray-200 bg-white shadow-sm">
       <p class="border-b border-gray-200 px-4 py-3 text-sm font-semibold">Top spaces / tables</p>
       <table class="min-w-full text-sm">
         <thead class="border-b border-gray-200 bg-gray-50 text-xs font-semibold uppercase text-gray-500">
@@ -99,7 +99,7 @@
 <script setup lang="ts">
 import type { WeeklyDigestDto } from '~/types/daily-ops-weekly-report'
 
-const props = defineProps<{ digest: WeeklyDigestDto | null }>()
+const props = defineProps<{ digest: WeeklyDigestDto | null; hideTables?: boolean }>()
 const { formatEur } = useDashboardEurFormat()
 
 const activeHours = ['10', '12', '14', '16', '18', '20', '22']

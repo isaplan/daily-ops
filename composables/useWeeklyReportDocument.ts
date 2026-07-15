@@ -11,6 +11,7 @@
  * ✓ components/weeklyReports/*
  */
 
+import type { BlockAgree, BlockTodo } from '~/types/noteBlock'
 import type { WeeklyReportDocument, WeeklyReportListItem, WeeklyReportSectionKey } from '~/types/weeklyReportDocument'
 import { WEEKLY_REPORT_SECTION_KEYS } from '~/types/weeklyReportDocument'
 import { DAILY_OPS_PROFIT_VENUE_LOCATIONS } from '~/utils/dailyOpsProfitIntervals'
@@ -58,11 +59,16 @@ export function useWeeklyReportDocument() {
     router.replace({ path: route.path, query: { ...route.query, location: id } })
   }
 
-  async function saveSection(sectionKey: WeeklyReportSectionKey, text: string) {
+  async function saveSection(
+    sectionKey: WeeklyReportSectionKey,
+    text: string,
+    todos?: BlockTodo[],
+    agrees?: BlockAgree[],
+  ) {
     if (!weekKey.value) return
     await $fetch(`/api/weekly-reports/${weekKey.value}/section/${sectionKey}`, {
       method: 'PUT',
-      body: { text, locationId: locationId.value },
+      body: { text, todos, agrees, locationId: locationId.value },
     })
     await refresh()
   }

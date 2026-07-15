@@ -1,7 +1,7 @@
 /**
  * @registry-id: weeklyReportDocumentBuild
  * @created: 2026-07-14T21:00:00.000Z
- * @last-modified: 2026-07-14T21:00:00.000Z
+ * @last-modified: 2026-07-15T00:00:00.000Z
  * @description: Build computed weekly report document from digest + weather + events
  * @adr-ref: ADR-004, ADR-013, ADR-015
  *
@@ -19,7 +19,7 @@ import {
 import { getEventsForRange } from '../dailyOpsCalendarEvents/getEventsForRange'
 import { getWeatherForRange } from '../dailyOpsWeather/getWeatherForRange'
 import { buildWeeklyDigest } from '../dailyOpsWeeklyReport/buildWeeklyDigest'
-import type { WeeklyRange } from '../dailyOpsWeeklyReport/weekRange'
+import { previousWeekRange, type WeeklyRange } from '../dailyOpsWeeklyReport/weekRange'
 
 export async function buildWeeklyReportComputed(
   db: Db,
@@ -27,9 +27,11 @@ export async function buildWeeklyReportComputed(
   locationId: string,
   targets: WeeklyTargetsDto,
 ): Promise<Omit<WeeklyReportDocument, 'sections' | 'frozenAt'>> {
-  const [digest, weather, events] = await Promise.all([
+  const prevRange = previousWeekRange(range)
+  const [digest, weather, previousWeekWeather, events] = await Promise.all([
     buildWeeklyDigest(db, range, { locationId, targets }),
     getWeatherForRange(db, range.startDate, range.endDate),
+    getWeatherForRange(db, prevRange.startDate, prevRange.endDate),
     getEventsForRange(db, range.startDate, range.endDate),
   ])
 
@@ -39,6 +41,7 @@ export async function buildWeeklyReportComputed(
     locationName: digest.locationName,
     digest,
     weather,
+    previousWeekWeather: previousWeekWeather.daily.length ? previousWeekWeather : null,
     events,
     builtAt: new Date().toISOString(),
     schemaVersion: WEEKLY_REPORT_SCHEMA_VERSION,

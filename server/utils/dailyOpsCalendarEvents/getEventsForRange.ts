@@ -1,7 +1,8 @@
 /**
  * @registry-id: dailyOpsCalendarEventsGetRange
  * @created: 2026-07-14T21:00:00.000Z
- * @last-modified: 2026-07-14T21:00:00.000Z
+ * @last-modified: 2026-07-15T15:05:00.000Z
+ * @last-fix: [2026-07-15] Map calendar event labels (e.g. tvt)
  * @description: Query calendar events overlapping a date range
  * @adr-ref: ADR-015
  *
@@ -11,8 +12,14 @@
  */
 
 import type { Db } from 'mongodb'
-import type { CalendarEvent, CalendarEventType } from '~/types/calendarEvent'
+import type { CalendarEvent, CalendarEventLabel, CalendarEventType } from '~/types/calendarEvent'
 import { CALENDAR_EVENTS_COLLECTION } from './constants'
+
+function mapLabels(raw: unknown): CalendarEventLabel[] | undefined {
+  if (!Array.isArray(raw)) return undefined
+  const labels = raw.filter((value): value is CalendarEventLabel => value === 'tvt')
+  return labels.length ? labels : undefined
+}
 
 function mapDoc(doc: Record<string, unknown>): CalendarEvent {
   return {
@@ -22,6 +29,7 @@ function mapDoc(doc: Record<string, unknown>): CalendarEvent {
     type: doc.type as CalendarEventType,
     title: String(doc.title),
     note: doc.note != null ? String(doc.note) : undefined,
+    labels: mapLabels(doc.labels),
   }
 }
 

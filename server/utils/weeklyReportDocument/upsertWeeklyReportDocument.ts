@@ -13,7 +13,8 @@
 import type { Db } from 'mongodb'
 import type { WeeklyReportDocument, WeeklyReportListItem } from '~/types/weeklyReportDocument'
 import { resolveWeeklyTargets } from '../dailyOpsWeeklyReport/weeklyStatus'
-import { weekRangeFromKey } from '../dailyOpsWeeklyReport/weekRange'
+import { previousWeekRange, weekRangeFromKey } from '../dailyOpsWeeklyReport/weekRange'
+import { getWeatherForRange } from '../dailyOpsWeather/getWeatherForRange'
 import { buildWeeklyReportComputed } from './buildWeeklyReportDocument'
 import { WEEKLY_REPORTS_COLLECTION } from './constants'
 import { getFreezeState } from './getFreezeState'
@@ -21,6 +22,18 @@ import { mergeWeeklyReportUserContent } from './mergeWeeklyReportUserContent'
 
 function mapDoc(doc: Record<string, unknown>): WeeklyReportDocument {
   return doc as unknown as WeeklyReportDocument
+}
+
+async function attachPreviousWeekWeatherIfMissing(
+  db: Db,
+  range: NonNullable<ReturnType<typeof weekRangeFromKey>>,
+  doc: WeeklyReportDocument,
+): Promise<WeeklyReportDocument> {
+  if (doc.previousWeekWeather?.daily.length) return doc
+  const prevRange = previousWeekRange(range)
+  const previousWeekWeather = await getWeatherForRange(db, prevRange.startDate, prevRange.endDate)
+  if (!previousWeekWeather.daily.length) return { ...doc, previousWeekWeather: null }
+  return { ...doc, previousWeekWeather }
 }
 
 export async function findWeeklyReportDocument(
@@ -51,9 +64,9 @@ export async function upsertWeeklyReportDocument(
         { weekKey, locationId },
         { $set: { frozenAt: freeze.frozenAt } },
       )
-      return frozen
+      return attachPreviousWeekWeatherIfMissing(db, range, frozen)
     }
-    return existing
+    return attachPreviousWeekWeatherIfMissing(db, range, existing)
   }
 
   const targets = resolveWeeklyTargets(opts?.targetsPreset)

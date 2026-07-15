@@ -11,8 +11,8 @@ import { getDb } from '../../../utils/db'
 import { parseDailyOpsMetricsQuery } from '../../../utils/dailyOpsMetrics/context'
 import {
   fetchDailyOpsDashboardBundle,
-  snapshotCacheControl,
 } from '../../../utils/dailyOpsSnapshot/fetchDashboardBundle'
+import { snapshotCacheControl } from '../../../utils/dailyOpsSnapshot/dashboardBundle/snapshotCacheControl'
 
 export default defineEventHandler(async (event) => {
   const ctx = parseDailyOpsMetricsQuery(getQuery(event) as Record<string, unknown>)

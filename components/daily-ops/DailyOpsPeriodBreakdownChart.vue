@@ -111,6 +111,7 @@
           />
           <D3GroupedBarChart
             v-else-if="chartData.length && visibleSeries.length"
+            :key="`${breakdown.granularity}-${chartData.length}-${visibleSeries.map((s) => s.key).join(',')}`"
             :data="chartData"
             :series="visibleSeries"
             :reference-lines="chartReferenceLines"
@@ -138,6 +139,10 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * @last-modified: 2026-07-16T00:00:00.000Z
+ * @last-fix: [2026-07-16] Remount D3 chart on granularity change to reset x-axis
+ */
 import D3GroupedBarChart from '~/components/charts/D3GroupedBarChart.vue'
 import D3StackedBarChart from '~/components/charts/D3StackedBarChart.vue'
 import type { GroupedBarReferenceLine, GroupedBarSeries } from '~/components/charts/D3GroupedBarChart.vue'

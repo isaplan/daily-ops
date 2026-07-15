@@ -71,7 +71,7 @@
     />
 
     <DailyOpsAnalyticsWeeklyStaffPlusminSection
-      v-if="digest.staffPlusmin"
+      v-if="digest.staffPlusmin && !hideStaffPlusmin"
       :summary="digest.staffPlusmin"
       :location-id="digest.locationId"
     />
@@ -89,6 +89,8 @@ defineProps<{
   digest: WeeklyDigestDto | null
   statusBadgeClass: (s: WeeklyDigestDto['totals']['laborStatus']) => string
   statusLabel: (s: WeeklyDigestDto['totals']['laborStatus']) => string
+  /** Weekly report KPI section shows plusmin under Staff General instead */
+  hideStaffPlusmin?: boolean
 }>()
 
 const { formatEur } = useDashboardEurFormat()

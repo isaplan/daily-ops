@@ -1,9 +1,10 @@
 /**
  * @registry-id: opsNotificationAutoRetry
  * @created: 2026-05-28T00:00:00.000Z
- * @last-modified: 2026-07-11T17:30:00.000Z
+ * @last-modified: 2026-07-15T00:00:00.000Z
  * @description: Scheduled self-healing for ops notifications (snapshot gaps + integration sync failures)
- * @last-fix: [2026-07-11] Auto-retry integration_sync_partial_failure + snapshot kinds with read-cache refresh
+ * @last-fix: [2026-07-15] Skip auto-retry when per-location failure streak exceeds cap
+ *   Prior: [2026-07-11] Auto-retry integration_sync_partial_failure + snapshot kinds with read-cache refresh
  * @adr-ref: ADR-004, ADR-013
  *
  * @exports-to:
@@ -13,6 +14,10 @@
 import type { Db } from 'mongodb'
 import { tryFixOpsNotification } from './tryFixNotification'
 import { runOpsNotificationScan } from './runOpsNotificationScan'
+import {
+  INTEGRATION_SYNC_RETRY_ATTEMPTS,
+  integrationAutoRetryPaused,
+} from './integrationSyncRetryStreak'
 import type { OpsNotificationKind } from '~/types/ops-notifications'
 
 const AUTO_RETRY_KINDS: OpsNotificationKind[] = [
@@ -26,7 +31,7 @@ const AUTO_RETRY_KINDS: OpsNotificationKind[] = [
   'integration_sync_partial_failure',
 ]
 
-const ATTEMPT_COLLECTION = 'ops_notification_auto_retry_attempts'
+const ATTEMPT_COLLECTION = INTEGRATION_SYNC_RETRY_ATTEMPTS
 const LOCK_COLLECTION = 'ops_notification_auto_retry_lock'
 const COOLDOWN_MS = 10 * 60 * 1000
 const MAX_PER_RUN = 10
@@ -97,6 +102,15 @@ export async function runOpsNotificationAutoRetry(db: Db): Promise<{
     for (const item of report.items) {
       if (attempted >= MAX_PER_RUN) break
       if (!isAutoRetryEligible(item)) continue
+
+      if (item.kind === 'integration_sync_partial_failure') {
+        const failedLocations = (item.meta?.failedLocations as Array<{ locationId?: string }>) ?? []
+        const pause = await integrationAutoRetryPaused(db, item.id, failedLocations)
+        if (pause.paused) {
+          skipped.push(`chronic_failure:${item.id}`)
+          continue
+        }
+      }
 
       const previous = await db.collection<AttemptRow>(ATTEMPT_COLLECTION).findOne({ _id: item.id })
       if (previous?.attemptedAt && Date.now() - previous.attemptedAt.getTime() < COOLDOWN_MS) {

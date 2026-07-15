@@ -1,19 +1,14 @@
 /**
  * @registry-id: dailyOpsSnapshotFetchDashboardBundle
  * @created: 2026-05-25T00:00:00.000Z
- * @last-modified: 2026-07-13T01:03:00.000Z
+ * @last-modified: 2026-07-16T00:00:00.000Z
  * @description: Snapshot-first Daily Ops dashboard bundle orchestrator (ADR-004/013)
  *   Reads sealed snapshot sections only; no Bork/Eitje/Inbox on GET. Orchestrates section reads
  *   → DTOs → write to read-cache (per ADR-013, snapshot write path SSOT).
- * @last-fix: [2026-07-13] Updated metadata: snapshot-only, no live reads on GET
+ * @last-fix: [2026-07-16] Extract light path + Cache-Control under monolith budget
+ *   Prior: [2026-07-13] Updated metadata: snapshot-only, no live reads on GET
  *   Prior: [2026-07-11] Hourly periodBreakdown staff headcount from shift overlap buckets
  *   Prior: [2026-07-02] ADR-013 @write-cache-json — orchestrator feeds dashboard-bundle writer
- *   Prior: [2026-07-01] Today ordered revenue from snapshot orderHourly only — no GET patch
- *   Prior: [2026-06-09] Merge live check_ins hourly labor into today P&L / profit-by-interval
- *   Prior: [2026-06-07] snapshotCacheControl uses open register business_date (ADR-010), not UTC ISO
- *   Prior: [2026-06-05] Cache sealed days 24h immutable; yesterday 1h + stale-while-revalidate
- *   Prior: [2026-06-05] Merge revenue-section hourly fallback + scale today hourly detail
- *   Prior: [2026-05-31] Dashboard profit math uses Mongo P&L assumptions SSOT
  * @adr-ref: ADR-004, ADR-006, ADR-010, ADR-013
  * @data-source: snapshot-write-only
  * @write-cache-json: daily_ops_read_cache · dashboard-bundle · daily+weekly+monthly+yearly · orchestrator feeds preGenerateBundleCache after buildDailyOpsSnapshot
@@ -28,7 +23,6 @@
 import type { Db } from 'mongodb'
 import type {
   DailyOpsLaborMetricsDto,
-  DailyOpsProfitByIntervalDto,
   DailyOpsRevenueBreakdownDto,
   DailyOpsSummaryDto,
   PeriodBreakdownDto,
@@ -40,7 +34,7 @@ import {
   buildDailyOpsRevenueBreakdownDto,
   buildDailyOpsSummaryDto,
 } from '../dailyOpsMetrics/dtoBuilders'
-import { addCalendarDaysYmd, amsterdamOpenRegisterBusinessDateYmd } from '~/utils/dailyOpsBusinessDate'
+import { amsterdamOpenRegisterBusinessDateYmd } from '~/utils/dailyOpsBusinessDate'
 import { loadPnlAssumptions } from '../appSettings/pnlAssumptionsSetting'
 import { fetchCheckInsLaborByBusinessDateHour } from '../venueStrip/checkInLaborByHour'
 import { aggregateLaborForRange } from './aggregateLaborForRange'
@@ -53,7 +47,7 @@ import {
   mergeHourlySnapshotSections,
 } from './dashboardBundle/hourBundle'
 import { contractRollupsFromSnapshotLabor } from './dashboardBundle/laborContractRollups'
-import { loadSnapshotDashboardRows, loadSnapshotDashboardRowsLight } from './dashboardBundle/loadSnapshotRows'
+import { loadSnapshotDashboardRows } from './dashboardBundle/loadSnapshotRows'
 import {
   aggregateLaborByDateHour,
   laborByLocHourFromSnapshots,
@@ -63,6 +57,7 @@ import {
 import { buildHeadlineRevenueByLocDay, buildRevLabMaps } from './dashboardBundle/revLabMaps'
 import { snapshotRound2 } from './dashboardBundle/shared'
 import { buildTodayExtrasFromHourBundle } from './dashboardBundle/todayRevenueDetail'
+import { fetchDashboardBundleLight } from './dashboardBundle/fetchDashboardBundleLight'
 import { headlineExVatFromSnapshotSection } from './snapshotHeadlineRevenue'
 import { coverageFromSnapshotMasters, formatCoverageNote } from './bundleCoverage'
 import {
@@ -83,82 +78,6 @@ export type DailyOpsDashboardBundleDto = {
   venueStrip?: VenueStripResponseDto
   /** Hour/day/week/month bars for venue strip graph + period charts. */
   periodBreakdown?: PeriodBreakdownDto
-}
-
-const EMPTY_PROFIT_BY_INTERVAL: DailyOpsProfitByIntervalDto = {
-  estimatesNote: 'Profit-by-interval omitted for long ranges (>31 days).',
-  dates: [],
-  cells: [],
-}
-
-const EMPTY_PROFIT_HOUR: DailyOpsRevenueBreakdownDto['mostProfitableHour'] = {
-  hourLabel: '—',
-  date: '',
-  hour: 0,
-  revenue: 0,
-  laborCost: 0,
-  cogsCost: 0,
-  fixedCost: 0,
-  profit: 0,
-  estimatesNote: 'Hourly profit omitted for long ranges (>31 days).',
-}
-
-/** Fast path for year-scale ranges — summary + labor rollups only. */
-export async function fetchDashboardBundleLight(
-  db: Db,
-  ctx: DailyOpsMetricsContext,
-): Promise<DailyOpsDashboardBundleDto> {
-  const rows = await loadSnapshotDashboardRowsLight(db, ctx)
-  const snapshotContracts = contractRollupsFromSnapshotLabor(rows.labor)
-  const { revMap, labMap, revByDateLocation } = buildRevLabMaps(rows.masters, rows.revenue, rows.labor)
-
-  let apiMergedTotal = 0
-  for (const r of rows.revenue) {
-    apiMergedTotal += Number(r.borkTotals?.ex_vat ?? 0)
-  }
-
-  const laborBreakdown = await aggregateLaborForRange(db, {
-    startDate: ctx.startDate,
-    endDate: ctx.endDate,
-    locationId: ctx.locationId,
-  })
-
-  const pnlAssumptions = await loadPnlAssumptions(db)
-
-  const summary = buildDailyOpsSummaryDto(ctx, revMap, labMap, {
-    apiBusinessDaysTotal: snapshotRound2(apiMergedTotal),
-    inboxBasisExVat: null,
-  }, { assumptions: pnlAssumptions, categoryTotals: { food: 0, drinks: 0 } })
-  if (laborBreakdown.coverage.daysFound > 0) {
-    summary.summary.laborBreakdown = laborBreakdown
-  }
-
-  const revenue: DailyOpsRevenueBreakdownDto = {
-    range: {
-      period: ctx.period,
-      startDate: ctx.startDate,
-      endDate: ctx.endDate,
-    },
-    revenueByCategory: [],
-    revenueByTimePeriod: [],
-    mostProfitableHour: EMPTY_PROFIT_HOUR,
-    profitByInterval: EMPTY_PROFIT_BY_INTERVAL,
-  }
-
-  const labor = assembleLaborFromSnapshots(ctx, rows, revMap, labMap, revByDateLocation, {
-    hoursCostByContractType: snapshotContracts.hoursCostByContractType,
-    contractTypeByDay: snapshotContracts.contractTypeByDay,
-  })
-
-  return {
-    summary,
-    revenue,
-    labor,
-    periodBreakdown: buildPeriodBreakdownFromLaborMetrics(labor, ctx.startDate, ctx.endDate, {
-      assumptions: pnlAssumptions,
-      categoryTotals: { food: 0, drinks: 0 },
-    }),
-  }
 }
 
 /** Snapshot-only dashboard bundle — single coordinated read (ADR-004). */
@@ -304,22 +223,4 @@ export async function fetchDailyOpsDashboardBundle(
         })
 
   return { summary, revenue, labor, periodBreakdown }
-}
-
-export function snapshotCacheControl(ctx: DailyOpsMetricsContext): string {
-  const openRegister = amsterdamOpenRegisterBusinessDateYmd()
-  const sealedSingleDay = ctx.period !== 'today' && ctx.startDate === ctx.endDate && ctx.endDate < openRegister
-
-  if (sealedSingleDay) {
-    const yesterday = addCalendarDaysYmd(openRegister, -1)
-    if (ctx.endDate === yesterday) {
-      // Yesterday: 1h cache, revalidate in background (morning cron might update)
-      return 'public, max-age=3600, stale-while-revalidate=86400'
-    }
-    // Older sealed days: 24h cache, immutable (only weekly backfills update)
-    return 'public, max-age=86400, stale-while-revalidate=604800, immutable'
-  }
-
-  // Today or multi-day ranges: no cache
-  return 'no-store'
 }

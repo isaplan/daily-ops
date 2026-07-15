@@ -55,6 +55,7 @@
     "inbox:mark-gmail-disconnected": "npx --yes tsx scripts/mark-gmail-disconnected.ts",
     "locations:seed-chart-colors": "npx --yes tsx scripts/seed-location-chart-colors.ts",
     "weather:backfill": "npx --yes tsx scripts/backfill-weather-history.ts",
+    "weekly-reports:backfill": "npx --yes tsx scripts/backfill-weekly-reports.ts",
     "calendar:seed": "npx --yes tsx scripts/seed-calendar-events.ts",
     "start": "node .output/server/index.mjs"
   },

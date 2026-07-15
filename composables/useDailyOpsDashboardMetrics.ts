@@ -1,9 +1,10 @@
 /**
  * @registry-id: useDailyOpsDashboardMetrics
  * @created: 2026-05-18T00:00:00.000Z
- * @last-modified: 2026-07-02T00:00:00.000Z
+ * @last-modified: 2026-07-16T00:00:00.000Z
  * @description: Dashboard metrics via single snapshot bundle (ADR-004). One HTTP round-trip; progressive UI gates on summary only.
- * @last-fix: [2026-07-02] ADR-013 read-cache metadata
+ * @last-fix: [2026-07-16] Clear stale bundle on period key change (loadedKey) so chart x-axis cannot lag
+ *   Prior: [2026-07-02] ADR-013 read-cache metadata
  *   Prior: [2026-06-08] Snapshot-version poll replaces cron-hour cache guessing and illegal GET patch
  * @adr-ref: ADR-004, ADR-010, ADR-013
  * @data-source: read-cache
@@ -23,7 +24,7 @@ import type {
   DailyOpsSummaryDto,
   PeriodBreakdownDto,
 } from '~/types/daily-ops-dashboard'
-import type { ComputedRef, Ref } from 'vue'
+import type { ComputedRef } from 'vue'
 import { amsterdamOpenRegisterBusinessDateYmd } from '~/utils/dailyOpsBusinessDate'
 import { pollWindowState } from '~/utils/integrations/borkEitjeDailyCronSchedule'
 
@@ -32,8 +33,8 @@ export type DailyOpsDashboardMetrics = {
   revenue: ComputedRef<DailyOpsRevenueBreakdownDto | null>
   labor: ComputedRef<DailyOpsLaborMetricsDto | null>
   periodBreakdown: ComputedRef<PeriodBreakdownDto | null>
-  /** True while bundle request in flight */
-  pending: Ref<boolean>
+  /** True while bundle request in flight or stale key still shown */
+  pending: ComputedRef<boolean>
   /** True until summary slice is available (KPIs / header can render) */
   summaryPending: ComputedRef<boolean>
   error: Ref<unknown>
@@ -72,8 +73,9 @@ export function useDailyOpsDashboardMetrics(): DailyOpsDashboardMetrics {
   const snapshotBuiltAt = ref<string | null>(null)
 
   const cacheKey = computed(() => metricsKey(dashboardQuery.value, snapshotBuiltAt.value))
+  const loadedKey = ref<string | null>(null)
 
-  const { data: bundle, pending, error, refresh } = useAsyncData(
+  const { data: bundle, pending: fetchPending, error, refresh } = useAsyncData(
     cacheKey,
     () =>
       $fetch<DashboardBundleResponse>('/api/daily-ops/metrics/bundle', {
@@ -82,11 +84,26 @@ export function useDailyOpsDashboardMetrics(): DailyOpsDashboardMetrics {
     { watch: [cacheKey] },
   )
 
-  const summary = computed(() => bundle.value?.summary ?? null)
-  const revenue = computed(() => bundle.value?.revenue ?? null)
-  const labor = computed(() => bundle.value?.labor ?? null)
-  const periodBreakdown = computed(() => bundle.value?.periodBreakdown ?? null)
-  const summaryPending = computed(() => pending.value || !summary.value)
+  watch(cacheKey, () => {
+    loadedKey.value = null
+  })
+
+  watch([fetchPending, cacheKey, bundle], () => {
+    if (!fetchPending.value && bundle.value) {
+      loadedKey.value = cacheKey.value
+    }
+  })
+
+  const isReady = computed(() => !fetchPending.value && loadedKey.value === cacheKey.value)
+  const pending = computed(() => !isReady.value)
+
+  const summary = computed(() => (isReady.value ? bundle.value?.summary ?? null : null))
+  const revenue = computed(() => (isReady.value ? bundle.value?.revenue ?? null : null))
+  const labor = computed(() => (isReady.value ? bundle.value?.labor ?? null : null))
+  const periodBreakdown = computed(() =>
+    isReady.value ? bundle.value?.periodBreakdown ?? null : null,
+  )
+  const summaryPending = computed(() => !isReady.value || !summary.value)
 
   /** Snapshot version polling — only active on today view, only in the 4–10 min cron window. */
   if (import.meta.client) {
@@ -135,7 +152,6 @@ export function useDailyOpsDashboardMetrics(): DailyOpsDashboardMetrics {
 
     onMounted(() => {
       startPollIfNeeded()
-      // Re-evaluate at each minute tick (cheap; just checks Amsterdam minute)
       const minuteTick = setInterval(startPollIfNeeded, 60_000)
       onUnmounted(() => {
         stopPoll()

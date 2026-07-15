@@ -97,6 +97,7 @@
 
     <DailyOpsVenueStripGraphView
       v-if="hasVenues && viewMode === 'graph' && periodBreakdown"
+      :key="`${periodBreakdown.granularity}-${period}-${anchor ?? ''}`"
       :breakdown="periodBreakdown"
       :period-label="periodLabel"
       :business-date="chartBusinessDate"
@@ -565,8 +566,9 @@
 <script setup lang="ts">
 /**
  * @description: Venue strip cards — fixed 3 locations
- * @last-modified: 2026-07-02T00:00:00.000Z
- * @last-fix: [2026-07-02] ADR-013 read-cache metadata
+ * @last-modified: 2026-07-16T00:00:00.000Z
+ * @last-fix: [2026-07-16] Remount graph on granularity/period change so x-axis cannot lag
+ *   Prior: [2026-07-02] ADR-013 read-cache metadata
  * @adr-ref: ADR-004, ADR-010, ADR-013
  * @data-source: read-cache
  * @read-cache-json: dashboard-bundle venue-strip (via GET /api/daily-ops/metrics/venue-strip)

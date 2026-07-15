@@ -17,7 +17,7 @@ import { parseDailyOpsMetricsQuery } from '../../../utils/dailyOpsMetrics/contex
 import { buildVenueStripResponse } from '../../../utils/dailyOpsVenueStrip'
 import type { VenueStripResponseDto } from '~/types/daily-ops-dashboard'
 import { loadCachedVenueStrip } from '../../../utils/dailyOpsSnapshot/cacheCascade'
-import { snapshotCacheControl } from '../../../utils/dailyOpsSnapshot/fetchDashboardBundle'
+import { snapshotCacheControl } from '../../../utils/dailyOpsSnapshot/dashboardBundle/snapshotCacheControl'
 
 export default defineEventHandler(async (event): Promise<VenueStripResponseDto> => {
   const q = getQuery(event) as Record<string, unknown>

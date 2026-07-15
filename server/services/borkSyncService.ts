@@ -1,8 +1,9 @@
 /**
  * @registry-id: borkSyncService
  * @created: 2026-04-06T12:00:00.000Z
- * @last-modified: 2026-07-11T17:30:00.000Z
- * @last-fix: [2026-07-11] syncOk requires all credential locations — partial 1/3 no longer reports success
+ * @last-modified: 2026-07-15T00:00:00.000Z
+ * @last-fix: [2026-07-15] Bork fetch retries + timeout; partial sync ok when ≥1 location succeeds
+ *   Prior: [2026-07-11] syncOk requires all credential locations — partial 1/3 no longer reports success
  *   Prior: [2026-07-09] Always materialize snapshots for daily/historical window — decouple from syncOk
  *   Prior: [2026-06-24] Snapshot materialization moved into executeBorkJob (sync pipeline tail)
  * @description: Bork/Trivec gateway fetch + bork_raw_data upserts; drives Bork cron/sync; calls V2 aggregation after sync
@@ -48,8 +49,27 @@ export type BorkSyncJobResult = {
   jobType: string
   message: string
   locations?: BorkLocationSyncResult[]
+  /** True only when every credential location synced successfully. */
+  fullSync?: boolean
   /** Snapshot + JSON materialization after aggregation (sync pipeline tail). */
   snapshots?: { startDate: string; endDate: string; built: number; errors: number }
+}
+
+const BORK_FETCH_TIMEOUT_MS = 10_000
+const BORK_FETCH_MAX_ATTEMPTS = 4
+
+function isRetryableBorkFetchError (status: number, error?: string): boolean {
+  if (status === 429 || status >= 500) return true
+  if (status === 0 && error) {
+    return /timeout|ECONNRESET|ENOTFOUND|EAI_AGAIN|fetch failed|network|aborted/i.test(error)
+  }
+  return false
+}
+
+const sleepMs = async (ms: number) => {
+  await new Promise<void>((resolve) => {
+    setTimeout(resolve, ms)
+  })
 }
 
 function getDateRangeForJobType (jobType: string): { days: number } {
@@ -146,8 +166,22 @@ function formatBorkRawSyncMessage (input: {
   endYmd: string
 }): string {
   const { okCount, totalCreds, syncOk, jobType, ticketsByDate, startYmd, endYmd } = input
-  if (!syncOk) {
+  if (okCount === 0) {
     return `0/${totalCreds} locations succeeded — check Bork API credentials and network access`
+  }
+  if (!syncOk) {
+    const failed = totalCreds - okCount
+    let msg = `Synced ${okCount}/${totalCreds} location(s); ${failed} failed — check Bork credentials/network for failed venue(s)`
+    const span = daySpanInclusive(startYmd, endYmd)
+    const totalTickets = Object.values(ticketsByDate).reduce((a, b) => a + b, 0)
+    if (span <= PER_DAY_TICKET_BREAKDOWN_MAX_DAYS) {
+      msg += `; tickets: ${formatPerDayTicketBreakdown(ticketsByDate, startYmd, endYmd)}`
+    } else if (totalTickets > 0) {
+      msg += `; tickets: ${totalTickets} (${startYmd}…${endYmd})`
+    } else if (isIntegrationHistoricalJobType(jobType)) {
+      msg += ` (${startYmd}…${endYmd})`
+    }
+    return msg
   }
   const span = daySpanInclusive(startYmd, endYmd)
   let msg = `Synced ${okCount}/${totalCreds} location(s) into bork_raw_data`
@@ -202,29 +236,52 @@ async function tryFetchBorkTicketData (
   dateStr: string // YYYYMMDD format
 ): Promise<{ ok: boolean; status: number; data: unknown; error?: string }> {
   const base = baseUrl.replace(/\/$/, '')
-  // Bork endpoint: {baseUrl}/ticket/day.json/{YYYYMMDD}?appid={apiKey}&IncOpen=True&IncInternal=True
   const url = `${base}/ticket/day.json/${dateStr}?appid=${apiKey}&IncOpen=True&IncInternal=True`
 
-  try {
-    const res = await fetch(url, {
-      method: 'GET',
-      headers: { Accept: 'application/json' },
-    })
+  let last: { ok: boolean; status: number; data: unknown; error?: string } = {
+    ok: false,
+    status: 0,
+    data: null,
+    error: 'fetch failed',
+  }
 
-    const text = await res.text()
-    let data: unknown = text
-    try {
-      data = text ? (JSON.parse(text) as unknown) : null
-    } catch {
-      // keep as text
+  for (let attempt = 0; attempt < BORK_FETCH_MAX_ATTEMPTS; attempt++) {
+    if (attempt > 0) {
+      await sleepMs(Math.min(30_000, 1000 * 2 ** (attempt - 1)))
     }
 
-    if (res.ok) return { ok: true, status: res.status, data }
-    return { ok: false, status: res.status, data: null, error: `HTTP ${res.status}` }
-  } catch (err) {
-    const error = err instanceof Error ? err.message : String(err)
-    return { ok: false, status: 0, data: null, error }
+    try {
+      const res = await fetch(url, {
+        method: 'GET',
+        headers: { Accept: 'application/json' },
+        signal: AbortSignal.timeout(BORK_FETCH_TIMEOUT_MS),
+      })
+
+      const text = await res.text()
+      let data: unknown = text
+      try {
+        data = text ? (JSON.parse(text) as unknown) : null
+      } catch {
+        // keep as text
+      }
+
+      if (res.ok) return { ok: true, status: res.status, data }
+
+      const error = `HTTP ${res.status}`
+      last = { ok: false, status: res.status, data: null, error }
+      if (!isRetryableBorkFetchError(res.status, error) || attempt === BORK_FETCH_MAX_ATTEMPTS - 1) {
+        return last
+      }
+    } catch (err) {
+      const error = err instanceof Error ? err.message : String(err)
+      last = { ok: false, status: 0, data: null, error }
+      if (!isRetryableBorkFetchError(0, error) || attempt === BORK_FETCH_MAX_ATTEMPTS - 1) {
+        return last
+      }
+    }
   }
+
+  return last
 }
 
 async function syncLocationDates (
@@ -352,12 +409,13 @@ export async function executeBorkJob (db: Db, jobType: string): Promise<BorkSync
   }
 
   const okCount = locations.filter((x) => x.ok).length
-  const syncOk = okCount === creds.length
+  const fullSync = okCount === creds.length
+  const syncOk = okCount > 0
   const { startYmd, endYmd } = ticketWindowForJob(jobType)
   const message = formatBorkRawSyncMessage({
     okCount,
     totalCreds: creds.length,
-    syncOk,
+    syncOk: fullSync,
     jobType,
     ticketsByDate: mergeTicketsByDate(locations),
     startYmd,
@@ -385,7 +443,7 @@ export async function executeBorkJob (db: Db, jobType: string): Promise<BorkSync
   }
 
   let catalogSyncMessage = ''
-  if (syncOk && jobType === 'master-data') {
+  if (fullSync && jobType === 'master-data') {
     try {
       const yesterdayYmd = addCalendarDaysYmd(calendarYmdInAmsterdam(new Date()), -1)
       v2RebuildSuffix = resolveBorkAggRebuildSuffix() ?? '_v2'
@@ -459,6 +517,7 @@ export async function executeBorkJob (db: Db, jobType: string): Promise<BorkSync
 
   return {
     ok: syncOk,
+    fullSync,
     jobType,
     message: finalMessage,
     locations,
@@ -469,7 +528,8 @@ export async function executeBorkJob (db: Db, jobType: string): Promise<BorkSync
 export async function syncBorkSingleLocation (
   db: Db,
   locationId: string,
-  mode: 'ping' | 'daily' | 'master'
+  mode: 'ping' | 'daily' | 'master',
+  jobTypeOverride?: string,
 ): Promise<BorkSyncJobResult> {
   const orLoc: Record<string, unknown>[] = [{ locationId }]
   try {
@@ -486,10 +546,14 @@ export async function syncBorkSingleLocation (
     return { ok: false, jobType: mode, message: 'No Bork credential for this locationId' }
   }
 
-  const r = await syncLocationDates(db, cred, mode === 'ping' ? 'daily-data' : mode === 'master' ? 'master-data' : 'daily-data')
+  const jobType =
+    jobTypeOverride ??
+    (mode === 'ping' ? 'daily-data' : mode === 'master' ? 'master-data' : 'daily-data')
+  const r = await syncLocationDates(db, cred, jobType)
   return {
     ok: r.ok,
-    jobType: mode,
+    fullSync: r.ok,
+    jobType,
     message: r.ok ? `OK via ${r.path ?? '?'}` : (r.error ?? 'failed'),
     locations: [r],
   }

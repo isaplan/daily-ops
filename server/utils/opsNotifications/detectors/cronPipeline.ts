@@ -1,10 +1,13 @@
+/**
+ * @last-modified: 2026-07-16T00:00:00.000Z
+ * @last-fix: [2026-07-16] Skip morning-final gaps only on open-register day (final lands next morning)
+ */
 import { calculateBasisCronPriority } from '../../inbox/basis-report-mapper'
 import { buildNotificationItem } from '../notificationItem'
 import type { OpsNotificationDto } from '~/types/ops-notifications'
 import {
   hasMorningFinalInbox,
   REV_EPS,
-  snapKey,
   type OpsScanContext,
 } from '../scanContext'
 
@@ -18,6 +21,8 @@ export function detectCronPipelineNotifications(ctx: OpsScanContext): OpsNotific
     const rows = ctx.inboxByKey.get(key) ?? []
 
     if (rows.length === 0) continue
+    // Open register: intraday Basis rows are expected; morning final lands next morning.
+    if (businessDate === ctx.openBusinessDate) continue
 
     if (!hasMorningFinalInbox(rows)) {
       const crons = [...new Set(rows.map((r) => r.cron_hour).filter((h) => h != null))]

@@ -1,7 +1,8 @@
 /**
  * @registry-id: dailyOpsCalendarEventsNationalReligious
  * @created: 2026-07-14T21:00:00.000Z
- * @last-modified: 2026-07-14T21:00:00.000Z
+ * @last-modified: 2026-07-15T15:05:00.000Z
+ * @last-fix: [2026-07-15] Tag erkende horeca feestdagen with tvt label
  * @description: NL national + religious holidays via date-holidays package
  * @adr-ref: ADR-015
  *
@@ -11,6 +12,7 @@
 
 import Holidays from 'date-holidays'
 import type { CalendarEvent, CalendarEventType } from '~/types/calendarEvent'
+import { horecaTvtLabels } from './horecaTvtHolidays'
 
 const RELIGIOUS_KEYWORDS = [
   'ramadan',
@@ -58,12 +60,14 @@ export function nationalAndReligiousHolidaysForYear(year: number): CalendarEvent
     const endDate = toYmd(end)
     const title = String(row.name ?? 'Feestdag')
     const eventType = classifyHoliday(title, row.type)
+    const labels = horecaTvtLabels(title)
     out.push({
       id: `nl-${year}-${startDate}-${eventType}`,
       startDate,
       endDate,
       type: eventType,
       title,
+      ...(labels ? { labels } : {}),
     })
   }
   return out

@@ -1,8 +1,8 @@
 /**
- * @last-modified: 2026-07-14T11:30:00.000Z
- * @last-fix: [2026-07-14] Skip missing-inbox on open register day (morning Basis is for yesterday)
+ * @last-modified: 2026-07-16T00:00:00.000Z
+ * @last-fix: [2026-07-16] Skip Bork≠Inbox gap on open-register day (intraday Bork vs prior Basis)
+ *   Prior: [2026-07-14] Skip missing-inbox on open register day (morning Basis is for yesterday)
  *   Prior: [2026-07-13] Skip Bork≠Inbox alert when sealed snapshot matches Basis (warm tier drift only)
- *   Prior: [2026-05-24] Skip missing_inbox when intraday rows exist; downgrade gap when snapshot matches Basis
  */
 import { buildNotificationItem } from '../notificationItem'
 import type { OpsNotificationDto } from '~/types/ops-notifications'
@@ -68,6 +68,8 @@ export function detectSourceDiscrepancyNotifications(ctx: OpsScanContext): OpsNo
     }
 
     if (gapIsSignificant(borkEx, inboxEx)) {
+      // Open register: Bork is live intraday; morning Basis is for yesterday — not a gap day.
+      if (businessDate === ctx.openBusinessDate) continue
       const delta = inboxEx - borkEx
       const snap = ctx.revenueByKey.get(key)
       const snapMatchesInbox =

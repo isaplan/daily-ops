@@ -4,12 +4,14 @@
     <USkeleton class="h-40 w-full rounded-lg" />
   </div>
   <div v-else class="space-y-6">
-    <DailyOpsTodayRevenueCard v-if="revenue?.todayRevenueDetail" :detail="revenue.todayRevenueDetail" />
+    <DailyOpsTodayRevenueCard
+      v-if="showHourlyRevenueCard && revenue?.todayRevenueDetail"
+      :detail="revenue.todayRevenueDetail"
+    />
     <DailyOpsProfitByIntervalCard
       :data="profitByInterval"
       :period="period"
     />
-    <DailyOpsProfitHourCard title="Most Profitable Hour" :data="mostProfitableHour" />
     <DailyOpsRevenueDrilldownSection
       v-if="revenue?.drilldown"
       :data="revenue.drilldown"
@@ -22,8 +24,9 @@
 <script setup lang="ts">
 /**
  * @description: Dashboard revenue drilldown section
- * @last-modified: 2026-07-02T00:00:00.000Z
- * @last-fix: [2026-07-02] ADR-013 read-cache metadata
+ * @last-modified: 2026-07-16T00:00:00.000Z
+ * @last-fix: [2026-07-16] Hide hourly card on multi-day; remove Most Profitable Hour
+ *   Prior: [2026-07-02] ADR-013 read-cache metadata
  * @adr-ref: ADR-004, ADR-010, ADR-013
  * @data-source: read-cache
  * @read-cache-json: dashboard-bundle revenue slice (via useDailyOpsRevenueBreakdown)
@@ -33,10 +36,10 @@
 import type {
   DailyOpsPeriodId,
   DailyOpsProfitByIntervalDto,
-  DailyOpsProfitHourDto,
 } from '~/types/daily-ops-dashboard'
+import { resolveDailyOpsPeriod } from '~/utils/dailyOpsPeriod'
 
-defineProps<{
+const props = defineProps<{
   period: string
 }>()
 
@@ -46,26 +49,16 @@ const EMPTY_PROFIT_BY_INTERVAL: DailyOpsProfitByIntervalDto = {
   cells: [],
 }
 
-const EMPTY_PROFIT_HOUR: DailyOpsProfitHourDto = {
-  hourLabel: '—',
-  date: '',
-  hour: 0,
-  revenue: 0,
-  laborCost: 0,
-  cogsCost: 0,
-  fixedCost: 0,
-  profit: 0,
-  estimatesNote: 'No hourly profit data for this period yet.',
-}
-
-const { dashboardQuery } = useDailyOpsDashboardRoute()
+const { dashboardQuery, anchor } = useDailyOpsDashboardRoute()
 const locationId = computed(() => dashboardQuery.value.location ?? null)
 const { revenue, pending, refresh } = useDailyOpsRevenueBreakdown()
 
+const showHourlyRevenueCard = computed(() => {
+  const range = resolveDailyOpsPeriod(props.period as DailyOpsPeriodId, anchor.value ?? undefined)
+  return range.startDate === range.endDate
+})
+
 const profitByInterval = computed(
   (): DailyOpsProfitByIntervalDto => revenue.value?.profitByInterval ?? EMPTY_PROFIT_BY_INTERVAL,
-)
-const mostProfitableHour = computed(
-  (): DailyOpsProfitHourDto => revenue.value?.mostProfitableHour ?? EMPTY_PROFIT_HOUR,
 )
 </script>

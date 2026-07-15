@@ -15,10 +15,8 @@
 
 import { getDb } from '../../../utils/db'
 import { parseDailyOpsMetricsQuery } from '../../../utils/dailyOpsMetrics/context'
-import {
-  fetchDailyOpsDashboardBundle,
-  snapshotCacheControl,
-} from '../../../utils/dailyOpsSnapshot/fetchDashboardBundle'
+import { fetchDailyOpsDashboardBundle } from '../../../utils/dailyOpsSnapshot/fetchDashboardBundle'
+import { snapshotCacheControl } from '../../../utils/dailyOpsSnapshot/dashboardBundle/snapshotCacheControl'
 import { loadCachedDashboardBundle } from '../../../utils/dailyOpsSnapshot/cacheCascade'
 import { bundleDashboardSectionsIncomplete } from '../../../utils/dailyOpsSnapshot/bundleInvariant'
 import { enrichPeriodBreakdownAverageHistory } from '../../../utils/dailyOpsSnapshot/buildPeriodBreakdownAverageHistory'

@@ -3,7 +3,7 @@
     <div>
       <h1 class="text-2xl font-bold text-gray-900">Weekly Report</h1>
       <p class="text-sm text-gray-600">
-        {{ doc.locationName }} · {{ doc.digest.label }} · {{ doc.digest.startDate }} → {{ doc.digest.endDate }}
+        {{ doc.locationName }} · {{ doc.digest.label }} · {{ formatDateWithMonth(doc.digest.startDate) }} → {{ formatDateWithMonth(doc.digest.endDate) }}
       </p>
       <p v-if="isFrozen" class="mt-1 text-xs font-medium text-gray-500">
         Frozen — computed fields no longer auto-update. Comments and todos remain editable.
@@ -32,4 +32,9 @@ defineProps<{
 }>()
 
 defineEmits<{ print: [] }>()
+
+function formatDateWithMonth(dateStr: string): string {
+  const date = new Date(`${dateStr}T12:00:00`)
+  return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
+}
 </script>

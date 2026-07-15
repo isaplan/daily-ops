@@ -1,7 +1,7 @@
 <template>
   <div class="min-w-0">
     <div class="pointer-events-none sticky top-3 z-10 mb-4 flex w-full min-w-0 flex-col items-end gap-2">
-        <div class="pointer-events-auto flex w-full min-w-0 justify-end">
+        <div class="pointer-events-auto flex w-fit max-w-full min-w-0 justify-end">
           <nav
             ref="sectionNavEl"
             aria-label="Daily Ops sections"
@@ -21,7 +21,7 @@
           </nav>
         </div>
 
-        <div v-if="showLocationShortcuts" class="pointer-events-auto flex w-full min-w-0 justify-end">
+        <div v-if="showLocationShortcuts" class="pointer-events-auto flex w-fit max-w-full min-w-0 justify-end">
           <nav
             aria-label="Location shortcuts"
             class="scrollbar-hide inline-flex w-max max-w-full min-w-0 shrink-0 flex-nowrap gap-1 overflow-x-auto rounded-md border-2 border-gray-900 bg-white p-1"
@@ -53,28 +53,28 @@
           </nav>
         </div>
 
-        <div v-if="isWeeklyReportRoute" class="pointer-events-auto flex w-full min-w-0 justify-end">
+        <div v-if="isWeeklyReportRoute" class="pointer-events-auto flex w-fit max-w-full min-w-0 justify-end">
           <DailyOpsAnalyticsWeeklyReportNav />
         </div>
 
-        <div v-if="isStaffRoute" class="pointer-events-auto flex w-full min-w-0 justify-end">
+        <div v-if="isStaffRoute" class="pointer-events-auto flex w-fit max-w-full min-w-0 justify-end">
           <StaffNavChildBar />
         </div>
 
-        <div v-if="isStaffAnalyticsRoute" class="pointer-events-auto w-full min-w-0">
+        <div v-if="isStaffAnalyticsRoute" class="pointer-events-auto w-fit max-w-full min-w-0 self-end">
           <StaffAnalyticsNav />
         </div>
-        <div v-else-if="isInsightsRoute" class="pointer-events-auto w-full min-w-0">
+        <div v-else-if="isInsightsRoute" class="pointer-events-auto w-fit max-w-full min-w-0 self-end">
           <InsightsAnalyticsNav />
         </div>
-        <div v-else-if="isRevenueRoute && revenueNavV2" class="pointer-events-auto w-full min-w-0">
+        <div v-else-if="isRevenueRoute && revenueNavV2" class="pointer-events-auto w-fit max-w-full min-w-0 self-end">
           <DailyOpsRevenueNavV2RevenueAnalyticsNavV2 />
         </div>
-        <div v-else-if="isRevenueRoute" class="pointer-events-auto w-full min-w-0">
+        <div v-else-if="isRevenueRoute" class="pointer-events-auto w-fit max-w-full min-w-0 self-end">
           <DailyOpsRevenueAnalyticsNav />
         </div>
 
-        <div v-if="!hideOpsPeriodNav" class="pointer-events-auto flex w-full min-w-0 justify-end">
+        <div v-if="!hideOpsPeriodNav" class="pointer-events-auto flex w-fit max-w-full min-w-0 justify-end">
           <nav
             ref="periodNavEl"
             aria-label="Daily Ops period"
@@ -96,7 +96,7 @@
           </nav>
         </div>
 
-        <div v-if="showRangePeriodNav && !hideOpsPeriodNav" class="pointer-events-auto flex w-full min-w-0 justify-end">
+        <div v-if="showRangePeriodNav && !hideOpsPeriodNav" class="pointer-events-auto flex w-fit max-w-full min-w-0 justify-end">
           <nav
             aria-label="Daily Ops range period"
             :style="rangeNavWidthPx > 0 ? { width: `${rangeNavWidthPx}px` } : undefined"
@@ -126,6 +126,10 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * @last-modified: 2026-07-16T00:00:00.000Z
+ * @last-fix: [2026-07-16] Shrink sticky nav hit-boxes (w-fit) so chart pills remain clickable
+ */
 import type { DailyOpsNavKey } from '~/composables/useDailyOpsDashboardRoute'
 import type { DailyOpsPeriodId } from '~/types/daily-ops-dashboard'
 import {

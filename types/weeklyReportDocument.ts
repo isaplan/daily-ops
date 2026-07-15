@@ -47,6 +47,8 @@ export type WeeklyReportDocument = {
   locationName: string
   digest: WeeklyDigestDto
   weather: WeatherRangePayload
+  /** Previous ISO week weather (Mon–Sun before this report). */
+  previousWeekWeather: WeatherRangePayload | null
   events: CalendarEvent[]
   sections: Record<WeeklyReportSectionKey, WeeklyReportSectionContent>
   frozenAt: string | null

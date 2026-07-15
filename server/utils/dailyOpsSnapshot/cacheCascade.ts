@@ -1,9 +1,10 @@
 /**
  * @registry-id: dailyOpsCacheCascade
  * @created: 2026-06-05T18:48:00.000Z
- * @last-modified: 2026-07-02T00:00:00.000Z
+ * @last-modified: 2026-07-16T00:00:00.000Z
  * @description: Cascading cache: daily → weekly → monthly → yearly bundle aggregation
- * @last-fix: [2026-07-14] Cascade rollups pass P&L assumptions for ADR-014 profit SSOT
+ * @last-fix: [2026-07-16] Skip month/week/year hits missing profitByInterval; recompose from dailies
+ *   Prior: [2026-07-14] Cascade rollups pass P&L assumptions for ADR-014 profit SSOT
  * @adr-ref: ADR-004, ADR-010, ADR-013, ADR-014
  * @data-source: read-cache
  * @write-cache-json: daily_ops_read_cache · dashboard-bundle · daily→weekly→monthly→yearly after buildDailyOpsSnapshot
@@ -39,6 +40,7 @@ import {
 } from './aggregateDailyBundles'
 import type { DailyOpsDashboardBundleDto } from './fetchDashboardBundle'
 import { bundleHasCoverageGaps } from './bundleCoverage'
+import { bundleProfitByIntervalIncomplete } from './bundleInvariant'
 import { loadPnlAssumptions } from '../appSettings/pnlAssumptionsSetting'
 
 const DASHBOARD_PROFILE = 'dashboard-bundle'
@@ -168,26 +170,26 @@ export async function loadCachedDashboardBundle(
   const weekEnd = getWeekEnd(startDate)
   if (startDate === weekStart && endDate === weekEnd) {
     const hit = await readCachedBundle(db, 'weekly', getIsoWeek(startDate), locationId)
-    if (hit) return hit
+    if (hit && !bundleProfitByIntervalIncomplete(hit)) return hit
   }
 
   const monthKey = getMonthKey(startDate)
   const monthEnd = monthEndYmd(monthKey)
   if (startDate === `${monthKey}-01` && endDate === monthEnd) {
     const hit = await readCachedBundle(db, 'monthly', monthKey, locationId)
-    if (hit) return hit
+    if (hit && !bundleProfitByIntervalIncomplete(hit)) return hit
   }
 
   const yearKey = getYearKey(startDate)
   if (startDate === `${yearKey}-01-01` && endDate === `${yearKey}-12-31` && endDate <= yesterday) {
     const hit = await readCachedBundle(db, 'yearly', yearKey, locationId)
-    if (hit) return hit
+    if (hit && !bundleProfitByIntervalIncomplete(hit)) return hit
   }
 
   if (isPartialYearRange(startDate, endDate)) {
     const ytdKey = partialYearCacheKey(yearKey, endDate)
     const hit = await readCachedBundle(db, 'yearly', ytdKey, locationId)
-    if (hit) return hit
+    if (hit && !bundleProfitByIntervalIncomplete(hit)) return hit
   }
 
   const pnlAssumptions = await loadPnlAssumptions(db)
@@ -200,7 +202,7 @@ export async function loadCachedDashboardBundle(
 
     if (sliceStart === mStart && sliceEnd === mEnd) {
       const monthly = await readCachedBundle(db, 'monthly', mk, locationId)
-      if (monthly) {
+      if (monthly && !bundleProfitByIntervalIncomplete(monthly)) {
         monthParts.push(monthly)
         continue
       }

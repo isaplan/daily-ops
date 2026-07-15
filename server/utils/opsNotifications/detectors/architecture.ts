@@ -1,7 +1,8 @@
 /**
  * Static / codebase checks for ADR-004 and agent-rules debt (monoliths, live Bork on GET).
- * @last-modified: 2026-07-13T10:06:00.000Z
- * @last-fix: [2026-07-13] Bump monolith line budgets to current file sizes
+ * @last-modified: 2026-07-16T00:00:00.000Z
+ * @last-fix: [2026-07-16] fetchDashboardBundle split (light + Cache-Control) — keep 320 budget
+ *   Prior: [2026-07-13] Bump monolith line budgets to current file sizes
  */
 
 import { readFileSync, statSync } from 'node:fs'

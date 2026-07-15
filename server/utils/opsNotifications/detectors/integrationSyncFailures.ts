@@ -1,9 +1,11 @@
 /**
  * @registry-id: opsNotificationDetectorIntegrationSyncFailures
  * @created: 2026-07-11T17:30:00.000Z
- * @last-modified: 2026-07-11T17:30:00.000Z
+ * @last-modified: 2026-07-16T00:00:00.000Z
  * @description: Detect partial or failed Bork/Eitje integration cron syncs
- * @last-fix: [2026-07-11] Initial — lastSyncOk false or per-location ok:false in lastSyncDetail
+ * @last-fix: [2026-07-16] Stop re-emitting when all failed locations are chronic (retry streak capped)
+ *   Prior: [2026-07-15] Surface chronic per-location failures when auto-retry streak cap hit
+ *   Prior: [2026-07-11] Initial — lastSyncOk false or per-location ok:false in lastSyncDetail
  * @adr-ref: ADR-004
  *
  * @exports-to:
@@ -12,6 +14,10 @@
 
 import type { Db } from 'mongodb'
 import { buildNotificationItem } from '../notificationItem'
+import {
+  integrationAutoRetryPaused,
+  MAX_INTEGRATION_LOCATION_RETRY_STREAK,
+} from '../integrationSyncRetryStreak'
 import type { OpsNotificationDto } from '~/types/ops-notifications'
 import { addCalendarDaysYmd, amsterdamOpenRegisterBusinessDateYmd } from '~/utils/dailyOpsBusinessDate'
 import { historicalLookbackDaysForJobType } from '~/utils/integrations/historicalJobTypes'
@@ -86,6 +92,11 @@ export async function detectIntegrationSyncFailureNotifications(db: Db): Promise
     const failedLocs = failedBorkLocations(row.lastSyncDetail)
     const failedCount = failedLocs.length
     const totalLocs = row.lastSyncDetail?.locations?.length ?? 0
+    const notificationId = `integration_sync_partial_failure:${businessDate}:integration:${source}:${jobType}`
+    const pause = await integrationAutoRetryPaused(db, notificationId, failedLocs)
+    // Chronic per-location failures: auto-retry already stopped — do not re-spam the inbox.
+    if (pause.paused && failedCount > 0) continue
+
     const partialMsg =
       failedCount > 0 && totalLocs > 0
         ? `${source} ${jobType} synced ${totalLocs - failedCount}/${totalLocs} location(s) — ${failedCount} failed.`
@@ -99,7 +110,7 @@ export async function detectIntegrationSyncFailureNotifications(db: Db): Promise
         locationId: `integration:${source}:${jobType}`,
         locationName: `${source === 'bork' ? 'Bork' : 'Eitje'} pipeline`,
         message: `${partialMsg} ${String(row.lastSyncMessage ?? '').slice(0, 200)}`,
-        fixHint: `Auto-retry re-runs ${jobType} then rebuilds snapshots + read-cache for ${window.startDate}..${window.endDate}.`,
+        fixHint: `Auto-retry re-runs failed location(s) only, then rebuilds snapshots + read-cache for ${window.startDate}..${window.endDate}. After ${MAX_INTEGRATION_LOCATION_RETRY_STREAK} fails per location, alert pauses — fix api_credentials + POST /api/bork/v2/sync.`,
         meta: {
           source,
           jobType,

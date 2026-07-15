@@ -1,15 +1,7 @@
 <template>
   <section class="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
     <h2 class="mb-3 text-sm font-semibold uppercase text-gray-500">Events &amp; holidays</h2>
-    <ul v-if="events.length" class="space-y-2 text-sm">
-      <li v-for="ev in events" :key="ev.id" class="flex flex-col border-b border-gray-50 pb-2">
-        <span class="font-medium">{{ ev.title }}</span>
-        <span class="text-xs text-gray-500">{{ ev.startDate }}{{ ev.endDate !== ev.startDate ? ` → ${ev.endDate}` : '' }} · {{ ev.type }}</span>
-      </li>
-    </ul>
-    <p v-else class="text-sm text-gray-500">No events this week.</p>
-
-    <form v-if="!isFrozen" class="mt-4 space-y-2 border-t border-gray-100 pt-3" @submit.prevent="submit">
+    <form v-if="!isFrozen" class="space-y-2 border-b border-gray-100 pb-3" @submit.prevent="submit">
       <input
         v-model="title"
         type="text"
@@ -22,6 +14,23 @@
       </div>
       <UButton type="submit" size="xs" variant="outline">Add event</UButton>
     </form>
+
+    <ul v-if="events.length" class="mt-3 space-y-2 text-sm">
+      <li v-for="ev in events" :key="ev.id" class="flex flex-col border-b border-gray-50 pb-2 last:border-0 last:pb-0">
+        <span class="font-medium">
+          {{ ev.title }}
+          <span
+            v-for="label in ev.labels"
+            :key="label"
+            class="ml-1 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800"
+          >
+            {{ label }}
+          </span>
+        </span>
+        <span class="text-xs text-gray-500">{{ ev.startDate }}{{ ev.endDate !== ev.startDate ? ` → ${ev.endDate}` : '' }} · {{ ev.type }}</span>
+      </li>
+    </ul>
+    <p v-else class="mt-3 text-sm text-gray-500">No events this week.</p>
   </section>
 </template>
 

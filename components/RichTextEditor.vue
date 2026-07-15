@@ -1,11 +1,19 @@
 <template>
-  <div class="rich-text-editor rounded-md min-h-[120px]">
+  <div
+    class="rich-text-editor min-h-[120px]"
+    :class="surface ? 'rich-text-editor--surface rounded-lg bg-white' : 'rounded-md'"
+  >
     <UEditor
       v-slot="{ editor }"
       :model-value="modelValue"
       content-type="html"
       :placeholder="placeholder"
-      class="w-full min-h-[120px] px-3 py-2 [&_.ProseMirror]:min-h-[100px] [&_.ProseMirror]:outline-none"
+      :class="[
+        'w-full min-h-[120px] px-3 py-2',
+        surface
+          ? '[&_.ProseMirror]:min-h-[100px] [&_.ProseMirror]:rounded-lg [&_.ProseMirror]:bg-white [&_.ProseMirror]:outline-none'
+          : '[&_.ProseMirror]:min-h-[100px] [&_.ProseMirror]:outline-none',
+      ]"
       @update:model-value="$emit('update:modelValue', $event)"
     >
       <UEditorToolbar :editor="editor" :items="bubbleToolbarItems" layout="bubble" />
@@ -34,6 +42,8 @@ import { useMentionTagSuggestions } from '~/composables/useMentionTagSuggestions
 defineProps<{
   modelValue: string
   placeholder?: string
+  /** White rounded surface (no border) — e.g. weekly report findings */
+  surface?: boolean
 }>()
 
 defineEmits<{ 'update:modelValue': [value: string] }>()
@@ -76,6 +86,11 @@ const bubbleToolbarItems: EditorToolbarItem[][] = [
 </script>
 
 <style scoped>
+.rich-text-editor--surface :deep(.ProseMirror) {
+  background-color: #fff;
+  border-radius: 0.5rem;
+}
+
 /* Single Enter = single line: reduce paragraph margin so new <p> doesn't look like two breaks */
 .rich-text-editor :deep(.ProseMirror p) {
   margin-top: 0;

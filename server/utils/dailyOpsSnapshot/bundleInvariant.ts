@@ -1,15 +1,16 @@
 /**
  * @registry-id: dailyOpsBundleInvariant
  * @created: 2026-06-18T00:00:00.000Z
- * @last-modified: 2026-07-11T00:00:00.000Z
+ * @last-modified: 2026-07-16T00:00:00.000Z
  * @description: Dashboard bundle invariants — sections must reconcile with headline totals
- * @last-fix: [2026-07-11] Reject hourly cache missing staff headcount when labor hours exist
+ * @last-fix: [2026-07-16] Require profitByInterval on multi-day rollups (daypart donuts)
+ *   Prior: [2026-07-11] Reject hourly cache missing staff headcount when labor hours exist
  *   Prior: [2026-07-02] Skip drilldown/PBI checks for multi-day rollup cache (ADR-013)
- *   Prior: [2026-06-20] Also reject cache missing drilldown when headline revenue exists
  * @adr-ref: ADR-004, ADR-008, ADR-013
  *
  * @exports-to:
  * ✓ server/api/daily-ops/metrics/bundle.get.ts
+ * ✓ server/utils/dailyOpsSnapshot/cacheCascade.ts
  */
 
 import type { DailyOpsDashboardBundleDto } from './fetchDashboardBundle'
@@ -71,12 +72,15 @@ export function bundlePeriodBreakdownStaffMissing(bundle: DailyOpsDashboardBundl
   return hasLabor && !hasStaff
 }
 
-/** Reject stale pre-aggregated JSON when headline sections are incomplete (daily only). */
+/** Reject stale pre-aggregated JSON when headline sections are incomplete. */
 export function bundleDashboardSectionsIncomplete(bundle: DailyOpsDashboardBundleDto): boolean {
   if (bundlePeriodBreakdownMissing(bundle)) return true
   if (bundlePeriodBreakdownStaffMissing(bundle)) return true
   const start = bundle.summary?.range?.startDate
   const end = bundle.summary?.range?.endDate
-  if (start && end && start !== end) return false
+  if (start && end && start !== end) {
+    // Multi-day: require daypart P&L; drilldown stays optional (totalsOnly rollups).
+    return bundleProfitByIntervalIncomplete(bundle)
+  }
   return bundleProfitByIntervalIncomplete(bundle) || bundleDrilldownIncomplete(bundle)
 }

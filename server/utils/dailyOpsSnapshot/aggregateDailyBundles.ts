@@ -1,9 +1,10 @@
 /**
  * @registry-id: dailyOpsAggregateBundles
  * @created: 2026-06-05T18:48:00.000Z
- * @last-modified: 2026-07-02T00:00:00.000Z
+ * @last-modified: 2026-07-16T00:00:00.000Z
  * @description: Aggregate multiple daily dashboard bundles into weekly/monthly/yearly totals
- * @last-fix: [2026-07-14] Rollup profit via ADR-014 net-profit SSOT
+ * @last-fix: [2026-07-16] Keep profitByInterval on totalsOnly rollups; strip day-only extras
+ *   Prior: [2026-07-14] Rollup profit via ADR-014 net-profit SSOT
  * @adr-ref: ADR-004, ADR-008, ADR-010, ADR-013, ADR-014
  *
  * @exports-to:
@@ -12,7 +13,7 @@
 
 import type { DailyOpsDashboardBundleDto } from './fetchDashboardBundle'
 import { addCalendarDaysYmd } from '~/utils/dailyOpsBusinessDate'
-import type { VenueStripResponseDto } from '~/types/daily-ops-dashboard'
+import type { DailyOpsProfitHourDto, VenueStripResponseDto } from '~/types/daily-ops-dashboard'
 import { mergeVenueStripResponses } from '../venueStrip/mergeCards'
 import { coverageFromDailyBundles, formatCoverageNote } from './bundleCoverage'
 import { mergeProfitByIntervalDtos } from './mergeProfitByInterval'
@@ -101,12 +102,11 @@ export function aggregateDailyBundles(
   const coverageNote = formatCoverageNote(snapshotCoverage)
   const totalsOnly = period.totalsOnly === true
 
-  const profitByInterval = totalsOnly
-    ? undefined
-    : mergeProfitByIntervalDtos(
-        dailyBundles.map((b) => b.revenue?.profitByInterval),
-      )
-  if (!totalsOnly && profitByInterval && coverageNote) {
+  /** Daypart P&L donuts need interval cells on week/month/year — never drop for totalsOnly. */
+  const profitByInterval = mergeProfitByIntervalDtos(
+    dailyBundles.map((b) => b.revenue?.profitByInterval),
+  )
+  if (profitByInterval && coverageNote) {
     profitByInterval.coverageNote = coverageNote
     profitByInterval.estimatesNote = `${profitByInterval.estimatesNote} ${coverageNote}`
   }
@@ -117,6 +117,18 @@ export function aggregateDailyBundles(
         dailyBundles.map((b) => b.revenue?.drilldown),
         { coverageNote, multiDayRange: period.startDate !== period.endDate },
       )
+
+  const emptyProfitHour: DailyOpsProfitHourDto = {
+    hourLabel: '—',
+    date: '',
+    hour: 0,
+    revenue: 0,
+    laborCost: 0,
+    cogsCost: 0,
+    fixedCost: 0,
+    profit: 0,
+    estimatesNote: 'Most profitable hour is day-only — omitted for multi-day periods.',
+  }
 
   const periodBreakdown = aggregatePeriodBreakdown(dailyBundles, period.startDate, period.endDate, {
     assumptions,
@@ -154,7 +166,8 @@ export function aggregateDailyBundles(
         endDate: period.endDate,
       },
       revenueByCategory: mergeRevenueByCategory(dailyBundles),
-      todayExtras: undefined,
+      todayRevenueDetail: undefined,
+      mostProfitableHour: emptyProfitHour,
       profitByInterval,
       drilldown,
     },

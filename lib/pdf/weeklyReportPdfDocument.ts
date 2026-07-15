@@ -3,6 +3,7 @@
  */
 
 import type { WeeklyReportDocument } from '~/types/weeklyReportDocument'
+import { classifyWeatherWeek } from '~/utils/dailyOpsWeatherDisplay'
 
 export const WEEKLY_REPORT_PDF_CSS = `/* PDF-only. Hex only. */
 *{box-sizing:border-box}
@@ -43,13 +44,18 @@ export function buildWeeklyReportPdfDocument(doc: WeeklyReportDocument): string 
   body += `<p class="pdf-meta">${escapeHtml(d.startDate)} → ${escapeHtml(d.endDate)}${doc.frozenAt ? ' · Frozen' : ''}</p>`
 
   body += `<div class="pdf-section pdf-weather"><h2>Weather (Den Haag)</h2>`
+  const wk = classifyWeatherWeek(doc.weather)
+  if (wk) {
+    body += `<p><strong>${wk.label}</strong></p>`
+  }
   body += `<p>Avg ${doc.weather.summary.avgTempMinC ?? '—'}° – ${doc.weather.summary.avgTempMaxC ?? '—'}°C · `
   body += `${doc.weather.summary.totalPrecipMm ?? '—'} mm rain</p></div>`
 
   if (doc.events.length) {
     body += `<div class="pdf-section pdf-events"><h2>Events</h2><ul>`
     for (const ev of doc.events) {
-      body += `<li>${escapeHtml(ev.title)} (${escapeHtml(ev.startDate)}${ev.endDate !== ev.startDate ? ` – ${escapeHtml(ev.endDate)}` : ''})</li>`
+      const tvt = ev.labels?.includes('tvt') ? ' · tvt' : ''
+      body += `<li>${escapeHtml(ev.title)}${tvt} (${escapeHtml(ev.startDate)}${ev.endDate !== ev.startDate ? ` – ${escapeHtml(ev.endDate)}` : ''})</li>`
     }
     body += `</ul></div>`
   }
