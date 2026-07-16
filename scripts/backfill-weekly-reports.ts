@@ -4,6 +4,7 @@
  * Usage:
  *   pnpm weekly-reports:backfill
  *   pnpm weekly-reports:backfill -- --year 2026 --from-week 1 --to-week 28
+ *   pnpm weekly-reports:backfill -- --year 2026 --from-week 24 --to-week 27 --force
  */
 
 import { getDb } from '../server/utils/db'
@@ -16,6 +17,10 @@ function arg(name: string, defaultValue?: string): string | undefined {
   return idx >= 0 && process.argv[idx + 1] ? process.argv[idx + 1] : defaultValue
 }
 
+function hasFlag(name: string): boolean {
+  return process.argv.includes(`--${name}`)
+}
+
 function weekKey(year: number, week: number): string {
   return `${year}-W${String(week).padStart(2, '0')}`
 }
@@ -24,6 +29,7 @@ async function main(): Promise<void> {
   const year = Number(arg('year', '2026'))
   const fromWeek = Number(arg('from-week', '1'))
   const toWeek = Number(arg('to-week', '28'))
+  const force = hasFlag('force')
 
   if (!Number.isFinite(year) || !Number.isFinite(fromWeek) || !Number.isFinite(toWeek)) {
     process.stderr.write('Invalid --year, --from-week, or --to-week\n')
@@ -51,7 +57,7 @@ async function main(): Promise<void> {
   for (const weekKeyValue of weekKeys) {
     for (const venue of VENUE_STRIP_LOCATIONS) {
       try {
-        await upsertWeeklyReportDocument(db, weekKeyValue, venue.locationId)
+        await upsertWeeklyReportDocument(db, weekKeyValue, venue.locationId, { force })
         written += 1
         process.stdout.write(`  ✓ ${weekKeyValue} · ${venue.locationName}\n`)
       } catch (err) {

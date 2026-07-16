@@ -1,11 +1,69 @@
 <template>
   <div class="space-y-6">
-    <div>
-      <h1 class="text-3xl font-bold text-gray-900">P&L — Accounting</h1>
-      <p class="mt-1 text-gray-500">
-        Real accounting P&L per venue — revenue split Food / Beverage, COGS, labor, overige bedrijfskosten.
-      </p>
+    <div class="flex flex-wrap items-start justify-between gap-4">
+      <div>
+        <h1 class="text-3xl font-bold text-gray-900">P&L — Accounting</h1>
+        <p class="mt-1 text-gray-500">
+          Real accounting P&L per venue — revenue, COGS, labor, and fixed cost breakdowns.
+        </p>
+      </div>
+      <div
+        v-if="!editing"
+        class="flex flex-wrap items-center gap-2"
+      >
+        <UButton
+          color="neutral"
+          variant="outline"
+          :disabled="pending || startingEdit"
+          :loading="startingEdit"
+          @click="startEditing"
+        >
+          Edit
+        </UButton>
+      </div>
     </div>
+
+    <div
+      v-if="editing"
+      class="sticky top-0 z-40 flex flex-wrap items-center justify-between gap-3 rounded-lg border-2 border-gray-900 bg-white px-4 py-3 shadow-sm"
+    >
+      <p class="text-sm text-gray-700">
+        Editing monthly P&L — empty months included so you can add new ones.
+      </p>
+      <div class="flex shrink-0 items-center gap-2">
+        <button
+          type="button"
+          class="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-semibold text-gray-700 hover:border-gray-900 hover:text-gray-900 disabled:opacity-50"
+          :disabled="saving"
+          @click="cancelEditing"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          class="rounded-md border-2 border-gray-900 bg-gray-900 px-4 py-1.5 text-sm font-semibold text-white hover:bg-gray-800 disabled:opacity-50"
+          :disabled="saving"
+          @click="saveEdits"
+        >
+          {{ saving ? 'Saving…' : 'Save' }}
+        </button>
+      </div>
+    </div>
+
+    <UAlert
+      v-if="saveError"
+      color="error"
+      variant="soft"
+      title="Could not save P&L"
+      :description="saveError"
+    />
+    <UAlert
+      v-if="saveOk"
+      color="success"
+      variant="soft"
+      title="P&L saved"
+      :description="saveOk"
+    />
 
     <UCard class="border-2 border-gray-900 !bg-white ring-0 shadow-none">
       <div class="flex flex-col gap-4">
@@ -29,6 +87,7 @@
               :items="yearOptions"
               value-attribute="value"
               class="min-w-40"
+              :disabled="editing"
             />
           </div>
 
@@ -66,6 +125,7 @@
                 ? 'border-gray-900 bg-gray-900 text-white'
                 : 'border-gray-300 bg-white text-gray-600 hover:border-gray-900 hover:text-gray-900'"
               :aria-pressed="activeVenueIds.has(venue.value)"
+              :disabled="editing"
               @click="toggleVenue(venue.value)"
             >
               {{ venue.label }}
@@ -89,12 +149,15 @@
 
     <DailyOpsAccountingPnlSummaryTable
       v-else-if="displayMode === 'table' && hasTableData"
-      :lines="tableLines"
+      :lines="draftLines"
       :period-label="tablePeriodLabel"
       :layout="viewMode"
-      :month-grid="monthGrid"
+      :month-grid="draftMonthGrid"
       :active-venue-ids="activeVenueIdList"
       :value-mode="valueMode"
+      :editing="editing"
+      @update:lines="onLinesUpdate"
+      @update:month-grid="onMonthGridUpdate"
     />
 
     <DailyOpsChartExpandShell
@@ -127,8 +190,8 @@
     <UCard class="border border-gray-200 !bg-white ring-0 shadow-none">
       <p class="text-xs text-gray-600">
         <strong>Food</strong> = geproduceerde goederen · <strong>Beverage</strong> = handelsgoederen (VKB: groepen).
-        <strong>COGS bev</strong> = inkoopwaarde handelsgoederen; food = uitbesteed werk where shown.
-        <strong>Fixed</strong> = overige bedrijfskosten (excl. afschrijving &amp; financial).
+        <strong>COGS</strong> food/bev · <strong>Labor</strong> = Lonen + Sociale lasten + Pensioen + Overig.
+        <strong>Fixed</strong> = Overige + Afschrijving + Financieel (parent = sum when children set).
       </p>
     </UCard>
   </div>
@@ -137,21 +200,28 @@
 <script setup lang="ts">
 /**
  * @registry-id: dailyOpsFinancePnl
- * @last-modified: 2026-07-02T00:00:00.000Z
- * @description: Accounting P&L benchmarks
- * @last-fix: [2026-07-02] ADR-013 read-cache metadata
+ * @last-modified: 2026-07-16T11:05:00.000Z
+ * @description: Accounting P&L benchmarks with manual edit/save
+ * @last-fix: [2026-07-16] Edit = month view only; pad empty months; sticky Save
  * @adr-ref: ADR-013
  * @data-source: direct-db
  * @read-cache-json: none
- * @imports-data-from: GET /api/daily-ops/finance/pnl
+ * @imports-data-from: GET|PUT /api/daily-ops/finance/pnl
  */
-import type { AccountingPnlBenchmarkResponseDto } from '~/types/accounting-pnl-benchmark'
+import type {
+  AccountingPnlBenchmarkResponseDto,
+  AccountingPnlBenchmarkTableLineDto,
+  AccountingPnlBenchmarkUpsertResponse,
+  AccountingPnlMonthGridDto,
+} from '~/types/accounting-pnl-benchmark'
 import type { AccountingPnlVenueId } from '~/utils/accountingPnlData'
 import {
+  ACCOUNTING_PNL_MONTH_LONG_LABELS,
   ACCOUNTING_PNL_VENUES,
   ACCOUNTING_PNL_YEARS,
   type AccountingPnlYear,
 } from '~/utils/accountingPnlData'
+import { normalizeAccountingPnlRow } from '~/utils/accountingPnlRowMath'
 
 type PnlViewMode = 'year' | 'month'
 type PnlDisplayMode = 'table' | 'graph'
@@ -165,6 +235,16 @@ const valueMode = ref<PnlValueMode>('amount')
 const selectedYear = ref<AccountingPnlYear>(2026)
 const activeVenueIds = ref<Set<AccountingPnlVenueId>>(new Set(ALL_VENUE_IDS))
 
+const editing = ref(false)
+const startingEdit = ref(false)
+const saving = ref(false)
+const saveError = ref<string | null>(null)
+const saveOk = ref<string | null>(null)
+const draftLines = ref<AccountingPnlBenchmarkTableLineDto[]>([])
+const draftMonthGrid = ref<AccountingPnlMonthGridDto | null>(null)
+/** Months that already existed when edit started (always saved even if still zero). */
+const originalMonthKeys = ref<Set<number>>(new Set())
+
 const venuePillOptions = ACCOUNTING_PNL_VENUES.map((v) => ({
   value: v.id,
   label: v.shortLabel,
@@ -173,6 +253,7 @@ const venuePillOptions = ACCOUNTING_PNL_VENUES.map((v) => ({
 const activeVenueIdList = computed(() => ALL_VENUE_IDS.filter((id) => activeVenueIds.value.has(id)))
 
 function toggleVenue (id: AccountingPnlVenueId) {
+  if (editing.value) return
   const next = new Set(activeVenueIds.value)
   if (next.has(id)) {
     if (next.size <= 1) return
@@ -215,7 +296,7 @@ const pnlQuery = computed(() => {
   return q
 })
 
-const { data, pending, error: fetchErr } = useFetch<AccountingPnlBenchmarkResponseDto>(
+const { data, pending, error: fetchErr, refresh } = useFetch<AccountingPnlBenchmarkResponseDto>(
   '/api/daily-ops/finance/pnl',
   { query: pnlQuery, watch: [pnlQuery] },
 )
@@ -227,7 +308,7 @@ const fetchError = computed(() => {
 
 const yearOptions = computed(() =>
   (data.value?.availableYears ?? [...ACCOUNTING_PNL_YEARS]).map((year) => ({
-    label: year === 2026 ? '2026 (Jan–May)' : String(year),
+    label: String(year),
     value: year,
   })),
 )
@@ -235,6 +316,66 @@ const yearOptions = computed(() =>
 watch(selectedYear, (raw) => {
   selectedYear.value = normalizeYear(raw)
 })
+
+watch([viewMode, displayMode, valueMode], () => {
+  if (!editing.value) return
+  viewMode.value = 'month'
+  displayMode.value = 'table'
+  valueMode.value = 'amount'
+})
+
+watch(
+  () => data.value,
+  (next) => {
+    if (editing.value) return
+    draftLines.value = next?.lines ? structuredClone(next.lines) : []
+    draftMonthGrid.value = next?.monthGrid ? structuredClone(next.monthGrid) : null
+  },
+  { immediate: true },
+)
+
+function emptyVenueCells () {
+  return ACCOUNTING_PNL_VENUES.map((venue) => ({
+    key: venue.id,
+    shortLabel: venue.shortLabel,
+    row: normalizeAccountingPnlRow({}),
+  }))
+}
+
+/** Pad to Jan–Dec so missing months (e.g. July) are editable. */
+function padMonthGridForEdit (grid: AccountingPnlMonthGridDto | null): AccountingPnlMonthGridDto {
+  const byMonth = new Map((grid?.columns ?? []).map((column) => [column.month, column]))
+  return {
+    columns: Array.from({ length: 12 }, (_, index) => {
+      const month = index + 1
+      const existing = byMonth.get(month)
+      if (existing) {
+        const present = new Set(existing.venues.map((v) => v.key))
+        const venues = [
+          ...existing.venues,
+          ...emptyVenueCells().filter((v) => !present.has(v.key)),
+        ]
+        return { ...existing, venues }
+      }
+      return {
+        month,
+        label: ACCOUNTING_PNL_MONTH_LONG_LABELS[month - 1] ?? String(month),
+        venues: emptyVenueCells(),
+      }
+    }),
+  }
+}
+
+function monthColumnHasData (venues: AccountingPnlMonthGridDto['columns'][0]['venues']): boolean {
+  return venues.some((venue) => {
+    const row = venue.row
+    return Math.abs(row.revenue)
+      + Math.abs(row.cogs)
+      + Math.abs(row.labor)
+      + Math.abs(row.fixed)
+      + Math.abs(row.result) > 0
+  })
+}
 
 const tableLines = computed(() => data.value?.lines ?? [])
 const monthGrid = computed(() => data.value?.monthGrid ?? null)
@@ -246,9 +387,10 @@ const graphPeriodLabel = computed(() => {
 })
 const hasTableData = computed(() => {
   if (viewMode.value === 'month') {
-    return (monthGrid.value?.columns.length ?? 0) > 0 && activeVenueIdList.value.length > 0
+    return (draftMonthGrid.value?.columns.length ?? monthGrid.value?.columns.length ?? 0) > 0
+      && activeVenueIdList.value.length > 0
   }
-  return tableLines.value.length > 0
+  return (draftLines.value.length || tableLines.value.length) > 0
 })
 const hasGraphData = computed(() => {
   if (viewMode.value === 'month') {
@@ -256,4 +398,89 @@ const hasGraphData = computed(() => {
   }
   return (yearGrid.value?.columns.length ?? 0) > 0 && activeVenueIdList.value.length > 0
 })
+
+async function startEditing () {
+  if (startingEdit.value || saving.value) return
+  startingEdit.value = true
+  saveError.value = null
+  saveOk.value = null
+  try {
+    viewMode.value = 'month'
+    displayMode.value = 'table'
+    valueMode.value = 'amount'
+    activeVenueIds.value = new Set(ALL_VENUE_IDS)
+    await nextTick()
+    await refresh()
+    const loaded = data.value?.monthGrid ? structuredClone(data.value.monthGrid) : null
+    originalMonthKeys.value = new Set((loaded?.columns ?? []).map((c) => c.month))
+    draftMonthGrid.value = padMonthGridForEdit(loaded)
+    draftLines.value = []
+    editing.value = true
+  } catch (err: unknown) {
+    saveError.value = err instanceof Error ? err.message : 'Could not start edit'
+  } finally {
+    startingEdit.value = false
+  }
+}
+
+function cancelEditing () {
+  editing.value = false
+  originalMonthKeys.value = new Set()
+  draftLines.value = structuredClone(data.value?.lines ?? [])
+  draftMonthGrid.value = data.value?.monthGrid ? structuredClone(data.value.monthGrid) : null
+  saveError.value = null
+}
+
+function onLinesUpdate (lines: AccountingPnlBenchmarkTableLineDto[]) {
+  draftLines.value = lines
+}
+
+function onMonthGridUpdate (grid: AccountingPnlMonthGridDto) {
+  draftMonthGrid.value = grid
+}
+
+async function saveEdits () {
+  saving.value = true
+  saveError.value = null
+  saveOk.value = null
+  try {
+    const year = normalizeYear(selectedYear.value)
+    const columns = draftMonthGrid.value?.columns ?? []
+    const periods = columns
+      .filter((column) =>
+        originalMonthKeys.value.has(column.month) || monthColumnHasData(column.venues),
+      )
+      .map((column) => {
+        const venues = {} as Record<AccountingPnlVenueId, (typeof column.venues)[0]['row']>
+        for (const id of ALL_VENUE_IDS) {
+          const cell = column.venues.find((v) => v.key === id)
+          if (!cell) throw new Error(`Missing venue ${id} in month ${column.month}`)
+          venues[id] = cell.row
+        }
+        return { year, month: column.month, venues }
+      })
+
+    if (!periods.length) {
+      throw new Error('Nothing to save — enter values in at least one month')
+    }
+
+    const result = await $fetch<AccountingPnlBenchmarkUpsertResponse>('/api/daily-ops/finance/pnl', {
+      method: 'PUT',
+      body: {
+        periods,
+        refreshAssumptions: false,
+      },
+    })
+
+    editing.value = false
+    originalMonthKeys.value = new Set()
+    await refresh()
+    draftMonthGrid.value = data.value?.monthGrid ? structuredClone(data.value.monthGrid) : null
+    saveOk.value = `Updated ${result.touched} month(s).`
+  } catch (err: unknown) {
+    saveError.value = err instanceof Error ? err.message : 'Save failed'
+  } finally {
+    saving.value = false
+  }
+}
 </script>

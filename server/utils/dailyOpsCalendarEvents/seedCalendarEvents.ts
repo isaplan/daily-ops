@@ -1,8 +1,9 @@
 /**
  * @registry-id: dailyOpsCalendarEventsSeed
  * @created: 2026-07-14T21:00:00.000Z
- * @last-modified: 2026-07-14T21:00:00.000Z
- * @description: Seed national, religious, and regio Midden school holidays into calendar_events
+ * @last-modified: 2026-07-16T21:50:00.000Z
+ * @last-fix: [2026-07-16] Include WK 2026 Netherlands major_event fixtures
+ * @description: Seed holidays + major sports events into calendar_events
  * @adr-ref: ADR-015
  *
  * @exports-to:
@@ -18,6 +19,7 @@ import {
 } from './constants'
 import { nationalAndReligiousHolidaysForRange } from './nationalAndReligiousHolidays'
 import { schoolHolidaysMidden } from './schoolHolidaysMidden'
+import { wk2026NetherlandsMatches } from './wk2026Netherlands'
 
 export async function ensureCalendarEventsIndex(db: Db): Promise<void> {
   await db.collection(CALENDAR_EVENTS_COLLECTION).createIndex({ id: 1 }, { unique: true, name: 'id_unique' })
@@ -35,6 +37,7 @@ export async function seedCalendarEvents(
   const events: CalendarEvent[] = [
     ...nationalAndReligiousHolidaysForRange(startYear, endYear),
     ...schoolHolidaysMidden(),
+    ...wk2026NetherlandsMatches(),
   ]
 
   const coll = db.collection(CALENDAR_EVENTS_COLLECTION)
