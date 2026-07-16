@@ -31,41 +31,26 @@
 
       <UAlert v-if="error" color="error" variant="soft" title="Could not load dashboard" :description="String(error)" />
 
-      <div v-if="pending" class="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <USkeleton v-for="i in 4" :key="i" class="h-28 w-full rounded-lg" />
-      </div>
+      <!-- P&L / daypart must not sit behind pending — venue strip has its own fetch and was the only thing visible -->
+      <DailyOpsRevenueMetricsSection
+        :period="period"
+        :revenue="revenue"
+        :pending="pending && !revenue"
+        @refresh="() => void refreshMetrics()"
+      />
 
-      <template v-else-if="summary">
+      <DailyOpsProductivitySummary
+        v-if="isProductivityView && summary"
+        @select-team="selectTeam"
+        @select-contract="selectContract"
+      />
 
-        <DailyOpsProductivitySummary
-          v-if="isProductivityView"
-          @select-team="selectTeam"
-          @select-contract="selectContract"
-        />
+      <DailyOpsProductivityLaborSection v-if="isProductivityView && labor" :labor="labor" />
 
-        <DailyOpsRevenueMetricsSection :period="period" />
-
-        <DailyOpsProductivityLaborSection v-if="isProductivityView && labor" :labor="labor" />
-
-        <p class="text-xs text-gray-400">
-          Range: {{ summary.range.startDate }} → {{ summary.range.endDate }} ({{ summary.range.period }}) · Dashboard metrics
-          load in parallel (summary, revenue, labor).
-        </p>
-      </template>
-
-      <div
-        v-else-if="!pending"
-        class="rounded-lg border border-gray-200 bg-white px-4 py-6 text-sm text-gray-700 shadow-sm"
-      >
-        <p class="font-semibold text-gray-900">Metrics did not load</p>
-        <p class="mt-1 text-gray-600">
-          Try a hard refresh. If the problem continues, check the browser network tab for failed requests to
-          <span class="font-mono text-xs">/api/daily-ops/metrics/summary, revenue-breakdown, labor</span>.
-        </p>
-        <UButton type="button" class="mt-4" color="neutral" variant="outline" @click="() => void refreshMetrics()">
-          Retry
-        </UButton>
-      </div>
+      <p v-if="summary" class="text-xs text-gray-400">
+        Range: {{ summary.range.startDate }} → {{ summary.range.endDate }} ({{ summary.range.period }}) · Dashboard metrics
+        load in parallel (summary, revenue, labor).
+      </p>
     </div>
 
     <!-- Worker Details Drawer (productivity page only) -->
@@ -84,8 +69,9 @@
 <script setup lang="ts">
 /**
  * @description: Home dashboard — KPI, venue strip, revenue + labor sections
- * @last-modified: 2026-07-02T00:00:00.000Z
- * @last-fix: [2026-07-02] ADR-013 read-cache metadata
+ * @last-modified: 2026-07-16T12:00:00.000Z
+ * @last-fix: [2026-07-16] Always mount revenue/P&L below strip — was hidden when pending stuck
+ *   Prior: [2026-07-16] Pass bundle revenue into metrics section (single metrics instance)
  * @adr-ref: ADR-004, ADR-010, ADR-013
  * @data-source: read-cache
  * @read-cache-json: dashboard-bundle (via GET /api/daily-ops/metrics/bundle)

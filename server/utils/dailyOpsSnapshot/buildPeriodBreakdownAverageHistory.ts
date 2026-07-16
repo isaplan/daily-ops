@@ -1,10 +1,11 @@
 /**
- * @description: Overlay history for period-breakdown trend/median (GET enrich only, bars unchanged)
- * @last-modified: 2026-07-14T00:40:00.000Z
- * @last-fix: [2026-07-14] Skip enrich for single-day hour chart (no averages UI)
+ * @description: Overlay history for period-breakdown trend/median — bake into read-cache at write time
+ * @last-modified: 2026-07-16T01:50:00.000Z
+ * @last-fix: [2026-07-16] Write-path seal only (ADR-013) — not called from bundle GET
+ *   Prior: [2026-07-14] Skip enrich for single-day hour chart (no averages UI)
  * @adr-ref: ADR-004, ADR-013
  * @exports-to:
- * ✓ server/api/daily-ops/metrics/bundle.get.ts
+ * ✓ server/utils/dailyOpsSnapshot/cacheCascade.ts
  */
 
 import type { Db } from 'mongodb'
@@ -134,4 +135,26 @@ export async function enrichPeriodBreakdownAverageHistory(
       byVenue: historyBreakdown.byVenue,
     },
   }
+}
+
+/** Attach averageHistory onto a rollup bundle before writing daily_ops_read_cache. */
+export async function sealDashboardBundleAverageHistory(
+  db: Db,
+  bundle: DailyOpsDashboardBundleDto,
+  locationId: string,
+): Promise<DailyOpsDashboardBundleDto> {
+  const startDate = bundle.summary?.range?.startDate
+  const endDate = bundle.summary?.range?.endDate
+  const breakdown = bundle.periodBreakdown
+  if (!startDate || !endDate || !breakdown) return bundle
+  if (breakdown.averageHistory) return bundle
+
+  const periodBreakdown = await enrichPeriodBreakdownAverageHistory(
+    db,
+    startDate,
+    endDate,
+    locationId === 'all' ? undefined : locationId,
+    breakdown,
+  )
+  return { ...bundle, periodBreakdown }
 }

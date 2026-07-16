@@ -1,10 +1,10 @@
 /**
  * @registry-id: dailyOpsMetricsBundle
  * @created: 2026-05-18T00:00:00.000Z
- * @last-modified: 2026-07-14T00:15:00.000Z
+ * @last-modified: 2026-07-16T12:15:00.000Z
  * @description: Dashboard metrics bundle — read daily_ops_read_cache only (ADR-013)
- * @last-fix: [2026-07-14] Enrich periodBreakdown with averageHistory for chart overlays
- *   Prior: [2026-06-20] Reject stale cache when drilldown or profit-by-interval missing
+ * @last-fix: [2026-07-16] GET never live-rebuilds — cache miss returns empty gap (ADR-013)
+ *   Prior: [2026-07-16] GET is read-cache only — no averageHistory enrich on request
  * @adr-ref: ADR-004, ADR-010, ADR-013
  * @data-source: read-cache
  * @read-cache-json: daily_ops_read_cache · profile=dashboard-bundle · levels=daily|weekly|monthly|yearly
@@ -15,11 +15,10 @@
 
 import { getDb } from '../../../utils/db'
 import { parseDailyOpsMetricsQuery } from '../../../utils/dailyOpsMetrics/context'
-import { fetchDailyOpsDashboardBundle } from '../../../utils/dailyOpsSnapshot/fetchDashboardBundle'
 import { snapshotCacheControl } from '../../../utils/dailyOpsSnapshot/dashboardBundle/snapshotCacheControl'
 import { loadCachedDashboardBundle } from '../../../utils/dailyOpsSnapshot/cacheCascade'
 import { bundleDashboardSectionsIncomplete } from '../../../utils/dailyOpsSnapshot/bundleInvariant'
-import { enrichPeriodBreakdownAverageHistory } from '../../../utils/dailyOpsSnapshot/buildPeriodBreakdownAverageHistory'
+import { emptyDashboardBundleForCacheMiss } from '../../../utils/dailyOpsSnapshot/emptyDashboardBundleForCacheMiss'
 
 export default defineEventHandler(async (event) => {
   const ctx = parseDailyOpsMetricsQuery(getQuery(event) as Record<string, unknown>)
@@ -27,46 +26,40 @@ export default defineEventHandler(async (event) => {
 
   const db = await getDb()
   const cached = await loadCachedDashboardBundle(db, ctx)
+
   if (cached && !bundleDashboardSectionsIncomplete(cached)) {
     console.info(
-      `[bundle:cache] HIT [composed] ${ctx.startDate}..${ctx.endDate} ${ctx.locationId ?? 'all'}`,
+      `[bundle:cache] HIT ${ctx.startDate}..${ctx.endDate} ${ctx.locationId ?? 'all'}`,
     )
-    const periodBreakdown = cached.periodBreakdown
-      ? await enrichPeriodBreakdownAverageHistory(
-          db,
-          ctx.startDate,
-          ctx.endDate,
-          ctx.locationId,
-          cached.periodBreakdown,
-        )
-      : undefined
     return {
       summary: cached.summary,
       revenue: cached.revenue,
       labor: cached.labor,
-      periodBreakdown,
+      periodBreakdown: cached.periodBreakdown,
     }
   }
-  if (cached && bundleDashboardSectionsIncomplete(cached)) {
+
+  if (cached) {
+    // Incomplete but present — still serve sealed JSON (P&L/daypart may be partial). Never live-rebuild.
     console.warn(
-      `[bundle:cache] STALE sections ${ctx.startDate}..${ctx.endDate} ${ctx.locationId ?? 'all'} — live rebuild`,
+      `[bundle:cache] PARTIAL ${ctx.startDate}..${ctx.endDate} ${ctx.locationId ?? 'all'} — serving cache without live rebuild`,
     )
+    return {
+      summary: cached.summary,
+      revenue: cached.revenue,
+      labor: cached.labor,
+      periodBreakdown: cached.periodBreakdown,
+    }
   }
 
-  const bundle = await fetchDailyOpsDashboardBundle(db, ctx)
-  const periodBreakdown = bundle.periodBreakdown
-    ? await enrichPeriodBreakdownAverageHistory(
-        db,
-        ctx.startDate,
-        ctx.endDate,
-        ctx.locationId,
-        bundle.periodBreakdown,
-      )
-    : undefined
+  console.warn(
+    `[bundle:cache] MISS ${ctx.startDate}..${ctx.endDate} ${ctx.locationId ?? 'all'} — empty gap (ADR-013)`,
+  )
+  const gap = emptyDashboardBundleForCacheMiss(ctx)
   return {
-    summary: bundle.summary,
-    revenue: bundle.revenue,
-    labor: bundle.labor,
-    periodBreakdown,
+    summary: gap.summary,
+    revenue: gap.revenue,
+    labor: gap.labor,
+    periodBreakdown: gap.periodBreakdown,
   }
 })
