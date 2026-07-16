@@ -1,8 +1,8 @@
 /**
  * @registry-id: calendarEventTypes
  * @created: 2026-07-14T21:00:00.000Z
- * @last-modified: 2026-07-15T15:05:00.000Z
- * @last-fix: [2026-07-15] Added tvt label for erkende horeca feestdagen
+ * @last-modified: 2026-07-16T21:50:00.000Z
+ * @last-fix: [2026-07-16] Added major_event type for WK/sports sales context
  * @description: Calendar event types for holidays and custom annotations (Den Haag)
  * @adr-ref: ADR-015
  *
@@ -16,6 +16,7 @@ export type CalendarEventType =
   | 'national_holiday'
   | 'school_holiday_midden'
   | 'religious'
+  | 'major_event'
   | 'custom'
 
 /** Contract-worker time-for-time (tijd voor tijd) on recognized horeca public holidays. */

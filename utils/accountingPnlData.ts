@@ -1,9 +1,10 @@
 /**
  * Accounting P&L benchmarks — sourced from *Analyse* exports (2024/2025 full year, 2026 Jan–May monthly + YTD).
- * Fixed = Overige bedrijfskosten (excl. afschrijving & financial).
+ * Fixed parent = overige + afschrijving + financieel when children present; legacy docs = overige only.
  */
 
 import { accountingPnlRowWithMix } from '~/utils/accountingPnlMixData'
+import { sumAccountingPnlRows } from '~/utils/accountingPnlRowMath'
 
 export type AccountingPnlVenueId = 'vkb' | 'bea' | 'lat'
 
@@ -12,10 +13,17 @@ export type AccountingPnlRow = {
   revenueFood: number
   revenueBeverage: number
   labor: number
+  laborLonen: number
+  laborSocialeLasten: number
+  laborPensioen: number
+  laborOverig: number
   cogs: number
   cogsFood: number
   cogsBeverage: number
   fixed: number
+  fixedOverige: number
+  fixedAfschrijving: number
+  fixedFinancieel: number
   result: number
 }
 
@@ -55,7 +63,14 @@ function rowBase ([revenue, cogs, labor, fixed, result]: PnlTuple): AccountingPn
     cogsFood: 0,
     cogsBeverage: cogs,
     labor,
+    laborLonen: labor,
+    laborSocialeLasten: 0,
+    laborPensioen: 0,
+    laborOverig: 0,
     fixed,
+    fixedOverige: fixed,
+    fixedAfschrijving: 0,
+    fixedFinancieel: 0,
     result,
   }
 }
@@ -65,30 +80,17 @@ function row ([revenue, cogs, labor, fixed, result]: PnlTuple): AccountingPnlRow
 }
 
 function sumRows (rows: AccountingPnlRow[]): AccountingPnlRow {
-  return rows.reduce(
-    (acc, r) => ({
-      revenue: acc.revenue + r.revenue,
-      revenueFood: acc.revenueFood + r.revenueFood,
-      revenueBeverage: acc.revenueBeverage + r.revenueBeverage,
-      cogs: acc.cogs + r.cogs,
-      cogsFood: acc.cogsFood + r.cogsFood,
-      cogsBeverage: acc.cogsBeverage + r.cogsBeverage,
-      labor: acc.labor + r.labor,
-      fixed: acc.fixed + r.fixed,
-      result: acc.result + r.result,
-    }),
-    {
-      revenue: 0,
-      revenueFood: 0,
-      revenueBeverage: 0,
-      cogs: 0,
-      cogsFood: 0,
-      cogsBeverage: 0,
-      labor: 0,
-      fixed: 0,
-      result: 0,
-    },
-  )
+  return sumAccountingPnlRows(rows)
+}
+
+function annualRow (partial: {
+  revenue: number
+  labor: number
+  cogs: number
+  fixed: number
+  result: number
+}): AccountingPnlRow {
+  return rowBase([partial.revenue, partial.cogs, partial.labor, partial.fixed, partial.result])
 }
 
 const MONTHLY_2024: Record<AccountingPnlVenueId, PnlTuple[]> = {
@@ -208,48 +210,21 @@ const MONTHLY_2026: Record<AccountingPnlVenueId, PnlTuple[]> = {
 
 /** Jan–May 2026 YTD totals (accounting export). */
 const YTD_2026: Record<AccountingPnlVenueId, AccountingPnlRow> = {
-  vkb: {
-    revenue: 730466, revenueFood: 0, revenueBeverage: 0, labor: 323466, cogs: 250006,
-    cogsFood: 0, cogsBeverage: 250006, fixed: 227700, result: -70706,
-  },
-  bea: {
-    revenue: 627356, revenueFood: 0, revenueBeverage: 0, labor: 204527, cogs: 209225,
-    cogsFood: 0, cogsBeverage: 209225, fixed: 209234, result: 4370,
-  },
-  lat: {
-    revenue: 418238, revenueFood: 0, revenueBeverage: 0, labor: 248647, cogs: 151565,
-    cogsFood: 0, cogsBeverage: 151565, fixed: 235269, result: -217243,
-  },
+  vkb: annualRow({ revenue: 730466, labor: 323466, cogs: 250006, fixed: 227700, result: -70706 }),
+  bea: annualRow({ revenue: 627356, labor: 204527, cogs: 209225, fixed: 209234, result: 4370 }),
+  lat: annualRow({ revenue: 418238, labor: 248647, cogs: 151565, fixed: 235269, result: -217243 }),
 }
 
 const ANNUAL_2024: Record<AccountingPnlVenueId, AccountingPnlRow> = {
-  vkb: {
-    revenue: 2284180, revenueFood: 0, revenueBeverage: 0, labor: 953088, cogs: 677367,
-    cogsFood: 0, cogsBeverage: 677367, fixed: 429239, result: 134283,
-  },
-  bea: {
-    revenue: 1529479, revenueFood: 0, revenueBeverage: 0, labor: 542708, cogs: 426901,
-    cogsFood: 0, cogsBeverage: 426901, fixed: 303131, result: 128619,
-  },
-  lat: {
-    revenue: 1822440, revenueFood: 0, revenueBeverage: 0, labor: 747504, cogs: 619554,
-    cogsFood: 0, cogsBeverage: 619554, fixed: 314156, result: -91665,
-  },
+  vkb: annualRow({ revenue: 2284180, labor: 953088, cogs: 677367, fixed: 429239, result: 134283 }),
+  bea: annualRow({ revenue: 1529479, labor: 542708, cogs: 426901, fixed: 303131, result: 128619 }),
+  lat: annualRow({ revenue: 1822440, labor: 747504, cogs: 619554, fixed: 314156, result: -91665 }),
 }
 
 const ANNUAL_2025: Record<AccountingPnlVenueId, AccountingPnlRow> = {
-  vkb: {
-    revenue: 1976772, revenueFood: 0, revenueBeverage: 0, labor: 901601, cogs: 604609,
-    cogsFood: 0, cogsBeverage: 604609, fixed: 214233, result: 126921,
-  },
-  bea: {
-    revenue: 1501482, revenueFood: 0, revenueBeverage: 0, labor: 549600, cogs: 345077,
-    cogsFood: 0, cogsBeverage: 345077, fixed: 319408, result: 169001,
-  },
-  lat: {
-    revenue: 1339960, revenueFood: 0, revenueBeverage: 0, labor: 591111, cogs: 409659,
-    cogsFood: 0, cogsBeverage: 409659, fixed: 274606, result: -78278,
-  },
+  vkb: annualRow({ revenue: 1976772, labor: 901601, cogs: 604609, fixed: 214233, result: 126921 }),
+  bea: annualRow({ revenue: 1501482, labor: 549600, cogs: 345077, fixed: 319408, result: 169001 }),
+  lat: annualRow({ revenue: 1339960, labor: 591111, cogs: 409659, fixed: 274606, result: -78278 }),
 }
 
 function annualForYear (year: AccountingPnlYear): Record<AccountingPnlVenueId, AccountingPnlRow> | null {

@@ -397,7 +397,7 @@ API endpoint (`bundle.get.ts`) intelligently serves from the appropriate cache l
 
 2. **New collections (additive, hot tier):**
    - `weather_observations` — daily rows for Den Haag (all venues share city-level weather). Source: Open-Meteo. Written by `daily-ops:weather-sync` cron + one-time backfill.
-   - `calendar_events` — national holidays, regio Midden school holidays, religious observances, and custom one-off events. Seeded via script; custom events via Weekly Reports UI.
+   - `calendar_events` — national holidays, regio Midden school holidays, religious observances, major sports (e.g. Oranje WK 2026), and custom one-off events. Seeded via script; custom events via Weekly Reports UI. App-wide SSOT for sales-context events.
    - `weekly_reports` — one sealed document per `weekKey` + `locationId` (per venue only, no combined "all" doc). Contains denormalized `digest` (from `buildWeeklyDigest`), `weather`, `events`, and user `sections` (comments/todos/agrees per topic).
 
 3. **Build path:** `buildWeeklyDigest` unchanged. New `buildWeeklyReportComputed` enriches digest with weather + events and writes to `weekly_reports`. Cron `daily-ops:weekly-report-build` runs Monday 01:15 Amsterdam for last 5 weeks × 3 venues.

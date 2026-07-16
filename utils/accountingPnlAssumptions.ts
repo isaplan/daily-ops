@@ -1,9 +1,9 @@
 /**
  * @registry-id: accountingPnlAssumptions
  * @created: 2026-06-22T00:00:00.000Z
- * @last-modified: 2026-06-22T00:00:00.000Z
+ * @last-modified: 2026-07-16T00:00:00.000Z
  * @description: Derive Daily Ops P&L assumption % from accounting totals (year or month, per venue).
- * @last-fix: [2026-06-22] SSOT for profit-by-interval + dashboard profit math
+ * @last-fix: [2026-07-16] Overhead from fixedOverige (excl. afschrijving/financieel)
  *
  * @exports-to:
  * ✓ server/utils/dailyOpsSnapshot/buildProfitByIntervalFromSnapshot.ts
@@ -28,7 +28,6 @@ import {
   DEFAULT_PNL_ASSUMPTIONS,
   normalizePnlAssumptions,
 } from '~/utils/dailyOpsPnlAssumptionsDefaults'
-import { DAILY_OPS_PROFIT_VENUE_LOCATIONS } from '~/utils/dailyOpsProfitIntervals'
 
 export type AccountingPnlAssumptionsSource = 'month' | 'year' | 'prior_year' | 'default'
 
@@ -82,10 +81,11 @@ function rowForPeriod (
 }
 
 export function accountingPnlAssumptionsFromRow (row: AccountingPnlRow): DailyOpsSimplePnLAssumptions {
+  const overheadBase = row.fixedOverige > 0 ? row.fixedOverige : row.fixed
   const cogsPct =
     row.revenue > 0 ? (row.cogs / row.revenue) * 100 : DEFAULT_PNL_ASSUMPTIONS.foodCogsPct
   const overheadPct =
-    row.revenue > 0 ? (row.fixed / row.revenue) * 100 : DEFAULT_PNL_ASSUMPTIONS.overheadPct
+    row.revenue > 0 ? (overheadBase / row.revenue) * 100 : DEFAULT_PNL_ASSUMPTIONS.overheadPct
   const blended = clampPnlPct(cogsPct, DEFAULT_PNL_ASSUMPTIONS.foodCogsPct)
   return normalizePnlAssumptions({
     foodCogsPct: blended,
