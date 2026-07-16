@@ -13,7 +13,7 @@ export type AccountingPnlBenchmarkPeriodDoc = {
   periodLabel: string
   venues: Record<AccountingPnlVenueId, AccountingPnlRow>
   combined: AccountingPnlRow
-  source: 'accounting_analyse_export'
+  source: 'accounting_analyse_export' | 'manual_edit'
 }
 
 export type AccountingPnlBenchmarkTableLineDto = {
@@ -57,4 +57,21 @@ export type AccountingPnlBenchmarkResponseDto = {
   yearGrid?: AccountingPnlYearGridDto
   availableYears: number[]
   availableMonths: number[]
+}
+
+export type AccountingPnlBenchmarkUpsertPeriodInput = {
+  year: number
+  month: number | null
+  venues: Record<AccountingPnlVenueId, AccountingPnlRow>
+}
+
+export type AccountingPnlBenchmarkUpsertRequest = {
+  periods: AccountingPnlBenchmarkUpsertPeriodInput[]
+  /** When true, refresh org P&L assumptions from the first annual (month=null) combined row. */
+  refreshAssumptions?: boolean
+}
+
+export type AccountingPnlBenchmarkUpsertResponse = {
+  touched: number
+  assumptionsUpdated: boolean
 }

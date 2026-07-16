@@ -5,6 +5,9 @@
  */
 
 import type { AccountingPnlRow, AccountingPnlVenueId, AccountingPnlYear } from '~/utils/accountingPnlData'
+import { accountingPnlFixedForRow } from '~/utils/accountingPnlFixedMixData'
+import { accountingPnlLaborForRow } from '~/utils/accountingPnlLaborMixData'
+import { sealAccountingPnlRow } from '~/utils/accountingPnlRowMath'
 
 export type AccountingPnlMixSlice = {
   revenueFood: number
@@ -226,7 +229,11 @@ export function accountingPnlRowWithMix (
   base: AccountingPnlRow,
 ): AccountingPnlRow {
   const mix = accountingPnlMixForRow(year, venueId, month, base)
-  return { ...base, ...mix }
+  const labor = accountingPnlLaborForRow(year, venueId, month, base.labor)
+  const fixed = accountingPnlFixedForRow(year, venueId, month, base.fixed)
+  // Preserve accounting export result on seed; seal only parents from children.
+  const sealed = sealAccountingPnlRow({ ...base, ...mix, ...labor, ...fixed })
+  return { ...sealed, result: base.result }
 }
 
 export function accountingPnlSumMix (slices: AccountingPnlMixSlice[]): AccountingPnlMixSlice {

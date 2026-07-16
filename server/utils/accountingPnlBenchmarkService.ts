@@ -1,12 +1,13 @@
 /**
  * @registry-id: accountingPnlBenchmarkService
  * @created: 2026-06-21T00:00:00.000Z
- * @last-modified: 2026-06-22T00:00:00.000Z
- * @description: Seed + read accounting P&L benchmarks (Mongo accounting_pnl_benchmark).
- * @last-fix: [2026-06-22] Year-grid read for stack graph view
+ * @last-modified: 2026-07-16T11:05:00.000Z
+ * @description: Seed + read + upsert accounting P&L benchmarks (Mongo accounting_pnl_benchmark).
+ * @last-fix: [2026-07-16] Month grid includes DB months beyond seed window
  *
  * @exports-to:
  * ✓ server/api/daily-ops/finance/pnl.get.ts
+ * ✓ server/api/daily-ops/finance/pnl.put.ts
  */
 
 import type { Db } from 'mongodb'
@@ -22,23 +23,53 @@ import {
   ACCOUNTING_PNL_YEARS,
   ACCOUNTING_PNL_MONTH_LONG_LABELS,
   accountingPnlMonthsForYear,
+  accountingPnlPeriodLabel,
   accountingPnlYearLabel,
+  type AccountingPnlRow,
+  type AccountingPnlVenueId,
   type AccountingPnlYear,
 } from '~/utils/accountingPnlData'
 import {
   accountingPnlPeriodFilter,
   buildAccountingPnlSeedPeriods,
 } from '~/utils/accountingPnlSeedPeriods'
+import {
+  normalizeAccountingPnlRow,
+  sealAccountingPnlRow,
+  sumAccountingPnlRows,
+} from '~/utils/accountingPnlRowMath'
+import { accountingPnlAssumptionsFromRow } from '~/utils/accountingPnlAssumptions'
+import { savePnlAssumptions } from './appSettings/pnlAssumptionsSetting'
 
 export const ACCOUNTING_PNL_BENCHMARK_COLLECTION = 'accounting_pnl_benchmark'
 
+function normalizeVenueMap (
+  venues: AccountingPnlBenchmarkPeriodDoc['venues'],
+): Record<AccountingPnlVenueId, AccountingPnlRow> {
+  return {
+    vkb: normalizeAccountingPnlRow(venues.vkb),
+    bea: normalizeAccountingPnlRow(venues.bea),
+    lat: normalizeAccountingPnlRow(venues.lat),
+  }
+}
+
+function normalizePeriodDoc (doc: AccountingPnlBenchmarkPeriodDoc): AccountingPnlBenchmarkPeriodDoc {
+  const venues = normalizeVenueMap(doc.venues)
+  return {
+    ...doc,
+    venues,
+    combined: normalizeAccountingPnlRow(doc.combined ?? sumAccountingPnlRows(Object.values(venues))),
+  }
+}
+
 function linesFromPeriod (doc: AccountingPnlBenchmarkPeriodDoc): AccountingPnlBenchmarkTableLineDto[] {
+  const normalized = normalizePeriodDoc(doc)
   const lines: AccountingPnlBenchmarkTableLineDto[] = ACCOUNTING_PNL_VENUES.map((venue) => ({
     key: venue.id,
     label: venue.label,
-    row: doc.venues[venue.id],
+    row: normalized.venues[venue.id],
   }))
-  lines.push({ key: 'combined', label: 'Combined', row: doc.combined })
+  lines.push({ key: 'combined', label: 'Combined', row: normalized.combined })
   return lines
 }
 
@@ -65,23 +96,29 @@ async function fetchMonthGrid (
   col: ReturnType<Db['collection']>,
   year: AccountingPnlYear,
 ): Promise<AccountingPnlMonthGridDto> {
-  const months = accountingPnlMonthsForYear(year)
   const docs = await col
-    .find({ year, month: { $in: months } })
+    .find({ year, month: { $ne: null, $gte: 1, $lte: 12 } })
     .sort({ month: 1 })
     .toArray() as AccountingPnlBenchmarkPeriodDoc[]
+
+  const seedMonths = accountingPnlMonthsForYear(year)
+  const dbMonths = docs
+    .map((d) => d.month)
+    .filter((m): m is number => typeof m === 'number' && m >= 1 && m <= 12)
+  const months = [...new Set([...seedMonths, ...dbMonths])].sort((a, b) => a - b)
 
   const byMonth = new Map(docs.map((d) => [d.month, d]))
   const columns = months.flatMap((month) => {
     const doc = byMonth.get(month)
     if (!doc) return []
+    const normalized = normalizePeriodDoc(doc)
     return [{
       month,
       label: ACCOUNTING_PNL_MONTH_LONG_LABELS[month - 1] ?? String(month),
       venues: ACCOUNTING_PNL_VENUES.map((venue) => ({
         key: venue.id,
         shortLabel: venue.shortLabel,
-        row: doc.venues[venue.id],
+        row: normalized.venues[venue.id],
       })),
     }]
   })
@@ -101,13 +138,14 @@ async function fetchYearGrid (
   const columns = ACCOUNTING_PNL_YEARS.flatMap((year) => {
     const doc = byYear.get(year)
     if (!doc) return []
+    const normalized = normalizePeriodDoc(doc)
     return [{
       year,
       label: accountingPnlYearLabel(year),
       venues: ACCOUNTING_PNL_VENUES.map((venue) => ({
         key: venue.id,
         shortLabel: venue.shortLabel,
-        row: doc.venues[venue.id],
+        row: normalized.venues[venue.id],
       })),
     }]
   })
@@ -142,8 +180,15 @@ export async function seedAccountingPnlBenchmarks (db: Db): Promise<number> {
 
 export async function ensureAccountingPnlBenchmarksSeeded (db: Db): Promise<void> {
   const col = db.collection(ACCOUNTING_PNL_BENCHMARK_COLLECTION)
-  const count = await col.countDocuments({}, { limit: 1 })
-  if (count === 0) await seedAccountingPnlBenchmarks(db)
+  const sample = await col.findOne({}) as AccountingPnlBenchmarkPeriodDoc | null
+  if (!sample) {
+    await seedAccountingPnlBenchmarks(db)
+    return
+  }
+  // Re-seed when labor/fixed children are missing (schema upgrade).
+  if (sample.venues?.vkb != null && sample.venues.vkb.laborLonen == null) {
+    await seedAccountingPnlBenchmarks(db)
+  }
 }
 
 export async function fetchAccountingPnlBenchmark (
@@ -206,3 +251,68 @@ export async function fetchAccountingPnlBenchmark (
     availableMonths: accountingPnlMonthsForYear(year),
   }
 }
+
+function periodKindFor (year: number, month: number | null): AccountingPnlBenchmarkPeriodDoc['periodKind'] {
+  if (month != null) return 'monthly'
+  if (year === 2026) return 'ytd'
+  return 'annual'
+}
+
+export async function upsertAccountingPnlBenchmarkPeriods (
+  db: Db,
+  periods: Array<{ year: number; month: number | null; venues: Record<AccountingPnlVenueId, Partial<AccountingPnlRow>> }>,
+  options?: { refreshAssumptions?: boolean },
+): Promise<{ touched: number; assumptionsUpdated: boolean }> {
+  const col = db.collection<AccountingPnlBenchmarkPeriodDoc>(ACCOUNTING_PNL_BENCHMARK_COLLECTION)
+  const now = new Date()
+  let touched = 0
+  let assumptionsSource: AccountingPnlRow | null = null
+
+  for (const period of periods) {
+    const year = normalizeYear(period.year)
+    if (!year) continue
+    const month = period.month == null ? null : normalizeMonth(period.month)
+    if (period.month != null && month == null) continue
+
+    const sealedVenues = {
+      vkb: sealAccountingPnlRow(period.venues.vkb ?? {}),
+      bea: sealAccountingPnlRow(period.venues.bea ?? {}),
+      lat: sealAccountingPnlRow(period.venues.lat ?? {}),
+    }
+    const combined = sumAccountingPnlRows(Object.values(sealedVenues))
+    const viewMode = month != null ? 'month' as const : 'year' as const
+    const periodLabel = month != null
+      ? accountingPnlPeriodLabel(year, viewMode, month)
+      : accountingPnlYearLabel(year)
+
+    const doc: AccountingPnlBenchmarkPeriodDoc = {
+      year,
+      month,
+      periodKind: periodKindFor(year, month),
+      periodLabel,
+      venues: sealedVenues,
+      combined,
+      source: 'manual_edit',
+    }
+
+    const res = await col.updateOne(
+      accountingPnlPeriodFilter(year, month),
+      {
+        $set: { ...doc, updatedAt: now },
+        $setOnInsert: { createdAt: now },
+      },
+      { upsert: true },
+    )
+    if (res.upsertedCount > 0 || res.modifiedCount > 0) touched++
+    if (month == null && !assumptionsSource) assumptionsSource = combined
+  }
+
+  let assumptionsUpdated = false
+  if (options?.refreshAssumptions !== false && assumptionsSource && assumptionsSource.revenue > 0) {
+    await savePnlAssumptions(db, accountingPnlAssumptionsFromRow(assumptionsSource))
+    assumptionsUpdated = true
+  }
+
+  return { touched, assumptionsUpdated }
+}
+

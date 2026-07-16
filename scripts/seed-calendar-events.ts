@@ -1,5 +1,5 @@
 /**
- * Seed national, religious, and regio Midden school holidays (2024–2029).
+ * Seed national, religious, regio Midden school holidays, and major sports (2024–2029).
  *
  * Usage:
  *   pnpm calendar:seed
@@ -11,6 +11,7 @@ async function main(): Promise<void> {
   const db = await getDb()
   const result = await seedCalendarEvents(db)
   process.stdout.write(`[calendar-seed] written=${result.written}\n`)
+  process.exit(0)
 }
 
 main().catch((err) => {
