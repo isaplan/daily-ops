@@ -1,28 +1,28 @@
 /**
- * @registry-id: useWeeklyReportDocument
- * @created: 2026-07-14T21:00:00.000Z
- * @last-modified: 2026-07-14T21:00:00.000Z
- * @description: Weekly report document fetch + section save (weekly_reports collection)
- * @last-fix: [2026-07-14] Initial weekly report document composable
+ * @registry-id: useMonthlyReportDocument
+ * @created: 2026-07-17T00:00:00.000Z
+ * @last-modified: 2026-07-17T00:00:00.000Z
+ * @description: Monthly report document fetch + section save (monthly_reports collection)
+ * @last-fix: [2026-07-17] Initial monthly report document composable
  * @adr-ref: ADR-015
  *
  * @exports-to:
- * ✓ pages/weekly-reports/*
+ * ✓ pages/weekly-reports/month/*
  * ✓ components/weeklyReports/*
  */
 
 import type { BlockAgree, BlockTodo } from '~/types/noteBlock'
-import type { WeeklyReportDocument, WeeklyReportListItem, WeeklyReportSectionKey } from '~/types/weeklyReportDocument'
-import { WEEKLY_REPORT_SECTION_KEYS } from '~/types/weeklyReportDocument'
+import type { MonthlyReportDocument, MonthlyReportListItem, MonthlyReportSectionKey } from '~/types/monthlyReportDocument'
+import { MONTHLY_REPORT_SECTION_KEYS } from '~/types/monthlyReportDocument'
 import { DAILY_OPS_PROFIT_VENUE_LOCATIONS } from '~/utils/dailyOpsProfitIntervals'
 
-export function useWeeklyReportDocument() {
+export function useMonthlyReportDocument() {
   const route = useRoute()
   const router = useRouter()
 
-  const weekKey = computed(() => {
-    const w = route.params.weekKey
-    if (typeof w === 'string' && /^\d{4}-W\d{2}$/.test(w)) return w
+  const monthKey = computed(() => {
+    const m = route.params.monthKey
+    if (typeof m === 'string' && /^\d{4}-(0[1-9]|1[0-2])$/.test(m)) return m
     return undefined
   })
 
@@ -32,7 +32,7 @@ export function useWeeklyReportDocument() {
     return DAILY_OPS_PROFIT_VENUE_LOCATIONS[0]?.locationId ?? ''
   })
 
-  const fetchKey = computed(() => `weekly-report:${weekKey.value ?? 'list'}:${locationId.value}`)
+  const fetchKey = computed(() => `monthly-report:${monthKey.value ?? 'list'}:${locationId.value}`)
 
   const listQuery = computed(() => {
     const q: Record<string, string> = {}
@@ -40,16 +40,16 @@ export function useWeeklyReportDocument() {
     return new URLSearchParams(q).toString()
   })
 
-  const { data: list, pending: listPending, refresh: refreshList } = useFetch<{ success: boolean; data: WeeklyReportListItem[] }>(
-    () => `/api/weekly-reports?${listQuery.value}`,
-    { key: 'weekly-reports-list', watch: [listQuery] },
+  const { data: list, pending: listPending, refresh: refreshList } = useFetch<{ success: boolean; data: MonthlyReportListItem[] }>(
+    () => `/api/monthly-reports?${listQuery.value}`,
+    { key: 'monthly-reports-list', watch: [listQuery] },
   )
 
-  const { data: document, pending, error, refresh } = useFetch<{ success: boolean; data: WeeklyReportDocument }>(
-    () => weekKey.value
-      ? `/api/weekly-reports/${weekKey.value}?locationId=${locationId.value}`
+  const { data: document, pending, error, refresh } = useFetch<{ success: boolean; data: MonthlyReportDocument }>(
+    () => monthKey.value
+      ? `/api/monthly-reports/${monthKey.value}?locationId=${locationId.value}`
       : null,
-    { key: fetchKey, watch: [weekKey, locationId] },
+    { key: fetchKey, watch: [monthKey, locationId] },
   )
 
   const doc = computed(() => document.value?.data ?? null)
@@ -61,10 +61,10 @@ export function useWeeklyReportDocument() {
   }
 
   async function setLocked(locked: boolean) {
-    if (!weekKey.value) return
+    if (!monthKey.value) return
     lockPending.value = true
     try {
-      await $fetch(`/api/weekly-reports/${weekKey.value}/lock`, {
+      await $fetch(`/api/monthly-reports/${monthKey.value}/lock`, {
         method: 'PUT',
         body: { locationId: locationId.value, locked },
       })
@@ -83,13 +83,13 @@ export function useWeeklyReportDocument() {
   }
 
   async function saveSection(
-    sectionKey: WeeklyReportSectionKey,
+    sectionKey: MonthlyReportSectionKey,
     text: string,
     todos?: BlockTodo[],
     agrees?: BlockAgree[],
   ) {
-    if (!weekKey.value) return
-    await $fetch(`/api/weekly-reports/${weekKey.value}/section/${sectionKey}`, {
+    if (!monthKey.value) return
+    await $fetch(`/api/monthly-reports/${monthKey.value}/section/${sectionKey}`, {
       method: 'PUT',
       body: { text, todos, agrees, locationId: locationId.value },
     })
@@ -97,8 +97,8 @@ export function useWeeklyReportDocument() {
   }
 
   async function addCustomEvent(title: string, startDate: string, endDate: string, note?: string) {
-    if (!weekKey.value) return
-    await $fetch(`/api/weekly-reports/${weekKey.value}/events`, {
+    if (!monthKey.value) return
+    await $fetch(`/api/monthly-reports/${monthKey.value}/events`, {
       method: 'POST',
       body: { title, startDate, endDate, note, locationId: locationId.value },
     })
@@ -111,7 +111,7 @@ export function useWeeklyReportDocument() {
   }))
 
   return {
-    weekKey,
+    monthKey,
     locationId,
     doc,
     list: computed(() => list.value?.data ?? []),
@@ -128,6 +128,6 @@ export function useWeeklyReportDocument() {
     saveSection,
     addCustomEvent,
     venueOptions,
-    sectionKeys: WEEKLY_REPORT_SECTION_KEYS,
+    sectionKeys: MONTHLY_REPORT_SECTION_KEYS,
   }
 }

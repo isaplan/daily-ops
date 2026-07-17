@@ -41,7 +41,7 @@ const SECTION_TITLES: Record<string, string> = {
 export function buildWeeklyReportPdfDocument(doc: WeeklyReportDocument): string {
   const d = doc.digest
   let body = `<h1 class="pdf-title">${escapeHtml(doc.locationName)} — ${escapeHtml(d.label)}</h1>`
-  body += `<p class="pdf-meta">${escapeHtml(d.startDate)} → ${escapeHtml(d.endDate)}${doc.frozenAt ? ' · Frozen' : ''}</p>`
+  body += `<p class="pdf-meta">${escapeHtml(d.startDate)} → ${escapeHtml(d.endDate)}${doc.frozenAt ? ' · Locked' : ''}</p>`
 
   body += `<div class="pdf-section pdf-weather"><h2>Weather (Den Haag)</h2>`
   const wk = classifyWeatherWeek(doc.weather)

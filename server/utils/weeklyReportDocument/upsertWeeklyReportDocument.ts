@@ -1,8 +1,9 @@
 /**
  * @registry-id: weeklyReportDocumentUpsert
  * @created: 2026-07-14T21:00:00.000Z
- * @last-modified: 2026-07-14T21:00:00.000Z
+ * @last-modified: 2026-07-17T01:10:00.000Z
  * @description: Load, build, merge, and upsert weekly_reports documents
+ * @last-fix: [2026-07-17] Manual lock/unlock (Save / Unlock)
  * @adr-ref: ADR-015
  *
  * @exports-to:
@@ -49,20 +50,23 @@ export async function upsertWeeklyReportDocument(
   db: Db,
   weekKey: string,
   locationId: string,
-  opts?: { targetsPreset?: string; force?: boolean },
+  opts?: { targetsPreset?: string; force?: boolean; unlock?: boolean; lock?: boolean },
 ): Promise<WeeklyReportDocument> {
   const range = weekRangeFromKey(weekKey)
   if (!range) throw createError({ statusCode: 400, message: `Invalid weekKey: ${weekKey}` })
 
   const existing = await findWeeklyReportDocument(db, weekKey, locationId)
-  const freeze = getFreezeState(range.endDate, existing?.frozenAt)
+  const lockedManually = existing?.lockedManually === true && !opts?.unlock
+  const freeze = lockedManually && existing?.frozenAt
+    ? { isFrozen: true, frozenAt: existing.frozenAt }
+    : getFreezeState(range.endDate, opts?.unlock ? null : existing?.frozenAt)
 
-  if (freeze.isFrozen && existing && !opts?.force) {
+  if (freeze.isFrozen && existing && !opts?.force && !opts?.unlock && !opts?.lock) {
     if (!existing.frozenAt && freeze.frozenAt) {
-      const frozen = { ...existing, frozenAt: freeze.frozenAt }
+      const frozen = { ...existing, frozenAt: freeze.frozenAt, lockedManually: false }
       await db.collection(WEEKLY_REPORTS_COLLECTION).updateOne(
         { weekKey, locationId },
-        { $set: { frozenAt: freeze.frozenAt } },
+        { $set: { frozenAt: freeze.frozenAt, lockedManually: false } },
       )
       return attachPreviousWeekWeatherIfMissing(db, range, frozen)
     }
@@ -71,7 +75,24 @@ export async function upsertWeeklyReportDocument(
 
   const targets = resolveWeeklyTargets(opts?.targetsPreset)
   const computed = await buildWeeklyReportComputed(db, range, locationId, targets)
-  const merged = mergeWeeklyReportUserContent(computed, existing, freeze.frozenAt)
+
+  let nextFrozenAt: string | null = freeze.frozenAt
+  let nextLockedManually = lockedManually && !!nextFrozenAt
+  if (opts?.unlock) {
+    nextFrozenAt = null
+    nextLockedManually = false
+  }
+  if (opts?.lock) {
+    nextFrozenAt = new Date().toISOString()
+    nextLockedManually = true
+  }
+
+  const merged = mergeWeeklyReportUserContent(
+    computed,
+    existing,
+    nextFrozenAt,
+    nextLockedManually,
+  )
 
   await db.collection(WEEKLY_REPORTS_COLLECTION).updateOne(
     { weekKey, locationId },
@@ -84,6 +105,19 @@ export async function upsertWeeklyReportDocument(
   )
 
   return merged
+}
+
+export async function setWeeklyReportLock(
+  db: Db,
+  weekKey: string,
+  locationId: string,
+  locked: boolean,
+): Promise<WeeklyReportDocument> {
+  return upsertWeeklyReportDocument(db, weekKey, locationId, {
+    force: true,
+    lock: locked,
+    unlock: !locked,
+  })
 }
 
 export async function listWeeklyReports(

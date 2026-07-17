@@ -1,6 +1,6 @@
 <template>
   <div class="space-y-6 p-4 md:p-6">
-    <WeeklyReportsWeeklyReportHeader
+    <WeeklyReportsMonthlyReportHeader
       v-if="doc"
       :doc="doc"
       :is-locked="isLocked"
@@ -10,7 +10,7 @@
       @save-lock="saveAndLock"
     />
 
-    <div v-if="pending" class="text-sm text-gray-500">Loading weekly report…</div>
+    <div v-if="pending" class="text-sm text-gray-500">Loading monthly report…</div>
 
     <template v-else-if="doc">
       <div class="flex flex-wrap items-center gap-3">
@@ -38,8 +38,8 @@
           <div class="grid gap-4 lg:grid-cols-2">
             <WeeklyReportsWeeklyReportWeatherPanel
               :weather="doc.weather"
-              :previous-week-weather="doc.previousWeekWeather"
-              :week-key="doc.weekKey"
+              :previous-week-weather="doc.previousMonthWeather"
+              :week-key="doc.monthKey"
             />
             <WeeklyReportsWeeklyReportEventsPanel
               :events="doc.events"
@@ -114,6 +114,10 @@
             :on-save="(text, todos, agrees) => saveSection('revenuePnl', text, todos, agrees)"
           >
             <div v-if="digestDto" class="space-y-6">
+              <WeeklyReportsMonthlyReportPnlPanel
+                :accounting-pnl="doc.accountingPnl"
+                :period-label="doc.digest.label"
+              />
               <DailyOpsAnalyticsWeeklyRevenueTab :digest="digestDto" />
               <DailyOpsAnalyticsWeeklyLossTab :digest="digestDto" hide-tables />
             </div>
@@ -140,32 +144,32 @@
     </template>
 
     <div v-else class="rounded-lg border border-amber-200 bg-amber-50 p-6 text-sm text-amber-900">
-      Could not load weekly report for this week and venue.
+      Could not load monthly report for this month and venue.
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 /**
- * @registry-id: weeklyReportsDetailPage
- * @created: 2026-07-14T21:00:00.000Z
+ * @registry-id: monthlyReportsDetailPage
+ * @created: 2026-07-17T00:00:00.000Z
  * @last-modified: 2026-07-17T00:35:00.000Z
- * @description: Weekly report document detail — data + comments/todos/agreements
+ * @description: Monthly report document detail — data + comments/todos/agreements + accounting P&L
  * @last-fix: [2026-07-17] Wire Product Sales section + findings editor
  * @adr-ref: ADR-015
  */
 
 import type { BlockAgree, BlockTodo } from '~/types/noteBlock'
-import type { WeeklyReportSectionKey } from '~/types/weeklyReportDocument'
-import { WEEKLY_REPORT_NAV_ITEMS } from '~/utils/weeklyReportNav'
+import type { MonthlyReportSectionKey } from '~/types/monthlyReportDocument'
+import { MONTHLY_REPORT_NAV_ITEMS } from '~/utils/monthlyReportNav'
 import {
-  aggregateWeeklyReportAgrees,
-  aggregateWeeklyReportTodos,
-  collectMentionSlugsFromWeeklyReport,
-  collectTagsFromWeeklyReport,
-} from '~/utils/weeklyReportContentMeta'
-import { buildWeeklyReportPdfDocumentForPrint } from '~/lib/pdf/weeklyReportPdfDocument'
-import { useWeeklyReportDocument } from '~/composables/useWeeklyReportDocument'
+  aggregateMonthlyReportAgrees,
+  aggregateMonthlyReportTodos,
+  collectMentionSlugsFromMonthlyReport,
+  collectTagsFromMonthlyReport,
+} from '~/utils/monthlyReportContentMeta'
+import type { WeeklyReportAgreeItem, WeeklyReportTodoItem } from '~/utils/weeklyReportContentMeta'
+import { useMonthlyReportDocument } from '~/composables/useMonthlyReportDocument'
 
 definePageMeta({ keepalive: false })
 
@@ -181,21 +185,25 @@ const {
   setLocation,
   saveSection: persistSection,
   addCustomEvent,
-} = useWeeklyReportDocument()
+} = useMonthlyReportDocument()
 
 const { statusBadgeClass, statusLabel } = useDailyOpsWeeklyReport()
 
 const digestDto = computed(() => doc.value?.digest ?? null)
 
-const navItems = WEEKLY_REPORT_NAV_ITEMS
+const navItems = MONTHLY_REPORT_NAV_ITEMS
 
 type AsideTab = 'members' | 'todos' | 'agreed'
 const asideTab = ref<AsideTab | null>(null)
 
-const reportTodos = computed(() => (doc.value ? aggregateWeeklyReportTodos(doc.value) : []))
-const reportAgrees = computed(() => (doc.value ? aggregateWeeklyReportAgrees(doc.value) : []))
-const mentionSlugs = computed(() => (doc.value ? collectMentionSlugsFromWeeklyReport(doc.value) : []))
-const reportTags = computed(() => (doc.value ? collectTagsFromWeeklyReport(doc.value) : []))
+const reportTodos = computed(() =>
+  (doc.value ? aggregateMonthlyReportTodos(doc.value) : []) as unknown as WeeklyReportTodoItem[],
+)
+const reportAgrees = computed(() =>
+  (doc.value ? aggregateMonthlyReportAgrees(doc.value) : []) as unknown as WeeklyReportAgreeItem[],
+)
+const mentionSlugs = computed(() => (doc.value ? collectMentionSlugsFromMonthlyReport(doc.value) : []))
+const reportTags = computed(() => (doc.value ? collectTagsFromMonthlyReport(doc.value) : []))
 
 const hasTodos = computed(() => reportTodos.value.length > 0)
 const hasAgrees = computed(() => reportAgrees.value.length > 0)
@@ -216,7 +224,7 @@ function onLocationChange(e: Event) {
 }
 
 async function saveSection(
-  key: WeeklyReportSectionKey,
+  key: MonthlyReportSectionKey,
   text: string,
   todos?: BlockTodo[],
   agrees?: BlockAgree[],
@@ -230,18 +238,6 @@ async function onAddEvent(payload: { title: string; startDate: string; endDate: 
 
 function generatePdf() {
   if (!doc.value) return
-  try {
-    const html = buildWeeklyReportPdfDocumentForPrint(doc.value)
-    const iframe = document.createElement('iframe')
-    iframe.setAttribute('style', 'position:fixed;width:0;height:0;border:0;visibility:hidden')
-    document.body.appendChild(iframe)
-    iframe.srcdoc = html
-    iframe.onload = () => {
-      iframe.contentWindow?.print()
-      setTimeout(() => iframe.remove(), 1000)
-    }
-  } catch {
-    // silent fail
-  }
+  window.print()
 }
 </script>

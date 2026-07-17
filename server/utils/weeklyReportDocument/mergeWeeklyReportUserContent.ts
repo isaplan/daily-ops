@@ -13,9 +13,13 @@ import type { WeeklyReportDocument, WeeklyReportSectionKey } from '~/types/weekl
 import { emptyWeeklyReportSections } from '~/types/weeklyReportDocument'
 
 export function mergeWeeklyReportUserContent(
-  computed: Omit<WeeklyReportDocument, 'sections' | 'frozenAt'> & { frozenAt?: string | null },
+  computed: Omit<WeeklyReportDocument, 'sections' | 'frozenAt' | 'lockedManually'> & {
+    frozenAt?: string | null
+    lockedManually?: boolean
+  },
   existing?: WeeklyReportDocument | null,
   frozenAt?: string | null,
+  lockedManually?: boolean,
 ): WeeklyReportDocument {
   const sections = existing?.sections ?? emptyWeeklyReportSections()
   const mergedSections = { ...sections }
@@ -27,6 +31,7 @@ export function mergeWeeklyReportUserContent(
   return {
     ...computed,
     sections: mergedSections,
-    frozenAt: frozenAt ?? existing?.frozenAt ?? null,
+    frozenAt: frozenAt !== undefined ? frozenAt : (existing?.frozenAt ?? null),
+    lockedManually: lockedManually ?? existing?.lockedManually ?? false,
   }
 }

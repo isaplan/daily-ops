@@ -1,7 +1,7 @@
 <template>
   <header class="flex flex-wrap items-start justify-between gap-4">
     <div>
-      <h1 class="text-2xl font-bold text-gray-900">Weekly Report</h1>
+      <h1 class="text-2xl font-bold text-gray-900">Monthly Report</h1>
       <p class="text-sm text-gray-600">
         {{ doc.locationName }} · {{ doc.digest.label }} · {{ formatDateWithMonth(doc.digest.startDate) }} → {{ formatDateWithMonth(doc.digest.endDate) }}
       </p>
@@ -30,21 +30,15 @@
       >
         Save
       </UButton>
-      <NuxtLink
-        :to="`/daily-ops/analytics/weekly-report?week=${doc.weekKey}&location=${doc.locationId}`"
-        class="inline-flex items-center rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
-      >
-        Daily Ops view
-      </NuxtLink>
     </div>
   </header>
 </template>
 
 <script setup lang="ts">
-import type { WeeklyReportDocument } from '~/types/weeklyReportDocument'
+import type { MonthlyReportDocument } from '~/types/monthlyReportDocument'
 
 defineProps<{
-  doc: WeeklyReportDocument
+  doc: MonthlyReportDocument
   isLocked: boolean
   lockPending?: boolean
 }>()

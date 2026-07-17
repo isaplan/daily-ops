@@ -51,7 +51,10 @@ export type WeeklyReportDocument = {
   previousWeekWeather: WeatherRangePayload | null
   events: CalendarEvent[]
   sections: Record<WeeklyReportSectionKey, WeeklyReportSectionContent>
+  /** When set, computed digest is sealed (UI: Locked). */
   frozenAt: string | null
+  /** True when locked via Save; false/undefined = auto-lock. */
+  lockedManually?: boolean
   builtAt: string
   schemaVersion: number
 }
