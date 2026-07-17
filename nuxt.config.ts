@@ -71,6 +71,8 @@ if (enableNitroScheduled && !disableIntegrationsSchedule) {
   scheduledTasks['0 1 * * 1'] = ['daily-ops:weekly-digest-cache']
   /** Weekly report sealed documents — Monday 01:15 Amsterdam. */
   scheduledTasks['15 1 * * 1'] = ['daily-ops:weekly-report-build']
+  /** Monthly report sealed documents — 1st of month 01:15 Amsterdam. */
+  scheduledTasks['15 1 1 * *'] = ['daily-ops:monthly-report-build']
   /** The Hague weather sync — daily 06:15 Amsterdam. */
   scheduledTasks['15 6 * * *'] = ['daily-ops:weather-sync']
 }

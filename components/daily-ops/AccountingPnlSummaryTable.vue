@@ -246,9 +246,9 @@
 <script setup lang="ts">
 /**
  * @registry-id: AccountingPnlSummaryTable
- * @last-modified: 2026-07-16T11:20:00.000Z
+ * @last-modified: 2026-07-17T00:30:00.000Z
  * @description: Accounting P&L summary table with optional live cell edit
- * @last-fix: [2026-07-16] Equal fixed month column widths (edit empty months)
+ * @last-fix: [2026-07-17] Optional showCombinedTotal for single-venue monthly reports
  */
 import type { AccountingPnlMonthGridColumn, AccountingPnlMonthGridDto } from '~/types/accounting-pnl-benchmark'
 import type { AccountingPnlRow, AccountingPnlTableLine, AccountingPnlVenueId } from '~/utils/accountingPnlData'
@@ -287,6 +287,8 @@ const props = defineProps<{
   activeVenueIds?: AccountingPnlVenueId[]
   valueMode?: PnlValueMode
   editing?: boolean
+  /** When false, hide year-layout Total column (useful for single-venue views). Default true. */
+  showCombinedTotal?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -298,6 +300,7 @@ const layout = computed(() => props.layout ?? 'month')
 const editing = computed(() => Boolean(props.editing) && props.valueMode !== 'percent')
 const showPercent = computed(() => props.valueMode === 'percent')
 const valueCellAlignClass = computed(() => showPercent.value ? 'text-center' : 'text-right')
+const showCombinedTotal = computed(() => props.showCombinedTotal !== false)
 
 const MONTH_LABEL_PX = 144
 const MONTH_CELL_PX = 96
@@ -356,6 +359,7 @@ const venueColumns = computed(() =>
 )
 
 const yearCombinedRow = computed((): AccountingPnlRow | null => {
+  if (!showCombinedTotal.value) return null
   const venues = venueColumns.value.map((v) => v.row)
   if (!venues.length) return props.lines.find((line) => line.key === 'combined')?.row ?? null
   return sumAccountingPnlRows(venues)

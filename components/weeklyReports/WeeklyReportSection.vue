@@ -68,7 +68,7 @@ const props = withDefaults(
     anchorId: string
     sectionKey?: WeeklyReportSectionKey
     content?: WeeklyReportSectionContent
-    isFrozen?: boolean
+    isLocked?: boolean
     showFindings?: boolean
     showDivider?: boolean
     onSave?: (text: string, todos: BlockTodo[], agrees: BlockAgree[]) => Promise<void>
@@ -76,7 +76,7 @@ const props = withDefaults(
   {
     showFindings: false,
     showDivider: true,
-    isFrozen: false,
+    isLocked: false,
   },
 )
 

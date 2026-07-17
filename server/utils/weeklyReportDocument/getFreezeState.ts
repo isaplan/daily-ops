@@ -1,12 +1,14 @@
 /**
  * @registry-id: weeklyReportDocumentFreeze
  * @created: 2026-07-14T21:00:00.000Z
- * @last-modified: 2026-07-14T21:00:00.000Z
- * @description: Freeze state for weekly report computed fields (14-day window)
+ * @last-modified: 2026-07-17T00:30:00.000Z
+ * @description: Freeze state for report computed fields (optional freeze-days override)
+ * @last-fix: [2026-07-17] Optional freezeDays for monthly reports
  * @adr-ref: ADR-015
  *
  * @exports-to:
  * ✓ server/utils/weeklyReportDocument/upsertWeeklyReportDocument.ts
+ * ✓ server/utils/monthlyReportDocument/upsertMonthlyReportDocument.ts
  */
 
 import { addCalendarDaysYmd } from '~/utils/dailyOpsBusinessDate'
@@ -17,11 +19,15 @@ export type WeeklyReportFreezeState = {
   frozenAt: string | null
 }
 
-export function getFreezeState(weekEndDate: string, existingFrozenAt?: string | null): WeeklyReportFreezeState {
+export function getFreezeState(
+  periodEndDate: string,
+  existingFrozenAt?: string | null,
+  freezeDays: number = WEEKLY_REPORT_FREEZE_DAYS,
+): WeeklyReportFreezeState {
   if (existingFrozenAt) {
     return { isFrozen: true, frozenAt: existingFrozenAt }
   }
-  const freezeOn = addCalendarDaysYmd(weekEndDate, WEEKLY_REPORT_FREEZE_DAYS)
+  const freezeOn = addCalendarDaysYmd(periodEndDate, freezeDays)
   const today = new Date().toISOString().slice(0, 10)
   if (today >= freezeOn) {
     return { isFrozen: true, frozenAt: new Date().toISOString() }

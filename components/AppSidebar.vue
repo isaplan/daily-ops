@@ -207,18 +207,30 @@
           </NuxtLink>
         </li>
       </ul>
-      <!-- Weekly Reports environment -->
+      <!-- Daily Reports environment (weekly + monthly) -->
       <ul v-else-if="activeEnvironment === 'weekly-reports'" class="space-y-1">
         <li>
-          <UTooltip v-if="collapsed" text="All weeks" :popper="{ placement: 'right' }">
-            <NuxtLink to="/weekly-reports" :class="navLinkClass(isWeeklyReportsList)">
-              <UIcon name="i-lucide-calendar-range" class="size-5 shrink-0" />
-              <span v-if="!collapsed">All weeks</span>
+          <UTooltip v-if="collapsed" text="Dashboard" :popper="{ placement: 'right' }">
+            <NuxtLink to="/weekly-reports" :class="navLinkClass(isReportsDashboard)">
+              <UIcon name="i-lucide-layout-dashboard" class="size-5 shrink-0" />
+              <span v-if="!collapsed">Dashboard</span>
             </NuxtLink>
           </UTooltip>
-          <NuxtLink v-else to="/weekly-reports" :class="navLinkClass(isWeeklyReportsList)">
+          <NuxtLink v-else to="/weekly-reports" :class="navLinkClass(isReportsDashboard)">
+            <UIcon name="i-lucide-layout-dashboard" class="size-4 shrink-0" />
+            <span>Dashboard</span>
+          </NuxtLink>
+        </li>
+        <li>
+          <UTooltip v-if="collapsed" text="All Reports" :popper="{ placement: 'right' }">
+            <NuxtLink to="/weekly-reports/all" :class="navLinkClass(isAllReports)">
+              <UIcon name="i-lucide-calendar-range" class="size-5 shrink-0" />
+              <span v-if="!collapsed">All Reports</span>
+            </NuxtLink>
+          </UTooltip>
+          <NuxtLink v-else to="/weekly-reports/all" :class="navLinkClass(isAllReports)">
             <UIcon name="i-lucide-calendar-range" class="size-4 shrink-0" />
-            <span>All weeks</span>
+            <span>All Reports</span>
           </NuxtLink>
         </li>
         <li>
@@ -231,6 +243,18 @@
           <NuxtLink v-else :to="lastWeekReportHref" :class="navLinkClass(false)">
             <UIcon name="i-lucide-file-bar-chart" class="size-4 shrink-0" />
             <span>Last week</span>
+          </NuxtLink>
+        </li>
+        <li>
+          <UTooltip v-if="collapsed" text="Last month" :popper="{ placement: 'right' }">
+            <NuxtLink :to="lastMonthReportHref" :class="navLinkClass(false)">
+              <UIcon name="i-lucide-calendar" class="size-5 shrink-0" />
+              <span v-if="!collapsed">Last month</span>
+            </NuxtLink>
+          </UTooltip>
+          <NuxtLink v-else :to="lastMonthReportHref" :class="navLinkClass(false)">
+            <UIcon name="i-lucide-calendar" class="size-4 shrink-0" />
+            <span>Last month</span>
           </NuxtLink>
         </li>
       </ul>
@@ -458,13 +482,21 @@ const isAllNotes = computed(() => route.path === '/notes/all')
 const isTodos = computed(() => route.path === '/notes/todos')
 const isAgreed = computed(() => route.path === '/notes/agreed')
 const isProjects = computed(() => route.path === '/notes/projects')
-const isWeeklyReportsList = computed(() => route.path === '/weekly-reports' || route.path.startsWith('/weekly-reports/'))
+const isReportsDashboard = computed(() => route.path === '/weekly-reports')
+const isAllReports = computed(() => route.path === '/weekly-reports/all')
 const lastWeekReportHref = computed(() => {
   const range = resolveDailyOpsPeriod('last-week')
   const weekKey = getIsoWeekFromYmd(range.startDate)
   const locationId = DAILY_OPS_PROFIT_VENUE_LOCATIONS[0]?.locationId ?? ''
   const q = locationId ? `?location=${locationId}` : ''
   return `/weekly-reports/${weekKey}${q}`
+})
+const lastMonthReportHref = computed(() => {
+  const range = resolveDailyOpsPeriod('last-month')
+  const monthKey = range.startDate.slice(0, 7)
+  const locationId = DAILY_OPS_PROFIT_VENUE_LOCATIONS[0]?.locationId ?? ''
+  const q = locationId ? `?location=${locationId}` : ''
+  return `/weekly-reports/month/${monthKey}${q}`
 })
 const isOpsNotifications = computed(() => route.path === '/ops-notifications')
 const isOrganisation = computed(() => route.path === '/organisation')

@@ -39,6 +39,17 @@ export const ACCOUNTING_PNL_VENUES: AccountingPnlVenueMeta[] = [
   { id: 'lat', label: "l'Amour Toujours", shortLabel: 'LAT' },
 ]
 
+/** Maps Daily Ops Mongo locationId → accounting P&L venue id (order matches DAILY_OPS_PROFIT_VENUE_LOCATIONS). */
+export const ACCOUNTING_PNL_LOCATION_ID_TO_VENUE: Record<string, AccountingPnlVenueId> = {
+  '69d6cfa63d2adf93b79d1ae7': 'vkb',
+  '69d6cfa63d2adf93b79d1ae6': 'bea',
+  '69d6cfa73d2adf93b79d1ae8': 'lat',
+}
+
+export function accountingPnlVenueIdForLocationId(locationId: string): AccountingPnlVenueId | null {
+  return ACCOUNTING_PNL_LOCATION_ID_TO_VENUE[locationId] ?? null
+}
+
 export const ACCOUNTING_PNL_YEARS = [2024, 2025, 2026] as const
 export type AccountingPnlYear = (typeof ACCOUNTING_PNL_YEARS)[number]
 

@@ -1,9 +1,9 @@
-export type WeeklyReportNavItem = {
+export type MonthlyReportNavItem = {
   id: string
   label: string
 }
 
-export const WEEKLY_REPORT_NAV_ITEMS: WeeklyReportNavItem[] = [
+export const MONTHLY_REPORT_NAV_ITEMS: MonthlyReportNavItem[] = [
   { id: 'kpi', label: 'KPI' },
   { id: 'staff-general', label: 'Staff' },
   { id: 'product-sales', label: 'Product Sales' },

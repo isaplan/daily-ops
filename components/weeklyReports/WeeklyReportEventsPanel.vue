@@ -1,7 +1,7 @@
 <template>
   <section class="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
     <h2 class="mb-3 text-sm font-semibold uppercase text-gray-500">Events &amp; holidays</h2>
-    <form v-if="!isFrozen" class="space-y-2 border-b border-gray-100 pb-3" @submit.prevent="submit">
+    <form v-if="!isLocked" class="space-y-2 border-b border-gray-100 pb-3" @submit.prevent="submit">
       <input
         v-model="title"
         type="text"
@@ -39,7 +39,7 @@ import type { CalendarEvent } from '~/types/calendarEvent'
 
 defineProps<{
   events: CalendarEvent[]
-  isFrozen: boolean
+  isLocked: boolean
 }>()
 
 const emit = defineEmits<{
