@@ -1,11 +1,11 @@
 <template>
   <section class="min-w-0">
     <div v-if="pending" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-8">
-      <USkeleton v-for="i in 12" :key="i" class="h-24 w-full rounded-lg" />
+      <USkeleton v-for="i in 13" :key="i" class="h-24 w-full rounded-lg" />
     </div>
 
     <div v-else-if="!pending && !totals" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-8">
-      <USkeleton v-for="i in 12" :key="i" class="h-24 w-full rounded-lg" />
+      <USkeleton v-for="i in 13" :key="i" class="h-24 w-full rounded-lg" />
     </div>
 
     <div
@@ -58,11 +58,11 @@
 <script setup lang="ts">
 /**
  * @description: Dashboard KPI tiles with lazy drawer fetches
- * @last-modified: 2026-07-02T00:00:00.000Z
- * @last-fix: [2026-07-02] ADR-013 read-cache metadata
+ * @last-modified: 2026-07-17T18:05:00.000Z
+ * @last-fix: [2026-07-17] Active tables + bezettingsgraad KPI tile
  * @adr-ref: ADR-004, ADR-010, ADR-013
  * @data-source: mixed
- * @read-cache-json: dashboard-bundle summary + lazy GET /api/daily-ops/metrics/attendance-kpis, contract-hours-variance
+ * @read-cache-json: dashboard-bundle summary + lazy GET /api/daily-ops/metrics/attendance-kpis, contract-hours-variance, table-occupancy-kpis
  * @imports-data-from: props + GET /api/daily-ops/metrics/*
  */
 
@@ -73,6 +73,7 @@ import type {
   DailyOpsAttendanceStaffRowDto,
   DailyOpsAttendanceVenueDto,
   DailyOpsSummaryDto,
+  DailyOpsTableOccupancyKpisDto,
   VenueStripCardDto,
   VenueStripResponseDto,
 } from '~/types/daily-ops-dashboard'
@@ -90,6 +91,7 @@ type KpiTileId =
   | 'laborPct'
   | 'productivity'
   | 'active'
+  | 'activeTables'
   | 'gewerkt'
   | 'gewerktKeuken'
   | 'gewerktBediening'
@@ -121,7 +123,7 @@ type GmailStatusPayload = {
 
 const { data: gmailStatus } = useFetch<{ success: boolean; data: GmailStatusPayload }>(
   '/api/inbox/gmail-status',
-  { default: () => ({ success: true, data: { connected: true, needsReconnect: false } }) },
+  { lazy: true, server: false, default: () => ({ success: true, data: { connected: true, needsReconnect: false } }) },
 )
 
 const gmailNeedsReconnect = computed(() => gmailStatus.value?.data?.needsReconnect === true)
@@ -144,6 +146,9 @@ const attendanceData = ref<DailyOpsAttendanceKpisDto | null>(null)
 const attendancePending = ref(false)
 const attendanceError = ref<string | null>(null)
 const attendanceLoadedForKey = ref<string | null>(null)
+const tableOccupancyData = ref<DailyOpsTableOccupancyKpisDto | null>(null)
+const tableOccupancyPending = ref(false)
+const tableOccupancyLoadedForKey = ref<string | null>(null)
 const activeDrawer = ref<KpiTileId | null>(null)
 
 const attendanceDrawerIds = new Set<KpiTileId>(['planned', 'leave', 'sick'])
@@ -171,10 +176,30 @@ async function loadAttendanceKpis (): Promise<void> {
   }
 }
 
+async function loadTableOccupancyKpis (): Promise<void> {
+  if (tableOccupancyPending.value) return
+  if (tableOccupancyData.value && tableOccupancyLoadedForKey.value === cacheKey.value) return
+
+  tableOccupancyPending.value = true
+  try {
+    const params = new URLSearchParams(stripQuery.value).toString()
+    tableOccupancyData.value = await $fetch<DailyOpsTableOccupancyKpisDto>(
+      `/api/daily-ops/metrics/table-occupancy-kpis?${params}`,
+    )
+    tableOccupancyLoadedForKey.value = cacheKey.value
+  } catch {
+    tableOccupancyData.value = null
+  } finally {
+    tableOccupancyPending.value = false
+  }
+}
+
 watch(cacheKey, () => {
   attendanceData.value = null
   attendanceError.value = null
   attendanceLoadedForKey.value = null
+  tableOccupancyData.value = null
+  tableOccupancyLoadedForKey.value = null
 })
 
 const isRangePeriod = computed(() =>
@@ -185,12 +210,14 @@ watch(
   cacheKey,
   () => {
     if (!isRangePeriod.value) void loadAttendanceKpis()
+    void loadTableOccupancyKpis()
   },
   { immediate: true },
 )
 
 watch(activeDrawer, (id: KpiTileId | null) => {
   if (isAttendanceDrawerId(id)) void loadAttendanceKpis()
+  if (id === 'activeTables') void loadTableOccupancyKpis()
 })
 
 const totals = computed(() => {
@@ -273,6 +300,12 @@ const tiles = computed(() => {
       opensDrawer: true,
     },
     {
+      id: 'activeTables' as const,
+      label: 'Active tables',
+      display: formatActiveTablesTile(),
+      opensDrawer: true,
+    },
+    {
       id: 'gewerkt' as const,
       label: 'All uren',
       display: formatHoursWhole(t.allHours),
@@ -337,9 +370,19 @@ function formatPlannedToActualTile (): string {
   return '0 h → 0 h'
 }
 
+function formatActiveTablesTile (): string {
+  const data = tableOccupancyData.value
+  if (!data) return tableOccupancyPending.value ? '…' : '0'
+  const pct = data.occupancyPct
+  if (pct == null) return String(data.activeTables)
+  const pctLabel = Number.isInteger(pct) ? `${pct}%` : `${pct.toFixed(1)}%`
+  return `${data.activeTables} · ${pctLabel}`
+}
+
 function openTile (id: KpiTileId): void {
   activeDrawer.value = id
   if (attendanceDrawerIds.has(id)) void loadAttendanceKpis()
+  if (id === 'activeTables') void loadTableOccupancyKpis()
 }
 
 function venueRevenueRows (): KpiDrawerVenueRow[] {
@@ -659,6 +702,26 @@ const drawerContent = computed(() => {
         venueRows: [],
         venueSections: venueSectionsForActive(),
       }
+    case 'activeTables': {
+      const occ = tableOccupancyData.value
+      const pctLabel = (pct: number | null | undefined) =>
+        pct == null ? '—' : formatPctWhole(pct)
+      return {
+        title: 'Active tables',
+        intro:
+          'Tables with ≥1 Bork order. Single day = distinct tables that day. Week/month/year = average daily active tables ÷ catalog. Bezettingsgraad = active ÷ total.',
+        summaryRows: [
+          { label: 'Active tables', value: String(occ?.activeTables ?? 0) },
+          { label: 'Total tables (catalog)', value: String(occ?.totalTables ?? 0) },
+          { label: 'Bezettingsgraad', value: pctLabel(occ?.occupancyPct) },
+        ],
+        venueColumns: ['Active', 'Total', 'Bezettingsgraad'],
+        venueRows: (occ?.venues ?? []).map((v) => ({
+          locationName: v.locationName,
+          cells: [String(v.activeTables), String(v.totalTables), pctLabel(v.occupancyPct)],
+        })),
+      }
+    }
     case 'gewerkt':
       return {
         title: 'All uren',

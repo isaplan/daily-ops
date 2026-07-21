@@ -63,6 +63,22 @@
           Keuk {{ fmtHours(digest.openingClosing.keuken.outsideHours) }} · Bed {{ fmtHours(digest.openingClosing.bediening.outsideHours) }}
         </p>
       </div>
+      <div
+        v-if="digest.tableOccupancy"
+        class="rounded-lg border border-gray-200 bg-white p-4 shadow-sm"
+      >
+        <p class="text-xs font-semibold uppercase text-gray-500">Bezettingsgraad</p>
+        <p class="text-2xl font-bold tabular-nums">{{ pct(digest.tableOccupancy.occupancyPct) }}</p>
+        <p class="mt-1 text-xs text-gray-600">
+          {{ formatActiveTables(digest.tableOccupancy.activeTables) }} / {{ digest.tableOccupancy.totalTables }} tables
+        </p>
+        <p class="mt-1 text-xs text-gray-600">
+          vs prev: {{ formatPctDelta(digest.comparisons.previousWeek?.occupancyPct) }}
+        </p>
+        <p class="mt-0.5 text-xs text-gray-500">
+          vs 12-avg: {{ formatVsAvg(digest.tableOccupancy.occupancyPct, digest.comparisons.rolling12Week?.avgOccupancyPct ?? null) }}
+        </p>
+      </div>
     </div>
 
     <DailyOpsAnalyticsWeeklyDailyRevenueChart
@@ -107,5 +123,23 @@ function formatDelta(metric: WeeklyCompareMetric): string {
   const sign = metric.delta >= 0 ? '+' : ''
   const pctPart = metric.pct != null ? ` (${sign}${metric.pct}%)` : ''
   return `${sign}${formatEur(metric.delta)}${pctPart}`
+}
+
+function formatActiveTables(n: number): string {
+  return Number.isInteger(n) ? String(n) : n.toFixed(1)
+}
+
+function formatPctDelta(metric: WeeklyCompareMetric | undefined): string {
+  if (!metric) return '—'
+  const sign = metric.delta >= 0 ? '+' : ''
+  const pctPart = metric.pct != null ? ` (${sign}${metric.pct}%)` : ''
+  return `${sign}${metric.delta.toFixed(1)} pp${pctPart}`
+}
+
+function formatVsAvg(current: number | null, avg: number | null): string {
+  if (current == null || avg == null) return '—'
+  const delta = Math.round((current - avg) * 10) / 10
+  const sign = delta >= 0 ? '+' : ''
+  return `${sign}${delta} pp (avg ${avg}%)`
 }
 </script>

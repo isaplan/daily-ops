@@ -1,9 +1,9 @@
 /**
  * @registry-id: dailyOpsSnapshotBuildRevenueTablesSection
  * @created: 2026-05-20T00:00:00.000Z
- * @last-modified: 2026-06-05T12:00:00.000Z
+ * @last-modified: 2026-07-17T18:05:00.000Z
  * @description: Per-table revenue snapshot from bork_sales_by_table (aggregated per table per day)
- * @last-fix: [2026-06-05] Scale table revenues proportionally to Inbox headline when provided
+ * @last-fix: [2026-07-17] Upsert learned venue tables catalog on snapshot build
  *
  * @exports-to:
  * ✓ server/services/dailyOpsSnapshotService.ts
@@ -17,6 +17,7 @@ import {
   loadLocationRevenueSpaces,
   resolveSpaceNameForTable,
 } from '../locationSpaceResolver'
+import { upsertKnownVenueTables } from '../dailyOpsVenueTables/upsertKnownTables'
 import type { DailyOpsSnapshotRevenueTablesSection } from '../../../types/daily-ops-snapshot'
 import type { BuildRevenueInput } from './buildRevenueSection'
 
@@ -71,6 +72,19 @@ export async function buildRevenueTablesSection(
   const tables = scale === 1
     ? rawTables
     : rawTables.map((t) => ({ ...t, revenue_ex_vat: Math.round(t.revenue_ex_vat * scale * 100) / 100 }))
+
+  if (tables.length > 0) {
+    await upsertKnownVenueTables(
+      db,
+      tables.map((t) => ({
+        locationId,
+        locationName,
+        tableNum: t.tableNum,
+        locationSpace: t.locationSpace,
+        businessDate,
+      })),
+    )
+  }
 
   return {
     schema_version: 1,

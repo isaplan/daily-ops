@@ -1,9 +1,9 @@
 /**
  * @registry-id: dailyOpsWeeklyReportTypes
  * @created: 2026-07-09T00:00:00.000Z
- * @last-modified: 2026-07-09T15:30:00.000Z
+ * @last-modified: 2026-07-20T00:00:00.000Z
  * @description: Weekly digest DTOs — read-cache profile weekly-digest (ADR-013)
- * @last-fix: [2026-07-09] openingClosing summary for pre-open / post-close KPI
+ * @last-fix: [2026-07-20] tableOccupancy + rolling12 occupancy comparisons
  * @adr-ref: ADR-004, ADR-013
  *
  * @exports-to:
@@ -128,19 +128,46 @@ export type WeeklyCompareTrend = {
     revenue: WeeklyCompareMetric
     laborCostPct: WeeklyCompareMetric
     pnlPct: WeeklyCompareMetric
+    occupancyPct: WeeklyCompareMetric
   }
   rolling3Week: {
     label: string
     avgRevenue: number
     avgLaborCostPct: number | null
     avgPnlPct: number | null
+    avgOccupancyPct: number | null
   }
   rolling6Week: {
     label: string
     avgRevenue: number
     avgLaborCostPct: number | null
     avgPnlPct: number | null
+    avgOccupancyPct: number | null
   }
+  rolling12Week: {
+    label: string
+    avgRevenue: number
+    avgLaborCostPct: number | null
+    avgPnlPct: number | null
+    avgOccupancyPct: number | null
+  }
+}
+
+export type WeeklyTableOccupancyVenue = {
+  locationId: string
+  locationName: string
+  activeTables: number
+  totalTables: number
+  occupancyPct: number | null
+}
+
+/** Avg daily bezettingsgraad for the digest period (sealed at build). */
+export type WeeklyTableOccupancySummary = {
+  activeTables: number
+  totalTables: number
+  occupancyPct: number | null
+  aggregation: 'day' | 'avg_daily'
+  venues: WeeklyTableOccupancyVenue[]
 }
 
 export type WeeklyDigestTotals = {
@@ -234,6 +261,7 @@ export type WeeklyDigestDto = {
   attendance: WeeklyAttendanceSummary
   staffPlusmin: WeeklyStaffPlusminSummary
   openingClosing: WeeklyOpeningClosingSummary
+  tableOccupancy: WeeklyTableOccupancySummary
   dataGap: boolean
   builtAt: string
   /** Bump when digest shape / prev-week mapping changes (cache invalidation). */

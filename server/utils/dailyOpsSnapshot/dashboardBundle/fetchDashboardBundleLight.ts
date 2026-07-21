@@ -19,9 +19,11 @@ import type {
   PeriodBreakdownDto,
   VenueStripResponseDto,
 } from '~/types/daily-ops-dashboard'
+import type { DailyOpsTableOccupancyKpisDto } from '~/types/daily-ops-venue-tables'
 import type { DailyOpsMetricsContext } from '../../dailyOpsMetrics/context'
 import { buildDailyOpsSummaryDto } from '../../dailyOpsMetrics/dtoBuilders'
 import { loadPnlAssumptions } from '../../appSettings/pnlAssumptionsSetting'
+import { buildTableOccupancySummary } from '../../dailyOpsVenueTables/buildTableOccupancySummary'
 import { aggregateLaborForRange } from '../aggregateLaborForRange'
 import { buildPeriodBreakdownFromLaborMetrics } from '../buildPeriodBreakdown'
 import { assembleLaborFromSnapshots } from './assembleLaborDto'
@@ -36,6 +38,7 @@ type LightDashboardBundleDto = {
   labor: DailyOpsLaborMetricsDto
   venueStrip?: VenueStripResponseDto
   periodBreakdown?: PeriodBreakdownDto
+  tableOccupancy?: DailyOpsTableOccupancyKpisDto
 }
 
 const EMPTY_PROFIT_BY_INTERVAL: DailyOpsProfitByIntervalDto = {
@@ -117,6 +120,12 @@ export async function fetchDashboardBundleLight(
     periodBreakdown: buildPeriodBreakdownFromLaborMetrics(labor, ctx.startDate, ctx.endDate, {
       assumptions: pnlAssumptions,
       categoryTotals: { food: 0, drinks: 0 },
+    }),
+    tableOccupancy: await buildTableOccupancySummary(db, {
+      startDate: ctx.startDate,
+      endDate: ctx.endDate,
+      locationId: ctx.locationId,
+      period: ctx.period,
     }),
   }
 }
