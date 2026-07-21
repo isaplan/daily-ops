@@ -27,6 +27,12 @@
         </div>
         <p class="text-2xl font-bold">{{ pct(digest.totals.pnlPct) }}</p>
         <p class="mt-1 text-xs text-gray-600">Target ≥ {{ digest.targets.pnlTargetPct }}%</p>
+        <p class="mt-1 text-xs text-gray-600">
+          vs prev: {{ formatPctDelta(digest.comparisons.previousWeek?.pnlPct) }}
+        </p>
+        <p class="mt-0.5 text-xs text-gray-500">
+          vs 12-avg: {{ formatVsAvg(digest.totals.pnlPct, digest.comparisons.rolling12Week?.avgPnlPct ?? null) }}
+        </p>
       </div>
       <div class="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
         <p class="text-xs font-semibold uppercase text-gray-500">€ / hour</p>
