@@ -43,9 +43,7 @@ if (CURRENT_TZ !== APP_TIMEZONE && CURRENT_TZ !== 'local') {
 
 const scheduledTasks: Record<string, string[]> = {}
 if (!enableNitroScheduled) {
-  console.log(
-    '[NUXT CONFIG] Nitro scheduled tasks disabled (not production). DO runs crons; set ENABLE_NITRO_SCHEDULED_TASKS=1 to test locally.',
-  )
+  // Nitro scheduled tasks disabled (not production). DO runs crons; set ENABLE_NITRO_SCHEDULED_TASKS=1 to test locally.
 }
 if (enableNitroScheduled && !disableInboxSchedule) {
   /**
@@ -154,17 +152,57 @@ export default defineNuxtConfig({
     port: 8080,
   },
   compatibilityDate: '2026-03-12',
+  /** DevTools: disabled by default (saves ~83s cold start). Set DEVTOOLS=1 to enable. */
+  devtools: {
+    enabled: process.env.DEVTOOLS === '1',
+  },
   ui: {
     colorMode: false,
   },
   vite: {
     optimizeDeps: {
-      include: ['d3'],
+      /**
+       * Pre-bundle all heavy client deps during Vite startup.
+       * Prevents on-demand discovery per-import (was causing 139s plugins.client.mjs compile).
+       */
+      include: [
+        'd3',
+        '@tiptap/vue-3',
+        '@tiptap/starter-kit',
+        '@tiptap/extension-placeholder',
+        'pdfjs-dist',
+        'xlsx',
+        'date-holidays',
+        'papaparse',
+      ],
+    },
+    build: {
+      rollupOptions: {
+        output: {
+          /**
+           * Split heavy deps into dedicated chunks so the main bundle stays lean.
+           * Improves both cold production build speed and browser caching.
+           */
+          manualChunks: (id: string) => {
+            if (id.includes('node_modules/d3') || id.includes('node_modules/d3-')) return 'vendor-d3'
+            if (id.includes('node_modules/@tiptap')) return 'vendor-tiptap'
+            if (id.includes('node_modules/pdfjs-dist')) return 'vendor-pdfjs'
+            if (id.includes('node_modules/xlsx')) return 'vendor-xlsx'
+            if (id.includes('node_modules/date-holidays')) return 'vendor-date-holidays'
+            if (id.includes('node_modules/papaparse')) return 'vendor-papaparse'
+          },
+        },
+      },
     },
     /** Warm common entry files so `client.manifest.mjs` exists before first browser hit (reduces dev race). */
     server: {
       warmup: {
-        clientFiles: ['./app.vue', './pages/daily-ops/inbox/index.vue'],
+        clientFiles: [
+          './app.vue',
+          './pages/daily-ops/inbox/index.vue',
+          './pages/daily-ops/revenue/index.vue',
+          './pages/daily-ops/index.vue',
+        ],
       },
     },
   },

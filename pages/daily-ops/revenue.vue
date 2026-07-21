@@ -14,6 +14,6 @@
  * @imports-data-from: composables/useDailyOpsRevenueMetrics.ts (via RevenuePage)
  */
 definePageMeta({
-  keepalive: true,
+  keepalive: false,
 })
 </script>

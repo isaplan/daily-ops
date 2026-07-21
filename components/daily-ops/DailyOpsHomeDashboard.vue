@@ -31,13 +31,18 @@
 
       <UAlert v-if="error" color="error" variant="soft" title="Could not load dashboard" :description="String(error)" />
 
-      <!-- P&L / daypart must not sit behind pending — venue strip has its own fetch and was the only thing visible -->
-      <DailyOpsRevenueMetricsSection
-        :period="period"
-        :revenue="revenue"
-        :pending="pending && !revenue"
-        @refresh="() => void refreshMetrics()"
-      />
+      <!-- P&L / daypart deferred async so d3 doesn't block initial paint -->
+      <Suspense>
+        <DailyOpsRevenueMetricsSection
+          :period="period"
+          :revenue="revenue"
+          :pending="pending && !revenue"
+          @refresh="() => void refreshMetrics()"
+        />
+        <template #fallback>
+          <div class="h-48 animate-pulse rounded-lg bg-gray-100" />
+        </template>
+      </Suspense>
 
       <DailyOpsProductivitySummary
         v-if="isProductivityView && summary"
@@ -79,6 +84,10 @@
  */
 
 import WorkerDetailsDrawer from '~/components/daily-ops/WorkerDetailsDrawer.vue'
+// Defer d3-heavy revenue metrics section — loads after initial paint
+const DailyOpsRevenueMetricsSection = defineAsyncComponent(
+  () => import('~/components/daily-ops/DailyOpsRevenueMetricsSection.vue'),
+)
 
 const props = withDefaults(
   defineProps<{
