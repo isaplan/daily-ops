@@ -1,14 +1,16 @@
 /**
  * @registry-id: dailyOpsVenueTablesTypes
  * @created: 2026-07-17T18:05:00.000Z
- * @last-modified: 2026-07-20T00:00:00.000Z
+ * @last-modified: 2026-07-22T00:00:00.000Z
  * @description: Learned Bork table inventory per venue (catalog for bezettingsgraad)
- * @last-fix: [2026-07-20] Avg-daily aggregation + optional daily series
+ * @last-fix: [2026-07-22] Multi-grain series + avgMonthlyOccupancyPct for yearly
+ *   Prior: [2026-07-20] Avg-daily aggregation + optional daily series
  *
  * @exports-to:
  * ✓ server/utils/dailyOpsVenueTables/upsertKnownTables.ts
  * ✓ server/utils/dailyOpsVenueTables/fetchTableOccupancyKpis.ts
  * ✓ server/utils/dailyOpsVenueTables/buildTableOccupancySummary.ts
+ * ✓ server/utils/dailyOpsVenueTables/buildOccupancySeries.ts
  * ✓ types/daily-ops-dashboard.ts
  */
 
@@ -43,6 +45,29 @@ export type DailyOpsTableOccupancyDayDto = {
   occupancyPct: number | null
 }
 
+export type DailyOpsOccupancyGrain =
+  | 'hour'
+  | 'day'
+  | 'dayOfWeek'
+  | 'week'
+  | 'weekOfMonth'
+  | 'month'
+  | 'monthOfYear'
+  | 'year'
+
+export type DailyOpsOccupancySeriesPoint = {
+  key: string
+  label: string
+  activeTables: number
+  totalTables: number
+  occupancyPct: number | null
+}
+
+export type DailyOpsOccupancySeriesByGrain = Record<
+  DailyOpsOccupancyGrain,
+  DailyOpsOccupancySeriesPoint[]
+>
+
 export type DailyOpsTableOccupancyKpisDto = {
   range: {
     period: string
@@ -57,4 +82,8 @@ export type DailyOpsTableOccupancyKpisDto = {
   daily?: DailyOpsTableOccupancyDayDto[]
   /** How activeTables / occupancyPct were aggregated. */
   aggregation?: 'day' | 'avg_daily'
+  /** Sealed multi-grain series for charts (ADR-013 write path). */
+  series?: DailyOpsOccupancySeriesByGrain
+  /** Yearly: mean of monthly occupancyPct values. */
+  avgMonthlyOccupancyPct?: number | null
 }

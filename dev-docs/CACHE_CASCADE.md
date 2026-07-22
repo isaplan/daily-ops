@@ -88,7 +88,7 @@ flowchart LR
 
 | Profile | daily | weekly | monthly | yearly | Status |
 |---------|-------|--------|---------|--------|--------|
-| `dashboard-bundle` | full detail + strip | totals | totals | totals | Partial → migrate to Mongo |
+| `dashboard-bundle` | full detail + strip + **tableOccupancy** (headline + multi-grain `series`) | totals + occupancy | totals + occupancy + **avgMonthlyOccupancyPct** | totals + occupancy | Partial → migrate to Mongo |
 | `staff-timeseries` | points + teams | summed | summed | summed | **Not built** |
 | `staff-plusmin` | — | — | totals | totals | **Not built** |
 | `revenue-summary` | KPI totals | totals | totals | totals | **Reserved** |

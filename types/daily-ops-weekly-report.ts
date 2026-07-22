@@ -168,6 +168,8 @@ export type WeeklyTableOccupancySummary = {
   occupancyPct: number | null
   aggregation: 'day' | 'avg_daily'
   venues: WeeklyTableOccupancyVenue[]
+  /** Present on yearly-ish digests: mean of monthly occupancy %. */
+  avgMonthlyOccupancyPct?: number | null
 }
 
 export type WeeklyDigestTotals = {

@@ -40,6 +40,7 @@ import { amsterdamOpenRegisterBusinessDateYmd } from '~/utils/dailyOpsBusinessDa
 import { loadPnlAssumptions } from '../appSettings/pnlAssumptionsSetting'
 import { fetchCheckInsLaborByBusinessDateHour } from '../venueStrip/checkInLaborByHour'
 import { buildTableOccupancySummary } from '../dailyOpsVenueTables/buildTableOccupancySummary'
+import { buildHourOccupancySeriesFromRevenue } from '../dailyOpsVenueTables/buildOccupancySeries'
 import { aggregateLaborForRange } from './aggregateLaborForRange'
 import { buildProfitByIntervalFromSnapshotHourly } from './buildProfitByIntervalFromSnapshot'
 import { buildRevenueDrilldownSection } from './buildRevenueDrilldownSection'
@@ -227,12 +228,29 @@ export async function fetchDailyOpsDashboardBundle(
           categoryTotals: cat,
         })
 
-  const tableOccupancy = await buildTableOccupancySummary(db, {
+  const tableOccupancyRaw = await buildTableOccupancySummary(db, {
     startDate: ctx.startDate,
     endDate: ctx.endDate,
     locationId: ctx.locationId,
     period: ctx.period,
   })
+
+  const hourlyRows = revenue.drilldown?.hourlyRows
+  const tableOccupancy =
+    ctx.startDate === ctx.endDate && hourlyRows?.length && tableOccupancyRaw.series
+      ? {
+          ...tableOccupancyRaw,
+          series: {
+            ...tableOccupancyRaw.series,
+            hour: buildHourOccupancySeriesFromRevenue(
+              tableOccupancyRaw.activeTables,
+              tableOccupancyRaw.totalTables,
+              tableOccupancyRaw.occupancyPct,
+              hourlyRows,
+            ),
+          },
+        }
+      : tableOccupancyRaw
 
   return { summary, revenue, labor, periodBreakdown, tableOccupancy }
 }

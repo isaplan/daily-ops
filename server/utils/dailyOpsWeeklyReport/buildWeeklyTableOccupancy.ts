@@ -40,5 +40,8 @@ export async function buildWeeklyTableOccupancy(
       totalTables: v.totalTables,
       occupancyPct: v.occupancyPct,
     })),
+    ...(occ.avgMonthlyOccupancyPct != null
+      ? { avgMonthlyOccupancyPct: occ.avgMonthlyOccupancyPct }
+      : {}),
   }
 }

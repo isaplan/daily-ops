@@ -1,9 +1,10 @@
 /**
  * @registry-id: dailyOpsBuildTableOccupancySummary
  * @created: 2026-07-20T00:00:00.000Z
- * @last-modified: 2026-07-20T00:00:00.000Z
+ * @last-modified: 2026-07-22T00:00:00.000Z
  * @description: Active tables + bezettingsgraad (daily or avg-of-daily for ranges)
- * @last-fix: [2026-07-20] Avg daily occupancy for multi-day periods
+ * @last-fix: [2026-07-22] Seal multi-grain series + avgMonthlyOccupancyPct on rollups
+ *   Prior: [2026-07-20] Avg daily occupancy for multi-day periods
  * @adr-ref: ADR-004, ADR-013
  *
  * @exports-to:
@@ -26,6 +27,10 @@ import {
   ensureVenueTablesIndex,
   normalizeLocationId,
 } from './collection'
+import {
+  buildOccupancySeriesByGrain,
+  combineDailyOccupancyPoints,
+} from './buildOccupancySeries'
 
 export function occupancyPct(active: number, total: number): number | null {
   if (total <= 0) return null
@@ -46,6 +51,22 @@ export type BuildTableOccupancyOpts = {
   endDate: string
   locationId?: string
   period?: string
+}
+
+function withSeries(dto: DailyOpsTableOccupancyKpisDto): DailyOpsTableOccupancyKpisDto {
+  const dayPoints = dto.daily?.length
+    ? combineDailyOccupancyPoints(dto.daily)
+    : [{
+        key: dto.range.startDate,
+        label: dto.range.startDate,
+        activeTables: dto.activeTables,
+        totalTables: dto.totalTables,
+        occupancyPct: dto.occupancyPct,
+      }]
+  return {
+    ...dto,
+    series: buildOccupancySeriesByGrain(dayPoints),
+  }
 }
 
 export async function buildTableOccupancySummary(
@@ -89,7 +110,6 @@ export async function buildTableOccupancySummary(
     totalByLocation.set(locationId, (totalByLocation.get(locationId) ?? 0) + 1)
   }
 
-  /** locationId → businessDate → Set<tableNum> */
   const activeByLocDate = new Map<string, Map<string, Set<string>>>()
   for (const doc of snapshotDocs) {
     const locationId = normalizeLocationId(doc.locationId)
@@ -139,11 +159,10 @@ export async function buildTableOccupancySummary(
       }
     }
 
-    const avgActive = mean(dayActives) ?? 0
     return {
       locationId: v.locationId,
       locationName: v.locationName,
-      activeTables: avgActive,
+      activeTables: mean(dayActives) ?? 0,
       totalTables,
       occupancyPct: mean(dayPcts),
     }
@@ -153,7 +172,7 @@ export async function buildTableOccupancySummary(
   const totalTables = venueDtos.reduce((sum, v) => sum + v.totalTables, 0)
   const venuePcts = venueDtos.map((v) => v.occupancyPct).filter((p): p is number => p != null)
 
-  return {
+  return withSeries({
     range: {
       period: opts.period ?? (multiDay ? 'range' : 'day'),
       startDate: opts.startDate,
@@ -167,7 +186,7 @@ export async function buildTableOccupancySummary(
     venues: venueDtos,
     daily: multiDay ? daily : undefined,
     aggregation: multiDay ? 'avg_daily' : 'day',
-  }
+  })
 }
 
 /** Average sealed daily occupancy payloads (dashboard week/month/year rollup). */
@@ -203,12 +222,42 @@ export function averageTableOccupancyPayloads(
   const totalTables = list.reduce((s, v) => s + v.totalTables, 0)
   const pcts = list.map((v) => v.occupancyPct).filter((p): p is number => p != null)
 
-  return {
+  const daily: DailyOpsTableOccupancyDayDto[] = []
+  for (const p of parts) {
+    if (p.daily?.length) {
+      daily.push(...p.daily)
+      continue
+    }
+    for (const v of p.venues) {
+      daily.push({
+        date: p.range.startDate,
+        locationId: v.locationId,
+        locationName: v.locationName,
+        activeTables: v.activeTables,
+        totalTables: v.totalTables,
+        occupancyPct: v.occupancyPct,
+      })
+    }
+  }
+
+  const looksYearly = range.period === 'year' || range.period === 'this-year'
+    || (range.startDate.endsWith('-01-01') && range.endDate.slice(5, 7) === '12')
+  const avgMonthlyOccupancyPct = looksYearly
+    ? mean(
+      parts
+        .map((p) => p.avgMonthlyOccupancyPct ?? p.occupancyPct)
+        .filter((n): n is number => n != null),
+    )
+    : undefined
+
+  return withSeries({
     range,
     activeTables,
     totalTables,
     occupancyPct: mean(pcts),
     venues: list,
+    daily: daily.length ? daily : undefined,
     aggregation: 'avg_daily',
-  }
+    ...(avgMonthlyOccupancyPct != null ? { avgMonthlyOccupancyPct } : {}),
+  })
 }

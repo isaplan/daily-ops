@@ -58,11 +58,11 @@
 <script setup lang="ts">
 /**
  * @description: Dashboard KPI tiles with lazy drawer fetches
- * @last-modified: 2026-07-17T18:05:00.000Z
- * @last-fix: [2026-07-17] Active tables + bezettingsgraad KPI tile
+ * @last-modified: 2026-07-22T00:00:00.000Z
+ * @last-fix: [2026-07-22] Occupancy from sealed bundle prop (ADR-013); no live KPI fetch
  * @adr-ref: ADR-004, ADR-010, ADR-013
  * @data-source: mixed
- * @read-cache-json: dashboard-bundle summary + lazy GET /api/daily-ops/metrics/attendance-kpis, contract-hours-variance, table-occupancy-kpis
+ * @read-cache-json: dashboard-bundle summary + tableOccupancy; lazy GET attendance-kpis, contract-hours-variance
  * @imports-data-from: props + GET /api/daily-ops/metrics/*
  */
 
@@ -104,6 +104,8 @@ const props = defineProps<{
   period: string
   anchor?: string | null
   summary?: DailyOpsSummaryDto | null
+  /** Sealed from dashboard-bundle (ADR-013) — no live occupancy GET. */
+  tableOccupancy?: DailyOpsTableOccupancyKpisDto | null
 }>()
 
 const { formatEurWhole, formatHoursWhole, formatPctWhole, formatEurPerHourWhole } = useDashboardKpiFormat()
@@ -146,9 +148,41 @@ const attendanceData = ref<DailyOpsAttendanceKpisDto | null>(null)
 const attendancePending = ref(false)
 const attendanceError = ref<string | null>(null)
 const attendanceLoadedForKey = ref<string | null>(null)
-const tableOccupancyData = ref<DailyOpsTableOccupancyKpisDto | null>(null)
-const tableOccupancyPending = ref(false)
-const tableOccupancyLoadedForKey = ref<string | null>(null)
+const tableOccupancyData = computed(() => props.tableOccupancy ?? null)
+const tableOccupancyFallback = ref<DailyOpsTableOccupancyKpisDto | null>(null)
+const tableOccupancyFallbackKey = ref<string | null>(null)
+
+const resolvedOccupancy = computed(
+  () => tableOccupancyData.value ?? tableOccupancyFallback.value,
+)
+
+async function ensureOccupancyFallback (): Promise<void> {
+  if (tableOccupancyData.value) return
+  const key = cacheKey.value
+  if (tableOccupancyFallbackKey.value === key && tableOccupancyFallback.value) return
+  try {
+    const params = new URLSearchParams(stripQuery.value).toString()
+    tableOccupancyFallback.value = await $fetch<DailyOpsTableOccupancyKpisDto>(
+      `/api/daily-ops/metrics/table-occupancy-kpis?${params}`,
+    )
+    tableOccupancyFallbackKey.value = key
+  } catch {
+    tableOccupancyFallback.value = null
+  }
+}
+
+watch(
+  [cacheKey, tableOccupancyData],
+  () => {
+    if (tableOccupancyData.value) {
+      tableOccupancyFallback.value = null
+      tableOccupancyFallbackKey.value = null
+      return
+    }
+    void ensureOccupancyFallback()
+  },
+  { immediate: true },
+)
 const activeDrawer = ref<KpiTileId | null>(null)
 
 const attendanceDrawerIds = new Set<KpiTileId>(['planned', 'leave', 'sick'])
@@ -176,30 +210,10 @@ async function loadAttendanceKpis (): Promise<void> {
   }
 }
 
-async function loadTableOccupancyKpis (): Promise<void> {
-  if (tableOccupancyPending.value) return
-  if (tableOccupancyData.value && tableOccupancyLoadedForKey.value === cacheKey.value) return
-
-  tableOccupancyPending.value = true
-  try {
-    const params = new URLSearchParams(stripQuery.value).toString()
-    tableOccupancyData.value = await $fetch<DailyOpsTableOccupancyKpisDto>(
-      `/api/daily-ops/metrics/table-occupancy-kpis?${params}`,
-    )
-    tableOccupancyLoadedForKey.value = cacheKey.value
-  } catch {
-    tableOccupancyData.value = null
-  } finally {
-    tableOccupancyPending.value = false
-  }
-}
-
 watch(cacheKey, () => {
   attendanceData.value = null
   attendanceError.value = null
   attendanceLoadedForKey.value = null
-  tableOccupancyData.value = null
-  tableOccupancyLoadedForKey.value = null
 })
 
 const isRangePeriod = computed(() =>
@@ -210,14 +224,12 @@ watch(
   cacheKey,
   () => {
     if (!isRangePeriod.value) void loadAttendanceKpis()
-    void loadTableOccupancyKpis()
   },
   { immediate: true },
 )
 
 watch(activeDrawer, (id: KpiTileId | null) => {
   if (isAttendanceDrawerId(id)) void loadAttendanceKpis()
-  if (id === 'activeTables') void loadTableOccupancyKpis()
 })
 
 const totals = computed(() => {
@@ -287,7 +299,9 @@ const totals = computed(() => {
 
 const tiles = computed(() => {
   const t = totals.value
+  const _occ = resolvedOccupancy.value
   if (!t) return []
+  void _occ
   return [
     { id: 'revenue' as const, label: 'Total Revenue', display: formatEurWhole(t.revenue), opensDrawer: true },
     { id: 'labor' as const, label: 'Total Labor Cost', display: formatEurWhole(t.laborGewerktLoaded), opensDrawer: true },
@@ -371,8 +385,8 @@ function formatPlannedToActualTile (): string {
 }
 
 function formatActiveTablesTile (): string {
-  const data = tableOccupancyData.value
-  if (!data) return tableOccupancyPending.value ? '…' : '0'
+  const data = resolvedOccupancy.value
+  if (!data) return '…'
   const pct = data.occupancyPct
   if (pct == null) return String(data.activeTables)
   const pctLabel = Number.isInteger(pct) ? `${pct}%` : `${pct.toFixed(1)}%`
@@ -382,7 +396,6 @@ function formatActiveTablesTile (): string {
 function openTile (id: KpiTileId): void {
   activeDrawer.value = id
   if (attendanceDrawerIds.has(id)) void loadAttendanceKpis()
-  if (id === 'activeTables') void loadTableOccupancyKpis()
 }
 
 function venueRevenueRows (): KpiDrawerVenueRow[] {
@@ -703,7 +716,7 @@ const drawerContent = computed(() => {
         venueSections: venueSectionsForActive(),
       }
     case 'activeTables': {
-      const occ = tableOccupancyData.value
+      const occ = resolvedOccupancy.value
       const pctLabel = (pct: number | null | undefined) =>
         pct == null ? '—' : formatPctWhole(pct)
       return {
@@ -714,6 +727,9 @@ const drawerContent = computed(() => {
           { label: 'Active tables', value: String(occ?.activeTables ?? 0) },
           { label: 'Total tables (catalog)', value: String(occ?.totalTables ?? 0) },
           { label: 'Bezettingsgraad', value: pctLabel(occ?.occupancyPct) },
+          ...(occ?.avgMonthlyOccupancyPct != null
+            ? [{ label: 'Avg monthly occupancy', value: pctLabel(occ.avgMonthlyOccupancyPct) }]
+            : []),
         ],
         venueColumns: ['Active', 'Total', 'Bezettingsgraad'],
         venueRows: (occ?.venues ?? []).map((v) => ({

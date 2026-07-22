@@ -17,6 +17,7 @@
         :period="period"
         :anchor="anchor"
         :summary="summary"
+        :table-occupancy="tableOccupancy"
       />
 
       <DailyOpsVenueStrip :period="period" :anchor="anchor" :period-breakdown="periodBreakdown" />
@@ -36,6 +37,7 @@
         <DailyOpsRevenueMetricsSection
           :period="period"
           :revenue="revenue"
+          :table-occupancy="tableOccupancy"
           :pending="pending && !revenue"
           @refresh="() => void refreshMetrics()"
         />
@@ -74,8 +76,9 @@
 <script setup lang="ts">
 /**
  * @description: Home dashboard — KPI, venue strip, revenue + labor sections
- * @last-modified: 2026-07-16T12:00:00.000Z
- * @last-fix: [2026-07-16] Always mount revenue/P&L below strip — was hidden when pending stuck
+ * @last-modified: 2026-07-22T00:00:00.000Z
+ * @last-fix: [2026-07-22] Wire sealed tableOccupancy + Bezettingsgraad chart section
+ *   Prior: [2026-07-16] Always mount revenue/P&L below strip — was hidden when pending stuck
  *   Prior: [2026-07-16] Pass bundle revenue into metrics section (single metrics instance)
  * @adr-ref: ADR-004, ADR-010, ADR-013
  * @data-source: read-cache
@@ -120,11 +123,12 @@ const locationTitle = computed(() => {
   return hit?.name ?? 'Selected Location'
 })
 
-const { summary: summaryRef, revenue: revenueRef, labor: laborRef, periodBreakdown: periodBreakdownRef, pending, error, refresh: refreshMetrics } = useDailyOpsDashboardMetrics()
+const { summary: summaryRef, revenue: revenueRef, labor: laborRef, periodBreakdown: periodBreakdownRef, tableOccupancy: tableOccupancyRef, pending, error, refresh: refreshMetrics } = useDailyOpsDashboardMetrics()
 const summary = computed(() => summaryRef.value ?? null)
 const revenue = computed(() => revenueRef.value ?? null)
 const labor = computed(() => laborRef.value ?? null)
 const periodBreakdown = computed(() => periodBreakdownRef.value ?? null)
+const tableOccupancy = computed(() => tableOccupancyRef.value ?? null)
 
 const snapshotCoverageAlert = computed(() => {
   const cov = summary.value?.snapshotCoverage

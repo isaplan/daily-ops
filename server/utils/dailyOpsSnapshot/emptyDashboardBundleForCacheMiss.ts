@@ -98,5 +98,5 @@ export function emptyDashboardBundleForCacheMiss(
     productivityByLocationDay: [],
   } as DailyOpsLaborMetricsDto
 
-  return { summary, revenue, labor }
+  return { summary, revenue, labor, tableOccupancy: undefined }
 }

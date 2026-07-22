@@ -84,6 +84,12 @@
         <p class="mt-0.5 text-xs text-gray-500">
           vs 12-avg: {{ formatVsAvg(digest.tableOccupancy.occupancyPct, digest.comparisons.rolling12Week?.avgOccupancyPct ?? null) }}
         </p>
+        <p
+          v-if="digest.tableOccupancy.avgMonthlyOccupancyPct != null"
+          class="mt-0.5 text-xs text-gray-500"
+        >
+          Avg monthly: {{ pct(digest.tableOccupancy.avgMonthlyOccupancyPct) }}
+        </p>
       </div>
     </div>
 
