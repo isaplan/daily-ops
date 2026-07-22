@@ -1,10 +1,10 @@
 /**
  * @registry-id: dailyOpsMetricsBundle
  * @created: 2026-05-18T00:00:00.000Z
- * @last-modified: 2026-07-22T00:00:00.000Z
+ * @last-modified: 2026-07-22T12:00:00.000Z
  * @description: Dashboard metrics bundle — read daily_ops_read_cache only (ADR-013)
- * @last-fix: [2026-07-22] Return sealed tableOccupancy from cache (no strip)
- *   Prior: [2026-07-16] GET never live-rebuilds — cache miss returns empty gap (ADR-013)
+ * @last-fix: [2026-07-22] Backfill missing tableOccupancy from sealed snapshots on GET
+ *   Prior: [2026-07-22] Return sealed tableOccupancy from cache (no strip)
  * @adr-ref: ADR-004, ADR-010, ADR-013
  * @data-source: read-cache
  * @read-cache-json: daily_ops_read_cache · profile=dashboard-bundle · levels=daily|weekly|monthly|yearly
@@ -19,8 +19,9 @@ import { snapshotCacheControl } from '../../../utils/dailyOpsSnapshot/dashboardB
 import { loadCachedDashboardBundle } from '../../../utils/dailyOpsSnapshot/cacheCascade'
 import { bundleDashboardSectionsIncomplete } from '../../../utils/dailyOpsSnapshot/bundleInvariant'
 import { emptyDashboardBundleForCacheMiss } from '../../../utils/dailyOpsSnapshot/emptyDashboardBundleForCacheMiss'
+import { withResolvedTableOccupancy } from '../../../utils/dailyOpsSnapshot/ensureBundleTableOccupancy'
 
-function bundlePayload(cached: NonNullable<Awaited<ReturnType<typeof loadCachedDashboardBundle>>>) {
+function bundlePayload(cached: Awaited<ReturnType<typeof withResolvedTableOccupancy>>) {
   return {
     summary: cached.summary,
     revenue: cached.revenue,
@@ -38,11 +39,11 @@ export default defineEventHandler(async (event) => {
   const cached = await loadCachedDashboardBundle(db, ctx)
 
   if (cached && !bundleDashboardSectionsIncomplete(cached)) {
-    return bundlePayload(cached)
+    return bundlePayload(await withResolvedTableOccupancy(db, ctx, cached))
   }
 
   if (cached) {
-    return bundlePayload(cached)
+    return bundlePayload(await withResolvedTableOccupancy(db, ctx, cached))
   }
 
   const gap = emptyDashboardBundleForCacheMiss(ctx)
@@ -51,6 +52,6 @@ export default defineEventHandler(async (event) => {
     revenue: gap.revenue,
     labor: gap.labor,
     periodBreakdown: gap.periodBreakdown,
-    tableOccupancy: gap.tableOccupancy,
+    tableOccupancy: await withResolvedTableOccupancy(db, ctx, gap).then((b) => b.tableOccupancy),
   }
 })
