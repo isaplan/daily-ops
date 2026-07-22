@@ -12,6 +12,10 @@
       :data="profitByInterval"
       :period="periodAsId"
     />
+    <DailyOpsOccupancySection
+      :data="tableOccupancy"
+      :period="period"
+    />
     <DailyOpsRevenueDrilldownSection
       v-if="revenue?.drilldown"
       :data="revenue.drilldown"
@@ -24,12 +28,12 @@
 <script setup lang="ts">
 /**
  * @description: Dashboard revenue drilldown section
- * @last-modified: 2026-07-16T12:00:00.000Z
- * @last-fix: [2026-07-16] Show daypart P&L whenever revenue is present (week/month/year too)
- *   Prior: [2026-07-16] Consume parent bundle props — no second metrics instance
+ * @last-modified: 2026-07-22T01:05:00.000Z
+ * @last-fix: [2026-07-22] Bezettingsgraad chart below Profit by Time of Day
+ *   Prior: [2026-07-16] Show daypart P&L whenever revenue is present (week/month/year too)
  * @adr-ref: ADR-004, ADR-010, ADR-013
  * @data-source: read-cache
- * @read-cache-json: dashboard-bundle revenue slice
+ * @read-cache-json: dashboard-bundle revenue + tableOccupancy
  * @imports-data-from: components/daily-ops/DailyOpsHomeDashboard.vue
  */
 
@@ -38,12 +42,14 @@ import type {
   DailyOpsProfitByIntervalDto,
   DailyOpsRevenueBreakdownDto,
 } from '~/types/daily-ops-dashboard'
+import type { DailyOpsTableOccupancyKpisDto } from '~/types/daily-ops-venue-tables'
 import { resolveDailyOpsPeriod } from '~/utils/dailyOpsPeriod'
 
 const props = defineProps<{
   period: string
   revenue: DailyOpsRevenueBreakdownDto | null
   pending: boolean
+  tableOccupancy?: DailyOpsTableOccupancyKpisDto | null
 }>()
 
 const emit = defineEmits<{

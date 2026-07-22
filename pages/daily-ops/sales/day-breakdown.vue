@@ -112,11 +112,13 @@ const registerDayPeriodLabel = computed(() => {
 })
 
 // Fetch aggregation data for this day
-const { data: dayData, pending, error, refresh } = await useFetch('/api/bork/v2/day-breakdown', {
+const { data: dayData, pending, error, refresh } = useFetch('/api/bork/v2/day-breakdown', {
   query: computed(() => ({
     date: selectedDate.value,
     location: selectedLocation.value,
   })),
+  lazy: true,
+  server: false,
 })
 
 // Summary metrics
@@ -124,10 +126,10 @@ const summary = computed(() => {
   if (!dayData.value?.hourly) return null
   
   return {
-    totalRevenue: dayData.value.hourly.reduce((sum: number, h: any) => sum + (h.total_revenue || 0), 0),
-    totalQuantity: dayData.value.hourly.reduce((sum: number, h: any) => sum + (h.total_quantity || 0), 0),
-    workerCount: new Set(dayData.value.worker?.map((w: any) => w.workerId)).size || 0,
-    tableCount: new Set(dayData.value.table?.map((t: any) => t.tableNumber)).size || 0,
+    totalRevenue: dayData.value.hourly.reduce((sum: number, h: BorkAggRow) => sum + (h.total_revenue ?? 0), 0),
+    totalQuantity: dayData.value.hourly.reduce((sum: number, h: BorkAggRow) => sum + (h.total_quantity ?? 0), 0),
+    workerCount: new Set(dayData.value.worker?.map((w: BorkAggRow) => w.workerId)).size || 0,
+    tableCount: new Set(dayData.value.table?.map((t: BorkAggRow) => t.tableNumber)).size || 0,
     productCount: dayData.value.product?.length || 0,
   }
 })

@@ -1,10 +1,10 @@
 /**
  * @registry-id: dailyOpsMetricsBundle
  * @created: 2026-05-18T00:00:00.000Z
- * @last-modified: 2026-07-16T12:15:00.000Z
+ * @last-modified: 2026-07-22T00:00:00.000Z
  * @description: Dashboard metrics bundle — read daily_ops_read_cache only (ADR-013)
- * @last-fix: [2026-07-16] GET never live-rebuilds — cache miss returns empty gap (ADR-013)
- *   Prior: [2026-07-16] GET is read-cache only — no averageHistory enrich on request
+ * @last-fix: [2026-07-22] Return sealed tableOccupancy from cache (no strip)
+ *   Prior: [2026-07-16] GET never live-rebuilds — cache miss returns empty gap (ADR-013)
  * @adr-ref: ADR-004, ADR-010, ADR-013
  * @data-source: read-cache
  * @read-cache-json: daily_ops_read_cache · profile=dashboard-bundle · levels=daily|weekly|monthly|yearly
@@ -20,6 +20,16 @@ import { loadCachedDashboardBundle } from '../../../utils/dailyOpsSnapshot/cache
 import { bundleDashboardSectionsIncomplete } from '../../../utils/dailyOpsSnapshot/bundleInvariant'
 import { emptyDashboardBundleForCacheMiss } from '../../../utils/dailyOpsSnapshot/emptyDashboardBundleForCacheMiss'
 
+function bundlePayload(cached: NonNullable<Awaited<ReturnType<typeof loadCachedDashboardBundle>>>) {
+  return {
+    summary: cached.summary,
+    revenue: cached.revenue,
+    labor: cached.labor,
+    periodBreakdown: cached.periodBreakdown,
+    tableOccupancy: cached.tableOccupancy,
+  }
+}
+
 export default defineEventHandler(async (event) => {
   const ctx = parseDailyOpsMetricsQuery(getQuery(event) as Record<string, unknown>)
   setResponseHeader(event, 'Cache-Control', snapshotCacheControl(ctx))
@@ -28,38 +38,19 @@ export default defineEventHandler(async (event) => {
   const cached = await loadCachedDashboardBundle(db, ctx)
 
   if (cached && !bundleDashboardSectionsIncomplete(cached)) {
-    console.info(
-      `[bundle:cache] HIT ${ctx.startDate}..${ctx.endDate} ${ctx.locationId ?? 'all'}`,
-    )
-    return {
-      summary: cached.summary,
-      revenue: cached.revenue,
-      labor: cached.labor,
-      periodBreakdown: cached.periodBreakdown,
-    }
+    return bundlePayload(cached)
   }
 
   if (cached) {
-    // Incomplete but present — still serve sealed JSON (P&L/daypart may be partial). Never live-rebuild.
-    console.warn(
-      `[bundle:cache] PARTIAL ${ctx.startDate}..${ctx.endDate} ${ctx.locationId ?? 'all'} — serving cache without live rebuild`,
-    )
-    return {
-      summary: cached.summary,
-      revenue: cached.revenue,
-      labor: cached.labor,
-      periodBreakdown: cached.periodBreakdown,
-    }
+    return bundlePayload(cached)
   }
 
-  console.warn(
-    `[bundle:cache] MISS ${ctx.startDate}..${ctx.endDate} ${ctx.locationId ?? 'all'} — empty gap (ADR-013)`,
-  )
   const gap = emptyDashboardBundleForCacheMiss(ctx)
   return {
     summary: gap.summary,
     revenue: gap.revenue,
     labor: gap.labor,
     periodBreakdown: gap.periodBreakdown,
+    tableOccupancy: gap.tableOccupancy,
   }
 })

@@ -1,9 +1,9 @@
 /**
  * @registry-id: dailyOpsMonthlyReportBuildDigest
  * @created: 2026-07-17T00:00:00.000Z
- * @last-modified: 2026-07-17T00:00:00.000Z
+ * @last-modified: 2026-07-20T00:00:00.000Z
  * @description: Aggregate calendar-month snapshots into digest payload (reuses WeeklyDigestDto)
- * @last-fix: [2026-07-17] Initial monthly digest (copy of weekly, month ranges)
+ * @last-fix: [2026-07-20] tableOccupancy + rolling12 occupancy comparisons
  * @adr-ref: ADR-004, ADR-013, ADR-015
  * @data-source: snapshot-write-only
  *
@@ -53,6 +53,8 @@ import {
 import { buildWeeklyAttendance } from '../dailyOpsWeeklyReport/buildWeeklyAttendance'
 import { buildWeeklyOpeningClosing } from '../dailyOpsWeeklyReport/buildWeeklyOpeningClosing'
 import { buildWeeklyStaffPlusmin } from '../dailyOpsWeeklyReport/buildWeeklyStaffPlusmin'
+import { buildWeeklyTableOccupancy } from '../dailyOpsWeeklyReport/buildWeeklyTableOccupancy'
+import { occupancyPctByRangeKeys } from '../dailyOpsVenueTables/occupancyPctByRangeKeys'
 import {
   previousMonthRange,
   rollingMonthRanges,
@@ -495,12 +497,19 @@ function buildCategoryMargins(
   ]
 }
 
+type MonthTotals = {
+  revenue: number
+  laborCostPct: number | null
+  pnlPct: number | null
+  occupancyPct: number | null
+}
+
 async function monthTotalsFromSnapshots(
   db: Db,
   range: MonthlyRange,
   locationId?: string,
   targets?: WeeklyTargetsDto,
-): Promise<{ revenue: number; laborCostPct: number | null; pnlPct: number | null }> {
+): Promise<Omit<MonthTotals, 'occupancyPct'>> {
   const bundle = await fetchSnapshotBundle(db, range.startDate, range.endDate, locationId)
   const rev = sumRevenueDocs(bundle.revenue)
   const lab = sumLaborDocs(bundle.labor)
@@ -512,45 +521,81 @@ async function monthTotalsFromSnapshots(
   const pnlResult = rev.revenue - foodCogs - bevCogs - lab.laborCost - overhead
   const pnlPct = rev.revenue > 0 ? roundWeekly2((pnlResult / rev.revenue) * 100) : null
   void targets
-  return { revenue: roundWeekly2(rev.revenue), laborCostPct, pnlPct }
+  return {
+    revenue: roundWeekly2(rev.revenue),
+    laborCostPct,
+    pnlPct,
+  }
 }
 
 async function buildComparisons(
   db: Db,
   range: MonthlyRange,
   locationId: string,
-  current: { revenue: number; laborCostPct: number | null; pnlPct: number | null },
+  current: MonthTotals,
   targets: WeeklyTargetsDto,
 ): Promise<WeeklyCompareTrend> {
   const prevRange = previousMonthRange(range)
-  const prev = await monthTotalsFromSnapshots(
-    db,
-    prevRange,
-    locationId === 'all' ? undefined : locationId,
-    targets,
-  )
-
   const roll3 = rollingMonthRanges(range, 3)
   const roll6 = rollingMonthRanges(range, 6)
+  const roll12 = rollingMonthRanges(range, 12)
+
+  const occByKey = await occupancyPctByRangeKeys(
+    db,
+    [prevRange, ...roll3, ...roll6, ...roll12].map((r) => ({
+      key: r.monthKey,
+      startDate: r.startDate,
+      endDate: r.endDate,
+    })),
+    locationId,
+  )
+
+  async function resolveTotals(r: MonthlyRange): Promise<MonthTotals> {
+    const base = await monthTotalsFromSnapshots(
+      db,
+      r,
+      locationId === 'all' ? undefined : locationId,
+      targets,
+    )
+    return {
+      ...base,
+      occupancyPct: occByKey.get(r.monthKey) ?? null,
+    }
+  }
+
+  const prev = await resolveTotals(prevRange)
+
+  const totalsMemo = new Map<string, Promise<MonthTotals>>()
+  function memoTotals(r: MonthlyRange): Promise<MonthTotals> {
+    const hit = totalsMemo.get(r.monthKey)
+    if (hit) return hit
+    const p = resolveTotals(r)
+    totalsMemo.set(r.monthKey, p)
+    return p
+  }
+  totalsMemo.set(prevRange.monthKey, Promise.resolve(prev))
 
   async function avgRolling(ranges: MonthlyRange[]) {
-    const vals = await Promise.all(
-      ranges.map(async (r) =>
-        monthTotalsFromSnapshots(db, r, locationId === 'all' ? undefined : locationId, targets),
-      ),
-    )
+    const vals = await Promise.all(ranges.map((r) => memoTotals(r)))
     const revenue = vals.length > 0 ? roundWeekly2(vals.reduce((s, v) => s + v.revenue, 0) / vals.length) : 0
     const laborPcts = vals.map((v) => v.laborCostPct).filter((v): v is number => v != null)
     const pnlPcts = vals.map((v) => v.pnlPct).filter((v): v is number => v != null)
+    const occPcts = ranges
+      .map((r) => occByKey.get(r.monthKey))
+      .filter((v): v is number => v != null)
     return {
       avgRevenue: revenue,
       avgLaborCostPct: laborPcts.length > 0 ? roundWeekly2(laborPcts.reduce((s, v) => s + v, 0) / laborPcts.length) : null,
       avgPnlPct: pnlPcts.length > 0 ? roundWeekly2(pnlPcts.reduce((s, v) => s + v, 0) / pnlPcts.length) : null,
+      avgOccupancyPct: occPcts.length > 0 ? roundWeekly2(occPcts.reduce((s, v) => s + v, 0) / occPcts.length) : null,
     }
   }
 
-  const rolling3 = await avgRolling(roll3)
-  const rolling6 = await avgRolling(roll6)
+  const [rolling3, rolling6, rolling12] = await Promise.all([
+    avgRolling(roll3),
+    avgRolling(roll6),
+    avgRolling(roll12),
+  ])
 
   return {
     previousWeek: {
@@ -558,9 +603,11 @@ async function buildComparisons(
       revenue: pctDelta(current.revenue, prev.revenue),
       laborCostPct: pctDelta(current.laborCostPct ?? 0, prev.laborCostPct ?? 0),
       pnlPct: pctDelta(current.pnlPct ?? 0, prev.pnlPct ?? 0),
+      occupancyPct: pctDelta(current.occupancyPct ?? 0, prev.occupancyPct ?? 0),
     },
     rolling3Week: { label: '3-month avg', ...rolling3 },
     rolling6Week: { label: '6-month avg', ...rolling6 },
+    rolling12Week: { label: '12-month avg', ...rolling12 },
   }
 }
 
@@ -595,14 +642,21 @@ export async function buildMonthlyDigest(
     laborCostPct: rev.revenue > 0 ? roundWeekly2((t.loadedCost / rev.revenue) * 100) : null,
   }))
 
-  const currentTotals = { revenue: roundWeekly2(rev.revenue), laborCostPct, pnlPct }
-  const comparisons = await buildComparisons(db, range, locationId, currentTotals, opts.targets)
+  const currentTotals = {
+    revenue: roundWeekly2(rev.revenue),
+    laborCostPct,
+    pnlPct,
+    occupancyPct: null as number | null,
+  }
 
-  const [attendance, staffPlusmin, openingClosing] = await Promise.all([
+  const [attendance, staffPlusmin, openingClosing, tableOccupancy] = await Promise.all([
     buildWeeklyAttendance(db, range.startDate, range.endDate, locationId),
     buildWeeklyStaffPlusmin(db, range.startDate, range.endDate, locationId),
     buildWeeklyOpeningClosing(db, range.startDate, range.endDate, locationId),
+    buildWeeklyTableOccupancy(db, range.startDate, range.endDate, locationId),
   ])
+  currentTotals.occupancyPct = tableOccupancy.occupancyPct
+  const comparisons = await buildComparisons(db, range, locationId, currentTotals, opts.targets)
 
   return {
     weekKey: range.monthKey,
@@ -641,8 +695,9 @@ export async function buildMonthlyDigest(
     attendance,
     staffPlusmin,
     openingClosing,
+    tableOccupancy,
     dataGap: foundDates.size === 0,
     builtAt: new Date().toISOString(),
-    schemaVersion: 1,
+    schemaVersion: 2,
   }
 }

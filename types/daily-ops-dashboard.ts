@@ -542,6 +542,11 @@ export type DailyOpsAttendanceKpisDto = {
   sick: DailyOpsAttendanceKpiBlockDto
 }
 
+export type {
+  DailyOpsTableOccupancyKpisDto,
+  DailyOpsTableOccupancyVenueDto,
+} from './daily-ops-venue-tables'
+
 export type DailyOpsContractHoursVarianceSeverity = 'warning' | 'critical'
 
 export type DailyOpsContractHoursVarianceRowDto = {

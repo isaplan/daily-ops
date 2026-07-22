@@ -1,9 +1,9 @@
 /**
  * @registry-id: dailyOpsWeeklyDigestGet
  * @created: 2026-07-09T00:00:00.000Z
- * @last-modified: 2026-07-09T15:30:00.000Z
+ * @last-modified: 2026-07-20T00:00:00.000Z
  * @description: GET /api/daily-ops/analytics/weekly-digest — weekly report read-cache
- * @last-fix: [2026-07-09] schemaVersion 4 stale check for openingClosing
+ * @last-fix: [2026-07-20] schemaVersion 11 stale check for tableOccupancy + rolling12
  * @adr-ref: ADR-004, ADR-013
  * @data-source: read-cache
  * @read-cache-json: daily_ops_read_cache · profile=weekly-digest · level=weekly
@@ -23,8 +23,10 @@ import { WEEKLY_DIGEST_PROFILE } from '~/types/daily-ops-weekly-report'
 
 /** Pre–multi-metric chart cache lacks per-day profit / pnl / productivity / staff. */
 function weeklyDigestSchemaStale(d: WeeklyDigestDto): boolean {
-  if ((d.schemaVersion ?? 1) < 9) return true
+  if ((d.schemaVersion ?? 1) < 11) return true
   if (!d.openingClosing) return true
+  if (!d.tableOccupancy) return true
+  if (!d.comparisons?.rolling12Week) return true
   const row = d.dailyBreakdown[0]
   if (!row) return false
   return (

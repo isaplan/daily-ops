@@ -1,10 +1,10 @@
 /**
  * @registry-id: borkRebuildAggregationV2Service
  * @created: 2026-04-14T18:00:00.000Z
- * @last-modified: 2026-06-06T00:34:00.000Z
+ * @last-modified: 2026-07-17T18:05:00.000Z
  * @description: V2 Bork aggregates — writes bork_business_days, bork_sales_by_day, bork_sales_by_hour, bork_sales_by_table, bork_sales_by_worker, bork_sales_by_guest_account, bork_sales_by_product (+ version suffix). Every revenue rollup now emits total_revenue (inc VAT, back-compat), total_revenue_ex_vat, total_revenue_inc_vat, total_vat extracted from raw line TotalEx/TotalInc.
- * @last-fix: [2026-06-06] Add includeOpenTickets param: for today (realtime), include open/unsettled tickets; for historical (yesterday+), skip as before.
- *   Prior: [2026-06-02] Order-time worker rollups credit order.UserName (not ticket closer).
+ * @last-fix: [2026-07-17] Upsert learned venue tables catalog from table rollups
+ *   Prior: [2026-06-06] Add includeOpenTickets param: for today (realtime), include open/unsettled tickets; for historical (yesterday+), skip as before.
  *
  * @CRITICAL: Line revenue uses Lines[].TotalEx + TotalInc (live data confirmed); paymode totals use Order.Paymodes[].Total (tender amounts, no VAT split).
  *
@@ -24,10 +24,13 @@
  * ✓ server/services/borkSyncService.ts
  * ✓ server/api/sales-aggregated.get.ts (read paths via version suffix)
  * ✓ server/utils/borkV2RebuildSuffix.ts (rebuild script write suffix)
+ * ✓ server/utils/dailyOpsVenueTables/upsertKnownTables.ts
  */
 
 import type { Db, Document } from 'mongodb'
 import { extractLineRevenue, resetBorkVatDebugSampler } from '../utils/borkVatCalculation'
+import { upsertKnownVenueTables } from '../utils/dailyOpsVenueTables/upsertKnownTables'
+import { normalizeLocationId } from '../utils/dailyOpsVenueTables/collection'
 
 function borkDateToISO(borkDate: number): string {
   const s = String(borkDate).padStart(8, '0')
@@ -779,6 +782,15 @@ export async function rebuildBorkSalesAggregationV2(
   if (tableDocs.length > 0) {
     await db.collection(tablesCollection).insertMany(tableDocs as Document[])
     result.tables = tableDocs.length
+    await upsertKnownVenueTables(
+      db,
+      tableDocs.map((doc) => ({
+        locationId: normalizeLocationId(doc.locationId),
+        locationName: typeof doc.locationName === 'string' ? doc.locationName : undefined,
+        tableNum: String(doc.tableNumber ?? '').trim(),
+        businessDate: typeof doc.business_date === 'string' ? doc.business_date : undefined,
+      })),
+    )
   }
   if (workerDocs.length > 0) {
     await db.collection(workersCollection).insertMany(workerDocs as Document[])

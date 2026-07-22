@@ -15,6 +15,7 @@ import type { DailyOpsDashboardBundleDto } from './fetchDashboardBundle'
 import { addCalendarDaysYmd } from '~/utils/dailyOpsBusinessDate'
 import type { DailyOpsProfitHourDto, VenueStripResponseDto } from '~/types/daily-ops-dashboard'
 import { mergeVenueStripResponses } from '../venueStrip/mergeCards'
+import { averageTableOccupancyPayloads } from '../dailyOpsVenueTables/buildTableOccupancySummary'
 import { coverageFromDailyBundles, formatCoverageNote } from './bundleCoverage'
 import { mergeProfitByIntervalDtos } from './mergeProfitByInterval'
 import { mergeDrilldownDtos } from './mergeDrilldown'
@@ -138,6 +139,15 @@ export function aggregateDailyBundles(
     periodBreakdown.coverageNote = coverageNote
   }
 
+  const occupancyParts = dailyBundles
+    .map((b) => b.tableOccupancy)
+    .filter((o): o is NonNullable<typeof o> => o != null)
+  const tableOccupancy = averageTableOccupancyPayloads(occupancyParts, {
+    period: 'custom',
+    startDate: period.startDate,
+    endDate: period.endDate,
+  })
+
   return {
     summary: {
       ...first.summary,
@@ -182,6 +192,7 @@ export function aggregateDailyBundles(
     },
     venueStrip,
     periodBreakdown,
+    tableOccupancy,
   }
 }
 

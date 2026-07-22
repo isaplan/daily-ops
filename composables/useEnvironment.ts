@@ -3,6 +3,21 @@ import { ENVIRONMENT_LABELS } from '~/types/environment'
 
 const activeEnvironment = ref<EnvironmentId>('daily-notes')
 
+const ENV_HOME: Record<EnvironmentId, string> = {
+  'daily-ops': '/daily-ops',
+  'daily-notes': '/notes/all',
+  'daily-menu-products': '/daily-menu-products',
+  'weekly-reports': '/weekly-reports',
+}
+
+function pathMatchesEnvironment(path: string, env: EnvironmentId): boolean {
+  if (env === 'daily-ops') return path.startsWith('/daily-ops')
+  if (env === 'daily-notes') return path.startsWith('/notes')
+  if (env === 'daily-menu-products') return path.startsWith('/daily-menu-products')
+  if (env === 'weekly-reports') return path.startsWith('/weekly-reports')
+  return false
+}
+
 export function useEnvironment() {
   const route = useRoute()
 
@@ -11,6 +26,7 @@ export function useEnvironment() {
     if (path.startsWith('/daily-ops')) return 'daily-ops'
     if (path.startsWith('/daily-menu-products')) return 'daily-menu-products'
     if (path.startsWith('/weekly-reports')) return 'weekly-reports'
+    if (path.startsWith('/notes')) return 'daily-notes'
     return 'daily-notes'
   })
 
@@ -22,15 +38,8 @@ export function useEnvironment() {
 
   function setActiveEnvironment(env: EnvironmentId) {
     activeEnvironment.value = env
-    const router = useRouter()
-    if (env === 'daily-notes') {
-      if (route.path.startsWith('/daily-')) router.push('/')
-    } else if (env === 'daily-ops') {
-      router.push('/daily-ops')
-    } else if (env === 'daily-menu-products') {
-      router.push('/daily-menu-products')
-    } else if (env === 'weekly-reports') {
-      router.push('/weekly-reports')
+    if (!pathMatchesEnvironment(route.path, env)) {
+      void navigateTo(ENV_HOME[env])
     }
   }
 

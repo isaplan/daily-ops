@@ -1,11 +1,12 @@
 /**
  * @registry-id: dailyOpsSnapshotFetchDashboardBundle
  * @created: 2026-05-25T00:00:00.000Z
- * @last-modified: 2026-07-16T00:00:00.000Z
+ * @last-modified: 2026-07-20T00:00:00.000Z
  * @description: Snapshot-first Daily Ops dashboard bundle orchestrator (ADR-004/013)
  *   Reads sealed snapshot sections only; no Bork/Eitje/Inbox on GET. Orchestrates section reads
  *   → DTOs → write to read-cache (per ADR-013, snapshot write path SSOT).
- * @last-fix: [2026-07-16] Extract light path + Cache-Control under monolith budget
+ * @last-fix: [2026-07-20] Seal tableOccupancy into dashboard-bundle
+ *   Prior: [2026-07-16] Extract light path + Cache-Control under monolith budget
  *   Prior: [2026-07-13] Updated metadata: snapshot-only, no live reads on GET
  *   Prior: [2026-07-11] Hourly periodBreakdown staff headcount from shift overlap buckets
  *   Prior: [2026-07-02] ADR-013 @write-cache-json — orchestrator feeds dashboard-bundle writer
@@ -28,6 +29,7 @@ import type {
   PeriodBreakdownDto,
   VenueStripResponseDto,
 } from '~/types/daily-ops-dashboard'
+import type { DailyOpsTableOccupancyKpisDto } from '~/types/daily-ops-venue-tables'
 import type { DailyOpsMetricsContext } from '../dailyOpsMetrics/context'
 import { enumerateUtcDatesInclusive } from '../dailyOpsMetrics/context'
 import {
@@ -37,6 +39,8 @@ import {
 import { amsterdamOpenRegisterBusinessDateYmd } from '~/utils/dailyOpsBusinessDate'
 import { loadPnlAssumptions } from '../appSettings/pnlAssumptionsSetting'
 import { fetchCheckInsLaborByBusinessDateHour } from '../venueStrip/checkInLaborByHour'
+import { buildTableOccupancySummary } from '../dailyOpsVenueTables/buildTableOccupancySummary'
+import { buildHourOccupancySeriesFromRevenue } from '../dailyOpsVenueTables/buildOccupancySeries'
 import { aggregateLaborForRange } from './aggregateLaborForRange'
 import { buildProfitByIntervalFromSnapshotHourly } from './buildProfitByIntervalFromSnapshot'
 import { buildRevenueDrilldownSection } from './buildRevenueDrilldownSection'
@@ -78,6 +82,8 @@ export type DailyOpsDashboardBundleDto = {
   venueStrip?: VenueStripResponseDto
   /** Hour/day/week/month bars for venue strip graph + period charts. */
   periodBreakdown?: PeriodBreakdownDto
+  /** Active tables + bezettingsgraad (avg daily for multi-day). */
+  tableOccupancy?: DailyOpsTableOccupancyKpisDto
 }
 
 /** Snapshot-only dashboard bundle — single coordinated read (ADR-004). */
@@ -222,5 +228,29 @@ export async function fetchDailyOpsDashboardBundle(
           categoryTotals: cat,
         })
 
-  return { summary, revenue, labor, periodBreakdown }
+  const tableOccupancyRaw = await buildTableOccupancySummary(db, {
+    startDate: ctx.startDate,
+    endDate: ctx.endDate,
+    locationId: ctx.locationId,
+    period: ctx.period,
+  })
+
+  const hourlyRows = revenue.drilldown?.hourlyRows
+  const tableOccupancy =
+    ctx.startDate === ctx.endDate && hourlyRows?.length && tableOccupancyRaw.series
+      ? {
+          ...tableOccupancyRaw,
+          series: {
+            ...tableOccupancyRaw.series,
+            hour: buildHourOccupancySeriesFromRevenue(
+              tableOccupancyRaw.activeTables,
+              tableOccupancyRaw.totalTables,
+              tableOccupancyRaw.occupancyPct,
+              hourlyRows,
+            ),
+          },
+        }
+      : tableOccupancyRaw
+
+  return { summary, revenue, labor, periodBreakdown, tableOccupancy }
 }

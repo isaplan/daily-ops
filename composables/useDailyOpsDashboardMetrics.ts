@@ -1,10 +1,10 @@
 /**
  * @registry-id: useDailyOpsDashboardMetrics
  * @created: 2026-05-18T00:00:00.000Z
- * @last-modified: 2026-07-16T02:00:00.000Z
+ * @last-modified: 2026-07-22T00:00:00.000Z
  * @description: Dashboard metrics via single snapshot bundle (ADR-004). One HTTP round-trip; progressive UI gates on summary only.
- * @last-fix: [2026-07-16] Restore stable asyncData key — default:null + getter key emptied all Daily Ops pages
- *   Prior: [2026-07-16] Fresh asyncData key per period — no ready-gate race; GET is sealed JSON only
+ * @last-fix: [2026-07-22] Expose sealed tableOccupancy from dashboard-bundle
+ *   Prior: [2026-07-16] Restore stable asyncData key — default:null + getter key emptied all Daily Ops pages
  * @adr-ref: ADR-004, ADR-010, ADR-013
  * @data-source: read-cache
  * @read-cache-json: dashboard-bundle (via GET /api/daily-ops/metrics/bundle)
@@ -23,6 +23,7 @@ import type {
   DailyOpsSummaryDto,
   PeriodBreakdownDto,
 } from '~/types/daily-ops-dashboard'
+import type { DailyOpsTableOccupancyKpisDto } from '~/types/daily-ops-venue-tables'
 import type { ComputedRef, Ref } from 'vue'
 import { amsterdamOpenRegisterBusinessDateYmd } from '~/utils/dailyOpsBusinessDate'
 import { pollWindowState } from '~/utils/integrations/borkEitjeDailyCronSchedule'
@@ -32,6 +33,7 @@ export type DailyOpsDashboardMetrics = {
   revenue: ComputedRef<DailyOpsRevenueBreakdownDto | null>
   labor: ComputedRef<DailyOpsLaborMetricsDto | null>
   periodBreakdown: ComputedRef<PeriodBreakdownDto | null>
+  tableOccupancy: ComputedRef<DailyOpsTableOccupancyKpisDto | null>
   pending: Ref<boolean>
   summaryPending: ComputedRef<boolean>
   error: Ref<unknown>
@@ -43,6 +45,7 @@ type DashboardBundleResponse = {
   revenue: DailyOpsRevenueBreakdownDto
   labor: DailyOpsLaborMetricsDto
   periodBreakdown?: PeriodBreakdownDto
+  tableOccupancy?: DailyOpsTableOccupancyKpisDto
 }
 
 type SnapshotVersionResponse = {
@@ -57,7 +60,7 @@ const metricsKey = (
   q: Record<string, string | undefined>,
   snapshotBuiltAt: string | null,
 ): string => {
-  const base = `daily-ops-bundle-v4-${q.period ?? 'today'}-${q.location ?? 'all'}-${q.anchor ?? ''}`
+  const base = `daily-ops-bundle-v6-${q.period ?? 'today'}-${q.location ?? 'all'}-${q.anchor ?? ''}`
   if ((q.period ?? 'today') === 'today') {
     return `${base}-${amsterdamOpenRegisterBusinessDateYmd()}-${snapshotBuiltAt ?? 'init'}`
   }
@@ -70,7 +73,6 @@ export function useDailyOpsDashboardMetrics(): DailyOpsDashboardMetrics {
   const snapshotBuiltAt = useState<string | null>(SNAPSHOT_BUILT_AT_STATE, () => null)
   const cacheKey = computed(() => metricsKey(dashboardQuery.value, snapshotBuiltAt.value))
 
-  /** Fixed Nuxt key + watch — getter-key/`default:null` wiped payload and emptied pages. */
   const { data: bundle, pending, error, refresh } = useAsyncData(
     'daily-ops-dashboard-bundle',
     () =>
@@ -84,6 +86,7 @@ export function useDailyOpsDashboardMetrics(): DailyOpsDashboardMetrics {
   const revenue = computed(() => bundle.value?.revenue ?? null)
   const labor = computed(() => bundle.value?.labor ?? null)
   const periodBreakdown = computed(() => bundle.value?.periodBreakdown ?? null)
+  const tableOccupancy = computed(() => bundle.value?.tableOccupancy ?? null)
   const summaryPending = computed(() => pending.value || !summary.value)
 
   if (import.meta.client) {
@@ -145,6 +148,7 @@ export function useDailyOpsDashboardMetrics(): DailyOpsDashboardMetrics {
     revenue,
     labor,
     periodBreakdown,
+    tableOccupancy,
     pending,
     summaryPending,
     error,

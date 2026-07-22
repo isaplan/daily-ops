@@ -16,6 +16,7 @@
     "bork:rebuild:aggregates": "node --experimental-strip-types scripts/rebuild-bork-v1-date-range.ts",
     "bork:validate:v2-vs-csv": "node --experimental-strip-types scripts/generate-day-breakdown-v2-vs-csv-tables.ts --write",
     "bork:rebuild:v2": "npx --yes tsx scripts/rebuild-bork-v2-date-range.ts",
+    "tables:backfill-catalog": "npx --yes tsx scripts/backfill-venue-tables-catalog.ts",
     "eitje:backfill": "npx --yes tsx scripts/eitje-full-raw-backfill.ts",
     "eitje:master-sync": "npx --yes tsx scripts/eitje-master-data-sync.ts",
     "unified-user:dedup": "npx --yes tsx scripts/dedup-unified-user.ts",

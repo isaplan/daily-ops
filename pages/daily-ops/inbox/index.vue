@@ -225,9 +225,10 @@ const gmailConnected = ref(false)
 const gmailNeedsReconnect = ref(false)
 const isAdmin = ref(false)
 
-const { data: list, pending: listPending, error: listError, refresh: refreshList } = await useAsyncData(
+const { data: list, pending: listPending, error: listError, refresh: refreshList } = useAsyncData(
   'inbox-dashboard-list',
   () => api.listEmails(1, 5, { archived: false }),
+  { lazy: true, server: false },
 )
 
 const recent = computed(() => list.value?.data?.emails ?? [])

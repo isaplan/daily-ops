@@ -17,6 +17,7 @@
         :period="period"
         :anchor="anchor"
         :summary="summary"
+        :table-occupancy="tableOccupancy"
       />
 
       <DailyOpsVenueStrip :period="period" :anchor="anchor" :period-breakdown="periodBreakdown" />
@@ -31,13 +32,19 @@
 
       <UAlert v-if="error" color="error" variant="soft" title="Could not load dashboard" :description="String(error)" />
 
-      <!-- P&L / daypart must not sit behind pending — venue strip has its own fetch and was the only thing visible -->
-      <DailyOpsRevenueMetricsSection
-        :period="period"
-        :revenue="revenue"
-        :pending="pending && !revenue"
-        @refresh="() => void refreshMetrics()"
-      />
+      <!-- P&L / daypart deferred async so d3 doesn't block initial paint -->
+      <Suspense>
+        <DailyOpsRevenueMetricsSection
+          :period="period"
+          :revenue="revenue"
+          :table-occupancy="tableOccupancy"
+          :pending="pending && !revenue"
+          @refresh="() => void refreshMetrics()"
+        />
+        <template #fallback>
+          <div class="h-48 animate-pulse rounded-lg bg-gray-100" />
+        </template>
+      </Suspense>
 
       <DailyOpsProductivitySummary
         v-if="isProductivityView && summary"
@@ -69,8 +76,9 @@
 <script setup lang="ts">
 /**
  * @description: Home dashboard — KPI, venue strip, revenue + labor sections
- * @last-modified: 2026-07-16T12:00:00.000Z
- * @last-fix: [2026-07-16] Always mount revenue/P&L below strip — was hidden when pending stuck
+ * @last-modified: 2026-07-22T00:00:00.000Z
+ * @last-fix: [2026-07-22] Wire sealed tableOccupancy + Bezettingsgraad chart section
+ *   Prior: [2026-07-16] Always mount revenue/P&L below strip — was hidden when pending stuck
  *   Prior: [2026-07-16] Pass bundle revenue into metrics section (single metrics instance)
  * @adr-ref: ADR-004, ADR-010, ADR-013
  * @data-source: read-cache
@@ -79,6 +87,10 @@
  */
 
 import WorkerDetailsDrawer from '~/components/daily-ops/WorkerDetailsDrawer.vue'
+// Defer d3-heavy revenue metrics section — loads after initial paint
+const DailyOpsRevenueMetricsSection = defineAsyncComponent(
+  () => import('~/components/daily-ops/DailyOpsRevenueMetricsSection.vue'),
+)
 
 const props = withDefaults(
   defineProps<{
@@ -111,11 +123,12 @@ const locationTitle = computed(() => {
   return hit?.name ?? 'Selected Location'
 })
 
-const { summary: summaryRef, revenue: revenueRef, labor: laborRef, periodBreakdown: periodBreakdownRef, pending, error, refresh: refreshMetrics } = useDailyOpsDashboardMetrics()
+const { summary: summaryRef, revenue: revenueRef, labor: laborRef, periodBreakdown: periodBreakdownRef, tableOccupancy: tableOccupancyRef, pending, error, refresh: refreshMetrics } = useDailyOpsDashboardMetrics()
 const summary = computed(() => summaryRef.value ?? null)
 const revenue = computed(() => revenueRef.value ?? null)
 const labor = computed(() => laborRef.value ?? null)
 const periodBreakdown = computed(() => periodBreakdownRef.value ?? null)
+const tableOccupancy = computed(() => tableOccupancyRef.value ?? null)
 
 const snapshotCoverageAlert = computed(() => {
   const cov = summary.value?.snapshotCoverage

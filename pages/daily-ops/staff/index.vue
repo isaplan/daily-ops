@@ -329,7 +329,7 @@
 import StaffMemberProfilePanel from '~/components/daily-ops/staff/StaffMemberProfilePanel.vue'
 import { staffContractTypeSelectOptions, STAGE_CONTRACT_HOURLY_EUR, isStageContractType } from '~/utils/staffContractTypeOptions'
 
-definePageMeta({ keepalive: true })
+definePageMeta({ keepalive: false })
 
 const PROFILE_ASIDE_WIDTH_LS = 'daily-ops-staff-profile-aside-px-v1'
 const STAFF_PATH = '/daily-ops/staff'
