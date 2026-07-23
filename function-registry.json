@@ -1,15 +1,59 @@
 {
   "metadata": {
-    "totalByType": {},
-    "totalFiles": 0,
+    "totalByType": {
+      "feature": 1,
+      "api": 7,
+      "util": 4,
+      "component": 5,
+      "page": 2,
+      "type": 1
+    },
+    "totalFiles": 20,
     "version": "2.0.0",
-    "generated_at": "2026-07-22T17:46:17.135Z"
+    "generated_at": "2026-07-22T18:00:00.000Z"
   },
   "index": {
-    "byName": {},
-    "byFile": {},
-    "byType": {},
-    "byLastSeen": []
+    "byName": {
+      "staff-org": ["staff-org-environment"]
+    },
+    "byFile": {
+      "types/staff-org.ts": ["staffOrgTypes"],
+      "server/utils/staffOrg/scenarioRepo.ts": ["staffOrgScenarioRepo"],
+      "server/utils/staffOrg/seedRosterFromMembers.ts": ["staffOrgSeedRoster"],
+      "server/utils/staffOrg/buildOpeningSlots.ts": ["staffOrgOpeningSlots"],
+      "server/utils/staffOrg/buildSlotMetrics.ts": ["staffOrgBuildSlotMetrics"],
+      "utils/staffOrg/buildOpeningSlots.ts": ["staffOrgOpeningSlots"],
+      "utils/staffOrg/buildSlotMetrics.ts": ["staffOrgBuildSlotMetrics"],
+      "utils/staffOrg/seedOrgAssignments.ts": ["staffOrgSeedOrgAssignments"],
+      "components/staffOrg/StaffOrgTeamBuilder.vue": ["StaffOrgTeamBuilder"],
+      "pages/staff-org/index.vue": ["pages/staff-org/index"],
+      "pages/staff-org/[id].vue": ["pages/staff-org/[id]"]
+    },
+    "byType": {
+      "feature": ["staff-org-environment"]
+    },
+    "byLastSeen": ["staff-org-environment", "StaffOrgTeamBuilder"]
   },
-  "functions": []
+  "functions": [
+    {
+      "id": "staff-org-environment",
+      "name": "staff-org",
+      "file": "pages/staff-org",
+      "type": "feature",
+      "status": "completed",
+      "touch_again": true,
+      "description": "Staff Org — TeamBuilder + RosterPlanner scenarios (ADR-016)",
+      "adr_ref": "ADR-016"
+    },
+    {
+      "id": "StaffOrgTeamBuilder",
+      "name": "StaffOrgTeamBuilder",
+      "file": "components/staffOrg/StaffOrgTeamBuilder.vue",
+      "type": "component",
+      "status": "completed",
+      "touch_again": true,
+      "description": "Organogram DnD lanes Manager/Floor/FT/PT-ZZP across venues",
+      "adr_ref": "ADR-016"
+    }
+  ]
 }
