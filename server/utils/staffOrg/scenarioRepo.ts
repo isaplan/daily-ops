@@ -1,13 +1,14 @@
 /**
  * @registry-id: staffOrgScenarioRepo
  * @created: 2026-07-22T18:00:00.000Z
- * @last-modified: 2026-07-23T01:45:00.000Z
+ * @last-modified: 2026-07-23T11:15:00.000Z
  * @description: Mongo CRUD for staff_org_scenarios
- * @last-fix: [2026-07-23] Scenario venues; close strips org assignments
+ * @last-fix: [2026-07-23] refreshRoster merges org (keep manager/floor roles)
  * @adr-ref: ADR-016
  *
  * @exports-to:
  * ✓ server/api/staff-org/scenarios/*
+ * ✓ utils/staffOrg/locationTargets.ts
  */
 
 import type { Db } from 'mongodb'
@@ -35,6 +36,10 @@ import {
   rebuildOrgAssignmentsFromRoster,
 } from '~/utils/staffOrg/seedOrgAssignments'
 import { defaultStaffOrgVenues, normalizeStaffOrgVenues } from '~/utils/staffOrg/defaultVenues'
+import {
+  defaultLocationTargets,
+  normalizeLocationTargets,
+} from '~/utils/staffOrg/locationTargets'
 import { DAILY_OPS_VENUE_OPENING_HOURS } from '~/utils/dailyOpsVenueOpeningHours'
 
 /** Bump when org seed rules change (home-location placement, PT/ZZP). */
@@ -82,14 +87,6 @@ function defaultRules(): StaffOrgLocationRule[] {
   return rules
 }
 
-function defaultLocationTargets(): StaffOrgLocationTargets[] {
-  return DAILY_OPS_VENUE_OPENING_HOURS.map((v) => ({
-    locationId: v.locationId,
-    estimatedMonthlyRevenue: v.locationName.includes('Kinsbergen') ? 150_000 : 0,
-    minLaborProductivity: 0,
-  }))
-}
-
 function openVenueIds(venues: StaffOrgVenue[]): string[] {
   return venues.filter((v) => v.status === 'open').map((v) => v.locationId)
 }
@@ -108,6 +105,8 @@ function normalizeAssignments(raw: unknown): StaffOrgAssignment[] {
         : null) as StaffOrgTeam | null
       let role = String(a.role ?? '')
       if (role === 'pt_zzp') role = 'pt'
+      // Bar has no top manager — treat legacy bar managers as Bar Hoofd
+      if (team === 'bar' && role === 'manager') role = 'floor_manager'
       if (!memberId || !locationId || !team) return null
       if (!(ALL_ROLES as readonly string[]).includes(role)) return null
       return {
@@ -172,9 +171,7 @@ function serialize(doc: Record<string, unknown>): StaffOrgScenario {
     updatedAt: doc.updatedAt instanceof Date ? doc.updatedAt.toISOString() : String(doc.updatedAt ?? ''),
     venues,
     locationRules: Array.isArray(doc.locationRules) ? (doc.locationRules as StaffOrgLocationRule[]) : [],
-    locationTargets: Array.isArray(doc.locationTargets)
-      ? (doc.locationTargets as StaffOrgLocationTargets[])
-      : defaultLocationTargets(),
+    locationTargets: normalizeLocationTargets(doc.locationTargets),
     placements: Array.isArray(doc.placements)
       ? (doc.placements as StaffOrgPlacement[]).filter((p) => !closedIds.has(p.locationId))
       : [],
@@ -407,8 +404,10 @@ export async function patchStaffOrgScenario(
     const roster = await seedRosterFromMembers(db)
     $set.roster = roster
     const execIds = new Set(executiveAssignments.map((e) => e.memberId))
-    orgAssignments = rebuildOrgAssignmentsFromRoster({
+    // Merge only — never rebuild (keeps manager / floor / chef lanes)
+    orgAssignments = mergeOrgAssignmentsFromRoster({
       roster,
+      existing: orgAssignments,
       inactiveMemberIds: inactive,
       openVenueIds: openVenueIds(venues),
     }).filter((a) => !execIds.has(a.memberId))

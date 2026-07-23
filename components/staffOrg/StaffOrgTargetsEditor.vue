@@ -83,12 +83,22 @@ const weeklyPreview = computed(() =>
 
 function emitSave() {
   const others = props.targets.filter((t) => t.locationId !== props.locationId)
+  const prev = props.targets.find((t) => t.locationId === props.locationId)
   emit('save', [
     ...others,
     {
       locationId: props.locationId,
       estimatedMonthlyRevenue: Math.max(0, Number(monthly.value) || 0),
       minLaborProductivity: Math.max(0, Number(minProd.value) || 0),
+      keukenRevenueShare: prev?.keukenRevenueShare ?? 0.5,
+      bedieningRevenueShare: prev?.bedieningRevenueShare ?? 0.5,
+      contractLaborCostMonthly: prev?.contractLaborCostMonthly ?? null,
+      laborCostPctActual: prev?.laborCostPctActual ?? {
+        total: null, ft: null, pt: null, zzp: null,
+      },
+      laborCostPctTarget: prev?.laborCostPctTarget ?? {
+        total: null, ft: null, pt: null, zzp: null,
+      },
     },
   ])
 }

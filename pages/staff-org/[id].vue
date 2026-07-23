@@ -16,7 +16,6 @@
         <UButton size="sm" variant="outline" :loading="refreshingRoster" @click="refreshRoster">
           Sync roster from members
         </UButton>
-        <span v-if="saveState" class="text-xs" :class="saveStateClass">{{ saveState }}</span>
       </div>
     </header>
 
@@ -60,10 +59,18 @@
         :org-assignments="scenario.orgAssignments ?? []"
         :executive-assignments="scenario.executiveAssignments ?? []"
         :inactive-member-ids="scenario.inactiveMemberIds ?? []"
+        :targets="scenario.locationTargets ?? []"
+        :rules="scenario.locationRules"
+        :slot-hours="slotHours"
+        :benchmarks="laborBenchmarks"
+        :saving-targets="savingTargets"
+        :saving-rules="savingRules"
         @update:org="onOrg"
         @update:executive="onExecutive"
         @update:inactive="onInactive"
         @update:venues="onVenues"
+        @save-targets="onSaveTargets"
+        @save-rules="onSaveRules"
       />
 
       <template v-else>
@@ -86,6 +93,8 @@
           :location-id="locationId"
           :team="team"
           :roster="rosterForBoard"
+          :full-roster="scenario.roster"
+          :org-assignments="scenario.orgAssignments ?? []"
           :placements="scenario.placements"
           :metrics="metrics"
           :slot-hours="slotHours"
@@ -94,21 +103,6 @@
           :weekday-shares="weekdayShares"
           @update:placements="onPlacements"
           @update:inactive="onInactive"
-        />
-
-        <StaffOrgTargetsEditor
-          :location-id="locationId"
-          :targets="scenario.locationTargets ?? []"
-          :saving="savingTargets"
-          @save="onSaveTargets"
-        />
-
-        <StaffOrgRulesEditor
-          :location-id="locationId"
-          :team="team"
-          :rules="scenario.locationRules"
-          :saving="savingRules"
-          @save="onSaveRules"
         />
       </template>
     </template>
@@ -119,9 +113,9 @@
 /**
  * @registry-id: pages/staff-org/[id]
  * @created: 2026-07-22T18:00:00.000Z
- * @last-modified: 2026-07-23T01:45:00.000Z
+ * @last-modified: 2026-07-23T11:20:00.000Z
  * @description: Staff Org — TeamBuilder + RosterPlanner tabs
- * @last-fix: [2026-07-23] Scenario venues open/closed + new location
+ * @last-fix: [2026-07-23] Save status via toast
  * @adr-ref: ADR-016
  */
 
@@ -129,6 +123,7 @@ import type {
   StaffOrgAssignment,
   StaffOrgCellMetrics,
   StaffOrgExecutiveAssignment,
+  StaffOrgLaborBenchmark,
   StaffOrgLocationRule,
   StaffOrgLocationTargets,
   StaffOrgPlacement,
@@ -223,23 +218,44 @@ const weekdayShares = computed(() =>
   })),
 )
 
-const saveState = ref('')
-const saveFailed = ref(false)
+const { data: benchmarkData } = await useAsyncData(
+  'staff-org-labor-benchmarks',
+  () => $fetch<{
+    success: boolean
+    data: { year: number; venues: StaffOrgLaborBenchmark[] }
+  }>('/api/staff-org/labor-benchmarks'),
+)
+
+const laborBenchmarks = computed(() => benchmarkData.value?.data.venues ?? [])
+
+const toast = useToast()
+const SAVE_TOAST_ID = 'staff-org-save'
+
 const savingRules = ref(false)
 const savingTargets = ref(false)
 const refreshingRoster = ref(false)
 let saveTimer: ReturnType<typeof setTimeout> | null = null
 let patchChain: Promise<void> = Promise.resolve()
-let patchSeq = 0
-
-const saveStateClass = computed(() =>
-  saveFailed.value ? 'text-red-600' : 'text-gray-500',
-)
+/** Bumped on every local board edit + each PATCH start; stale responses ignored. */
+let saveGen = 0
 
 function clearSaveTimer() {
   if (saveTimer) {
     clearTimeout(saveTimer)
     saveTimer = null
+  }
+}
+
+function showSaveToast(
+  title: string,
+  color: 'neutral' | 'green' | 'red' = 'neutral',
+  duration = 2000,
+) {
+  const existing = toast.toasts.value.some((t) => t.id === SAVE_TOAST_ID)
+  if (existing) {
+    toast.update(SAVE_TOAST_ID, { title, color, duration })
+  } else {
+    toast.add({ id: SAVE_TOAST_ID, title, color, duration })
   }
 }
 
@@ -267,84 +283,73 @@ function prunePlacementsToOrg() {
   })
 }
 
+/** Latest board fields from local scenario (avoids stale closures). */
+function boardPatchBody(extra: Record<string, unknown> = {}): Record<string, unknown> {
+  const s = data.value?.data.scenario
+  if (!s) return { ...extra }
+  return {
+    orgAssignments: s.orgAssignments ?? [],
+    executiveAssignments: s.executiveAssignments ?? [],
+    placements: s.placements ?? [],
+    inactiveMemberIds: s.inactiveMemberIds ?? [],
+    venues: s.venues,
+    ...extra,
+  }
+}
+
+function scheduleBoardSave() {
+  saveGen += 1
+  const targetId = id.value
+  clearSaveTimer()
+  saveTimer = setTimeout(() => {
+    if (targetId !== id.value) return
+    void flushBoardSave()
+  }, 400)
+}
+
+async function flushBoardSave(extra: Record<string, unknown> = {}) {
+  clearSaveTimer()
+  const targetId = id.value
+  if (!data.value?.data.scenario || targetId !== id.value) return
+  await patchScenario(boardPatchBody(extra), targetId)
+}
+
 function onOrg(orgAssignments: StaffOrgAssignment[]) {
   if (!data.value?.data.scenario) return
-  const targetId = id.value
   data.value.data.scenario.orgAssignments = orgAssignments
-  // Venue placement removes executive
   const orgIds = new Set(orgAssignments.map((a) => a.memberId))
   data.value.data.scenario.executiveAssignments = (
     data.value.data.scenario.executiveAssignments ?? []
   ).filter((e) => !orgIds.has(e.memberId))
   prunePlacementsToOrg()
   recomputeLocalMetrics()
-  clearSaveTimer()
-  saveTimer = setTimeout(() => {
-    if (targetId !== id.value) return
-    void patchScenario(
-      {
-        orgAssignments,
-        executiveAssignments: data.value?.data.scenario.executiveAssignments,
-        placements: data.value?.data.scenario.placements,
-        inactiveMemberIds: data.value?.data.scenario.inactiveMemberIds ?? [],
-        venues: data.value?.data.scenario.venues,
-      },
-      targetId,
-    )
-  }, 400)
+  scheduleBoardSave()
 }
 
 function onExecutive(executiveAssignments: StaffOrgExecutiveAssignment[]) {
   if (!data.value?.data.scenario) return
-  const targetId = id.value
   data.value.data.scenario.executiveAssignments = executiveAssignments
   const execIds = new Set(executiveAssignments.map((e) => e.memberId))
   data.value.data.scenario.orgAssignments = (data.value.data.scenario.orgAssignments ?? [])
     .filter((a) => !execIds.has(a.memberId))
   prunePlacementsToOrg()
   recomputeLocalMetrics()
-  clearSaveTimer()
-  saveTimer = setTimeout(() => {
-    if (targetId !== id.value) return
-    void patchScenario(
-      {
-        executiveAssignments,
-        orgAssignments: data.value?.data.scenario.orgAssignments,
-        placements: data.value?.data.scenario.placements,
-        inactiveMemberIds: data.value?.data.scenario.inactiveMemberIds ?? [],
-      },
-      targetId,
-    )
-  }, 400)
+  scheduleBoardSave()
 }
 
 function onVenues(venues: StaffOrgVenue[]) {
   if (!data.value?.data.scenario) return
-  const targetId = id.value
   data.value.data.scenario.venues = venues
   const closed = new Set(venues.filter((v) => v.status === 'closed').map((v) => v.locationId))
   data.value.data.scenario.orgAssignments = (data.value.data.scenario.orgAssignments ?? [])
     .filter((a) => !closed.has(a.locationId))
   prunePlacementsToOrg()
   recomputeLocalMetrics()
-  clearSaveTimer()
-  saveTimer = setTimeout(() => {
-    if (targetId !== id.value) return
-    void patchScenario(
-      {
-        venues,
-        orgAssignments: data.value?.data.scenario.orgAssignments,
-        placements: data.value?.data.scenario.placements,
-        inactiveMemberIds: data.value?.data.scenario.inactiveMemberIds ?? [],
-      },
-      targetId,
-    )
-  }, 400)
+  scheduleBoardSave()
 }
 
 function onInactive(inactiveMemberIds: string[]) {
   if (!data.value?.data.scenario) return
-  const targetId = id.value
   data.value.data.scenario.inactiveMemberIds = inactiveMemberIds
   data.value.data.scenario.orgAssignments = (data.value.data.scenario.orgAssignments ?? [])
     .filter((a) => !inactiveMemberIds.includes(a.memberId))
@@ -355,25 +360,12 @@ function onInactive(inactiveMemberIds: string[]) {
     (p) => !inactiveMemberIds.includes(p.memberId),
   )
   recomputeLocalMetrics()
-  clearSaveTimer()
-  saveTimer = setTimeout(() => {
-    if (targetId !== id.value) return
-    void patchScenario(
-      {
-        inactiveMemberIds,
-        orgAssignments: data.value?.data.scenario.orgAssignments,
-        executiveAssignments: data.value?.data.scenario.executiveAssignments,
-        placements: data.value?.data.scenario.placements,
-      },
-      targetId,
-    )
-  }, 400)
+  scheduleBoardSave()
 }
 
 async function patchScenario(body: Record<string, unknown>, targetId: string) {
-  const seq = ++patchSeq
-  saveFailed.value = false
-  saveState.value = 'Saving…'
+  const seq = ++saveGen
+  showSaveToast('Saving…', 'neutral', 0)
 
   const run = async () => {
     try {
@@ -381,16 +373,13 @@ async function patchScenario(body: Record<string, unknown>, targetId: string) {
         `/api/staff-org/scenarios/${targetId}`,
         { method: 'PATCH', body },
       )
-      if (seq !== patchSeq || targetId !== id.value) return
+      // Stale response — local edits happened while this PATCH was in flight
+      if (seq !== saveGen || targetId !== id.value) return
       data.value = res
-      saveState.value = 'Saved'
-      setTimeout(() => {
-        if (saveState.value === 'Saved') saveState.value = ''
-      }, 1500)
+      showSaveToast('Saved', 'green', 1800)
     } catch {
-      if (seq !== patchSeq || targetId !== id.value) return
-      saveFailed.value = true
-      saveState.value = 'Save failed'
+      if (seq !== saveGen || targetId !== id.value) return
+      showSaveToast('Save failed', 'red', 4000)
       await refresh()
     }
   }
@@ -401,69 +390,50 @@ async function patchScenario(body: Record<string, unknown>, targetId: string) {
 
 function onPlacements(placements: StaffOrgPlacement[]) {
   if (!data.value?.data.scenario) return
-  const targetId = id.value
   data.value.data.scenario.placements = placements
   recomputeLocalMetrics()
-  clearSaveTimer()
-  saveTimer = setTimeout(() => {
-    if (targetId !== id.value) return
-    void patchScenario(
-      {
-        placements,
-        inactiveMemberIds: data.value?.data.scenario.inactiveMemberIds ?? [],
-        orgAssignments: data.value?.data.scenario.orgAssignments ?? [],
-      },
-      targetId,
-    )
-  }, 400)
+  scheduleBoardSave()
 }
 
 async function onSaveRules(rules: StaffOrgLocationRule[]) {
-  clearSaveTimer()
   savingRules.value = true
   try {
+    const sample = rules[0]
+    if (!sample) return
     const others = (scenario.value?.locationRules ?? []).filter(
-      (r) => !(r.locationId === locationId.value && r.team === team.value),
+      (r) => !(r.locationId === sample.locationId && r.team === sample.team),
     )
     const forBoard = rules.filter(
-      (r) => r.locationId === locationId.value && r.team === team.value,
+      (r) => r.locationId === sample.locationId && r.team === sample.team,
     )
     const locationRules = [...others, ...forBoard]
     if (data.value?.data.scenario) {
       data.value.data.scenario.locationRules = locationRules
       recomputeLocalMetrics()
     }
-    await patchScenario({
-      locationRules,
-      placements: scenario.value?.placements,
-    }, id.value)
+    // Flush board + rules together so pending DnD is not dropped
+    await flushBoardSave({ locationRules })
   } finally {
     savingRules.value = false
   }
 }
 
 async function onSaveTargets(locationTargets: StaffOrgLocationTargets[]) {
-  clearSaveTimer()
   savingTargets.value = true
   try {
     if (data.value?.data.scenario) {
       data.value.data.scenario.locationTargets = locationTargets
     }
-    await patchScenario({ locationTargets }, id.value)
+    await flushBoardSave({ locationTargets })
   } finally {
     savingTargets.value = false
   }
 }
 
 async function refreshRoster() {
-  clearSaveTimer()
   refreshingRoster.value = true
   try {
-    await patchScenario({
-      refreshRoster: true,
-      placements: scenario.value?.placements,
-      orgAssignments: scenario.value?.orgAssignments,
-    }, id.value)
+    await flushBoardSave({ refreshRoster: true })
   } finally {
     refreshingRoster.value = false
   }
@@ -471,14 +441,12 @@ async function refreshRoster() {
 
 watch(id, () => {
   clearSaveTimer()
-  patchSeq += 1
-  saveState.value = ''
-  saveFailed.value = false
+  saveGen += 1
   void refresh()
 })
 
 onBeforeUnmount(() => {
   clearSaveTimer()
-  patchSeq += 1
+  saveGen += 1
 })
 </script>

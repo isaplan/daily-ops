@@ -1,9 +1,9 @@
 /**
  * @registry-id: staffOrgTypes
  * @created: 2026-07-22T18:00:00.000Z
- * @last-modified: 2026-07-23T02:15:00.000Z
+ * @last-modified: 2026-07-23T10:40:00.000Z
  * @description: Staff Org scenario / placement / metrics types (ADR-016)
- * @last-fix: [2026-07-23] executiveAssignments General/Keuken/Operations
+ * @last-fix: [2026-07-23] Location targets: team rev split + labor % actual/target
  * @adr-ref: ADR-016
  *
  * @exports-to:
@@ -11,6 +11,8 @@
  * ✓ server/api/staff-org/*
  * ✓ pages/staff-org/*
  * ✓ components/staffOrg/*
+ * ✓ utils/staffOrg/locationTargets.ts
+ * ✓ utils/staffOrg/productivity.ts
  */
 
 /** Monday = 0 … Sunday = 6 */
@@ -85,6 +87,14 @@ export type StaffOrgLocationRule = {
   maxStaff: number
 }
 
+/** Labor cost % of revenue — total + contract buckets (ft=contract, pt=inhuur). */
+export type StaffOrgLaborCostPctBuckets = {
+  total: number | null
+  ft: number | null
+  pt: number | null
+  zzp: number | null
+}
+
 /** Per-location planning targets for hour budget vs revenue. */
 export type StaffOrgLocationTargets = {
   locationId: string
@@ -92,6 +102,28 @@ export type StaffOrgLocationTargets = {
   estimatedMonthlyRevenue: number
   /** Minimum € revenue per FT labor hour (productivity floor). */
   minLaborProductivity: number
+  /**
+   * Food revenue → keuken; beverage → bediening + bar (shared pot).
+   * Shares should sum to ~1.
+   */
+  keukenRevenueShare: number
+  bedieningRevenueShare: number
+  /** Override monthly contract (FT) labor €; null = derive from org roster. */
+  contractLaborCostMonthly: number | null
+  /** Seeded from P&L / staff timeseries (read-only display). */
+  laborCostPctActual: StaffOrgLaborCostPctBuckets
+  /** Planner target — “what it should be”. */
+  laborCostPctTarget: StaffOrgLaborCostPctBuckets
+}
+
+/** Seed payload from accounting P&L + optional staff timeseries. */
+export type StaffOrgLaborBenchmark = {
+  locationId: string
+  year: number
+  monthlyRevenue: number
+  laborCostPct: StaffOrgLaborCostPctBuckets
+  keukenRevenueShare: number
+  bedieningRevenueShare: number
 }
 
 export type StaffOrgScenario = {

@@ -22,10 +22,16 @@
       "server/utils/staffOrg/seedRosterFromMembers.ts": ["staffOrgSeedRoster"],
       "server/utils/staffOrg/buildOpeningSlots.ts": ["staffOrgOpeningSlots"],
       "server/utils/staffOrg/buildSlotMetrics.ts": ["staffOrgBuildSlotMetrics"],
+      "server/utils/staffOrg/laborBenchmarks.ts": ["staffOrgLaborBenchmarks"],
+      "server/api/staff-org/labor-benchmarks.get.ts": ["staffOrgLaborBenchmarksGet"],
       "utils/staffOrg/buildOpeningSlots.ts": ["staffOrgOpeningSlots"],
       "utils/staffOrg/buildSlotMetrics.ts": ["staffOrgBuildSlotMetrics"],
       "utils/staffOrg/seedOrgAssignments.ts": ["staffOrgSeedOrgAssignments"],
+      "utils/staffOrg/locationTargets.ts": ["staffOrgLocationTargets"],
+      "utils/staffOrg/contractLabor.ts": ["staffOrgContractLabor"],
+      "utils/staffOrg/productivity.ts": ["staffOrgProductivity"],
       "components/staffOrg/StaffOrgTeamBuilder.vue": ["StaffOrgTeamBuilder"],
+      "components/staffOrg/StaffOrgVenueBudgetCard.vue": ["StaffOrgVenueBudgetCard"],
       "pages/staff-org/index.vue": ["pages/staff-org/index"],
       "pages/staff-org/[id].vue": ["pages/staff-org/[id]"]
     },
@@ -52,7 +58,27 @@
       "type": "component",
       "status": "completed",
       "touch_again": true,
-      "description": "Organogram DnD lanes Manager/Floor/FT/PT-ZZP across venues",
+      "description": "Organogram + per-venue budget (rev split, labor %, rules)",
+      "adr_ref": "ADR-016"
+    },
+    {
+      "id": "StaffOrgVenueBudgetCard",
+      "name": "StaffOrgVenueBudgetCard",
+      "file": "components/staffOrg/StaffOrgVenueBudgetCard.vue",
+      "type": "component",
+      "status": "completed",
+      "touch_again": true,
+      "description": "Venue budget — food/bev split, contract €, labor % actual/target",
+      "adr_ref": "ADR-016"
+    },
+    {
+      "id": "staffOrgLaborBenchmarksGet",
+      "name": "labor-benchmarks",
+      "file": "server/api/staff-org/labor-benchmarks.get.ts",
+      "type": "api",
+      "status": "completed",
+      "touch_again": true,
+      "description": "Seed labor % + food/bev shares from accounting P&L",
       "adr_ref": "ADR-016"
     }
   ]

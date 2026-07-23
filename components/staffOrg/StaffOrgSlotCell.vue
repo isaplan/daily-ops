@@ -30,9 +30,9 @@
 /**
  * @registry-id: StaffOrgSlotCell
  * @created: 2026-07-22T18:00:00.000Z
- * @last-modified: 2026-07-22T22:15:00.000Z
+ * @last-modified: 2026-07-23T02:50:00.000Z
  * @description: Drop target cell for weekday × day/evening slot
- * @last-fix: [2026-07-22] Multi-day: cards carry source cell for move
+ * @last-fix: [2026-07-23] Pass Alt/⌥ copy flag on drop
  * @adr-ref: ADR-016
  */
 
@@ -61,6 +61,8 @@ const emit = defineEmits<{
     memberId: string
     sourceWeekday?: StaffOrgWeekday
     sourceSlot?: StaffOrgSlot
+    /** Keep source cell (Alt/⌥ or ZZP duplicate). */
+    copy?: boolean
   }]
 }>()
 
@@ -82,7 +84,7 @@ const headcountClass = computed(() => {
 
 function onDragOver(e: DragEvent) {
   if (props.openHours == null) return
-  e.dataTransfer && (e.dataTransfer.dropEffect = 'copy')
+  e.dataTransfer && (e.dataTransfer.dropEffect = e.altKey || e.metaKey ? 'copy' : 'copy')
   draggingOver.value = true
 }
 
@@ -103,6 +105,11 @@ function onDrop(e: DragEvent) {
       // ignore
     }
   }
-  emit('drop', { memberId, sourceWeekday, sourceSlot })
+  emit('drop', {
+    memberId,
+    sourceWeekday,
+    sourceSlot,
+    copy: Boolean(e.altKey || e.metaKey),
+  })
 }
 </script>

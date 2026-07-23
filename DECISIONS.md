@@ -439,9 +439,11 @@ API endpoint (`bundle.get.ts`) intelligently serves from the appropriate cache l
 
 3. **Read-only inputs:** `members` (FT/PT/ZZP + stage, wages) and hardcoded [`dailyOpsVenueOpeningHours`](utils/dailyOpsVenueOpeningHours.ts). No writes to snapshots, `daily_ops_read_cache`, Eitje/Bork aggregations, or crons.
 
-4. **Two-step board:** (1) **TeamBuilder** organogram — scenario `venues` (open/closed; add future sites); Manager / Floor / FT / PT·ZZP × Keuken/Bediening; close venue → staff → Unassigned; closed venues listed under Not active locations. (2) **RosterPlanner** — Mon–Sun × day/evening for open venues only.
+4. **Two-step board:** (1) **TeamBuilder** organogram — scenario `venues` (open/closed; add future sites); Manager / Floor / FT / PT·ZZP × Keuken/Bediening/Bar; per-venue **budget** (monthly revenue, food→keuken / beverage→bediening+bar shares, contract labor €, labor % actual vs target, min/max rules); close venue → staff → Unassigned; closed venues listed under Not active locations. (2) **RosterPlanner** — Mon–Sun × day/evening for open venues only; productivity uses team revenue pot + FT hours only (Managers/Chefs always FT).
 
-5. **Daily Ops unchanged:** No changes to labor GET paths or ADR-013 cache cascade.
+5. **P&L seed (read-only):** `GET /api/staff-org/labor-benchmarks` seeds total labor % + food/bev shares from accounting P&L year totals. No writes to Daily Ops cache. FT/PT/ZZP actual % are planner targets until staff-timeseries seed is added.
+
+6. **Daily Ops unchanged:** No changes to labor GET paths or ADR-013 cache cascade.
 
 **Apply map:**
 

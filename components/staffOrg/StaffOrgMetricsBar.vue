@@ -35,10 +35,16 @@
           €{{ formatEur(productivity.monthlyRevenue) }}
         </p>
       </div>
-      <div>
-        <p class="text-xs font-medium uppercase tracking-wide text-gray-500">Weekly rev</p>
+      <div v-if="productivity.teamMonthlyRevenue !== productivity.monthlyRevenue">
+        <p class="text-xs font-medium uppercase tracking-wide text-gray-500">Team pot / mo</p>
         <p class="font-semibold tabular-nums text-gray-900">
-          €{{ formatEur(productivity.weeklyRevenue) }}
+          €{{ formatEur(productivity.teamMonthlyRevenue) }}
+        </p>
+      </div>
+      <div>
+        <p class="text-xs font-medium uppercase tracking-wide text-gray-500">Weekly (team)</p>
+        <p class="font-semibold tabular-nums text-gray-900">
+          €{{ formatEur(productivity.teamWeeklyRevenue) }}
         </p>
       </div>
       <div>
@@ -89,9 +95,9 @@
 /**
  * @registry-id: StaffOrgMetricsBar
  * @created: 2026-07-22T18:00:00.000Z
- * @last-modified: 2026-07-22T22:45:00.000Z
+ * @last-modified: 2026-07-23T10:40:00.000Z
  * @description: Metrics strip — hours + revenue/productivity budget
- * @last-fix: [2026-07-22] Monthly revenue, min €/h, hour budget vs planned
+ * @last-fix: [2026-07-23] Show team revenue pot (food/bev)
  * @adr-ref: ADR-016
  */
 

@@ -18,7 +18,7 @@
           · ~{{ suggestedDays }}d @{{ typicalDayHours }}u
         </span>
       </template>
-      <span v-if="cellHours == null && member.costPerHour"> · €{{ member.costPerHour.toFixed(2) }}/h</span>
+      <span v-if="cellHours == null && !hideWage && member.costPerHour"> · €{{ member.costPerHour.toFixed(2) }}/h</span>
     </p>
   </div>
 </template>
@@ -27,9 +27,9 @@
 /**
  * @registry-id: StaffOrgStaffCard
  * @created: 2026-07-22T18:00:00.000Z
- * @last-modified: 2026-07-22T22:30:00.000Z
+ * @last-modified: 2026-07-23T10:50:00.000Z
  * @description: Draggable FT staff card — days + u/d from contract split
- * @last-fix: [2026-07-22] Show hours/day and suggested day count from contract
+ * @last-fix: [2026-07-23] Optional hideWage for executive staff
  * @adr-ref: ADR-016
  */
 
@@ -49,8 +49,10 @@ const props = withDefaults(
     cellHours?: number
     sourceWeekday?: StaffOrgWeekday
     sourceSlot?: StaffOrgSlot
+    /** Hide €/h (e.g. executive staff). */
+    hideWage?: boolean
   }>(),
-  { compact: false },
+  { compact: false, hideWage: false },
 )
 
 const typicalDayHours = STAFF_ORG_TYPICAL_DAY_HOURS

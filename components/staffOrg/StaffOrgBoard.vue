@@ -66,7 +66,7 @@
             Active roster
           </h3>
           <p class="mb-2 text-[10px] text-gray-500">
-            Drag onto days. Drop on <strong>Not active</strong> to free slots (leaving / sick).
+            Drag onto days. ZZP stay in this list — drop onto each day you need.
           </p>
           <label class="mb-2 flex items-center gap-2 text-xs text-gray-600">
             <input v-model="filterTeamHint" type="checkbox" class="rounded border-gray-300">
@@ -82,6 +82,20 @@
             @dragover.prevent
             @drop.prevent="onDropUnassign"
           >
+            <div v-if="zzpRoster.length">
+              <p class="mb-1 text-[10px] font-semibold uppercase tracking-wide text-violet-800">
+                ZZP — drag onto days ({{ zzpRoster.length }})
+              </p>
+              <div class="flex flex-col gap-1.5">
+                <StaffOrgStaffCard
+                  v-for="m in zzpRoster"
+                  :key="`z-${m.memberId}`"
+                  :member="m"
+                  compact
+                  :placed-days="daysPlaced(m.memberId)"
+                />
+              </div>
+            </div>
             <div v-if="unassignedRoster.length">
               <p class="mb-1 text-[10px] font-semibold uppercase tracking-wide text-amber-800">
                 Not on board ({{ unassignedRoster.length }})
@@ -172,13 +186,14 @@
 /**
  * @registry-id: StaffOrgBoard
  * @created: 2026-07-22T18:00:00.000Z
- * @last-modified: 2026-07-23T00:55:00.000Z
+ * @last-modified: 2026-07-23T10:40:00.000Z
  * @description: Day/evening × Mon–Sun board — multi-day placements per staff
- * @last-fix: [2026-07-23] Not active drop zone clears placements / opens PT-ZZP
+ * @last-fix: [2026-07-23] Team revenue slice + FT-only productivity hours
  * @adr-ref: ADR-016
  */
 
 import type {
+  StaffOrgAssignment,
   StaffOrgCellMetrics,
   StaffOrgLocationTargets,
   StaffOrgPlacement,
@@ -189,7 +204,8 @@ import type {
   StaffOrgWeekday,
 } from '~/types/staff-org'
 import { rebalanceContractHours } from '~/utils/staffOrg/contractHours'
-import { buildProductivityView, weeklyRevenueFromMonthly } from '~/utils/staffOrg/productivity'
+import { buildProductivityView, teamRevenueShare, weeklyRevenueFromMonthly } from '~/utils/staffOrg/productivity'
+import { classifyStaffContractType } from '~/utils/dailyOpsStaffContractBuckets'
 
 export type StaffOrgWeekdayShareRow = {
   weekday: StaffOrgWeekday
@@ -200,12 +216,14 @@ const props = defineProps<{
   locationId: string
   team: StaffOrgTeam
   roster: StaffOrgRosterMember[]
+  /** Full scenario roster for FT productivity (board roster is filtered). */
+  fullRoster?: StaffOrgRosterMember[]
+  orgAssignments?: StaffOrgAssignment[]
   placements: StaffOrgPlacement[]
   metrics: StaffOrgCellMetrics[]
   slotHours: StaffOrgSlotHours[]
   locationTargets: StaffOrgLocationTargets[]
   inactiveMemberIds: string[]
-  /** Historical weekday share of monthly revenue (sums ~1). */
   weekdayShares?: StaffOrgWeekdayShareRow[]
 }>()
 
@@ -264,12 +282,24 @@ const inactiveMembers = computed(() =>
     .sort((a, b) => a.name.localeCompare(b.name, 'nl')),
 )
 
+const zzpRoster = computed(() =>
+  teamFilteredRoster.value
+    .filter((m) => classifyStaffContractType(m.contractType) === 'zzp')
+    .sort((a, b) => a.name.localeCompare(b.name, 'nl')),
+)
+
+const nonZzpRoster = computed(() =>
+  teamFilteredRoster.value.filter(
+    (m) => classifyStaffContractType(m.contractType) !== 'zzp',
+  ),
+)
+
 const unassignedRoster = computed(() =>
-  teamFilteredRoster.value.filter((m) => daysPlaced(m.memberId) === 0),
+  nonZzpRoster.value.filter((m) => daysPlaced(m.memberId) === 0),
 )
 
 const partialRoster = computed(() =>
-  teamFilteredRoster.value.filter((m) => {
+  nonZzpRoster.value.filter((m) => {
     const d = daysPlaced(m.memberId)
     if (d <= 0) return false
     const suggested = m.weeklyContractHours != null && m.weeklyContractHours > 0
@@ -280,7 +310,7 @@ const partialRoster = computed(() =>
 )
 
 const fullRoster = computed(() =>
-  teamFilteredRoster.value.filter((m) => {
+  nonZzpRoster.value.filter((m) => {
     const d = daysPlaced(m.memberId)
     if (d <= 0) return false
     const suggested = m.weeklyContractHours != null && m.weeklyContractHours > 0
@@ -344,18 +374,22 @@ const summary = computed(() => {
   }
 })
 
-/** Location-wide FT hours (all teams) vs revenue targets. */
+/** Team revenue pot (keuken=food; bediening/bar=beverage) vs FT hours. */
 const productivity = computed(() =>
   buildProductivityView({
     locationId: props.locationId,
     targets: props.locationTargets,
     placements: props.placements,
+    roster: props.fullRoster ?? props.roster,
+    orgAssignments: props.orgAssignments,
+    team: props.team,
   }),
 )
 
 const weeklyRevenue = computed(() => {
   const t = props.locationTargets.find((x) => x.locationId === props.locationId)
-  return weeklyRevenueFromMonthly(t?.estimatedMonthlyRevenue ?? 0)
+  const share = teamRevenueShare(t, props.team)
+  return weeklyRevenueFromMonthly((t?.estimatedMonthlyRevenue ?? 0) * share)
 })
 
 const shareByWeekday = computed(() => {
@@ -394,17 +428,26 @@ function formatEur(n: number): string {
   return Math.round(n).toLocaleString('nl-NL')
 }
 
+function isZzpMember(memberId: string): boolean {
+  const m = rosterById.value.get(memberId)
+  return classifyStaffContractType(m?.contractType ?? '') === 'zzp'
+}
+
 function emitPlacements(next: StaffOrgPlacement[], memberId: string) {
   emit('update:placements', rebalanceContractHours(next, props.roster, [memberId]))
 }
 
 function onDrop(
-  payload: { memberId: string; sourceWeekday?: StaffOrgWeekday; sourceSlot?: StaffOrgSlot },
+  payload: {
+    memberId: string
+    sourceWeekday?: StaffOrgWeekday
+    sourceSlot?: StaffOrgSlot
+    copy?: boolean
+  },
   weekday: StaffOrgWeekday,
   slot: StaffOrgSlot,
 ) {
-  const { memberId, sourceWeekday, sourceSlot } = payload
-  // Reactivate if dragging from Not active onto a cell
+  const { memberId, sourceWeekday, sourceSlot, copy } = payload
   if (inactiveSet.value.has(memberId)) {
     emit(
       'update:inactive',
@@ -414,7 +457,9 @@ function onDrop(
 
   let next = [...props.placements]
 
-  if (sourceWeekday != null && sourceSlot) {
+  // Move: remove source. Copy for ZZP always, or Alt/⌥ for anyone.
+  const shouldCopy = Boolean(copy) || isZzpMember(memberId)
+  if (!shouldCopy && sourceWeekday != null && sourceSlot) {
     next = next.filter(
       (p) => !(
         p.memberId === memberId

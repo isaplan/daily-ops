@@ -117,6 +117,11 @@ function onMax(weekday: StaffOrgWeekday, slot: StaffOrgSlot, raw: string) {
 }
 
 function emitSave() {
-  emit('save', localRules.value)
+  emit(
+    'save',
+    localRules.value.filter(
+      (r) => r.locationId === props.locationId && r.team === props.team,
+    ),
+  )
 }
 </script>

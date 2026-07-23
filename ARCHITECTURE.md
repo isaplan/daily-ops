@@ -90,7 +90,7 @@ flowchart TB
 | `weather_observations` | App data | Daily weather for Den Haag (Open-Meteo) | Weather per calendar day | `daily-ops:weather-sync` cron, backfill script | `weekly_reports` builder |
 | `calendar_events` | App data | NL holidays, regio Midden school holidays, major sports (e.g. Oranje WK), custom events | Central event calendar (app-wide) | Seed script, weekly report UI | `weekly_reports` builder, any feature reading events |
 | `weekly_reports` | App data | Sealed weekly document per venue (digest + weather + events + comments) | Interactive weekly report | `daily-ops:weekly-report-build` cron, section PUT API | Weekly Reports environment UI, PDF export |
-| `staff_org_scenarios` | App data | Saved staff org scenarios (orgAssignments + placements + rules) | Staff Org boards | Staff Org API | Staff Org TeamBuilder + RosterPlanner (ADR-016) |
+| `staff_org_scenarios` | App data | Saved staff org scenarios (orgAssignments + placements + rules + locationTargets with food/bev split + labor % targets) | Staff Org boards | Staff Org API | Staff Org TeamBuilder (budget) + RosterPlanner (ADR-016) |
 
 ---
 
