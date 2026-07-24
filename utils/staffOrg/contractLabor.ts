@@ -8,6 +8,8 @@
  *
  * @exports-to:
  * ✓ utils/staffOrg/productivity.ts
+ * ✓ utils/staffOrg/teamOrgMetrics.ts
+ * ✓ utils/staffOrg/buildSlotMetrics.ts
  * ✓ components/staffOrg/StaffOrgVenueBudgetCard.vue
  * ✓ components/staffOrg/StaffOrgBoard.vue
  */

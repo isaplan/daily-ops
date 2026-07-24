@@ -30,6 +30,7 @@ export default defineEventHandler(async (event) => {
     rules: scenario.locationRules,
     roster: scenario.roster,
     slotHours,
+    orgAssignments: scenario.orgAssignments,
   })
 
   return { success: true, data: { scenario, slotHours, metrics } }

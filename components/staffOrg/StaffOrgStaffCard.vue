@@ -1,12 +1,13 @@
 <template>
   <div
+    data-pdf-staff-card
     draggable="true"
-    class="cursor-grab rounded border border-gray-200 bg-white px-2 py-1.5 text-left shadow-sm active:cursor-grabbing"
+    class="cursor-grab rounded border border-gray-400 bg-white px-2 py-1.5 text-left shadow-sm active:cursor-grabbing"
     :class="compact ? 'text-xs' : 'text-sm'"
     @dragstart="onDragStart"
   >
-    <p class="truncate font-medium text-gray-900">{{ member.name }}</p>
-    <p class="truncate text-[10px] text-gray-500">
+    <p data-pdf-staff-name class="truncate font-semibold text-gray-900">{{ member.name }}</p>
+    <p data-pdf-staff-meta class="truncate text-[11px] text-gray-600">
       <span v-if="cellHours != null" class="font-medium text-gray-700">{{ cellHours }}u</span>
       <template v-else>
         <span v-if="member.weeklyContractHours != null">{{ member.weeklyContractHours }}u/w</span>
@@ -27,9 +28,9 @@
 /**
  * @registry-id: StaffOrgStaffCard
  * @created: 2026-07-22T18:00:00.000Z
- * @last-modified: 2026-07-23T10:50:00.000Z
+ * @last-modified: 2026-07-23T17:20:00.000Z
  * @description: Draggable FT staff card — days + u/d from contract split
- * @last-fix: [2026-07-23] Optional hideWage for executive staff
+ * @last-fix: [2026-07-23] Stronger border + darker meta text
  * @adr-ref: ADR-016
  */
 

@@ -37,6 +37,7 @@ export default defineEventHandler(async (event) => {
     rules: scenario.locationRules,
     roster: scenario.roster,
     slotHours,
+    orgAssignments: scenario.orgAssignments,
   })
 
   // Per-member weekly hours check for response summary

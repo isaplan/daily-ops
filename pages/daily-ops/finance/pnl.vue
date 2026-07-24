@@ -189,9 +189,10 @@
 
     <UCard class="border border-gray-200 !bg-white ring-0 shadow-none">
       <p class="text-xs text-gray-600">
-        <strong>Food</strong> = geproduceerde goederen · <strong>Beverage</strong> = handelsgoederen (VKB: groepen).
-        <strong>COGS</strong> food/bev · <strong>Labor</strong> = Lonen + Sociale lasten + Pensioen + Overig.
-        <strong>Fixed</strong> = Overige + Afschrijving + Financieel (parent = sum when children set).
+        Food = geproduceerde goederen. Beverage = handelsgoederen.
+        Edit mode shows Analyse grandchildren (omzet, inkopen, salarissen + inhuur under Lonen).
+        Labor = Lonen + Sociale lasten + Pensioen + Overig.
+        Fixed = Overige + Afschrijving + Financieel.
       </p>
     </UCard>
   </div>
@@ -200,9 +201,9 @@
 <script setup lang="ts">
 /**
  * @registry-id: dailyOpsFinancePnl
- * @last-modified: 2026-07-16T11:05:00.000Z
+ * @last-modified: 2026-07-23T15:45:00.000Z
  * @description: Accounting P&L benchmarks with manual edit/save
- * @last-fix: [2026-07-16] Edit = month view only; pad empty months; sticky Save
+ * @last-fix: [2026-07-23] Analyse grandchildren under Food/Bev/Lonen
  * @adr-ref: ADR-013
  * @data-source: direct-db
  * @read-cache-json: none

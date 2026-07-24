@@ -178,8 +178,11 @@
 
     <template v-else-if="panel === 'rules'">
       <div class="flex flex-wrap items-center justify-between gap-1">
-        <p class="font-semibold uppercase tracking-wide text-gray-500">Min / max staff</p>
+        <p class="font-semibold uppercase tracking-wide text-gray-500">Min / max FT staff</p>
       </div>
+      <p class="text-[10px] leading-snug text-gray-500">
+        Per day / evening — Chef, Manager, Floor &amp; FT only (not PT or ZZP).
+      </p>
       <div class="flex flex-wrap gap-1">
         <button
           v-for="t in teams"
@@ -196,6 +199,7 @@
       </div>
       <StaffOrgRulesEditor
         class="border-0 p-0 shadow-none"
+        hide-title
         :location-id="locationId"
         :team="rulesTeam"
         :rules="rules"
@@ -210,9 +214,9 @@
 /**
  * @registry-id: StaffOrgVenueBudgetCard
  * @created: 2026-07-23T10:40:00.000Z
- * @last-modified: 2026-07-23T11:05:00.000Z
+ * @last-modified: 2026-07-24T12:25:00.000Z
  * @description: Per-venue budget / min-max panels (shown via TeamBuilder pills)
- * @last-fix: [2026-07-23] panel prop: budget | rules
+ * @last-fix: [2026-07-24] Min/max labeled as FT staff (Chef/Manager/Floor/FT)
  * @adr-ref: ADR-016
  */
 

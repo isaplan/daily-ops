@@ -176,6 +176,7 @@ export type StaffOrgCellMetrics = {
   openHours: number | null
   assignedHours: number
   laborCost: number
+  /** FT headcount only (Chef / Manager / Floor / FT) — compared to min/max. */
   headcount: number
   minStaff: number
   maxStaff: number

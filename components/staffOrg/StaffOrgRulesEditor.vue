@@ -1,7 +1,13 @@
 <template>
   <div class="rounded-lg border border-gray-200 bg-white p-4">
-    <div class="mb-3 flex items-center justify-between">
-      <h3 class="text-sm font-semibold text-gray-900">Min / max staff</h3>
+    <div class="mb-3 flex items-center justify-between gap-2">
+      <div v-if="!hideTitle" class="min-w-0">
+        <h3 class="text-sm font-semibold text-gray-900">Min / max FT staff</h3>
+        <p class="mt-0.5 text-[10px] leading-snug text-gray-500">
+          Chef, Manager, Floor &amp; FT only — not PT or ZZP.
+        </p>
+      </div>
+      <span v-else class="flex-1" />
       <UButton size="xs" variant="outline" :loading="saving" @click="emitSave">Save rules</UButton>
     </div>
     <div class="overflow-x-auto">
@@ -37,6 +43,20 @@
               </div>
             </td>
           </tr>
+          <tr class="text-[9px] uppercase tracking-wide text-gray-400">
+            <td class="px-2 py-0.5" />
+            <td
+              v-for="weekday in weekdays"
+              :key="`lbl-${weekday}`"
+              class="px-1 py-0.5"
+            >
+              <div class="flex items-center gap-0.5">
+                <span class="w-10 text-center">min</span>
+                <span class="invisible">–</span>
+                <span class="w-10 text-center">max</span>
+              </div>
+            </td>
+          </tr>
         </tbody>
       </table>
     </div>
@@ -47,9 +67,9 @@
 /**
  * @registry-id: StaffOrgRulesEditor
  * @created: 2026-07-22T18:00:00.000Z
- * @last-modified: 2026-07-22T18:00:00.000Z
- * @description: Edit min/max staff per weekday × day/evening for one location/team
- * @last-fix: [2026-07-22] Initial rules editor
+ * @last-modified: 2026-07-24T12:35:00.000Z
+ * @description: Edit min/max FT staff per weekday × day/evening for one location/team
+ * @last-fix: [2026-07-24] Footer min/max labels under evening row
  * @adr-ref: ADR-016
  */
 
@@ -60,12 +80,17 @@ import type {
   StaffOrgWeekday,
 } from '~/types/staff-org'
 
-const props = defineProps<{
-  locationId: string
-  team: StaffOrgTeam
-  rules: StaffOrgLocationRule[]
-  saving?: boolean
-}>()
+const props = withDefaults(
+  defineProps<{
+    locationId: string
+    team: StaffOrgTeam
+    rules: StaffOrgLocationRule[]
+    saving?: boolean
+    /** Hide title when parent already shows Min / max FT heading. */
+    hideTitle?: boolean
+  }>(),
+  { hideTitle: false },
+)
 
 const emit = defineEmits<{
   save: [rules: StaffOrgLocationRule[]]

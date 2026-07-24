@@ -4,13 +4,26 @@
       <p class="text-sm text-gray-600">
         Open venues: Keuken / Bediening / Bar. ZZP can sit on multiple venues.
       </p>
-      <button
-        type="button"
-        class="rounded-md bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-800"
-        @click="showAdd = !showAdd"
-      >
-        + New location
-      </button>
+      <div class="flex flex-wrap items-center gap-2">
+        <UButton
+          size="sm"
+          variant="ghost"
+          color="primary"
+          class="cursor-pointer"
+          icon="i-lucide-file-down"
+          :loading="exportingPdf"
+          @click="exportPdf"
+        >
+          Download PDF
+        </UButton>
+        <button
+          type="button"
+          class="rounded-md bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-800"
+          @click="showAdd = !showAdd"
+        >
+          + New location
+        </button>
+      </div>
     </div>
 
     <div
@@ -49,22 +62,23 @@
       </button>
     </div>
 
-    <div class="rounded-lg border border-gray-200 bg-white p-3">
+    <div ref="pdfRoot" data-staff-org-print class="space-y-4">
+    <div class="rounded-lg border border-gray-400 bg-white p-3">
       <h3 class="mb-1 text-sm font-semibold text-gray-900">Executive staff</h3>
-      <p class="mb-3 text-[10px] text-gray-500">
+      <p class="mb-3 text-xs text-gray-600">
         Above all locations — responsible company-wide.
       </p>
-      <div class="grid gap-2 sm:grid-cols-3">
+      <div class="grid gap-2" :class="exportingPdf ? 'grid-cols-3' : 'sm:grid-cols-3'">
         <div
           v-for="area in executiveAreas"
           :key="area.id"
-          class="rounded-md border border-dashed border-gray-200 bg-gray-50/50 p-2"
+          class="rounded-md border border-dashed border-gray-400 bg-gray-50 p-2"
           @dragover.prevent
           @drop.prevent="onDropExecutive(area.id, $event)"
         >
-          <p class="mb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-500">
+          <p class="mb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-700">
             {{ area.label }}
-            <span class="font-normal text-gray-400">({{ membersInExecutive(area.id).length }})</span>
+            <span class="font-normal text-gray-500">({{ membersInExecutive(area.id).length }})</span>
           </p>
           <div class="flex min-h-[2.5rem] flex-col gap-1">
             <StaffOrgStaffCard
@@ -74,7 +88,7 @@
               compact
               hide-wage
             />
-            <p v-if="!membersInExecutive(area.id).length" class="text-[9px] text-gray-400">
+            <p v-if="!membersInExecutive(area.id).length" class="text-[10px] text-gray-500">
               Drop
             </p>
           </div>
@@ -82,18 +96,23 @@
       </div>
     </div>
 
-    <div class="grid gap-3" :class="openVenues.length >= 3 ? 'xl:grid-cols-3' : openVenues.length === 2 ? 'md:grid-cols-2' : ''">
+    <div
+      data-pdf-venue-grid
+      class="grid gap-3"
+      :class="exportingPdf ? pdfVenueGridClass : venueGridClass"
+    >
       <div
         v-for="venue in openVenues"
         :key="venue.locationId"
-        class="flex flex-col rounded-lg border border-gray-200 bg-white p-3"
+        class="flex flex-col rounded-lg border-2 border-gray-400 bg-white p-3 shadow-sm"
       >
         <div class="mb-2 flex items-start justify-between gap-2">
           <div class="min-w-0">
             <h3 class="text-sm font-semibold text-gray-900">{{ venue.short }}</h3>
-            <p class="truncate text-[10px] text-gray-500">{{ venue.name }}</p>
+            <p class="truncate text-xs text-gray-600">{{ venue.name }}</p>
           </div>
           <div
+            v-show="!exportingPdf"
             class="inline-flex shrink-0 flex-wrap justify-end gap-1"
             role="tablist"
             :aria-label="`${venue.short} panels`"
@@ -120,13 +139,51 @@
           class="space-y-1.5"
         >
           <div class="grid grid-cols-3 gap-1.5">
-            <p
+            <div
               v-for="teamCol in teamColumns"
               :key="`h-${venue.locationId}-${teamCol}`"
-              class="text-center text-[11px] font-semibold uppercase tracking-wide text-gray-700"
+              class="min-w-0 text-center"
             >
-              {{ teamCol === 'keuken' ? '1. Keuken' : teamCol === 'bediening' ? '2. Bediening' : '3. Bar' }}
-            </p>
+              <p class="text-xs font-semibold uppercase tracking-wide text-gray-800">
+                {{ teamCol === 'keuken' ? '1. Keuken' : teamCol === 'bediening' ? '2. Bediening' : '3. Bar' }}
+              </p>
+              <div
+                v-if="teamMetricsFor(venue.locationId, teamCol)"
+                class="mt-1 space-y-0.5 text-[11px] leading-snug tabular-nums text-gray-700"
+              >
+                <p>
+                  Labor
+                  <span class="font-semibold text-gray-900">
+                    €{{ formatEur(teamMetricsFor(venue.locationId, teamCol)!.laborCostMonthly) }}
+                  </span>
+                  <span class="text-gray-500">/mo</span>
+                </p>
+                <p>
+                  Hours
+                  <span class="font-semibold text-gray-900">
+                    {{ teamMetricsFor(venue.locationId, teamCol)!.hoursAllocatedMonthly.toFixed(0) }}
+                  </span>
+                  <span class="text-gray-500">
+                    / {{ teamMetricsFor(venue.locationId, teamCol)!.hoursAvailableMonthly.toFixed(0) }}u
+                  </span>
+                </p>
+                <p
+                  v-if="teamMetricsFor(venue.locationId, teamCol)!.budgetRemainingMonthly != null"
+                  :class="budgetClass(teamMetricsFor(venue.locationId, teamCol)!.budgetRemainingMonthly!)"
+                >
+                  <template v-if="teamMetricsFor(venue.locationId, teamCol)!.budgetRemainingMonthly! > 50">
+                    €{{ formatEur(teamMetricsFor(venue.locationId, teamCol)!.budgetRemainingMonthly!) }} left in budget
+                  </template>
+                  <template v-else-if="teamMetricsFor(venue.locationId, teamCol)!.budgetRemainingMonthly! < -50">
+                    €{{ formatEur(Math.abs(teamMetricsFor(venue.locationId, teamCol)!.budgetRemainingMonthly!)) }} over budget
+                  </template>
+                  <template v-else>
+                    On labor budget
+                  </template>
+                </p>
+                <p v-else class="text-gray-500">Set labor % target for budget</p>
+              </div>
+            </div>
           </div>
           <div
             v-for="row in builderRows"
@@ -147,23 +204,30 @@
               <div
                 v-else
                 class="rounded-md border border-dashed p-1.5"
-                :class="isLeadLane(teamCol, row.roles[teamCol]!)
+                :class="isOpenVacancyLane(teamCol, row.roles[teamCol]!)
                   && !membersInLane(venue.locationId, teamCol, row.roles[teamCol]!).length
-                  ? 'border-amber-300 bg-amber-50/50'
-                  : 'border-gray-200 bg-gray-50/50'"
+                  ? 'border-amber-500 bg-amber-50'
+                  : 'border-gray-400 bg-gray-50'"
                 @dragover.prevent
                 @drop.prevent="onDropRole(venue.locationId, teamCol, row.roles[teamCol]!, $event)"
               >
-                <p class="mb-1 text-[9px] font-semibold uppercase tracking-wide text-gray-500">
+                <p class="mb-0.5 text-[11px] font-semibold uppercase tracking-wide text-gray-700">
                   {{ laneLabel(teamCol, row.roles[teamCol]!) }}
-                  <span class="font-normal text-gray-400">
+                  <span class="font-normal text-gray-600">
                     ({{ membersInLane(venue.locationId, teamCol, row.roles[teamCol]!).length }})
                   </span>
                   <span
-                    v-if="isLeadLane(teamCol, row.roles[teamCol]!)
+                    v-if="isOpenVacancyLane(teamCol, row.roles[teamCol]!)
                       && !membersInLane(venue.locationId, teamCol, row.roles[teamCol]!).length"
-                    class="ml-0.5 text-amber-700"
+                    class="ml-0.5 text-amber-800"
                   >open</span>
+                </p>
+                <p
+                  v-if="laneMetricLine(venue.locationId, teamCol, row.roles[teamCol]!)"
+                  class="mb-1 text-[10px] leading-snug tabular-nums"
+                  :class="laneMetricClass(venue.locationId, teamCol, row.roles[teamCol]!)"
+                >
+                  {{ laneMetricLine(venue.locationId, teamCol, row.roles[teamCol]!) }}
                 </p>
                 <div class="flex min-h-[2rem] flex-col gap-1">
                   <StaffOrgStaffCard
@@ -174,7 +238,7 @@
                   />
                   <p
                     v-if="!membersInLane(venue.locationId, teamCol, row.roles[teamCol]!).length"
-                    class="text-[9px] text-gray-400"
+                    class="text-[10px] text-gray-500"
                   >
                     Drop
                   </p>
@@ -222,7 +286,7 @@
         >
           No targets loaded for this venue.
         </p>
-        <div class="mt-auto border-t border-gray-100 pt-3">
+        <div v-show="!exportingPdf" class="mt-auto border-t border-gray-100 pt-3">
           <button
             type="button"
             class="w-full rounded-md border border-red-300 bg-red-50 px-2 py-1.5 text-[11px] font-semibold text-red-700 hover:bg-red-100"
@@ -233,6 +297,34 @@
           </button>
         </div>
       </div>
+
+      <!-- Unassigned sits as the rightmost column beside venues -->
+      <div
+        data-pdf-unassigned
+        class="flex flex-col rounded-lg border-2 border-red-500 bg-white p-3"
+        @dragover.prevent
+        @drop.prevent="onDropUnassigned"
+      >
+        <div class="mb-2 min-w-0">
+          <h3 class="text-sm font-semibold text-gray-900">
+            Unassigned
+            <span class="font-normal text-gray-600">({{ unassigned.length }})</span>
+          </h3>
+          <p class="text-xs text-gray-600">Includes staff from closed venues.</p>
+        </div>
+        <div class="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto md:max-h-[calc(100vh-16rem)]">
+          <StaffOrgStaffCard
+            v-for="m in unassigned"
+            :key="`u-${m.memberId}`"
+            :member="m"
+            compact
+          />
+          <p v-if="!unassigned.length" class="py-4 text-center text-[10px] text-gray-400">
+            Drop staff here
+          </p>
+        </div>
+      </div>
+    </div>
     </div>
 
     <UModal
@@ -286,26 +378,7 @@
       </template>
     </UModal>
 
-    <div class="grid gap-3 md:grid-cols-3">
-      <div
-        class="rounded-lg border border-dashed border-gray-300 bg-white p-3"
-        @dragover.prevent
-        @drop.prevent="onDropUnassigned"
-      >
-        <h3 class="mb-1 text-xs font-semibold uppercase tracking-wide text-gray-500">
-          Unassigned ({{ unassigned.length }})
-        </h3>
-        <p class="mb-2 text-[10px] text-gray-500">Includes staff from closed venues.</p>
-        <div class="flex max-h-40 flex-col gap-1 overflow-y-auto">
-          <StaffOrgStaffCard
-            v-for="m in unassigned"
-            :key="`u-${m.memberId}`"
-            :member="m"
-            compact
-          />
-        </div>
-      </div>
-
+    <div class="grid gap-3 md:grid-cols-2">
       <div
         class="rounded-lg border border-dashed border-red-200 bg-red-50/40 p-3"
         @dragover.prevent
@@ -323,6 +396,7 @@
           >
             <StaffOrgStaffCard :member="m" compact class="min-w-0 flex-1" />
             <button
+              v-show="!exportingPdf"
               type="button"
               class="shrink-0 rounded px-1.5 py-1 text-[10px] font-medium text-red-800 hover:bg-red-100"
               @click="reactivate(m.memberId)"
@@ -349,6 +423,7 @@
               <p class="truncate text-[10px] text-gray-500">{{ v.name }}</p>
             </div>
             <button
+              v-show="!exportingPdf"
               type="button"
               class="shrink-0 text-[10px] font-medium text-gray-800 hover:underline"
               @click="reopenVenue(v.locationId)"
@@ -369,9 +444,9 @@
 /**
  * @registry-id: StaffOrgTeamBuilder
  * @created: 2026-07-23T01:10:00.000Z
- * @last-modified: 2026-07-23T11:25:00.000Z
+ * @last-modified: 2026-07-24T12:25:00.000Z
  * @description: Organogram — Executive + venues (Keuken/Bediening/Bar) + budget
- * @last-fix: [2026-07-23] Bedrijfsleider; Bar Hoofd (no bar manager lane)
+ * @last-fix: [2026-07-24] Empty FT lanes show open (same as Chef)
  * @adr-ref: ADR-016
  */
 
@@ -389,6 +464,10 @@ import type {
   StaffOrgVenue,
 } from '~/types/staff-org'
 import { isZzpRole } from '~/utils/staffOrg/seedOrgAssignments'
+import {
+  buildTeamColumnMetrics,
+  type StaffOrgTeamColumnMetrics,
+} from '~/utils/staffOrg/teamOrgMetrics'
 
 const props = defineProps<{
   venues: StaffOrgVenue[]
@@ -402,6 +481,7 @@ const props = defineProps<{
   benchmarks?: StaffOrgLaborBenchmark[]
   savingTargets?: boolean
   savingRules?: boolean
+  scenarioName?: string
 }>()
 
 const emit = defineEmits<{
@@ -417,11 +497,87 @@ function benchmarkFor(locationId: string): StaffOrgLaborBenchmark | null {
   return props.benchmarks?.find((b) => b.locationId === locationId) ?? null
 }
 
+function formatEur(n: number): string {
+  return Math.round(n).toLocaleString('nl-NL')
+}
+
+function budgetClass(remaining: number): string {
+  if (remaining > 50) return 'font-medium text-emerald-700'
+  if (remaining < -50) return 'font-medium text-red-600'
+  return 'font-medium text-gray-700'
+}
+
+const teamMetricsByVenue = computed(() => {
+  const map = new Map<string, Map<StaffOrgTeam, StaffOrgTeamColumnMetrics>>()
+  if (!props.targets?.length) return map
+  for (const v of props.venues.filter((x) => x.status === 'open')) {
+    const rows = buildTeamColumnMetrics({
+      locationId: v.locationId,
+      targets: props.targets,
+      roster: props.roster,
+      orgAssignments: props.orgAssignments,
+      inactiveMemberIds: props.inactiveMemberIds,
+      slotHours: props.slotHours ?? [],
+    })
+    map.set(v.locationId, new Map(rows.map((r) => [r.team, r])))
+  }
+  return map
+})
+
+function teamMetricsFor(
+  locationId: string,
+  team: StaffOrgTeam,
+): StaffOrgTeamColumnMetrics | null {
+  return teamMetricsByVenue.value.get(locationId)?.get(team) ?? null
+}
+
+function laneMetricLine(
+  locationId: string,
+  team: StaffOrgTeam,
+  role: StaffOrgRole,
+): string | null {
+  const m = teamMetricsFor(locationId, team)
+  if (!m) return null
+
+  if (role === 'pt' || role === 'zzp') {
+    const hours = m.flexHoursRemainingMonthly
+    const budget = m.flexBudgetRemainingMonthly
+    const own = m.byRole[role]
+    const ownBits: string[] = []
+    if (own && own.headcount > 0) {
+      ownBits.push(`€${formatEur(own.laborCostMonthly)}`)
+      ownBits.push(`${own.hoursAllocatedMonthly.toFixed(0)}u`)
+    }
+    const remain = budget != null
+      ? `left ${hours.toFixed(0)}u · €${formatEur(budget)}`
+      : `left ${hours.toFixed(0)}u`
+    return ownBits.length ? `${ownBits.join(' · ')} · ${remain}` : remain
+  }
+
+  const slice = m.byRole[role]
+  if (!slice) return null
+  return `€${formatEur(slice.laborCostMonthly)} · ${slice.hoursAllocatedMonthly.toFixed(0)}u/mo`
+}
+
+function laneMetricClass(
+  locationId: string,
+  team: StaffOrgTeam,
+  role: StaffOrgRole,
+): string {
+  if (role !== 'pt' && role !== 'zzp') return 'text-gray-700'
+  const m = teamMetricsFor(locationId, team)
+  const budget = m?.flexBudgetRemainingMonthly
+  if (budget == null) return 'text-gray-700'
+  if (budget > 50) return 'text-emerald-700'
+  if (budget < -50) return 'text-red-600'
+  return 'text-gray-700'
+}
+
 type VenuePanel = 'builder' | 'budget' | 'rules'
 const venuePanelTabs: Array<{ value: VenuePanel; label: string }> = [
   { value: 'builder', label: 'Builder' },
   { value: 'budget', label: 'Budget' },
-  { value: 'rules', label: 'Min / max staff' },
+  { value: 'rules', label: 'Min / max FT' },
 ]
 const venuePanels = ref<Record<string, VenuePanel>>({})
 
@@ -484,8 +640,9 @@ function laneLabel(team: StaffOrgTeam, role: StaffOrgRole): string {
   return LANE_LABELS[team][role] ?? role
 }
 
-/** Empty lead highlight: Chef / Bedrijfsleider / Bar Hoofd. */
-function isLeadLane(team: StaffOrgTeam, role: StaffOrgRole): boolean {
+/** Empty vacancy highlight: Chef / Bedrijfsleider / Bar Hoofd / FT. */
+function isOpenVacancyLane(team: StaffOrgTeam, role: StaffOrgRole): boolean {
+  if (role === 'ft') return true
   if (team === 'bar') return role === 'floor_manager'
   return role === 'manager'
 }
@@ -496,6 +653,146 @@ const newShort = ref('')
 
 const openVenues = computed(() => props.venues.filter((v) => v.status === 'open'))
 const closedVenues = computed(() => props.venues.filter((v) => v.status === 'closed'))
+
+/** Venues + Unassigned column on the right. */
+const venueGridClass = computed(() => {
+  const cols = openVenues.value.length + 1
+  if (cols >= 4) return 'xl:grid-cols-4 lg:grid-cols-2'
+  if (cols === 3) return 'xl:grid-cols-3 md:grid-cols-2'
+  if (cols === 2) return 'md:grid-cols-2'
+  return ''
+})
+
+/** Fixed desktop columns for PDF — always like the wide HTML (Scenario-11). */
+const pdfVenueGridClass = computed(() => {
+  const cols = openVenues.value.length + 1
+  if (cols >= 4) return 'grid-cols-4'
+  if (cols === 3) return 'grid-cols-3'
+  if (cols === 2) return 'grid-cols-2'
+  return 'grid-cols-1'
+})
+
+/** CSS width that matches the wide organogram layout users expect in PDF. */
+const PDF_EXPORT_WIDTH_PX = 1280
+
+const pdfRoot = ref<HTMLElement | null>(null)
+const exportingPdf = ref(false)
+const toast = useToast()
+
+async function exportPdf() {
+  if (!pdfRoot.value || exportingPdf.value || !import.meta.client) return
+  toast.add({
+    title: 'Creating your PDF.',
+    icon: 'i-lucide-file-down',
+    color: 'primary',
+    duration: 4000,
+  })
+
+  const previousPanels = { ...venuePanels.value }
+  const nextPanels: Record<string, VenuePanel> = { ...venuePanels.value }
+  for (const v of openVenues.value) {
+    nextPanels[v.locationId] = 'builder'
+  }
+  venuePanels.value = nextPanels
+  exportingPdf.value = true
+  await nextTick()
+
+  const root = pdfRoot.value
+  const base = (props.scenarioName?.trim() || 'staff-org').replace(/[^a-z0-9]+/gi, '_')
+
+  // Lock wide desktop layout so PDF never depends on current window width
+  const prevWidth = root.style.width
+  const prevMinWidth = root.style.minWidth
+  const prevMaxWidth = root.style.maxWidth
+  root.style.width = `${PDF_EXPORT_WIDTH_PX}px`
+  root.style.minWidth = `${PDF_EXPORT_WIDTH_PX}px`
+  root.style.maxWidth = `${PDF_EXPORT_WIDTH_PX}px`
+
+  // Expand clipped lists so the screenshot includes full Unassigned / lanes
+  const expandBackups: Array<{ el: HTMLElement; maxHeight: string; overflow: string }> = []
+  for (const el of root.querySelectorAll<HTMLElement>('*')) {
+    const cs = getComputedStyle(el)
+    if (cs.maxHeight === 'none' && cs.overflowY !== 'auto' && cs.overflowY !== 'scroll') continue
+    expandBackups.push({
+      el,
+      maxHeight: el.style.maxHeight,
+      overflow: el.style.overflow,
+    })
+    el.style.maxHeight = 'none'
+    el.style.overflow = 'visible'
+  }
+  await nextTick()
+  await new Promise<void>((r) => requestAnimationFrame(() => r()))
+
+  try {
+    const { toJpeg } = await import('html-to-image')
+    const { jsPDF } = await import('jspdf')
+
+    const widthPx = PDF_EXPORT_WIDTH_PX
+    const heightPx = Math.ceil(Math.max(root.scrollHeight, root.offsetHeight))
+    if (heightPx < 40) {
+      throw new Error('PDF content height is empty — wait for the page to finish loading.')
+    }
+
+    // Browser paints the live HTML at fixed desktop width (Scenario-11 layout).
+    const dataUrl = await toJpeg(root, {
+      quality: 0.98,
+      pixelRatio: 2,
+      backgroundColor: '#ffffff',
+      cacheBust: true,
+      width: widthPx,
+      height: heightPx,
+      style: {
+        transform: 'none',
+        margin: '0',
+        width: `${widthPx}px`,
+        maxWidth: `${widthPx}px`,
+      },
+    })
+
+    const marginMm = 8
+    const pxToMm = (px: number) => (px * 25.4) / 96
+    const contentW = pxToMm(widthPx)
+    const contentH = pxToMm(heightPx)
+    const pageW = contentW + marginMm * 2
+    const pageH = contentH + marginMm * 2
+
+    const pdf = new jsPDF({
+      orientation: pageW >= pageH ? 'landscape' : 'portrait',
+      unit: 'mm',
+      format: [pageW, pageH],
+      compress: true,
+    })
+    pdf.addImage(dataUrl, 'JPEG', marginMm, marginMm, contentW, contentH)
+    pdf.save(`${base}.pdf`)
+
+    toast.add({
+      title: 'PDF downloaded.',
+      icon: 'i-lucide-check',
+      color: 'success',
+      duration: 3000,
+    })
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Unknown error'
+    toast.add({
+      title: 'PDF failed.',
+      description: msg,
+      icon: 'i-lucide-alert-circle',
+      color: 'error',
+      duration: 8000,
+    })
+  } finally {
+    for (const b of expandBackups) {
+      b.el.style.maxHeight = b.maxHeight
+      b.el.style.overflow = b.overflow
+    }
+    root.style.width = prevWidth
+    root.style.minWidth = prevMinWidth
+    root.style.maxWidth = prevMaxWidth
+    venuePanels.value = previousPanels
+    exportingPdf.value = false
+  }
+}
 
 const rosterById = computed(() => new Map(props.roster.map((m) => [m.memberId, m])))
 const inactiveSet = computed(() => new Set(props.inactiveMemberIds))

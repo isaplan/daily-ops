@@ -65,6 +65,7 @@
         :benchmarks="laborBenchmarks"
         :saving-targets="savingTargets"
         :saving-rules="savingRules"
+        :scenario-name="scenario.name"
         @update:org="onOrg"
         @update:executive="onExecutive"
         @update:inactive="onInactive"
@@ -113,9 +114,9 @@
 /**
  * @registry-id: pages/staff-org/[id]
  * @created: 2026-07-22T18:00:00.000Z
- * @last-modified: 2026-07-23T11:20:00.000Z
+ * @last-modified: 2026-07-23T15:15:00.000Z
  * @description: Staff Org — TeamBuilder + RosterPlanner tabs
- * @last-fix: [2026-07-23] Save status via toast
+ * @last-fix: [2026-07-23] Pass scenarioName for PDF export
  * @adr-ref: ADR-016
  */
 
@@ -267,6 +268,7 @@ function recomputeLocalMetrics() {
     rules: payload.scenario.locationRules,
     roster: payload.scenario.roster,
     slotHours: payload.slotHours,
+    orgAssignments: payload.scenario.orgAssignments,
   })
 }
 
