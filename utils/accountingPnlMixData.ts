@@ -48,13 +48,13 @@ const REV_BEV_2025: Record<AccountingPnlVenueId, number[]> = {
 }
 
 const REV_FOOD_2026: Record<AccountingPnlVenueId, number[]> = {
-  vkb: [54799, 61139, 76523, 79717, 79609],
+  vkb: [54799, 61139, 76523, 79717, 79609, 76153],
   bea: [27509, 25985, 39132, 30135, 38729],
   lat: [54006, 44777, 44533, 50162, 42014],
 }
 
 const REV_BEV_2026: Record<AccountingPnlVenueId, number[]> = {
-  vkb: [58345, 64055, 82075, 94089, 80115],
+  vkb: [58345, 64055, 82075, 94089, 80115, 85189],
   bea: [64732, 67888, 91174, 136657, 105679],
   lat: [31075, 29795, 38897, 44698, 38281],
 }
@@ -87,14 +87,14 @@ const COGS_BEV_2025: Partial<Record<AccountingPnlVenueId, number[]>> = {
 
 /** Keuken hoog+laag (Power BI 2026) + BEA uitbesteed werk (Analyse). */
 const COGS_FOOD_2026: Record<AccountingPnlVenueId, number[]> = {
-  vkb: [26358, 20424, 29450, 29909, 29956],
+  vkb: [26358, 20502, 29646, 29919, 26435, 28843],
   bea: [11505, 11290, 16635, 13950, 13974],
   lat: [0, 0, 0, 0, 0],
 }
 
 /** Net COGS − food (accounting headline totals). */
 const COGS_BEV_2026: Record<AccountingPnlVenueId, number[]> = {
-  vkb: [18489, 19603, 22828, 28391, 24598],
+  vkb: [18489, 19604, 22828, 28390, 26213, 28323],
   bea: [19117, 25684, 27263, 40802, 29005],
   lat: [27980, 34343, 29817, 29208, 30048],
 }
@@ -111,7 +111,7 @@ const ANNUAL_MIX: Record<AccountingPnlYear, Record<AccountingPnlVenueId, Account
     lat: { revenueFood: 795_152, revenueBeverage: 544_808, cogsFood: 268_484, cogsBeverage: 141_175 },
   },
   2026: {
-    vkb: { revenueFood: 351_787, revenueBeverage: 378_679, cogsFood: 136_097, cogsBeverage: 113_909 },
+    vkb: { revenueFood: 427_940, revenueBeverage: 463_868, cogsFood: 161_703, cogsBeverage: 143_848 },
     bea: { revenueFood: 161_490, revenueBeverage: 466_130, cogsFood: 67_354, cogsBeverage: 141_871 },
     lat: { revenueFood: 235_492, revenueBeverage: 182_746, cogsFood: 0, cogsBeverage: 151_565 },
   },

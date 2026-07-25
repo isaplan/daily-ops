@@ -1,9 +1,10 @@
 /**
  * @registry-id: useDailyOpsDashboardMetrics
  * @created: 2026-05-18T00:00:00.000Z
- * @last-modified: 2026-07-22T00:00:00.000Z
+ * @last-modified: 2026-07-22T15:30:00.000Z
  * @description: Dashboard metrics via single snapshot bundle (ADR-004). One HTTP round-trip; progressive UI gates on summary only.
- * @last-fix: [2026-07-22] Expose sealed tableOccupancy from dashboard-bundle
+ * @last-fix: [2026-07-22] Bump bundle key v8 — refetch after byVenue staff/productivity fix
+ *   Prior: [2026-07-22] Expose sealed tableOccupancy from dashboard-bundle
  *   Prior: [2026-07-16] Restore stable asyncData key — default:null + getter key emptied all Daily Ops pages
  * @adr-ref: ADR-004, ADR-010, ADR-013
  * @data-source: read-cache
@@ -60,7 +61,7 @@ const metricsKey = (
   q: Record<string, string | undefined>,
   snapshotBuiltAt: string | null,
 ): string => {
-  const base = `daily-ops-bundle-v6-${q.period ?? 'today'}-${q.location ?? 'all'}-${q.anchor ?? ''}`
+  const base = `daily-ops-bundle-v8-${q.period ?? 'today'}-${q.location ?? 'all'}-${q.anchor ?? ''}`
   if ((q.period ?? 'today') === 'today') {
     return `${base}-${amsterdamOpenRegisterBusinessDateYmd()}-${snapshotBuiltAt ?? 'init'}`
   }

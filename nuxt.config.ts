@@ -200,7 +200,7 @@ export default defineNuxtConfig({
         clientFiles: [
           './app.vue',
           './pages/daily-ops/inbox/index.vue',
-          './pages/daily-ops/revenue/index.vue',
+          './pages/daily-ops/revenue.vue',
           './pages/daily-ops/index.vue',
         ],
       },

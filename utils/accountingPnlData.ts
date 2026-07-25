@@ -1,9 +1,22 @@
 /**
  * Accounting P&L benchmarks — sourced from *Analyse* exports (2024/2025 full year, 2026 Jan–May monthly + YTD).
  * Fixed parent = overige + afschrijving + financieel when children present; legacy docs = overige only.
+ * Grandchildren: Analyse GL lines under Food/Bev revenue & COGS and under Labor Lonen.
  */
 
 import { accountingPnlRowWithMix } from '~/utils/accountingPnlMixData'
+import {
+  emptyCogsBevLines,
+  emptyCogsFoodLines,
+  emptyLaborLonenLines,
+  emptyRevenueBevLines,
+  emptyRevenueFoodLines,
+  type AccountingPnlCogsBevLines,
+  type AccountingPnlCogsFoodLines,
+  type AccountingPnlLaborLonenLines,
+  type AccountingPnlRevenueBevLines,
+  type AccountingPnlRevenueFoodLines,
+} from '~/utils/accountingPnlGrandchildLines'
 import { sumAccountingPnlRows } from '~/utils/accountingPnlRowMath'
 
 export type AccountingPnlVenueId = 'vkb' | 'bea' | 'lat'
@@ -12,18 +25,25 @@ export type AccountingPnlRow = {
   revenue: number
   revenueFood: number
   revenueBeverage: number
+  revenueFoodLines: AccountingPnlRevenueFoodLines
+  revenueBevLines: AccountingPnlRevenueBevLines
   labor: number
   laborLonen: number
+  laborLonenLines: AccountingPnlLaborLonenLines
   laborSocialeLasten: number
   laborPensioen: number
   laborOverig: number
   cogs: number
   cogsFood: number
   cogsBeverage: number
+  cogsFoodLines: AccountingPnlCogsFoodLines
+  cogsBevLines: AccountingPnlCogsBevLines
   fixed: number
   fixedOverige: number
   fixedAfschrijving: number
   fixedFinancieel: number
+  /** Analyse income line (positive cash in); stored signed negative so fixed = sum(children). */
+  fixedOpbrengstVorderingen: number
   result: number
 }
 
@@ -70,11 +90,16 @@ function rowBase ([revenue, cogs, labor, fixed, result]: PnlTuple): AccountingPn
     revenue,
     revenueFood: 0,
     revenueBeverage: 0,
+    revenueFoodLines: emptyRevenueFoodLines(),
+    revenueBevLines: emptyRevenueBevLines(),
     cogs,
     cogsFood: 0,
     cogsBeverage: cogs,
+    cogsFoodLines: emptyCogsFoodLines(),
+    cogsBevLines: emptyCogsBevLines(),
     labor,
     laborLonen: labor,
+    laborLonenLines: emptyLaborLonenLines(),
     laborSocialeLasten: 0,
     laborPensioen: 0,
     laborOverig: 0,
@@ -82,6 +107,7 @@ function rowBase ([revenue, cogs, labor, fixed, result]: PnlTuple): AccountingPn
     fixedOverige: fixed,
     fixedAfschrijving: 0,
     fixedFinancieel: 0,
+    fixedOpbrengstVorderingen: 0,
     result,
   }
 }
@@ -194,28 +220,31 @@ const MONTHLY_2025: Record<AccountingPnlVenueId, PnlTuple[]> = {
   ],
 }
 
-/** Jan–May 2026 monthly — [revenue, cogs, labor, fixed, result]. */
+/** Jan–Jun 2026 monthly — [revenue, cogs, labor, fixed, result]. */
 const MONTHLY_2026: Record<AccountingPnlVenueId, PnlTuple[]> = {
   vkb: [
-    [113144, 44847, 65533, 35284, -41636],
-    [125194, 40027, 63331, 35570, -22850],
-    [158598, 52278, 66479, 38315, -7756],
-    [173806, 58300, 57691, 36299, 12436],
-    [159724, 54554, 70432, 36559, -10900],
+    [113144, 44847, 65533, 41901, -39137],
+    [125194, 40106, 63331, 45179, -23422],
+    [158598, 52474, 66479, 48853, -9208],
+    [173806, 58310, 57691, 46315, 11490],
+    [159724, 52648, 70951, 46753, -10628],
+    [161342, 57166, 72935, 48179, -16938],
   ],
   bea: [
-    [92241, 30622, 36091, 25367, -11445],
-    [93858, 36974, 36016, 26857, -17771],
-    [130057, 43898, 36284, 32003, 5942],
-    [166792, 54752, 43523, 29085, 26965],
-    [144408, 42979, 52613, 36052, 679],
+    [92241, 30687, 36091, 36902, -11439],
+    [93858, 37131, 36016, 38647, -17936],
+    [130057, 43913, 36284, 44250, 5610],
+    [166792, 54832, 43523, 41801, 26636],
+    [144408, 44949, 49093, 49416, 950],
+    [122032, 43463, 49888, 40966, -12285],
   ],
   lat: [
-    [85081, 27980, 45116, 30088, -36340],
-    [74572, 34343, 51460, 25832, -55480],
-    [83430, 29986, 45479, 34178, -43673],
-    [94860, 29208, 54714, 27126, -35254],
-    [80295, 30048, 51878, 26294, -46496],
+    [85081, 28120, 45116, 48402, -36557],
+    [74572, 34566, 51460, 44255, -55709],
+    [83430, 30479, 45479, 51645, -44173],
+    [94860, 29698, 54714, 46220, -35772],
+    [80295, 36098, 51833, 45364, -53000],
+    [61667, 23743, 36889, 37576, -36541],
   ],
 }
 
@@ -271,12 +300,12 @@ function monthlyForYear (year: AccountingPnlYear): Record<AccountingPnlVenueId, 
 }
 
 export function accountingPnlYearLabel (year: AccountingPnlYear): string {
-  if (year === 2026) return '2026 (Jan–May YTD)'
+  if (year === 2026) return '2026 (Jan–Jun YTD)'
   return String(year)
 }
 
 export function accountingPnlMonthsForYear (year: AccountingPnlYear): number[] {
-  if (year === 2026) return [1, 2, 3, 4, 5]
+  if (year === 2026) return [1, 2, 3, 4, 5, 6]
   return Array.from({ length: 12 }, (_, i) => i + 1)
 }
 
