@@ -67,11 +67,13 @@ export type AccountingPnlBenchmarkUpsertPeriodInput = {
 
 export type AccountingPnlBenchmarkUpsertRequest = {
   periods: AccountingPnlBenchmarkUpsertPeriodInput[]
-  /** When true, refresh org P&L assumptions from the first annual (month=null) combined row. */
+  /** When true (default), refresh P&L % + break-even from rolling 12 sealed months. */
   refreshAssumptions?: boolean
 }
 
 export type AccountingPnlBenchmarkUpsertResponse = {
   touched: number
   assumptionsUpdated: boolean
+  breakEvenUpdated?: boolean
+  monthsUsed?: number
 }

@@ -424,3 +424,40 @@ API endpoint (`bundle.get.ts`) intelligently serves from the appropriate cache l
 **Related:** ADR-004, ADR-013, ADR-014
 
 ---
+
+## ADR-016 — Staff Org environment (scenario boards)
+
+**Status:** Accepted (2026-07-22)
+
+**Context:** Closing a venue (l'Amour) requires redistributing FT staff across remaining locations. Existing Excel roosters and Daily Ops labor snapshots are not suited for what-if organisation. We need a saveable board without coupling to snapshot/read-cache rebuilds.
+
+**Decision:**
+
+1. **New environment:** `staff-org` — fifth app environment. Routes under `/staff-org/*`.
+
+2. **New collection (additive, hot app data):** `staff_org_scenarios` — one document per named organisation scenario (draft/active/archived). Holds `orgAssignments` (TeamBuilder: location × team × role), `placements` (RosterPlanner), `locationRules`, `locationTargets`, `inactiveMemberIds`, and denormalized `roster`.
+
+3. **Read-only inputs:** `members` (FT/PT/ZZP + stage, wages) and hardcoded [`dailyOpsVenueOpeningHours`](utils/dailyOpsVenueOpeningHours.ts). No writes to snapshots, `daily_ops_read_cache`, Eitje/Bork aggregations, or crons.
+
+4. **Two-step board:** (1) **TeamBuilder** organogram — scenario `venues` (open/closed; add future sites); Manager / Floor / FT / PT·ZZP × Keuken/Bediening/Bar; per-venue **budget** (monthly revenue, food→keuken / beverage→bediening+bar shares, contract labor €, labor % actual vs target, min/max rules); close venue → staff → Unassigned; closed venues listed under Not active locations. (2) **RosterPlanner** — Mon–Sun × day/evening for open venues only; productivity uses team revenue pot + FT hours only (Managers/Chefs always FT).
+
+5. **P&L seed (read-only):** `GET /api/staff-org/labor-benchmarks` seeds total labor % + food/bev shares from accounting P&L year totals. No writes to Daily Ops cache. FT/PT/ZZP actual % are planner targets until staff-timeseries seed is added.
+
+6. **Daily Ops unchanged:** No changes to labor GET paths or ADR-013 cache cascade.
+
+**Apply map:**
+
+| Surface | File |
+|--------|------|
+| Types | `types/staff-org.ts`, `types/environment.ts` |
+| Repo / metrics | `server/utils/staffOrg/*` |
+| API | `server/api/staff-org/*` |
+| UI | `pages/staff-org/*`, `components/staffOrg/*` |
+| Env wiring | `composables/useEnvironment.ts`, `components/AppSidebar.vue` |
+
+**Consequences:** One new Mongo collection. Scenarios are self-contained and reloadable. Not a live Eitje planner — organisation / organigram only.
+
+**Related:** ADR-004, ADR-013, ADR-015
+
+---
+

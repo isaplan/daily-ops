@@ -133,6 +133,9 @@
           :show-active="showActiveCounts"
           :leave-venue="attendanceVenue(venue.locationId, 'leave')"
           :sick-venue="attendanceVenue(venue.locationId, 'sick')"
+          :break-even-primary="breakEvenPrimaryFor(venue.locationId)"
+          :average-line="averageLineFor(venue.locationId)"
+          :year-ago-line="yearAgoLineFor(venue.locationId)"
         />
       </div>
     </div>
@@ -175,6 +178,24 @@
                   {{ formatEurWhole(venue.revenue.beverage) }}
                   <span class="ml-1 font-normal text-gray-400">{{ formatEurWhole(venue.revenue.beverageIncVat ?? venue.revenue.beverage * 1.21) }}</span>
                 </dd>
+              </div>
+            </dl>
+          </div>
+
+          <div>
+            <p class="mb-1 text-xs font-bold uppercase tracking-wide text-gray-900">Break-even</p>
+            <dl class="space-y-1">
+              <div class="flex justify-between gap-2">
+                <dt>Target</dt>
+                <dd class="tabular-nums font-medium text-gray-700">{{ breakEvenPrimaryFor(venue.locationId) }}</dd>
+              </div>
+              <div class="flex justify-between gap-2">
+                <dt>Average</dt>
+                <dd class="tabular-nums text-gray-700">{{ averageLineFor(venue.locationId) }}</dd>
+              </div>
+              <div class="flex justify-between gap-2">
+                <dt>Last year</dt>
+                <dd class="tabular-nums text-gray-700">{{ yearAgoLineFor(venue.locationId) }}</dd>
               </div>
             </dl>
           </div>
@@ -277,6 +298,9 @@
           :show-active="showActiveCounts"
           :leave-venue="attendanceVenue(venue.locationId, 'leave')"
           :sick-venue="attendanceVenue(venue.locationId, 'sick')"
+          :break-even-primary="breakEvenPrimaryFor(venue.locationId)"
+          :average-line="averageLineFor(venue.locationId)"
+          :year-ago-line="yearAgoLineFor(venue.locationId)"
         />
           </div>
         </div>
@@ -328,6 +352,24 @@
                       {{ formatEurWhole(venue.revenue.beverage) }}
                       <span class="ml-1 font-normal text-gray-400">{{ formatEurWhole(venue.revenue.beverageIncVat ?? venue.revenue.beverage * 1.21) }}</span>
                     </dd>
+                  </div>
+                </dl>
+              </div>
+
+              <div>
+                <p class="mb-1 text-xs font-bold uppercase tracking-wide text-gray-900">Break-even</p>
+                <dl class="space-y-1">
+                  <div class="flex justify-between gap-2">
+                    <dt>Target</dt>
+                    <dd class="tabular-nums font-medium text-gray-700">{{ breakEvenPrimaryFor(venue.locationId) }}</dd>
+                  </div>
+                  <div class="flex justify-between gap-2">
+                    <dt>Average</dt>
+                    <dd class="tabular-nums text-gray-700">{{ averageLineFor(venue.locationId) }}</dd>
+                  </div>
+                  <div class="flex justify-between gap-2">
+                    <dt>Last year</dt>
+                    <dd class="tabular-nums text-gray-700">{{ yearAgoLineFor(venue.locationId) }}</dd>
                   </div>
                 </dl>
               </div>
@@ -434,6 +476,9 @@
           :show-active="showActiveCounts"
           :leave-venue="attendanceVenue(venue.locationId, 'leave')"
           :sick-venue="attendanceVenue(venue.locationId, 'sick')"
+          :break-even-primary="breakEvenPrimaryFor(venue.locationId)"
+          :average-line="averageLineFor(venue.locationId)"
+          :year-ago-line="yearAgoLineFor(venue.locationId)"
         />
           </div>
         </div>
@@ -485,6 +530,24 @@
                       {{ formatEurWhole(venue.revenue.beverage) }}
                       <span class="ml-1 font-normal text-gray-400">{{ formatEurWhole(venue.revenue.beverageIncVat ?? venue.revenue.beverage * 1.21) }}</span>
                     </dd>
+                  </div>
+                </dl>
+              </div>
+
+              <div>
+                <p class="mb-1 text-xs font-bold uppercase tracking-wide text-gray-900">Break-even</p>
+                <dl class="space-y-1">
+                  <div class="flex justify-between gap-2">
+                    <dt>Target</dt>
+                    <dd class="tabular-nums font-medium text-gray-700">{{ breakEvenPrimaryFor(venue.locationId) }}</dd>
+                  </div>
+                  <div class="flex justify-between gap-2">
+                    <dt>Average</dt>
+                    <dd class="tabular-nums text-gray-700">{{ averageLineFor(venue.locationId) }}</dd>
+                  </div>
+                  <div class="flex justify-between gap-2">
+                    <dt>Last year</dt>
+                    <dd class="tabular-nums text-gray-700">{{ yearAgoLineFor(venue.locationId) }}</dd>
                   </div>
                 </dl>
               </div>
@@ -566,13 +629,13 @@
 <script setup lang="ts">
 /**
  * @description: Venue strip cards — fixed 3 locations
- * @last-modified: 2026-07-16T00:00:00.000Z
- * @last-fix: [2026-07-16] Remount graph on granularity/period change so x-axis cannot lag
- *   Prior: [2026-07-02] ADR-013 read-cache metadata
- * @adr-ref: ADR-004, ADR-010, ADR-013
+ * @last-modified: 2026-07-25T11:30:00.000Z
+ * @last-fix: [2026-07-25] New Break-even card + lazy avg/YoY; removed BE under revenue
+ *   Prior: [2026-07-24] Break-even on overview revenue tiles + detail revenue
+ * @adr-ref: ADR-004, ADR-010, ADR-013, ADR-014
  * @data-source: read-cache
  * @read-cache-json: dashboard-bundle venue-strip (via GET /api/daily-ops/metrics/venue-strip)
- * @imports-data-from: GET /api/daily-ops/metrics/venue-strip
+ * @imports-data-from: GET /api/daily-ops/metrics/venue-strip · break-even · revenue-averages
  */
 
 import type {
@@ -708,6 +771,59 @@ function attendanceVenue(
 
 const hasVenues = computed(() => (data.value?.venues?.length ?? 0) > 0)
 const showActiveCounts = computed(() => props.period === 'today')
+
+const stripRevenueTotal = computed(() =>
+  (data.value?.venues ?? []).reduce((sum, v) => sum + (v.revenue?.total ?? 0), 0),
+)
+const stripVenueRevenueMap = computed(() => {
+  const map: Record<string, number> = {}
+  for (const v of data.value?.venues ?? []) map[v.locationId] = v.revenue?.total ?? 0
+  return map
+})
+const periodRef = computed(() => props.period)
+const anchorRef = computed(() => props.anchor ?? null)
+const includeVenuesRef = computed(() => true)
+const { byVenue: breakEvenByVenue, formatPctVs: formatBePct, pending: breakEvenPending } = useDailyOpsBreakEven({
+  period: periodRef,
+  anchor: anchorRef,
+  revenue: stripRevenueTotal,
+  includeVenues: includeVenuesRef,
+  venueRevenueByLocationId: stripVenueRevenueMap,
+  enabled: hasVenues,
+})
+
+const {
+  forLocation: averagesForLocation,
+  formatCompareLine,
+  pending: averagesPending,
+} = useDailyOpsRevenueAverages({
+  period: periodRef,
+  anchor: anchorRef,
+  revenue: stripRevenueTotal,
+  venueRevenueByLocationId: stripVenueRevenueMap,
+  enabled: hasVenues,
+})
+
+function breakEvenPrimaryFor (locationId: string): string {
+  if (breakEvenPending.value && !breakEvenByVenue.value.length) return '—'
+  const row = breakEvenByVenue.value.find((v) => v.locationId === locationId)
+  if (!row || row.breakEven <= 0) return '—'
+  if (props.period === 'today' || row.pctVsBreakEven == null) {
+    return formatEurWhole(row.breakEven)
+  }
+  const pct = formatBePct(row.pctVsBreakEven)
+  return pct ? `${formatEurWhole(row.breakEven)} · ${pct}` : formatEurWhole(row.breakEven)
+}
+
+function averageLineFor (locationId: string): string {
+  if (averagesPending.value && !averagesForLocation(locationId)) return '—'
+  return formatCompareLine(averagesForLocation(locationId)?.average ?? null)
+}
+
+function yearAgoLineFor (locationId: string): string {
+  if (averagesPending.value && !averagesForLocation(locationId)) return '—'
+  return formatCompareLine(averagesForLocation(locationId)?.yearAgo ?? null)
+}
 
 const chartBusinessDate = computed(() => {
   const r = resolveDailyOpsPeriod(props.period, props.anchor ?? undefined)

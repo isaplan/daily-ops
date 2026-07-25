@@ -1,13 +1,14 @@
 /**
  * @registry-id: dailyOpsBuildPeriodBreakdown
  * @created: 2026-07-11T00:00:00.000Z
- * @last-modified: 2026-07-13T01:03:00.000Z
+ * @last-modified: 2026-07-22T15:30:00.000Z
  * @description: Period breakdown bars for dashboard-bundle + venue strip graph (hour/day/week/month)
  *   Reads from snapshot hourly revenue + labor sections.
  *   NOTE: Must use order-time for today (open register), paid-time for historical (sealed days).
  *   Phase 2 TODO: Create shared resolveHourlyRevenueBasis() resolver to dedup this logic across 
  *   buildHourlyRows, buildPeriodBreakdown, buildProfitByInterval, todayRevenueDetail.
- * @last-fix: [2026-07-14] Period breakdown profit via ADR-014 net-profit SSOT
+ * @last-fix: [2026-07-22] Keep strip staffCount/laborHours when drilldown overwrites € rows
+ *   Prior: [2026-07-14] Period breakdown profit via ADR-014 net-profit SSOT
  * @adr-ref: ADR-004, ADR-013, ADR-014
  * @data-source: snapshot-write-only
  * @write-cache-json: daily_ops_read_cache · dashboard-bundle · periodBreakdown slice
@@ -274,6 +275,21 @@ function venueDayRowFromStrip(
   })
 }
 
+/** Staff/hours from sealed labor when strip missing or wiped. */
+function venueStaffHoursFromLabor(
+  bundle: DailyOpsDashboardBundleDto,
+  locationId: string,
+  date: string,
+): { laborHours: number; staffCount: number } {
+  const teams = (bundle.labor?.workersByTeamLocationByDay ?? []).filter(
+    (r) => r.date === date && r.locationId === locationId,
+  )
+  return {
+    laborHours: round2(teams.reduce((s, t) => s + (t.totalHours ?? 0), 0)),
+    staffCount: teams.reduce((s, t) => s + (t.workerCount ?? 0), 0),
+  }
+}
+
 function dayRowsByVenueFromDailyBundle(
   bundle: DailyOpsDashboardBundleDto,
   pnl: PeriodBreakdownPnlContext,
@@ -284,13 +300,28 @@ function dayRowsByVenueFromDailyBundle(
 
   for (const venue of VENUE_STRIP_LOCATIONS) {
     const fromStrip = venueDayRowFromStrip(bundle, venue.locationId, date, pnl)
-    byVenue.set(venue.locationId, fromStrip ?? emptyRow(date, label))
+    if (fromStrip) {
+      byVenue.set(venue.locationId, fromStrip)
+      continue
+    }
+    const row = emptyRow(date, label)
+    const fromLabor = venueStaffHoursFromLabor(bundle, venue.locationId, date)
+    row.laborHours = fromLabor.laborHours
+    row.staffCount = fromLabor.staffCount
+    byVenue.set(venue.locationId, row)
   }
 
   const drilldown = bundle.revenue.drilldown
   if (drilldown?.hourlyRows?.length) {
+    // Drilldown locations only carry € — keep strip/labor staff+hours for Staff & Productivity.
     for (const venue of VENUE_STRIP_LOCATIONS) {
-      byVenue.set(venue.locationId, emptyRow(date, label))
+      const prev = byVenue.get(venue.locationId)!
+      byVenue.set(venue.locationId, {
+        ...emptyRow(date, label),
+        laborHours: prev.laborHours,
+        staffCount: prev.staffCount,
+        staffByContract: prev.staffByContract,
+      })
     }
     for (const hourRow of drilldown.hourlyRows) {
       for (const loc of hourRow.locations) {
@@ -302,6 +333,11 @@ function dayRowsByVenueFromDailyBundle(
       }
     }
     for (const [locId, row] of byVenue) {
+      if (row.staffCount <= 0 || row.laborHours <= 0) {
+        const fromLabor = venueStaffHoursFromLabor(bundle, locId, date)
+        if (row.laborHours <= 0) row.laborHours = fromLabor.laborHours
+        if (row.staffCount <= 0) row.staffCount = fromLabor.staffCount
+      }
       byVenue.set(locId, finalizeRow(row))
     }
   }

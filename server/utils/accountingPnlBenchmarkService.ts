@@ -1,9 +1,9 @@
 /**
  * @registry-id: accountingPnlBenchmarkService
  * @created: 2026-06-21T00:00:00.000Z
- * @last-modified: 2026-07-16T11:05:00.000Z
+ * @last-modified: 2026-07-24T11:35:00.000Z
  * @description: Seed + read + upsert accounting P&L benchmarks (Mongo accounting_pnl_benchmark).
- * @last-fix: [2026-07-16] Month grid includes DB months beyond seed window
+ * @last-fix: [2026-07-24] Monthly save refreshes P&L % + break-even via rolling 12m
  *
  * @exports-to:
  * ✓ server/api/daily-ops/finance/pnl.get.ts
@@ -38,8 +38,7 @@ import {
   sealAccountingPnlRow,
   sumAccountingPnlRows,
 } from '~/utils/accountingPnlRowMath'
-import { accountingPnlAssumptionsFromRow } from '~/utils/accountingPnlAssumptions'
-import { savePnlAssumptions } from './appSettings/pnlAssumptionsSetting'
+import { refreshFinanceAssumptions } from './accountingPnl/refreshFinanceAssumptions'
 
 export const ACCOUNTING_PNL_BENCHMARK_COLLECTION = 'accounting_pnl_benchmark'
 
@@ -262,11 +261,10 @@ export async function upsertAccountingPnlBenchmarkPeriods (
   db: Db,
   periods: Array<{ year: number; month: number | null; venues: Record<AccountingPnlVenueId, Partial<AccountingPnlRow>> }>,
   options?: { refreshAssumptions?: boolean },
-): Promise<{ touched: number; assumptionsUpdated: boolean }> {
+): Promise<{ touched: number; assumptionsUpdated: boolean; breakEvenUpdated: boolean; monthsUsed: number }> {
   const col = db.collection<AccountingPnlBenchmarkPeriodDoc>(ACCOUNTING_PNL_BENCHMARK_COLLECTION)
   const now = new Date()
   let touched = 0
-  let assumptionsSource: AccountingPnlRow | null = null
 
   for (const period of periods) {
     const year = normalizeYear(period.year)
@@ -304,15 +302,18 @@ export async function upsertAccountingPnlBenchmarkPeriods (
       { upsert: true },
     )
     if (res.upsertedCount > 0 || res.modifiedCount > 0) touched++
-    if (month == null && !assumptionsSource) assumptionsSource = combined
   }
 
-  let assumptionsUpdated = false
-  if (options?.refreshAssumptions !== false && assumptionsSource && assumptionsSource.revenue > 0) {
-    await savePnlAssumptions(db, accountingPnlAssumptionsFromRow(assumptionsSource))
-    assumptionsUpdated = true
+  if (options?.refreshAssumptions === false) {
+    return { touched, assumptionsUpdated: false, breakEvenUpdated: false, monthsUsed: 0 }
   }
 
-  return { touched, assumptionsUpdated }
+  const refreshed = await refreshFinanceAssumptions(db)
+  return {
+    touched,
+    assumptionsUpdated: refreshed.assumptionsUpdated,
+    breakEvenUpdated: refreshed.breakEvenUpdated,
+    monthsUsed: refreshed.monthsUsed,
+  }
 }
 

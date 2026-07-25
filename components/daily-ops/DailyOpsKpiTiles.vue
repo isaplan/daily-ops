@@ -22,6 +22,24 @@
         >
           <p class="text-sm font-medium text-gray-500">{{ tile.label }}</p>
           <p class="mt-2 text-2xl font-semibold tabular-nums text-gray-900">{{ tile.display }}</p>
+          <p
+            v-if="tile.id === 'revenue'"
+            class="mt-1 text-xs tabular-nums text-gray-600"
+          >
+            {{ revenueBeLine }}
+          </p>
+          <p
+            v-if="tile.id === 'revenue'"
+            class="mt-0.5 text-xs tabular-nums text-gray-600"
+          >
+            {{ revenueAvgLine }}
+          </p>
+          <p
+            v-if="tile.id === 'revenue'"
+            class="mt-0.5 text-xs tabular-nums text-gray-600"
+          >
+            {{ revenueYoyLine }}
+          </p>
           <button
             v-if="tile.id === 'revenue' && gmailNeedsReconnect"
             type="button"
@@ -58,11 +76,11 @@
 <script setup lang="ts">
 /**
  * @description: Dashboard KPI tiles with lazy drawer fetches
- * @last-modified: 2026-07-22T00:00:00.000Z
- * @last-fix: [2026-07-22] Occupancy from sealed bundle prop (ADR-013); no live KPI fetch
- * @adr-ref: ADR-004, ADR-010, ADR-013
+ * @last-modified: 2026-07-25T11:35:00.000Z
+ * @last-fix: [2026-07-25] Lazy BE + avg/YoY on Total Revenue tile + drawer
+ * @adr-ref: ADR-004, ADR-010, ADR-013, ADR-014
  * @data-source: mixed
- * @read-cache-json: dashboard-bundle summary + tableOccupancy; lazy GET attendance-kpis, contract-hours-variance
+ * @read-cache-json: dashboard-bundle summary + tableOccupancy; lazy GET break-even, revenue-averages
  * @imports-data-from: props + GET /api/daily-ops/metrics/*
  */
 
@@ -151,6 +169,85 @@ const attendanceLoadedForKey = ref<string | null>(null)
 const tableOccupancyData = computed(() => props.tableOccupancy ?? null)
 const tableOccupancyFallback = ref<DailyOpsTableOccupancyKpisDto | null>(null)
 const tableOccupancyFallbackKey = ref<string | null>(null)
+
+const revenueForBreakEven = computed(() => {
+  const fromSummary = props.summary?.totalRevenue
+  if (fromSummary != null && Number.isFinite(fromSummary)) return fromSummary
+  return venues.value.reduce((sum: number, v: VenueStripCardDto) => sum + (v.revenue?.total ?? 0), 0)
+})
+
+const venueRevenueByLocationId = computed(() => {
+  const map: Record<string, number> = {}
+  for (const v of venues.value) {
+    map[v.locationId] = v.revenue?.total ?? 0
+  }
+  return map
+})
+
+const periodRef = computed(() => props.period)
+const anchorRef = computed(() => props.anchor ?? null)
+const includeVenuesRef = computed(() => true)
+const { data: breakEvenData, byVenue: breakEvenByVenue, pending: breakEvenPending, formatPctVs } = useDailyOpsBreakEven({
+  period: periodRef,
+  anchor: anchorRef,
+  revenue: revenueForBreakEven,
+  includeVenues: includeVenuesRef,
+  venueRevenueByLocationId,
+})
+
+const {
+  combined: revenueAveragesCombined,
+  forLocation: revenueAveragesForLocation,
+  formatCompareLine,
+  pending: averagesPending,
+} = useDailyOpsRevenueAverages({
+  period: periodRef,
+  anchor: anchorRef,
+  revenue: revenueForBreakEven,
+  venueRevenueByLocationId,
+})
+
+const revenueBeLine = computed(() => {
+  if (breakEvenPending.value && !breakEvenData.value) return 'BE —'
+  const be = breakEvenData.value
+  if (!be || be.breakEven <= 0) return 'BE —'
+  if (props.period === 'today' || be.pctVsBreakEven == null) {
+    return `BE ${formatEurWhole(be.breakEven)}`
+  }
+  const pct = formatPctVs(be.pctVsBreakEven)
+  return pct ? `BE ${formatEurWhole(be.breakEven)} · ${pct}` : `BE ${formatEurWhole(be.breakEven)}`
+})
+
+const revenueAvgLine = computed(() => {
+  if (averagesPending.value && !revenueAveragesCombined.value) return '—'
+  return formatCompareLine(revenueAveragesCombined.value?.average ?? null)
+})
+
+const revenueYoyLine = computed(() => {
+  if (averagesPending.value && !revenueAveragesCombined.value) return '—'
+  return formatCompareLine(revenueAveragesCombined.value?.yearAgo ?? null)
+})
+
+function formatBreakEvenCell (locationId: string): string {
+  if (breakEvenPending.value && !breakEvenByVenue.value.length) return '—'
+  const row = breakEvenByVenue.value.find((v) => v.locationId === locationId)
+  if (!row || row.breakEven <= 0) return '—'
+  if (props.period === 'today' || row.pctVsBreakEven == null) {
+    return formatEurWhole(row.breakEven)
+  }
+  const pct = formatPctVs(row.pctVsBreakEven)
+  return pct ? `${formatEurWhole(row.breakEven)} · ${pct}` : formatEurWhole(row.breakEven)
+}
+
+function formatAvgCell (locationId: string): string {
+  if (averagesPending.value && !revenueAveragesForLocation(locationId)) return '—'
+  return formatCompareLine(revenueAveragesForLocation(locationId)?.average ?? null)
+}
+
+function formatYoyCell (locationId: string): string {
+  if (averagesPending.value && !revenueAveragesForLocation(locationId)) return '—'
+  return formatCompareLine(revenueAveragesForLocation(locationId)?.yearAgo ?? null)
+}
 
 const resolvedOccupancy = computed(
   () => tableOccupancyData.value ?? tableOccupancyFallback.value,
@@ -405,6 +502,9 @@ function venueRevenueRows (): KpiDrawerVenueRow[] {
       formatEurWhole(v.revenue.total),
       formatEurWhole(v.revenue.food),
       formatEurWhole(v.revenue.beverage),
+      formatBreakEvenCell(v.locationId),
+      formatAvgCell(v.locationId),
+      formatYoyCell(v.locationId),
     ],
   }))
 }
@@ -616,6 +716,30 @@ const drawerContent = computed(() => {
         summaryRows: [
           { label: 'Combined (3 venues)', value: formatEurWhole(t.revenue) },
           {
+            label: 'Break-even (combined)',
+            value: breakEvenPending.value && !breakEvenData.value
+              ? '—'
+              : breakEvenData.value && breakEvenData.value.breakEven > 0
+                ? (
+                    props.period === 'today' || breakEvenData.value.pctVsBreakEven == null
+                      ? formatEurWhole(breakEvenData.value.breakEven)
+                      : `${formatEurWhole(breakEvenData.value.breakEven)} · ${formatPctVs(breakEvenData.value.pctVsBreakEven) ?? ''}`
+                  )
+                : '—',
+          },
+          {
+            label: 'Average (combined)',
+            value: averagesPending.value && !revenueAveragesCombined.value
+              ? '—'
+              : formatCompareLine(revenueAveragesCombined.value?.average ?? null),
+          },
+          {
+            label: 'Last year (combined)',
+            value: averagesPending.value && !revenueAveragesCombined.value
+              ? '—'
+              : formatCompareLine(revenueAveragesCombined.value?.yearAgo ?? null),
+          },
+          {
             label: props.period === 'today' ? 'Bork order-time · ex VAT (bundle)' : 'Inbox Basis · ex VAT (bundle)',
             value: props.period === 'today'
               ? (rs != null ? formatEurWhole(rs.apiBusinessDaysTotal) : '—')
@@ -626,7 +750,7 @@ const drawerContent = computed(() => {
             value: props.period === 'today' ? '—' : (rs != null ? formatEurWhole(rs.apiBusinessDaysTotal) : '—'),
           },
         ],
-        venueColumns: ['Total', 'Food', 'Beverage'],
+        venueColumns: ['Total', 'Food', 'Beverage', 'Break-even', 'Average', 'Last year'],
         venueRows: venueRevenueRows(),
       }
     case 'labor':

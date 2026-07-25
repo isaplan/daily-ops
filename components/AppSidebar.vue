@@ -258,6 +258,21 @@
           </NuxtLink>
         </li>
       </ul>
+      <!-- Staff Org environment -->
+      <ul v-else-if="activeEnvironment === 'staff-org'" class="space-y-1">
+        <li>
+          <UTooltip v-if="collapsed" text="Scenarios" :popper="{ placement: 'right' }">
+            <NuxtLink to="/staff-org" :class="navLinkClass(isStaffOrgList)">
+              <UIcon name="i-lucide-users" class="size-5 shrink-0" />
+              <span v-if="!collapsed">Scenarios</span>
+            </NuxtLink>
+          </UTooltip>
+          <NuxtLink v-else to="/staff-org" :class="navLinkClass(isStaffOrgList)">
+            <UIcon name="i-lucide-users" class="size-4 shrink-0" />
+            <span>Scenarios</span>
+          </NuxtLink>
+        </li>
+      </ul>
       <!-- Daily Notes / other environments -->
       <ul v-else class="space-y-1">
         <li>
@@ -484,6 +499,7 @@ const isAgreed = computed(() => route.path === '/notes/agreed')
 const isProjects = computed(() => route.path === '/notes/projects')
 const isReportsDashboard = computed(() => route.path === '/weekly-reports')
 const isAllReports = computed(() => route.path === '/weekly-reports/all')
+const isStaffOrgList = computed(() => route.path === '/staff-org' || route.path.startsWith('/staff-org/'))
 const lastWeekReportHref = computed(() => {
   const range = resolveDailyOpsPeriod('last-week')
   const weekKey = getIsoWeekFromYmd(range.startDate)

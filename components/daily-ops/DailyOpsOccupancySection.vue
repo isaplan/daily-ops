@@ -12,7 +12,7 @@
     </div>
 
     <div v-if="!points.length" class="py-10 text-center text-sm text-gray-500">
-      Rebuild dashboard-bundle cache to seal occupancy for this period.
+      No occupancy series for this period yet.
     </div>
     <div v-else class="flex h-48 items-end gap-1 overflow-x-auto pb-6">
       <div

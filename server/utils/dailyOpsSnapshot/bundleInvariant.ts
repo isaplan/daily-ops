@@ -1,9 +1,10 @@
 /**
  * @registry-id: dailyOpsBundleInvariant
  * @created: 2026-06-18T00:00:00.000Z
- * @last-modified: 2026-07-16T00:00:00.000Z
+ * @last-modified: 2026-07-22T15:30:00.000Z
  * @description: Dashboard bundle invariants — sections must reconcile with headline totals
- * @last-fix: [2026-07-16] Require profitByInterval on multi-day rollups (daypart donuts)
+ * @last-fix: [2026-07-22] Detect day/week byVenue staff wipe (drilldown overwrite bug)
+ *   Prior: [2026-07-16] Require profitByInterval on multi-day rollups (daypart donuts)
  *   Prior: [2026-07-11] Reject hourly cache missing staff headcount when labor hours exist
  *   Prior: [2026-07-02] Skip drilldown/PBI checks for multi-day rollup cache (ADR-013)
  * @adr-ref: ADR-004, ADR-008, ADR-013
@@ -61,14 +62,22 @@ export function bundlePeriodBreakdownMissing(bundle: DailyOpsDashboardBundleDto)
   return !pb?.rows?.length || !pb?.byVenue?.length
 }
 
-/** True when hourly breakdown has labor but no staff headcount (pre–staff-hour cache). */
+/** True when breakdown has labor/€ but no staff headcount (hour or day/week strip wipe). */
 export function bundlePeriodBreakdownStaffMissing(bundle: DailyOpsDashboardBundleDto): boolean {
   const pb = bundle.periodBreakdown
-  if (pb?.granularity !== 'hour') return false
+  if (!pb?.byVenue?.length) return false
+  if (pb.granularity !== 'hour' && pb.granularity !== 'day' && pb.granularity !== 'week') {
+    return false
+  }
   const hasLabor = pb.byVenue.some((v) =>
-    v.rows.some((r) => r.laborHours > 0 || r.laborCost > 0),
+    v.rows.some((r) => r.laborHours > 0 || r.laborCost > 0 || r.revenue > 0),
   )
   const hasStaff = pb.byVenue.some((v) => v.rows.some((r) => r.staffCount > 0))
+  const hasHours = pb.byVenue.some((v) => v.rows.some((r) => r.laborHours > 0))
+  // Day/week wipe: € present, staff+hours both zero → Staff & Productivity empty in UI.
+  if (pb.granularity === 'day' || pb.granularity === 'week') {
+    return hasLabor && !hasStaff && !hasHours
+  }
   return hasLabor && !hasStaff
 }
 

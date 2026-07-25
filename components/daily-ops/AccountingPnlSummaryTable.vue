@@ -47,7 +47,7 @@
               class="sticky left-0 z-10 border-b border-gray-100 px-4 py-3 text-gray-900 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.08)]"
               :class="[
                 metric.emphasis ? 'bg-gray-50' : 'bg-white',
-                metric.indent ? 'pl-8 text-gray-600 font-normal' : '',
+                metric.deepIndent ? 'pl-12 text-gray-500 font-normal' : metric.indent ? 'pl-8 text-gray-600 font-normal' : '',
               ]"
             >
               {{ metric.label }}
@@ -70,17 +70,17 @@
               :class="[
                 valueCellAlignClass,
                 metric.resultTone ? resultClass(venue.row.result) : 'text-gray-900',
-                editing && metric.field ? 'p-1' : '',
+                editing && isEditableMetric(metric) ? 'p-1' : '',
               ]"
             >
               <input
-                v-if="editing && metric.field && venue.key !== 'combined'"
+                v-if="editing && isEditableMetric(metric) && venue.key !== 'combined'"
                 type="number"
                 step="1"
                 class="w-full min-w-[5.5rem] rounded border border-gray-300 bg-white px-2 py-1 text-right text-sm tabular-nums text-gray-900 focus:border-gray-900 focus:outline-none"
-                :value="venue.row[metric.field]"
-                @change="onYearCellChange(venue.key, metric.field, ($event.target as HTMLInputElement).value)"
-              >
+                :value="metricCellValue(venue.row, metric)"
+                @change="onYearMetricChange(venue.key, metric, ($event.target as HTMLInputElement).value)"
+              />
               <template v-else>
                 {{ metric.format(venue.row) }}
               </template>
@@ -181,7 +181,7 @@
               class="sticky left-0 z-10 border-b border-gray-100 px-4 py-3 text-gray-900 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.08)]"
               :class="[
                 metric.emphasis ? 'bg-gray-50' : 'bg-white',
-                metric.indent ? 'pl-8 text-gray-600 font-normal' : '',
+                metric.deepIndent ? 'pl-12 text-gray-500 font-normal' : metric.indent ? 'pl-8 text-gray-600 font-normal' : '',
               ]"
               :style="{ width: `${MONTH_LABEL_PX}px`, minWidth: `${MONTH_LABEL_PX}px` }"
             >
@@ -224,13 +224,13 @@
                 :style="{ width: `${monthCellPx}px`, minWidth: `${monthCellPx}px` }"
               >
                 <input
-                  v-if="editing && metric.field"
+                  v-if="editing && isEditableMetric(metric)"
                   type="number"
                   step="1"
                   class="box-border w-full min-w-0 rounded border border-gray-300 bg-white px-1 py-1 text-center text-xs tabular-nums text-gray-900 focus:border-gray-900 focus:outline-none"
-                  :value="venue.row[metric.field]"
-                  @change="onMonthCellChange(column.month, venue.key, metric.field, ($event.target as HTMLInputElement).value)"
-                >
+                  :value="metricCellValue(venue.row, metric)"
+                  @change="onMonthMetricChange(column.month, venue.key, metric, ($event.target as HTMLInputElement).value)"
+                />
                 <template v-else>
                   {{ metric.format(venue.row) }}
                 </template>
@@ -246,13 +246,21 @@
 <script setup lang="ts">
 /**
  * @registry-id: AccountingPnlSummaryTable
- * @last-modified: 2026-07-17T00:30:00.000Z
+ * @last-modified: 2026-07-23T15:40:00.000Z
  * @description: Accounting P&L summary table with optional live cell edit
- * @last-fix: [2026-07-17] Optional showCombinedTotal for single-venue monthly reports
+ * @last-fix: [2026-07-23] Analyse grandchildren under Food/Bev and Lonen
  */
 import type { AccountingPnlMonthGridColumn, AccountingPnlMonthGridDto } from '~/types/accounting-pnl-benchmark'
 import type { AccountingPnlRow, AccountingPnlTableLine, AccountingPnlVenueId } from '~/utils/accountingPnlData'
 import { accountingPnlHasMix } from '~/utils/accountingPnlMixData'
+import {
+  ACCOUNTING_PNL_COGS_BEV_LINE_DEFS,
+  ACCOUNTING_PNL_COGS_FOOD_LINE_DEFS,
+  ACCOUNTING_PNL_LABOR_LONEN_LINE_DEFS,
+  ACCOUNTING_PNL_REVENUE_BEV_LINE_DEFS,
+  ACCOUNTING_PNL_REVENUE_FOOD_LINE_DEFS,
+  type AccountingPnlLineGroup,
+} from '~/utils/accountingPnlGrandchildLines'
 import {
   formatAccountingPnlCompact,
   formatAccountingPnlPct,
@@ -261,6 +269,8 @@ import {
   accountingPnlHasFixedBreakdown,
   accountingPnlHasLaborBreakdown,
   applyAccountingPnlField,
+  applyAccountingPnlLineField,
+  normalizeAccountingPnlRow,
   sumAccountingPnlRows,
   type AccountingPnlEditableField,
 } from '~/utils/accountingPnlRowMath'
@@ -272,9 +282,12 @@ type MetricRow = {
   key: string
   label: string
   indent?: boolean
+  deepIndent?: boolean
   emphasis?: boolean
   resultTone?: boolean
   field?: AccountingPnlEditableField
+  lineGroup?: AccountingPnlLineGroup
+  lineKey?: string
   format: (row: AccountingPnlRow) => string
   show?: (rows: AccountingPnlRow[]) => boolean
 }
@@ -372,6 +385,26 @@ const monthGridRows = computed(() =>
 function buildMetricRows (sampleRows: AccountingPnlRow[]): MetricRow[] {
   const pct = showPercent.value
   const showChildren = editing.value
+
+  const lineMetric = (
+    group: AccountingPnlLineGroup,
+    def: { key: string; label: string },
+    parentAmount: (row: AccountingPnlRow) => number,
+  ): MetricRow => ({
+    key: `${group}-${def.key}`,
+    label: def.label,
+    deepIndent: true,
+    lineGroup: group,
+    lineKey: def.key,
+    format: (row) => {
+      const r = normalizeAccountingPnlRow(row)
+      const amount = numLine(r, group, def.key)
+      if (!pct) return amount > 0 || showChildren ? formatAccountingPnlCompact(amount) : '—'
+      return amount > 0 ? formatAccountingPnlPct(amount, parentAmount(r) || r.revenue) : '—'
+    },
+    show: (rows) => showChildren || rows.some((r) => numLine(normalizeAccountingPnlRow(r), group, def.key) > 0),
+  })
+
   const defs: MetricRow[] = [
     {
       key: 'revenue',
@@ -390,6 +423,9 @@ function buildMetricRows (sampleRows: AccountingPnlRow[]): MetricRow[] {
         : formatAccountingPnlCompact(row.revenueFood),
       show: (rows) => showChildren || rows.some((r) => hasMix(r)),
     },
+    ...ACCOUNTING_PNL_REVENUE_FOOD_LINE_DEFS.map((d) =>
+      lineMetric('revenueFoodLines', d, (r) => r.revenueFood),
+    ),
     {
       key: 'revenue-bev',
       label: 'Beverage',
@@ -400,6 +436,9 @@ function buildMetricRows (sampleRows: AccountingPnlRow[]): MetricRow[] {
         : formatAccountingPnlCompact(row.revenueBeverage),
       show: (rows) => showChildren || rows.some((r) => hasMix(r)),
     },
+    ...ACCOUNTING_PNL_REVENUE_BEV_LINE_DEFS.map((d) =>
+      lineMetric('revenueBevLines', d, (r) => r.revenueBeverage),
+    ),
     {
       key: 'cogs',
       label: 'COGS',
@@ -422,6 +461,9 @@ function buildMetricRows (sampleRows: AccountingPnlRow[]): MetricRow[] {
       },
       show: (rows) => showChildren || rows.some((r) => hasMix(r)),
     },
+    ...ACCOUNTING_PNL_COGS_FOOD_LINE_DEFS.map((d) =>
+      lineMetric('cogsFoodLines', d, (r) => r.cogsFood),
+    ),
     {
       key: 'cogs-bev',
       label: 'COGS bev',
@@ -432,6 +474,9 @@ function buildMetricRows (sampleRows: AccountingPnlRow[]): MetricRow[] {
         : formatAccountingPnlCompact(row.cogsBeverage),
       show: (rows) => showChildren || rows.some((r) => hasMix(r)),
     },
+    ...ACCOUNTING_PNL_COGS_BEV_LINE_DEFS.map((d) =>
+      lineMetric('cogsBevLines', d, (r) => r.cogsBeverage),
+    ),
     {
       key: 'labor',
       label: 'Labor',
@@ -451,6 +496,9 @@ function buildMetricRows (sampleRows: AccountingPnlRow[]): MetricRow[] {
         : formatAccountingPnlCompact(row.laborLonen),
       show: (rows) => showChildren || rows.some((r) => accountingPnlHasLaborBreakdown(r) || r.laborLonen > 0),
     },
+    ...ACCOUNTING_PNL_LABOR_LONEN_LINE_DEFS.map((d) =>
+      lineMetric('laborLonenLines', d, (r) => r.laborLonen),
+    ),
     {
       key: 'labor-sociale',
       label: 'Sociale lasten',
@@ -517,8 +565,20 @@ function buildMetricRows (sampleRows: AccountingPnlRow[]): MetricRow[] {
       field: 'fixedFinancieel',
       format: (row) => pct
         ? formatAccountingPnlPct(row.fixedFinancieel, row.revenue)
-        : (row.fixedFinancieel > 0 || showChildren ? formatAccountingPnlCompact(row.fixedFinancieel) : '—'),
+        : (row.fixedFinancieel !== 0 || showChildren ? formatAccountingPnlCompact(row.fixedFinancieel) : '—'),
       show: (rows) => showChildren || rows.some((r) => accountingPnlHasFixedBreakdown(r)),
+    },
+    {
+      key: 'fixed-opbrengst-vorderingen',
+      label: 'Opbrengst vorderingen',
+      indent: true,
+      field: 'fixedOpbrengstVorderingen',
+      format: (row) => pct
+        ? formatAccountingPnlPct(row.fixedOpbrengstVorderingen, row.revenue)
+        : (row.fixedOpbrengstVorderingen !== 0 || showChildren
+          ? formatAccountingPnlCompact(row.fixedOpbrengstVorderingen)
+          : '—'),
+      show: (rows) => showChildren || rows.some((r) => r.fixedOpbrengstVorderingen !== 0),
     },
     {
       key: 'result',
@@ -539,6 +599,31 @@ const monthMetricRows = computed(() => buildMetricRows(monthGridRows.value))
 
 function hasMix (row: AccountingPnlRow): boolean {
   return accountingPnlHasMix(row)
+}
+
+function numLine (row: AccountingPnlRow, group: AccountingPnlLineGroup, key: string): number {
+  const map = row[group] as Record<string, number>
+  const n = Number(map?.[key])
+  return Number.isFinite(n) ? n : 0
+}
+
+function isEditableMetric (metric: MetricRow): boolean {
+  return Boolean(metric.field) || Boolean(metric.lineGroup && metric.lineKey)
+}
+
+function metricCellValue (row: AccountingPnlRow, metric: MetricRow): number {
+  const r = normalizeAccountingPnlRow(row)
+  if (metric.lineGroup && metric.lineKey) return numLine(r, metric.lineGroup, metric.lineKey)
+  if (metric.field) return r[metric.field]
+  return 0
+}
+
+function applyMetricEdit (row: AccountingPnlRow, metric: MetricRow, value: number): AccountingPnlRow {
+  if (metric.lineGroup && metric.lineKey) {
+    return applyAccountingPnlLineField(row, metric.lineGroup, metric.lineKey, value)
+  }
+  if (metric.field) return applyAccountingPnlField(row, metric.field, value)
+  return row
 }
 
 function formatResult (row: AccountingPnlRow): string {
@@ -565,11 +650,11 @@ function parseCellValue (raw: string): number {
   return Number.isFinite(n) ? n : 0
 }
 
-function onYearCellChange (venueKey: string, field: AccountingPnlEditableField, raw: string) {
+function onYearMetricChange (venueKey: string, metric: MetricRow, raw: string) {
   const value = parseCellValue(raw)
   const nextLines = props.lines.map((line) => {
     if (line.key !== venueKey) return line
-    return { ...line, row: applyAccountingPnlField(line.row, field, value) }
+    return { ...line, row: applyMetricEdit(line.row, metric, value) }
   })
   const venues = nextLines.filter((l) => l.key !== 'combined').map((l) => l.row)
   const combined = sumAccountingPnlRows(venues)
@@ -579,10 +664,10 @@ function onYearCellChange (venueKey: string, field: AccountingPnlEditableField, 
   ])
 }
 
-function onMonthCellChange (
+function onMonthMetricChange (
   month: number,
   venueKey: AccountingPnlVenueId,
-  field: AccountingPnlEditableField,
+  metric: MetricRow,
   raw: string,
 ) {
   if (!props.monthGrid) return
@@ -593,7 +678,7 @@ function onMonthCellChange (
       ...column,
       venues: column.venues.map((venue) => {
         if (venue.key !== venueKey) return venue
-        return { ...venue, row: applyAccountingPnlField(venue.row, field, value) }
+        return { ...venue, row: applyMetricEdit(venue.row, metric, value) }
       }),
     }
   })

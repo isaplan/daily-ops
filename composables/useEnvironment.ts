@@ -1,3 +1,15 @@
+/**
+ * @registry-id: useEnvironment
+ * @created: 2026-01-15T00:00:00.000Z
+ * @last-modified: 2026-07-22T18:00:00.000Z
+ * @description: Active app environment (Daily Ops / Notes / Menu / Reports / Staff Org)
+ * @last-fix: [2026-07-22] Add staff-org environment (ADR-016)
+ * @adr-ref: ADR-015, ADR-016
+ *
+ * @exports-to:
+ * ✓ components/AppSidebar.vue
+ */
+
 import type { EnvironmentId } from '~/types/environment'
 import { ENVIRONMENT_LABELS } from '~/types/environment'
 
@@ -8,6 +20,7 @@ const ENV_HOME: Record<EnvironmentId, string> = {
   'daily-notes': '/notes/all',
   'daily-menu-products': '/daily-menu-products',
   'weekly-reports': '/weekly-reports',
+  'staff-org': '/staff-org',
 }
 
 function pathMatchesEnvironment(path: string, env: EnvironmentId): boolean {
@@ -15,6 +28,7 @@ function pathMatchesEnvironment(path: string, env: EnvironmentId): boolean {
   if (env === 'daily-notes') return path.startsWith('/notes')
   if (env === 'daily-menu-products') return path.startsWith('/daily-menu-products')
   if (env === 'weekly-reports') return path.startsWith('/weekly-reports')
+  if (env === 'staff-org') return path.startsWith('/staff-org')
   return false
 }
 
@@ -26,6 +40,7 @@ export function useEnvironment() {
     if (path.startsWith('/daily-ops')) return 'daily-ops'
     if (path.startsWith('/daily-menu-products')) return 'daily-menu-products'
     if (path.startsWith('/weekly-reports')) return 'weekly-reports'
+    if (path.startsWith('/staff-org')) return 'staff-org'
     if (path.startsWith('/notes')) return 'daily-notes'
     return 'daily-notes'
   })
