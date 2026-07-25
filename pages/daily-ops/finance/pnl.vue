@@ -14,6 +14,15 @@
         <UButton
           color="neutral"
           variant="outline"
+          :disabled="pending || startingEdit || recalculating"
+          :loading="recalculating"
+          @click="recalculateAssumptions"
+        >
+          Recalculate P&L + break-even
+        </UButton>
+        <UButton
+          color="neutral"
+          variant="outline"
           :disabled="pending || startingEdit"
           :loading="startingEdit"
           @click="startEditing"
@@ -201,13 +210,13 @@
 <script setup lang="ts">
 /**
  * @registry-id: dailyOpsFinancePnl
- * @last-modified: 2026-07-23T15:45:00.000Z
+ * @last-modified: 2026-07-24T11:40:00.000Z
  * @description: Accounting P&L benchmarks with manual edit/save
- * @last-fix: [2026-07-23] Analyse grandchildren under Food/Bev/Lonen
- * @adr-ref: ADR-013
+ * @last-fix: [2026-07-24] Recalculate P&L % + break-even; save refreshes assumptions
+ * @adr-ref: ADR-013, ADR-014
  * @data-source: direct-db
  * @read-cache-json: none
- * @imports-data-from: GET|PUT /api/daily-ops/finance/pnl
+ * @imports-data-from: GET|PUT /api/daily-ops/finance/pnl · POST …/pnl/recalculate
  */
 import type {
   AccountingPnlBenchmarkResponseDto,
@@ -239,6 +248,7 @@ const activeVenueIds = ref<Set<AccountingPnlVenueId>>(new Set(ALL_VENUE_IDS))
 const editing = ref(false)
 const startingEdit = ref(false)
 const saving = ref(false)
+const recalculating = ref(false)
 const saveError = ref<string | null>(null)
 const saveOk = ref<string | null>(null)
 const draftLines = ref<AccountingPnlBenchmarkTableLineDto[]>([])
@@ -469,7 +479,7 @@ async function saveEdits () {
       method: 'PUT',
       body: {
         periods,
-        refreshAssumptions: false,
+        refreshAssumptions: true,
       },
     })
 
@@ -477,11 +487,35 @@ async function saveEdits () {
     originalMonthKeys.value = new Set()
     await refresh()
     draftMonthGrid.value = data.value?.monthGrid ? structuredClone(data.value.monthGrid) : null
-    saveOk.value = `Updated ${result.touched} month(s).`
+    const beNote = result.breakEvenUpdated
+      ? ` Assumptions + break-even refreshed (${result.monthsUsed ?? 0} months).`
+      : ''
+    saveOk.value = `Updated ${result.touched} month(s).${beNote}`
   } catch (err: unknown) {
     saveError.value = err instanceof Error ? err.message : 'Save failed'
   } finally {
     saving.value = false
+  }
+}
+
+async function recalculateAssumptions () {
+  recalculating.value = true
+  saveError.value = null
+  saveOk.value = null
+  try {
+    const result = await $fetch<{
+      ok: boolean
+      assumptionsUpdated: boolean
+      breakEvenUpdated: boolean
+      monthsUsed: number
+    }>('/api/daily-ops/finance/pnl/recalculate', { method: 'POST' })
+    saveOk.value = result.breakEvenUpdated || result.assumptionsUpdated
+      ? `Recalculated from ${result.monthsUsed} sealed month(s) — P&L % and break-even updated.`
+      : 'No sealed monthly P&L found to recalculate from.'
+  } catch (err: unknown) {
+    saveError.value = err instanceof Error ? err.message : 'Recalculate failed'
+  } finally {
+    recalculating.value = false
   }
 }
 </script>

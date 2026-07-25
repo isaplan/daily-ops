@@ -3,6 +3,7 @@ import type { DailyOpsSimplePnLAssumptions } from '~/types/daily-ops-revenue'
 /** Keys for documents in the `app_settings` Mongo collection. */
 export const APP_SETTING_KEYS = {
   PNL_ASSUMPTIONS: 'pnl_assumptions',
+  BREAK_EVEN_ASSUMPTIONS: 'break_even_assumptions',
 } as const
 
 export type AppSettingKey = (typeof APP_SETTING_KEYS)[keyof typeof APP_SETTING_KEYS]
