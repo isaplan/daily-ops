@@ -70,6 +70,32 @@
             {{ formatDelta(row.delta(pnl)) }}
           </td>
         </tr>
+        <tr v-if="breakEven" class="border-t border-dashed border-gray-200">
+          <td class="py-2 text-gray-600">
+            Break-even
+            <span class="text-xs font-normal text-gray-400">
+              ({{ breakEven.source === 'actual_month' ? 'actual' : 'rolling 12m' }})
+            </span>
+          </td>
+          <td class="py-2 text-right tabular-nums text-gray-700">
+            {{ formatEur(breakEven.breakEven) }}
+            <span
+              v-if="!hasCompare && breakEven.pctVsBreakEven != null"
+              class="ml-1 text-xs font-semibold"
+              :class="breakEven.pctVsBreakEven >= 0 ? 'text-emerald-700' : 'text-red-700'"
+            >
+              {{ formatPctVs(breakEven.pctVsBreakEven) }}
+            </span>
+          </td>
+          <td v-if="hasCompare" class="py-2" />
+          <td
+            v-if="hasCompare"
+            class="py-2 text-right tabular-nums"
+            :class="(breakEven.pctVsBreakEven ?? 0) >= 0 ? 'text-emerald-700' : 'text-red-700'"
+          >
+            {{ formatPctVs(breakEven.pctVsBreakEven) ?? '—' }}
+          </td>
+        </tr>
         <tr class="border-t font-bold">
           <td class="py-2">Resultaat</td>
           <td class="py-2 text-right">{{ formatEur(pnl.result) }}</td>
@@ -84,6 +110,12 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * @description: Simple revenue P&L card with assumptions editor + break-even
+ * @last-modified: 2026-07-24T11:45:00.000Z
+ * @last-fix: [2026-07-24] Break-even row from rolling 12m / sealed actual
+ * @adr-ref: ADR-014
+ */
 import type { DailyOpsSimplePnLDto } from '~/types/daily-ops-revenue'
 
 const props = defineProps<{ pnl: DailyOpsSimplePnLDto | null }>()
@@ -94,6 +126,23 @@ const { revenueDelta, formatDelta, deltaClass } = useDailyOpsRevenueCompare()
 
 const showAssumptions = ref(false)
 const draft = ref({ ...assumptions.value })
+
+const revenuePeriod = computed(() => 'this-month')
+const pnlRevenue = computed(() => props.pnl?.revenue ?? 0)
+/** Calendar days in range — laborCoverage.daysExpected counts venues for combined. */
+const pnlDayCount = computed(() => {
+  const expected = props.pnl?.laborCoverage.daysExpected
+  if (expected == null || expected <= 0) return null
+  // Combined queries multiply by 3 venues in computeSimplePnL
+  const venues = expected % 3 === 0 && expected >= 3 ? 3 : 1
+  return Math.max(1, Math.round(expected / venues))
+})
+const { data: breakEven, formatPctVs } = useDailyOpsBreakEven({
+  period: revenuePeriod,
+  revenue: pnlRevenue,
+  dayCount: pnlDayCount,
+  enabled: computed(() => props.pnl != null),
+})
 
 watch(assumptions, (a) => {
   draft.value = { ...a }

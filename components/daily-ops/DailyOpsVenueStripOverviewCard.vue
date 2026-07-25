@@ -49,6 +49,7 @@ type VenueOverviewDrawerKind =
   | 'labor-all'
   | 'labor-keuken'
   | 'labor-bediening'
+  | 'break-even'
 
 type LaborStaffFilter = 'all' | 'keuken' | 'bediening'
 
@@ -67,6 +68,12 @@ const props = defineProps<{
   showActive: boolean
   leaveVenue?: DailyOpsAttendanceVenueDto | null
   sickVenue?: DailyOpsAttendanceVenueDto | null
+  /** Break-even primary display (or — while loading) */
+  breakEvenPrimary?: string | null
+  /** e.g. Avg 6×Sat €… · +12% */
+  averageLine?: string | null
+  /** e.g. LY same day €… · −5% */
+  yearAgoLine?: string | null
 }>()
 
 const { formatEurWhole, formatEurPerHourWhole, formatPctWhole, formatHoursWhole } = useDashboardKpiFormat()
@@ -177,6 +184,16 @@ const tiles = computed((): OverviewTile[] => {
         `Bediening ${formatEurWhole(props.venue.revenue.beverage)}`,
       ],
     },
+    {
+      id: 'break-even',
+      label: 'Break-even',
+      primary: props.breakEvenPrimary ?? '—',
+      details: [
+        props.averageLine ?? '—',
+        props.yearAgoLine ?? '—',
+      ],
+      drawerKind: 'break-even',
+    },
     laborTile(
       'labor-all',
       'Labor All',
@@ -245,6 +262,21 @@ const drawerContent = computed((): {
   if (!openDrawer.value) return empty
 
   const locationName = props.venue.locationName
+
+  if (openDrawer.value === 'break-even') {
+    return {
+      title: `Break-even · ${locationName}`,
+      intro:
+        'Break-even from accounting P&L (rolling 12m or sealed month). Averages use sealed snapshot revenue — last 6 same weekdays, last 6 weeks, or last 3 months. LY = same day/week/month last year. % = current vs that compare.',
+      summaryRows: [
+        { label: 'Break-even', value: props.breakEvenPrimary ?? '—' },
+        { label: 'Average', value: props.averageLine ?? '—' },
+        { label: 'Last year', value: props.yearAgoLine ?? '—' },
+        { label: 'Current revenue', value: formatEurWhole(props.venue.revenue.total) },
+      ],
+      venueSections: [],
+    }
+  }
 
   if (openDrawer.value === 'active') {
     const rows = props.venue.active?.rows ?? []

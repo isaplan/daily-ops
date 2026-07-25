@@ -1,13 +1,14 @@
 /**
  * @registry-id: appSettingsStore
  * @created: 2026-05-31T12:00:00.000Z
- * @last-modified: 2026-05-31T12:00:00.000Z
+ * @last-modified: 2026-07-24T11:45:00.000Z
  * @description: Generic Mongo store for org-wide app settings (calculations, assumptions, etc.)
- * @last-fix: [2026-05-31] Initial app_settings collection read/write helpers
+ * @last-fix: [2026-07-24] Also used by break_even_assumptions
  * @role-ref: PUT handlers must restrict writes to admin|owner when RBAC is implemented
  *
  * @exports-to:
  * ✓ server/utils/appSettings/pnlAssumptionsSetting.ts
+ * ✓ server/utils/appSettings/breakEvenAssumptionsSetting.ts
  * ✓ server/api/app-settings/pnl-assumptions.get.ts
  * ✓ server/api/app-settings/pnl-assumptions.put.ts
  */
