@@ -56,6 +56,8 @@ Append-only log of locked decisions. When changing behavior that contradicts an 
 
 **Amendment (2026-07-11):** Integration cron **success requires all locations** (Bork: every `api_credentials` row must sync OK). Partial sync → `integration_sync_partial_failure` ops alert. **Self-healing loop:** `runOpsNotificationAutoRetry` re-runs the failed job, runs `materializeSnapshotGaps` for the job window, then `refreshDashboardBundleCache`. Snapshot-gap fixes also refresh read-cache after `buildDailyOpsSnapshot`. Gap scan includes the **open register day** (ADR-010), not calendar yesterday only.
 
+**Amendment (2026-07-26):** Ops auto-retry is **on by default** in production (`ops-notifications:auto-retry` at :17/:47; opt out with `DISABLE_OPS_NOTIFICATION_AUTO_RETRY=1`). Partial Bork sync returns `ok=false` again (all locations required). Integration alerts use a **stable id** (`businessDate=active`) so streaks survive day rollover. Alert **auto-clears** when failed venues already have revenue coverage for the sync window (daily-data/inbox filled the gap) or when single-location retry patches `integration_cron_jobs.lastSyncDetail` to all-ok.
+
 **Consequences:** Snapshot rebuilds are event-driven (Bork/Eitje sync, inbox seal). Writers never read raw collections. Failed syncs must not report `lastSyncOk: true`.
 
 ---

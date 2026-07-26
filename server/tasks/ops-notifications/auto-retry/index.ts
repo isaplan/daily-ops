@@ -1,8 +1,10 @@
 /**
  * @registry-id: taskOpsNotificationsAutoRetry
  * @created: 2026-05-28T00:00:00.000Z
- * @description: Optional auto-retry for selected ops alerts with cooldown + lock.
- * @last-fix: [2026-05-28] Add cron-safe auto-fix loop (opt-in only).
+ * @last-modified: 2026-07-26T17:50:00.000Z
+ * @description: Self-heal selected ops alerts (cooldown + lock). On by default in production.
+ * @last-fix: [2026-07-26] Enabled by default (DISABLE_OPS_NOTIFICATION_AUTO_RETRY=1 to opt out)
+ *   Prior: [2026-05-28] Add cron-safe auto-fix loop (opt-in only).
  *
  * @exports-to:
  * ✓ nuxt.config.ts -> nitro.scheduledTasks (ops-notifications:auto-retry)

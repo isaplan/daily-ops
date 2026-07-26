@@ -59,7 +59,7 @@ export const OPS_NOTIFICATION_RULE_SECTIONS: OpsNotificationRuleSection[] = [
       'Morning Basis missing — Bork has sales but no cron 7/8 row for that business_date (skipped on open register day — live Bork only).',
       'Only intraday partial — rows for cron 18/23 only; no morning final (headline revenue unreliable).',
       'Eitje hours inbox missing — Eitje aggregation has hours but no inbox-eitje-hours row for control.',
-      'Integration sync partial failure — Bork/Eitje cron reported success but one or more locations failed (e.g. historical-data-7d 1/3). Auto-retry re-runs the job and rebuilds snapshots + read-cache.',
+      'Integration sync partial failure — Bork/Eitje cron had one or more locations fail (e.g. historical-data-7d 2/3). Auto-retry (:17/:47) re-runs failed venues only, then rebuilds snapshots + read-cache. Alert uses a stable id and clears when (1) retry succeeds, (2) next full job is all-ok, or (3) the sync-window already has revenue data (daily/inbox covered the gap). After 3 failed retries per location, alert pauses until credentials are fixed.',
     ],
   },
   {
@@ -109,7 +109,7 @@ export const OPS_NOTIFICATION_RULE_SECTIONS: OpsNotificationRuleSection[] = [
     title: 'Actions on this page',
     bullets: [
       'Status open — alert is active; fixed — manual Try fix or auto-retry cleared it on rescan.',
-      'Try fix — one attempt (Bork V2 rebuild + snapshot + read-cache, inbox reprocess, or integration cron re-run); auto-retry task also runs on eligible snapshot + sync alerts.',
+      'Try fix — one attempt (Bork V2 rebuild + snapshot + read-cache, inbox reprocess, or integration cron re-run); auto-retry cron runs by default on production (:17/:47) for eligible snapshot + sync alerts (set DISABLE_OPS_NOTIFICATION_AUTO_RETRY=1 to opt out).',
       'Rebuild snapshot — snapshot-category rows only (legacy button).',
       'Fix hint — CLI or ops step shown per row.',
       'Architecture rows — code refactor only, no Try fix.',
