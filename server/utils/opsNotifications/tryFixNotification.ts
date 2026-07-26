@@ -1,9 +1,10 @@
 /**
  * @registry-id: tryFixOpsNotification
  * @created: 2026-05-28T00:00:00.000Z
- * @last-modified: 2026-07-15T00:00:00.000Z
+ * @last-modified: 2026-07-26T17:50:00.000Z
  * @description: One-shot fix + self-healing for ops notification rows
- * @last-fix: [2026-07-15] Retry failed Bork locations only; track per-location retry streaks
+ * @last-fix: [2026-07-26] Patch integration_cron_jobs after location heal so alert clears on rescan
+ *   Prior: [2026-07-15] Retry failed Bork locations only; track per-location retry streaks
  *   Prior: [2026-07-14] Integration try-fix returns after sync; gap/cache runs in background
  *   Prior: [2026-07-11] Integration sync re-run + snapshot/cache backfill; refresh read-cache after snapshot fix
  *   Prior: [2026-05-28] Bork V2 rebuild + snapshot rebuild for warm-tier / gap alerts
@@ -24,6 +25,8 @@ import { runOpsNotificationScan } from './runOpsNotificationScan'
 import {
   recordIntegrationLocationRetryOutcome,
 } from './integrationSyncRetryStreak'
+import { patchIntegrationCronLocationsHealed } from './integrationSyncDataCoverage'
+import { INTEGRATION_SYNC_ALERT_BUSINESS_DATE } from './detectors/integrationSyncFailures'
 import type { OpsNotificationKind, OpsNotificationStatus } from '~/types/ops-notifications'
 import { retryProcessEmailAttachments } from '../../services/inboxProcessService'
 import { refreshDashboardBundleCache } from '../dailyOpsSnapshot/preGenerateBundleCache'
@@ -109,6 +112,7 @@ async function healIntegrationSyncFailure(
   let syncDetail = ''
   if (source === 'bork' && failedLocations.length > 0) {
     const locationResults: string[] = []
+    const healedIds: string[] = []
     let allLocationsOk = true
     for (const loc of failedLocations) {
       const locationId = loc.locationId != null ? String(loc.locationId) : ''
@@ -119,9 +123,19 @@ async function healIntegrationSyncFailure(
         await recordIntegrationLocationRetryOutcome(db, notificationId, locationId, fixed)
       }
       if (!fixed) allLocationsOk = false
+      else healedIds.push(locationId)
       locationResults.push(`${locationId}: ${result.message}`)
     }
     syncDetail = locationResults.join(' · ')
+    if (healedIds.length > 0) {
+      await patchIntegrationCronLocationsHealed(
+        db,
+        source,
+        jobType,
+        healedIds,
+        `retry sync ok · ${syncDetail}`,
+      )
+    }
     if (!allLocationsOk) {
       return { ok: false, detail: syncDetail || 'failed location retry' }
     }
@@ -157,12 +171,20 @@ async function stillOpen(
   db: Db,
   input: TryFixInput,
 ): Promise<boolean> {
+  const endDate =
+    input.kind === 'integration_sync_partial_failure'
+      ? amsterdamOpenRegisterBusinessDateYmd()
+      : input.businessDate
   const report = await runOpsNotificationScan(db, {
     lookbackDays: 45,
-    endDate: input.businessDate,
+    endDate,
     skipArchitecture: true,
   })
-  const id = `${input.kind}:${input.businessDate}:${input.locationId}`
+  const businessDate =
+    input.kind === 'integration_sync_partial_failure'
+      ? INTEGRATION_SYNC_ALERT_BUSINESS_DATE
+      : input.businessDate
+  const id = `${input.kind}:${businessDate}:${input.locationId}`
   return report.items.some((i) => i.id === id)
 }
 
@@ -172,7 +194,7 @@ export async function tryFixOpsNotification(db: Db, input: TryFixInput): Promise
 
   try {
     if (kind === 'integration_sync_partial_failure') {
-      const notificationId = `${kind}:${businessDate}:${locationId}`
+      const notificationId = `${kind}:${INTEGRATION_SYNC_ALERT_BUSINESS_DATE}:${locationId}`
       const healed = await healIntegrationSyncFailure(db, input.meta, notificationId)
       steps.push(healed.detail)
       if (!healed.ok) {

@@ -1,13 +1,14 @@
 /**
  * @registry-id: borkSyncService
  * @created: 2026-04-06T12:00:00.000Z
- * @last-modified: 2026-07-15T00:00:00.000Z
- * @last-fix: [2026-07-15] Bork fetch retries + timeout; partial sync ok when ≥1 location succeeds
+ * @last-modified: 2026-07-26T17:50:00.000Z
+ * @last-fix: [2026-07-26] Partial sync returns ok=false (ADR-004 all-locations); auto-retry heals failed venues
+ *   Prior: [2026-07-15] Bork fetch retries + timeout; partial sync ok when ≥1 location succeeds
  *   Prior: [2026-07-11] syncOk requires all credential locations — partial 1/3 no longer reports success
  *   Prior: [2026-07-09] Always materialize snapshots for daily/historical window — decouple from syncOk
  *   Prior: [2026-06-24] Snapshot materialization moved into executeBorkJob (sync pipeline tail)
  * @description: Bork/Trivec gateway fetch + bork_raw_data upserts; drives Bork cron/sync; calls V2 aggregation after sync
- * @last-fix: [2026-05-20] Master-data job refreshes unified product_catalog from Bork catalog API.
+ *   Prior: [2026-05-20] Master-data job refreshes unified product_catalog from Bork catalog API.
  *   Prior: [2026-05-19] Clearer V2 line: calendar rebuild window vs register-day rollup counts.
  *   Prior: [2026-05-19] Daily pulls yesterday+today tickets; per-day ticket counts in sync message.
  *   Prior: [2026-05-19] Ticket + V2 rebuild windows use Europe/Amsterdam calendar days (not toISOString UTC).
@@ -410,7 +411,6 @@ export async function executeBorkJob (db: Db, jobType: string): Promise<BorkSync
 
   const okCount = locations.filter((x) => x.ok).length
   const fullSync = okCount === creds.length
-  const syncOk = okCount > 0
   const { startYmd, endYmd } = ticketWindowForJob(jobType)
   const message = formatBorkRawSyncMessage({
     okCount,
@@ -516,7 +516,7 @@ export async function executeBorkJob (db: Db, jobType: string): Promise<BorkSync
   }
 
   return {
-    ok: syncOk,
+    ok: fullSync,
     fullSync,
     jobType,
     message: finalMessage,

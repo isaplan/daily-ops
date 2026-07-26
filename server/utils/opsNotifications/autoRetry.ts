@@ -1,9 +1,10 @@
 /**
  * @registry-id: opsNotificationAutoRetry
  * @created: 2026-05-28T00:00:00.000Z
- * @last-modified: 2026-07-15T00:00:00.000Z
+ * @last-modified: 2026-07-26T17:50:00.000Z
  * @description: Scheduled self-healing for ops notifications (snapshot gaps + integration sync failures)
- * @last-fix: [2026-07-15] Skip auto-retry when per-location failure streak exceeds cap
+ * @last-fix: [2026-07-26] Enabled by default on production; integration alerts use stable ids
+ *   Prior: [2026-07-15] Skip auto-retry when per-location failure streak exceeds cap
  *   Prior: [2026-07-11] Auto-retry integration_sync_partial_failure + snapshot kinds with read-cache refresh
  * @adr-ref: ADR-004, ADR-013
  *

@@ -12,8 +12,8 @@ const enableNitroScheduled =
 const disableInboxSchedule = process.env.DISABLE_INBOX_SCHEDULED === '1'
 /** Set `DISABLE_INTEGRATIONS_SCHEDULED=1` to skip Bork/Eitje Nitro cron on production. */
 const disableIntegrationsSchedule = process.env.DISABLE_INTEGRATIONS_SCHEDULED === '1'
-/** Optional: auto-retry selected ops notifications (disabled by default). */
-const enableOpsAutoRetry = process.env.ENABLE_OPS_NOTIFICATION_AUTO_RETRY === '1'
+/** Set `DISABLE_OPS_NOTIFICATION_AUTO_RETRY=1` to skip self-heal cron on production. */
+const disableOpsAutoRetry = process.env.DISABLE_OPS_NOTIFICATION_AUTO_RETRY === '1'
 
 /**
  * CANONICAL TIMEZONE: Europe/Amsterdam (CEST/CET)
@@ -74,8 +74,8 @@ if (enableNitroScheduled && !disableIntegrationsSchedule) {
   /** The Hague weather sync — daily 06:15 Amsterdam. */
   scheduledTasks['15 6 * * *'] = ['daily-ops:weather-sync']
 }
-if (enableNitroScheduled && enableOpsAutoRetry) {
-  // Staggered away from :00/:05 integration/inbox windows.
+if (enableNitroScheduled && !disableOpsAutoRetry) {
+  // Self-heal ops alerts (:17/:47) — staggered away from :00/:05 integration/inbox windows.
   scheduledTasks['17,47 * * * *'] = ['ops-notifications:auto-retry']
 }
 
