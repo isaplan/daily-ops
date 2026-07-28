@@ -443,7 +443,9 @@ API endpoint (`bundle.get.ts`) intelligently serves from the appropriate cache l
 
 4. **Two-step board:** (1) **TeamBuilder** organogram — scenario `venues` (open/closed; add future sites); Manager / Floor / FT / PT·ZZP × Keuken/Bediening/Bar; per-venue **budget** (monthly revenue, food→keuken / beverage→bediening+bar shares, contract labor €, labor % actual vs target, min/max rules); close venue → staff → Unassigned; closed venues listed under Not active locations. (2) **RosterPlanner** — Mon–Sun × day/evening for open venues only; productivity uses team revenue pot + FT hours only (Managers/Chefs always FT).
 
-5. **P&L seed (read-only):** `GET /api/staff-org/labor-benchmarks` seeds total labor % + food/bev shares from accounting P&L year totals. No writes to Daily Ops cache. FT/PT/ZZP actual % are planner targets until staff-timeseries seed is added.
+5. **P&L seed (read-only):** `GET /api/staff-org/labor-benchmarks` seeds from the **last 12 sealed monthly** accounting P&L docs (avg). Total labor % + food/bev shares use the full window. FT/PT/ZZP actual % come from Labor Lonen grandchildren when present: **FT** = salarisBediening+Keuken+Overhead; **PT** = inhuurFb; **ZZP** = inhuurAfwas+Stewarding+Keuken+Overhead (months without Lonen lines excluded from those three %). No writes to Daily Ops cache.
+
+**Amendment (2026-07-27):** Replaced fixed calendar-year 2025 totals with rolling 12 sealed months + Lonen→FT/PT/ZZP map above.
 
 6. **Daily Ops unchanged:** No changes to labor GET paths or ADR-013 cache cascade.
 

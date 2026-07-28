@@ -1,9 +1,9 @@
 /**
  * @registry-id: revenueAverageWindows
  * @created: 2026-07-25T11:20:00.000Z
- * @last-modified: 2026-07-25T11:20:00.000Z
+ * @last-modified: 2026-07-26T20:55:00.000Z
  * @description: Pure date-window builders for revenue averages + YoY
- * @last-fix: [2026-07-25] Day→6 weekdays, week→6 weeks, month→3 months + YoY ranges
+ * @last-fix: [2026-07-26] Labels AVG SUN (6) / AVG WEEK (6) / AVG MONTH (3)
  * @adr-ref: ADR-004
  *
  * @exports-to:
@@ -107,9 +107,9 @@ export function sameMonthLastYear (ymd: string): DateRange {
 }
 
 export function averageLabel (kind: RevenueAverageKind, weekdayName: string): string {
-  if (kind === 'weekday') return `Avg 6×${weekdayName.slice(0, 3)}`
-  if (kind === 'weeks') return 'Avg 6w'
-  return 'Avg 3m'
+  if (kind === 'weekday') return `AVG ${weekdayName.slice(0, 3).toUpperCase()} (6)`
+  if (kind === 'weeks') return 'AVG WEEK (6)'
+  return 'AVG MONTH (3)'
 }
 
 export function yearAgoLabel (kind: RevenueAverageKind): string {

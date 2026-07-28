@@ -9,6 +9,7 @@
  * @exports-to:
  * ✓ server/utils/accountingPnl/buildBreakEvenAssumptions.ts
  * ✓ server/utils/accountingPnl/refreshFinanceAssumptions.ts
+ * ✓ server/utils/staffOrg/laborBenchmarks.ts
  */
 
 import type { Db } from 'mongodb'

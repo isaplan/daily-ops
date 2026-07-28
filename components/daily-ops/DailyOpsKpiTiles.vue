@@ -76,8 +76,8 @@
 <script setup lang="ts">
 /**
  * @description: Dashboard KPI tiles with lazy drawer fetches
- * @last-modified: 2026-07-25T11:35:00.000Z
- * @last-fix: [2026-07-25] Lazy BE + avg/YoY on Total Revenue tile + drawer
+ * @last-modified: 2026-07-26T20:55:00.000Z
+ * @last-fix: [2026-07-26] Revenue drawer: AVG SUN (6) title; drop LY same-day column
  * @adr-ref: ADR-004, ADR-010, ADR-013, ADR-014
  * @data-source: mixed
  * @read-cache-json: dashboard-bundle summary + tableOccupancy; lazy GET break-even, revenue-averages
@@ -239,9 +239,15 @@ function formatBreakEvenCell (locationId: string): string {
   return pct ? `${formatEurWhole(row.breakEven)} · ${pct}` : formatEurWhole(row.breakEven)
 }
 
+function formatAvgAmount (slice: { revenue: number; pctVsCurrent: number | null } | null | undefined): string {
+  if (!slice || slice.revenue <= 0) return '—'
+  const pct = formatPctVs(slice.pctVsCurrent)
+  return pct ? `${formatEurWhole(slice.revenue)} · ${pct}` : formatEurWhole(slice.revenue)
+}
+
 function formatAvgCell (locationId: string): string {
   if (averagesPending.value && !revenueAveragesForLocation(locationId)) return '—'
-  return formatCompareLine(revenueAveragesForLocation(locationId)?.average ?? null)
+  return formatAvgAmount(revenueAveragesForLocation(locationId)?.average)
 }
 
 function formatYoyCell (locationId: string): string {
@@ -504,7 +510,6 @@ function venueRevenueRows (): KpiDrawerVenueRow[] {
       formatEurWhole(v.revenue.beverage),
       formatBreakEvenCell(v.locationId),
       formatAvgCell(v.locationId),
-      formatYoyCell(v.locationId),
     ],
   }))
 }
@@ -728,16 +733,10 @@ const drawerContent = computed(() => {
                 : '—',
           },
           {
-            label: 'Average (combined)',
+            label: revenueAveragesCombined.value?.average?.label ?? 'Average (combined)',
             value: averagesPending.value && !revenueAveragesCombined.value
               ? '—'
-              : formatCompareLine(revenueAveragesCombined.value?.average ?? null),
-          },
-          {
-            label: 'Last year (combined)',
-            value: averagesPending.value && !revenueAveragesCombined.value
-              ? '—'
-              : formatCompareLine(revenueAveragesCombined.value?.yearAgo ?? null),
+              : formatAvgAmount(revenueAveragesCombined.value?.average),
           },
           {
             label: props.period === 'today' ? 'Bork order-time · ex VAT (bundle)' : 'Inbox Basis · ex VAT (bundle)',
@@ -750,7 +749,13 @@ const drawerContent = computed(() => {
             value: props.period === 'today' ? '—' : (rs != null ? formatEurWhole(rs.apiBusinessDaysTotal) : '—'),
           },
         ],
-        venueColumns: ['Total', 'Food', 'Beverage', 'Break-even', 'Average', 'Last year'],
+        venueColumns: [
+          'Total',
+          'Food',
+          'Beverage',
+          'Break-even',
+          revenueAveragesCombined.value?.average?.label ?? 'Average',
+        ],
         venueRows: venueRevenueRows(),
       }
     case 'labor':

@@ -171,7 +171,7 @@
           </tbody>
         </table>
         <p class="px-1.5 py-1 text-[9px] text-gray-400">
-          P&L seeds total %. FT/PT/ZZP targets are planner inputs (Managers/Chefs = FT).
+          Seed P&amp;L = last 12 sealed months. Actual: total labor %; FT=salaris; PT=inhuur F&amp;B; ZZP=other inhuur.
         </p>
       </div>
     </template>
@@ -214,9 +214,9 @@
 /**
  * @registry-id: StaffOrgVenueBudgetCard
  * @created: 2026-07-23T10:40:00.000Z
- * @last-modified: 2026-07-24T12:25:00.000Z
+ * @last-modified: 2026-07-27T17:20:00.000Z
  * @description: Per-venue budget / min-max panels (shown via TeamBuilder pills)
- * @last-fix: [2026-07-24] Min/max labeled as FT staff (Chef/Manager/Floor/FT)
+ * @last-fix: [2026-07-27] Seed P&L footnote: rolling 12m + Lonen FT/PT/ZZP
  * @adr-ref: ADR-016
  */
 

@@ -87,7 +87,10 @@ export type StaffOrgLocationRule = {
   maxStaff: number
 }
 
-/** Labor cost % of revenue — total + contract buckets (ft=contract, pt=inhuur). */
+/**
+ * Labor cost % of revenue — total + contract buckets.
+ * P&L Lonen map: ft=salaris*, pt=inhuurFb, zzp=other inhuur* (Afwas/Stewarding/Keuken/Overhead).
+ */
 export type StaffOrgLaborCostPctBuckets = {
   total: number | null
   ft: number | null
@@ -116,9 +119,10 @@ export type StaffOrgLocationTargets = {
   laborCostPctTarget: StaffOrgLaborCostPctBuckets
 }
 
-/** Seed payload from accounting P&L + optional staff timeseries. */
+/** Seed payload from last-12 sealed accounting P&L months (ADR-016). */
 export type StaffOrgLaborBenchmark = {
   locationId: string
+  /** Newest year in the rolling window (compat / display). */
   year: number
   monthlyRevenue: number
   laborCostPct: StaffOrgLaborCostPctBuckets
