@@ -25,7 +25,7 @@ import { buildDailyOpsSummaryDto } from '../../dailyOpsMetrics/dtoBuilders'
 import { loadPnlAssumptions } from '../../appSettings/pnlAssumptionsSetting'
 import { buildTableOccupancySummary } from '../../dailyOpsVenueTables/buildTableOccupancySummary'
 import { aggregateLaborForRange } from '../aggregateLaborForRange'
-import { buildPeriodBreakdownFromLaborMetrics } from '../buildPeriodBreakdown'
+import { buildPeriodBreakdownFromLaborMetrics, applyOccupancyToPeriodBreakdown } from '../buildPeriodBreakdown'
 import { assembleLaborFromSnapshots } from './assembleLaborDto'
 import { contractRollupsFromSnapshotLabor } from './laborContractRollups'
 import { loadSnapshotDashboardRowsLight } from './loadSnapshotRows'
@@ -113,19 +113,24 @@ export async function fetchDashboardBundleLight(
     },
   )
 
+  const tableOccupancy = await buildTableOccupancySummary(db, {
+    startDate: ctx.startDate,
+    endDate: ctx.endDate,
+    locationId: ctx.locationId,
+    period: ctx.period,
+  })
+
   return {
     summary,
     revenue,
     labor,
-    periodBreakdown: buildPeriodBreakdownFromLaborMetrics(labor, ctx.startDate, ctx.endDate, {
-      assumptions: pnlAssumptions,
-      categoryTotals: { food: 0, drinks: 0 },
-    }),
-    tableOccupancy: await buildTableOccupancySummary(db, {
-      startDate: ctx.startDate,
-      endDate: ctx.endDate,
-      locationId: ctx.locationId,
-      period: ctx.period,
-    }),
+    periodBreakdown: applyOccupancyToPeriodBreakdown(
+      buildPeriodBreakdownFromLaborMetrics(labor, ctx.startDate, ctx.endDate, {
+        assumptions: pnlAssumptions,
+        categoryTotals: { food: 0, drinks: 0 },
+      }),
+      tableOccupancy,
+    ),
+    tableOccupancy,
   }
 }

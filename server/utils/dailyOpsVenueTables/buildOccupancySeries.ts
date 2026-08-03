@@ -1,13 +1,15 @@
 /**
  * @registry-id: dailyOpsBuildOccupancySeries
  * @created: 2026-07-22T00:00:00.000Z
- * @last-modified: 2026-07-22T00:00:00.000Z
+ * @last-modified: 2026-07-28T14:40:00.000Z
  * @description: Build multi-grain occupancy series from per-day combined points (write-path)
- * @last-fix: [2026-07-22] day / DOW / week / WOM / month / MOY / year grains
+ * @last-fix: [2026-07-28] Hour series keys match periodBreakdown bucketKey (unpadded)
+ *   Prior: [2026-07-22] day / DOW / week / WOM / month / MOY / year grains
  * @adr-ref: ADR-004, ADR-013
  *
  * @exports-to:
  * ✓ server/utils/dailyOpsVenueTables/buildTableOccupancySummary.ts
+ * ✓ utils/dailyOpsPeriodBreakdownOccupancy.ts
  */
 
 import type {
@@ -146,7 +148,9 @@ export function buildOccupancySeriesByGrain(
   }
 }
 
-/** Estimate hourly occupancy from day totals × hourly revenue share (until table×hour exists). */
+/** Estimate hourly occupancy from day totals × hourly revenue share.
+ * @deprecated Prefer sealed tablesByHour → buildTableOccupancySummary.hourly / series.hour.
+ */
 export function buildHourOccupancySeriesFromRevenue(
   dayActive: number,
   dayTotal: number,
@@ -163,7 +167,7 @@ export function buildHourOccupancySeriesFromRevenue(
       const occupancyPct =
         dayTotal > 0 ? Math.round((activeTables / dayTotal) * 1000) / 10 : dayPct
       return {
-        key: String(h.calendarHour).padStart(2, '0'),
+        key: String(h.calendarHour),
         label: h.hourLabel,
         activeTables,
         totalTables: dayTotal,

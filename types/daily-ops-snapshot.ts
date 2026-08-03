@@ -258,7 +258,8 @@ export type DailyOpsSnapshotRevenueProductsSection = {
 /** Per-table revenue for one business day. */
 export type DailyOpsSnapshotRevenueTablesSection = {
   _id?: unknown
-  schema_version: 1
+  /** 2 = includes tablesByHour for real hourly bezettingsgraad. */
+  schema_version: 1 | 2
   businessDate: string
   locationId: string
   locationName: string
@@ -267,6 +268,15 @@ export type DailyOpsSnapshotRevenueTablesSection = {
     locationSpace: string
     revenue_ex_vat: number
     quantity: number
+  }>
+  /**
+   * Distinct active tables per register business_hour (from bork_sales_by_table).
+   * calendarHour aligns with period-breakdown hour buckets (Amsterdam clock).
+   */
+  tablesByHour?: Array<{
+    businessHour: number
+    calendarHour: number
+    activeTables: number
   }>
   lastBuiltAt: Date
 }

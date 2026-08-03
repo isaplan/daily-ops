@@ -1,9 +1,9 @@
 /**
  * @registry-id: staffOrgContractLabor
  * @created: 2026-07-23T10:40:00.000Z
- * @last-modified: 2026-07-23T10:40:00.000Z
+ * @last-modified: 2026-07-28T16:35:00.000Z
  * @description: FT/contract labor helpers — Managers/Chefs always FT
- * @last-fix: [2026-07-23] Monthly contract cost from org + FT placement filter
+ * @last-fix: [2026-07-28] pt_sr is non-contract (flex) like pt/zzp
  * @adr-ref: ADR-016
  *
  * @exports-to:
@@ -37,8 +37,20 @@ export function isContractFtMember(
   role?: StaffOrgRole | null,
 ): boolean {
   if (isContractFtRole(role)) return true
-  if (role === 'pt' || role === 'zzp') return false
+  if (role === 'pt' || role === 'pt_sr' || role === 'zzp') return false
   return classifyStaffContractType(member.contractType) === 'ft'
+}
+
+/** Weekly hours for org metrics — PT/PT Sr prefer planner desired hours. */
+export function weeklyHoursForRole(
+  member: StaffOrgRosterMember,
+  role?: StaffOrgRole | null,
+): number {
+  if (role === 'pt' || role === 'pt_sr') {
+    const desired = member.desiredWeeklyHours
+    if (desired != null && Number.isFinite(desired) && desired > 0) return desired
+  }
+  return member.weeklyContractHours ?? 0
 }
 
 /** Bediening revenue pot covers bediening + bar. */

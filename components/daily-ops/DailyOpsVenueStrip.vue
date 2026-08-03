@@ -99,6 +99,7 @@
       v-if="hasVenues && viewMode === 'graph' && periodBreakdown"
       :key="`${periodBreakdown.granularity}-${period}-${anchor ?? ''}`"
       :breakdown="periodBreakdown"
+      :table-occupancy="tableOccupancy"
       :period-label="periodLabel"
       :business-date="chartBusinessDate"
     />
@@ -648,6 +649,7 @@ import type {
   DailyOpsAttendanceKpisDto,
   DailyOpsAttendanceVenueDto,
 } from '~/types/daily-ops-dashboard'
+import type { DailyOpsTableOccupancyKpisDto } from '~/types/daily-ops-venue-tables'
 import { resolveDailyOpsPeriod } from '~/utils/dailyOpsPeriod'
 import { weekdayShortForYmd } from '~/utils/inbox/importTableQuickDates'
 
@@ -655,6 +657,7 @@ const props = defineProps<{
   period: DailyOpsPeriodId
   anchor?: string | null
   periodBreakdown?: PeriodBreakdownDto | null
+  tableOccupancy?: DailyOpsTableOccupancyKpisDto | null
 }>()
 
 const { chartColorFor } = useDailyOpsLocationChartColors()

@@ -1,9 +1,10 @@
 /**
  * @registry-id: dailyOpsStaffHourBuckets
  * @created: 2026-07-11T18:30:00.000Z
- * @last-modified: 2026-07-13T10:06:00.000Z
+ * @last-modified: 2026-07-28T14:05:34.000Z
  * @description: Distinct staff headcount per location × business_date × calendar_hour (shift overlap)
- * @last-fix: [2026-07-13] registerBusinessDateForInstant for check-in business_date (ADR-010)
+ * @last-fix: [2026-07-28] Keuken+Bediening only; expose byTeam for stacked Staff chart
+ *   Prior: [2026-07-13] registerBusinessDateForInstant for check-in business_date (ADR-010)
  *   Prior: [2026-07-11] Hourly staff buckets for venue strip period breakdown
  * @adr-ref: ADR-004, ADR-010, ADR-013
  *
@@ -39,16 +40,21 @@ import {
   loadMemberCompensationForStaffRows,
   resolveMemberCompensationHit,
 } from '../eitjeAggCompensationEnrich'
+import { bucketTeamFromName, type TeamBucket } from '../dailyOpsTeamBucket'
+import type { PeriodBreakdownStaffByTeamDto } from '~/types/daily-ops-dashboard'
 
 export type StaffHourBucket = {
   staffCount: number
   byContract: Record<StaffContractBucketKey, number>
+  byTeam?: PeriodBreakdownStaffByTeamDto
 }
 
 type StaffHourBucketInternal = {
   ft: Set<string>
   pt: Set<string>
   zzp: Set<string>
+  keuken: Set<string>
+  bediening: Set<string>
 }
 
 type StaffHourCtx = {
@@ -64,6 +70,7 @@ type ShiftStaffRow = {
   locationId: string
   userId: string
   contractType: string
+  teamName: string
 }
 
 function addUtcDays(d: Date, delta: number): Date {
@@ -120,18 +127,23 @@ function amsterdamHourWindowUtc(
 }
 
 function emptyInternal(): StaffHourBucketInternal {
-  return { ft: new Set(), pt: new Set(), zzp: new Set() }
+  return { ft: new Set(), pt: new Set(), zzp: new Set(), keuken: new Set(), bediening: new Set() }
 }
 
 function finalizeBucket(internal: StaffHourBucketInternal): StaffHourBucket {
+  const byTeam = {
+    keuken: internal.keuken.size,
+    bediening: internal.bediening.size,
+  }
   const byContract = {
     ft: internal.ft.size,
     pt: internal.pt.size,
     zzp: internal.zzp.size,
   }
   return {
-    staffCount: byContract.ft + byContract.pt + byContract.zzp,
+    staffCount: byTeam.keuken + byTeam.bediening,
     byContract,
+    byTeam,
   }
 }
 
@@ -143,10 +155,12 @@ function allocateShiftStaff(
   userId: string,
   contractType: string,
   locationId: string,
+  teamName: string,
 ): void {
   if (!Number.isFinite(shiftStart.getTime()) || !userId) return
+  const teamBucket: TeamBucket = bucketTeamFromName(teamName)
+  if (teamBucket === 'other') return
   const bucketKey = classifyStaffContractType(contractType)
-  if (!bucketKey) return
 
   const endMs = Number.isFinite(shiftEnd.getTime())
     ? shiftEnd.getTime()
@@ -161,7 +175,8 @@ function allocateShiftStaff(
     if (overlapEnd <= overlapStart) continue
     const key = `${locationId}|${businessDate}|${h}`
     const prev = buckets.get(key) ?? emptyInternal()
-    prev[bucketKey].add(userId)
+    prev[teamBucket].add(userId)
+    if (bucketKey) prev[bucketKey].add(userId)
     buckets.set(key, prev)
   }
 }
@@ -177,13 +192,18 @@ export function mergeStaffHourMaps(
       out.set(key, row)
       continue
     }
+    const byTeam = {
+      keuken: Math.max(prev.byTeam?.keuken ?? 0, row.byTeam?.keuken ?? 0),
+      bediening: Math.max(prev.byTeam?.bediening ?? 0, row.byTeam?.bediening ?? 0),
+    }
     out.set(key, {
-      staffCount: Math.max(prev.staffCount, row.staffCount),
+      staffCount: byTeam.keuken + byTeam.bediening,
       byContract: {
         ft: Math.max(prev.byContract.ft, row.byContract.ft),
         pt: Math.max(prev.byContract.pt, row.byContract.pt),
         zzp: Math.max(prev.byContract.zzp, row.byContract.zzp),
       },
+      byTeam,
     })
   }
   return out
@@ -329,6 +349,14 @@ export async function fetchStaffByBusinessDateHour(
         shiftEnd: 1,
         locationId: { $toString: '$locationId' },
         userId: { $toString: { $ifNull: ['$userId', ''] } },
+        teamName: {
+          $ifNull: [
+            '$rawApiResponse.team.name',
+            '$rawApiResponse.team_name',
+            '$extracted.teamName',
+            '',
+          ],
+        },
         contractType: {
           $ifNull: [
             { $arrayElemAt: ['$memberDoc.contract_type', 0] },
@@ -356,6 +384,7 @@ export async function fetchStaffByBusinessDateHour(
       row.userId,
       row.contractType,
       row.locationId,
+      row.teamName,
     )
   }
 
@@ -402,6 +431,7 @@ export async function fetchCheckInsStaffByBusinessDateHour(
       row.userId,
       contractType,
       row.locationId,
+      row.teamName,
     )
   }
 

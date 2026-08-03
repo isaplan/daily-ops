@@ -1,9 +1,10 @@
 /**
  * @registry-id: borkFoodBeverageSplit
  * @created: 2026-05-23T00:00:00.000Z
- * @last-modified: 2026-06-02T23:30:00.000Z
+ * @last-modified: 2026-07-28T16:35:00.000Z
  * @description: Food vs beverage revenue using product_catalog (Hoofdgroep), with name fallback
- * @last-fix: [2026-06-02] Reject stale product_key hits when sold name ≠ catalog name; name fallback lookup
+ * @last-fix: [2026-07-28] Broaden beverage category-name rollup (Limonade, Warme Dranken, Cocktails, …)
+ *   Prior: [2026-06-02] Reject stale product_key hits when sold name ≠ catalog name; name fallback lookup
  *   Prior: [2026-06-02] Export shared beverage classifiers for drilldown top-10
  *   Prior: [2026-05-23] Replace product-name-only heuristic for Daily Ops revenue splits
  *
@@ -278,9 +279,12 @@ export function splitLineRevenueByCatalog(
 export function isBeverageCategoryName(name: string): boolean {
   const n = name.trim().toLowerCase()
   return (
-    /^dranken\s+(hoog|laag)$/.test(n) ||
+    /^dranken(\s+(hoog|laag))?$/.test(n) ||
     /bierboetiek|bier\s*boetiek/.test(n) ||
-    /^drank|bier|bar\b|tap\b|wijn|wine/.test(n)
+    /^drank|bier|bar\b|tap\b|wijn|wine/.test(n) ||
+    /^(limonade|warme\s+dranken|alc\.?\s*warme\s+dranken|cocktails?|alcohol\s*vrij|frisdrank|soft\s*drinks?)$/.test(
+      n,
+    )
   )
 }
 
@@ -320,16 +324,12 @@ export function rollupFoodBeverageFromCategories(
   let beverage = 0
   for (const c of categories) {
     const name = c.name.trim().toLowerCase()
-    if (
-      /^dranken\s+(hoog|laag)$/.test(name) ||
-      /bierboetiek|bier\s*boetiek/.test(name) ||
-      /^drank|bier|bar\b|tap\b|wijn|wine/.test(name)
-    ) {
+    if (isBeverageCategoryName(c.name)) {
       beverage += c.revenue_ex_vat
     } else if (name === 'keuken' || /^food|kitchen/.test(name)) {
       food += c.revenue_ex_vat
-    } else if (/^non-food/.test(name)) {
-      // skip or count as other
+    } else if (/^non-food|^meldingen$/.test(name)) {
+      // skip Non-Food / Meldingen — not food or beverage
     } else {
       food += c.revenue_ex_vat
     }

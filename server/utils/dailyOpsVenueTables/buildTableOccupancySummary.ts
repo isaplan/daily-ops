@@ -1,11 +1,12 @@
 /**
  * @registry-id: dailyOpsBuildTableOccupancySummary
  * @created: 2026-07-20T00:00:00.000Z
- * @last-modified: 2026-07-22T00:00:00.000Z
- * @description: Active tables + bezettingsgraad (daily or avg-of-daily for ranges)
- * @last-fix: [2026-07-22] Seal multi-grain series + avgMonthlyOccupancyPct on rollups
+ * @last-modified: 2026-07-29T22:10:00.000Z
+ * @description: Active tables + bezettingsgraad (daily or avg-of-daily; real hourly when sealed)
+ * @last-fix: [2026-07-29] Real series.hour + hourly[] from snapshot tablesByHour
+ *   Prior: [2026-07-22] Seal multi-grain series + avgMonthlyOccupancyPct on rollups
  *   Prior: [2026-07-20] Avg daily occupancy for multi-day periods
- * @adr-ref: ADR-004, ADR-013
+ * @adr-ref: ADR-004, ADR-013, ADR-017
  *
  * @exports-to:
  * ✓ server/utils/dailyOpsVenueTables/fetchTableOccupancyKpis.ts
@@ -16,8 +17,10 @@
 import type { Db } from 'mongodb'
 import type {
   DailyOpsTableOccupancyDayDto,
+  DailyOpsTableOccupancyHourDto,
   DailyOpsTableOccupancyKpisDto,
   DailyOpsTableOccupancyVenueDto,
+  DailyOpsOccupancySeriesPoint,
 } from '../../../types/daily-ops-venue-tables'
 import { DAILY_OPS_SNAPSHOT_COLLECTIONS } from '../../../types/daily-ops-snapshot'
 import { enumerateUtcDatesInclusive } from '../dailyOpsMetrics/context'
@@ -31,6 +34,7 @@ import {
   buildOccupancySeriesByGrain,
   combineDailyOccupancyPoints,
 } from './buildOccupancySeries'
+import { hourLabel } from '../dailyOpsSnapshot/drilldown/drilldownShared'
 
 export function occupancyPct(active: number, total: number): number | null {
   if (total <= 0) return null
@@ -53,7 +57,32 @@ export type BuildTableOccupancyOpts = {
   period?: string
 }
 
-function withSeries(dto: DailyOpsTableOccupancyKpisDto): DailyOpsTableOccupancyKpisDto {
+function buildOrgHourSeries(
+  hourly: DailyOpsTableOccupancyHourDto[],
+): DailyOpsOccupancySeriesPoint[] {
+  const byHour = new Map<number, { active: number; total: number }>()
+  for (const row of hourly) {
+    const cur = byHour.get(row.calendarHour) ?? { active: 0, total: 0 }
+    cur.active += row.activeTables
+    cur.total += row.totalTables
+    byHour.set(row.calendarHour, cur)
+  }
+  return Array.from({ length: 24 }, (_, calendarHour) => {
+    const cur = byHour.get(calendarHour) ?? { active: 0, total: 0 }
+    return {
+      key: String(calendarHour),
+      label: hourLabel(calendarHour),
+      activeTables: cur.active,
+      totalTables: cur.total,
+      occupancyPct: occupancyPct(cur.active, cur.total),
+    }
+  })
+}
+
+function withSeries(
+  dto: DailyOpsTableOccupancyKpisDto,
+  hourly?: DailyOpsTableOccupancyHourDto[],
+): DailyOpsTableOccupancyKpisDto {
   const dayPoints = dto.daily?.length
     ? combineDailyOccupancyPoints(dto.daily)
     : [{
@@ -63,9 +92,14 @@ function withSeries(dto: DailyOpsTableOccupancyKpisDto): DailyOpsTableOccupancyK
         totalTables: dto.totalTables,
         occupancyPct: dto.occupancyPct,
       }]
+  const series = buildOccupancySeriesByGrain(dayPoints)
+  if (hourly?.length) {
+    series.hour = buildOrgHourSeries(hourly)
+  }
   return {
     ...dto,
-    series: buildOccupancySeriesByGrain(dayPoints),
+    ...(hourly?.length ? { hourly } : {}),
+    series,
   }
 }
 
@@ -81,6 +115,7 @@ export async function buildTableOccupancySummary(
   const locationIds = venues.map((v) => v.locationId)
   const dates = enumerateUtcDatesInclusive(opts.startDate, opts.endDate)
   const multiDay = dates.length > 1
+  const singleDay = !multiDay
 
   const [catalogRows, snapshotDocs] = await Promise.all([
     db
@@ -97,7 +132,7 @@ export async function buildTableOccupancySummary(
           locationId: { $in: locationIds },
           businessDate: { $gte: opts.startDate, $lte: opts.endDate },
         },
-        { projection: { locationId: 1, businessDate: 1, tables: 1 } },
+        { projection: { locationId: 1, businessDate: 1, tables: 1, tablesByHour: 1 } },
       )
       .toArray(),
   ])
@@ -111,6 +146,8 @@ export async function buildTableOccupancySummary(
   }
 
   const activeByLocDate = new Map<string, Map<string, Set<string>>>()
+  const hourByLocDate = new Map<string, Map<string, Map<number, number>>>()
+
   for (const doc of snapshotDocs) {
     const locationId = normalizeLocationId(doc.locationId)
     const businessDate = String(doc.businessDate ?? '').trim()
@@ -124,9 +161,27 @@ export async function buildTableOccupancySummary(
     }
     byDate.set(businessDate, set)
     activeByLocDate.set(locationId, byDate)
+
+    const byHourRows = Array.isArray(doc.tablesByHour) ? doc.tablesByHour : []
+    if (byHourRows.length > 0) {
+      const byDateHour = hourByLocDate.get(locationId) ?? new Map<string, Map<number, number>>()
+      const hourMap = byDateHour.get(businessDate) ?? new Map<number, number>()
+      for (const h of byHourRows) {
+        const calendarHour = Number(
+          (h as { calendarHour?: unknown }).calendarHour
+          ?? (((Number((h as { businessHour?: unknown }).businessHour) || 0) + 8) % 24),
+        )
+        const active = Number((h as { activeTables?: unknown }).activeTables ?? 0)
+        if (!Number.isFinite(calendarHour) || calendarHour < 0 || calendarHour > 23) continue
+        hourMap.set(calendarHour, Math.max(hourMap.get(calendarHour) ?? 0, active))
+      }
+      byDateHour.set(businessDate, hourMap)
+      hourByLocDate.set(locationId, byDateHour)
+    }
   }
 
   const daily: DailyOpsTableOccupancyDayDto[] = []
+  const hourly: DailyOpsTableOccupancyHourDto[] = []
   const venueDtos: DailyOpsTableOccupancyVenueDto[] = venues.map((v) => {
     const totalTables = totalByLocation.get(v.locationId) ?? 0
     const byDate = activeByLocDate.get(v.locationId) ?? new Map<string, Set<string>>()
@@ -146,6 +201,23 @@ export async function buildTableOccupancySummary(
         totalTables,
         occupancyPct: pct,
       })
+
+      if (singleDay) {
+        const hourMap = hourByLocDate.get(v.locationId)?.get(date)
+        if (hourMap) {
+          for (let calendarHour = 0; calendarHour < 24; calendarHour += 1) {
+            const active = hourMap.get(calendarHour) ?? 0
+            hourly.push({
+              calendarHour,
+              locationId: v.locationId,
+              locationName: v.locationName,
+              activeTables: active,
+              totalTables,
+              occupancyPct: occupancyPct(active, totalTables),
+            })
+          }
+        }
+      }
     }
 
     if (!multiDay) {
@@ -172,21 +244,24 @@ export async function buildTableOccupancySummary(
   const totalTables = venueDtos.reduce((sum, v) => sum + v.totalTables, 0)
   const venuePcts = venueDtos.map((v) => v.occupancyPct).filter((p): p is number => p != null)
 
-  return withSeries({
-    range: {
-      period: opts.period ?? (multiDay ? 'range' : 'day'),
-      startDate: opts.startDate,
-      endDate: opts.endDate,
+  return withSeries(
+    {
+      range: {
+        period: opts.period ?? (multiDay ? 'range' : 'day'),
+        startDate: opts.startDate,
+        endDate: opts.endDate,
+      },
+      activeTables,
+      totalTables,
+      occupancyPct: multiDay
+        ? mean(venuePcts)
+        : occupancyPct(Math.round(activeTables), totalTables),
+      venues: venueDtos,
+      daily: multiDay ? daily : undefined,
+      aggregation: multiDay ? 'avg_daily' : 'day',
     },
-    activeTables,
-    totalTables,
-    occupancyPct: multiDay
-      ? mean(venuePcts)
-      : occupancyPct(Math.round(activeTables), totalTables),
-    venues: venueDtos,
-    daily: multiDay ? daily : undefined,
-    aggregation: multiDay ? 'avg_daily' : 'day',
-  })
+    singleDay && hourly.length > 0 ? hourly : undefined,
+  )
 }
 
 /** Average sealed daily occupancy payloads (dashboard week/month/year rollup). */
@@ -218,8 +293,8 @@ export function averageTableOccupancyPayloads(
     parts.some((p) => p.venues.some((x) => x.locationId === v.locationId)),
   )
   const list = filtered.length > 0 ? filtered : venues
-  const activeTables = round1(list.reduce((s, v) => s + v.activeTables, 0))
-  const totalTables = list.reduce((s, v) => s + v.totalTables, 0)
+  const activeSum = round1(list.reduce((s, v) => s + v.activeTables, 0))
+  const totalSum = list.reduce((s, v) => s + v.totalTables, 0)
   const pcts = list.map((v) => v.occupancyPct).filter((p): p is number => p != null)
 
   const daily: DailyOpsTableOccupancyDayDto[] = []
@@ -252,8 +327,8 @@ export function averageTableOccupancyPayloads(
 
   return withSeries({
     range,
-    activeTables,
-    totalTables,
+    activeTables: activeSum,
+    totalTables: totalSum,
     occupancyPct: mean(pcts),
     venues: list,
     daily: daily.length ? daily : undefined,

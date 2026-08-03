@@ -100,13 +100,15 @@
           <D3StackedBarChart
             v-if="showStaffStacked && stackedChartData.length"
             :data="stackedChartData"
-            :keys="contractStackKeys"
-            :key-labels="contractStackLabels"
-            :colors="contractStackColors"
+            :keys="teamStackKeys"
+            :key-labels="teamStackLabels"
+            :colors="teamStackColors"
             :width="width"
             :height="Math.max(280, Math.round(height))"
             :show-value-labels="showBars"
-            :format-segment-value="formatStaffCount"
+            :show-stack-totals="showBars"
+            :format-segment-value="formatStaffSegment"
+            :format-stack-total="formatStaffCount"
             :format-bucket-label="formatBucketLabel"
           />
           <D3GroupedBarChart
@@ -130,7 +132,7 @@
     </ClientOnly>
 
     <p v-if="showStaffStacked" class="mt-2 text-[11px] text-gray-500">
-      Staff count by contract — FT / PT / ZZP stacked per hour.
+      Staff = Keuken + Bediening only (excludes Management / Ziek / Verlof). Stacked by team.
     </p>
     <p v-else-if="effectiveNormalizeScale" class="mt-2 text-[11px] text-gray-500">
       Mixed metrics — bar heights are relative per series; values shown above each bar.
@@ -140,15 +142,16 @@
 
 <script setup lang="ts">
 /**
- * @last-modified: 2026-07-16T00:00:00.000Z
- * @last-fix: [2026-07-16] Remount D3 chart on granularity change to reset x-axis
+ * @last-modified: 2026-07-28T14:40:00.000Z
+ * @last-fix: [2026-07-28] Join sealed tableOccupancy when occupancyPct missing on rows
  */
 import D3GroupedBarChart from '~/components/charts/D3GroupedBarChart.vue'
 import D3StackedBarChart from '~/components/charts/D3StackedBarChart.vue'
 import type { GroupedBarReferenceLine, GroupedBarSeries } from '~/components/charts/D3GroupedBarChart.vue'
 import type { StackedBarDataPoint } from '~/components/charts/D3StackedBarChart.vue'
 import type { PeriodBreakdownDto, PeriodBreakdownGranularity, PeriodBreakdownRowDto } from '~/types/daily-ops-dashboard'
-import type { StaffContractBucketKey } from '~/utils/dailyOpsStaffContractBuckets'
+import type { DailyOpsTableOccupancyKpisDto } from '~/types/daily-ops-venue-tables'
+import { applyOccupancyToPeriodBreakdown } from '~/utils/dailyOpsPeriodBreakdownOccupancy'
 import { referenceLineColor, referenceLineColorForOverlay, referenceLineStyleForAverage } from '~/utils/chartReferenceColor'
 import { chartPeriodMedian, chartTrendSeriesProjected } from '~/utils/dailyOpsStaffChartMedians'
 import {
@@ -167,13 +170,13 @@ import {
   formatPeriodBreakdownMoney,
 } from '~/utils/dailyOpsPeriodBreakdownChart'
 
-type MetricKey = 'revenue' | 'labor' | 'productivity' | 'staff' | 'profit'
+type MetricKey = 'revenue' | 'labor' | 'productivity' | 'staff' | 'occupancy' | 'profit'
 
 type MetricDef = {
   key: MetricKey
   label: string
   color: string
-  scale: 'eur' | 'count' | 'eurPerHour'
+  scale: 'eur' | 'count' | 'eurPerHour' | 'percent'
 }
 
 const METRIC_DEFS: MetricDef[] = [
@@ -181,6 +184,7 @@ const METRIC_DEFS: MetricDef[] = [
   { key: 'labor', label: 'Labor', color: '#6366f1', scale: 'eur' },
   { key: 'productivity', label: 'Productivity', color: '#059669', scale: 'eurPerHour' },
   { key: 'staff', label: 'Staff', color: '#d97706', scale: 'count' },
+  { key: 'occupancy', label: 'Bezettingsgraad', color: '#0f766e', scale: 'percent' },
   { key: 'profit', label: 'Profit', color: '#5B9A6F', scale: 'eur' },
 ]
 
@@ -191,13 +195,13 @@ const GRANULARITY_TITLES: Record<PeriodBreakdownGranularity, string> = {
   month: 'Monthly breakdown',
 }
 
-const contractStackKeys: StaffContractBucketKey[] = ['ft', 'pt', 'zzp']
-const contractStackLabels: Record<StaffContractBucketKey, string> = {
-  ft: 'FT',
-  pt: 'PT',
-  zzp: 'ZZP',
+type StaffTeamBucketKey = 'keuken' | 'bediening'
+const teamStackKeys: StaffTeamBucketKey[] = ['keuken', 'bediening']
+const teamStackLabels: Record<StaffTeamBucketKey, string> = {
+  keuken: 'Keuken',
+  bediening: 'Bediening',
 }
-const contractStackColors = ['#3D5276', '#4F74E3', '#D9C73F']
+const teamStackColors = ['#c2410c', '#fb923c']
 
 const VENUE_SHORT: Record<string, string> = {
   'Van Kinsbergen': 'VKB',
@@ -207,6 +211,8 @@ const VENUE_SHORT: Record<string, string> = {
 
 const props = defineProps<{
   breakdown: PeriodBreakdownDto
+  /** Sealed tableOccupancy — fills occupancyPct on rows when cache predates ADR-017. */
+  tableOccupancy?: DailyOpsTableOccupancyKpisDto | null
   businessDate?: string | null
   title?: string
   subtitle?: string
@@ -214,10 +220,15 @@ const props = defineProps<{
 
 const { chartColorFor } = useDailyOpsLocationChartColors()
 
-const title = computed(() => props.title ?? GRANULARITY_TITLES[props.breakdown.granularity])
+const enrichedBreakdown = computed(() =>
+  applyOccupancyToPeriodBreakdown(props.breakdown, props.tableOccupancy),
+)
+const breakdown = enrichedBreakdown
+
+const title = computed(() => props.title ?? GRANULARITY_TITLES[breakdown.value.granularity])
 
 const venueOptions = computed(() =>
-  props.breakdown.byVenue.map((v) => ({
+  breakdown.value.byVenue.map((v) => ({
     locationId: v.locationId,
     locationName: v.locationName,
     shortLabel: VENUE_SHORT[v.locationName] ?? v.locationName.slice(0, 3).toUpperCase(),
@@ -267,14 +278,19 @@ const stackedChartData = computed((): StackedBarDataPoint[] => {
   if (!locationId) return []
   return rowsForVenue(locationId).map((row) => ({
     date: row.bucketKey,
-    ft: row.staffByContract?.ft ?? 0,
-    pt: row.staffByContract?.pt ?? 0,
-    zzp: row.staffByContract?.zzp ?? 0,
+    keuken: row.staffByTeam?.keuken ?? 0,
+    bediening: row.staffByTeam?.bediening ?? 0,
   }))
 })
 
 function formatStaffCount(value: number): string {
   return String(Math.round(value))
+}
+
+function formatStaffSegment(value: number, key?: string): string {
+  const label = key === 'keuken' ? 'Keuken' : key === 'bediening' ? 'Bediening' : ''
+  const count = Math.round(value)
+  return label ? `${label} ${count}` : String(count)
 }
 
 const showBars = ref(true)
@@ -307,12 +323,19 @@ function toggleRolling(label: string) {
 function rowsForVenue(locationId: string) {
   const venue = venueOptions.value.find((v) => v.locationId === locationId)
   let rows = venue?.rows ?? []
-  if (props.breakdown.granularity === 'hour' && props.businessDate) {
+  if (breakdown.value.granularity === 'hour' && props.businessDate) {
     rows = filterHourRowsForVenues(rows, [locationId], props.businessDate)
-  } else if (props.breakdown.granularity === 'month') {
+  } else if (breakdown.value.granularity === 'month') {
     return rows
   } else {
-    rows = rows.filter((r) => r.revenue > 0 || r.laborCost > 0 || r.profit !== 0 || r.staffCount > 0)
+    rows = rows.filter(
+      (r) =>
+        r.revenue > 0
+        || r.laborCost > 0
+        || r.profit !== 0
+        || r.staffCount > 0
+        || (r.occupancyPct != null && r.occupancyPct > 0),
+    )
   }
   return rows
 }
@@ -347,12 +370,20 @@ const chartData = computed(() => {
     labor: row.laborCost,
     productivity: row.productivity ?? 0,
     staff: row.staffCount,
+    occupancy: row.occupancyPct ?? 0,
     profit: row.profit,
   }))
 })
 
 function metricValue(
-  row: { revenue: number; laborCost: number; productivity: number | null; staffCount: number; profit: number } | undefined,
+  row: {
+    revenue: number
+    laborCost: number
+    productivity: number | null
+    staffCount: number
+    occupancyPct?: number | null
+    profit: number
+  } | undefined,
   metric: MetricKey,
 ): number {
   if (!row) return 0
@@ -360,6 +391,7 @@ function metricValue(
   if (metric === 'labor') return row.laborCost
   if (metric === 'productivity') return row.productivity ?? 0
   if (metric === 'staff') return row.staffCount
+  if (metric === 'occupancy') return row.occupancyPct ?? 0
   return row.profit
 }
 
@@ -440,12 +472,12 @@ const usesSharedEurScale = computed(() => {
 const effectiveNormalizeScale = computed(() => !usesSharedEurScale.value)
 
 function formatBucketLabel(bucketKey: string): string {
-  const row = props.breakdown.byVenue
+  const row = breakdown.value.byVenue
     .flatMap((v) => v.rows)
     .find((r) => r.bucketKey === bucketKey)
   return formatPeriodBreakdownBucketLabel(
     bucketKey,
-    props.breakdown.granularity,
+    breakdown.value.granularity,
     row?.bucketLabel,
   )
 }
@@ -457,13 +489,14 @@ function formatBarValue(value: number, seriesKey: string): string {
     : METRIC_DEFS.find((m) => m.key === seriesKey)
   if (!def) return String(Math.round(value))
   if (def.scale === 'count') return String(Math.round(value))
+  if (def.scale === 'percent') return `${Math.round(value)}%`
   if (def.scale === 'eurPerHour') return formatPeriodBreakdownEurPerHour(value)
   return formatPeriodBreakdownMoney(value)
 }
 
 const rollingWindowLabels = computed(() =>
-  PERIOD_ROLLING_BUCKETS[props.breakdown.granularity].map((b) =>
-    periodRollingWindowLabel(props.breakdown.granularity, b),
+  PERIOD_ROLLING_BUCKETS[breakdown.value.granularity].map((b) =>
+    periodRollingWindowLabel(breakdown.value.granularity, b),
   ),
 )
 
@@ -480,17 +513,22 @@ watch(
 const showAverageControls = computed(
   () =>
     !showStaffStacked.value
-    && props.breakdown.granularity !== 'day'
-    && !(props.breakdown.granularity === 'hour' && props.businessDate)
+    && breakdown.value.granularity !== 'day'
+    && !(breakdown.value.granularity === 'hour' && props.businessDate)
     && chartData.value.length > 0
     && (multiLocationMode.value || activeMetrics.value.size === 1),
 )
 
 function historyRowsForVenue(locationId: string): PeriodBreakdownRowDto[] {
-  const historyVenue = props.breakdown.averageHistory?.byVenue.find((v) => v.locationId === locationId)
+  const historyVenue = breakdown.value.averageHistory?.byVenue.find((v) => v.locationId === locationId)
   if (historyVenue?.rows?.length) {
     return historyVenue.rows.filter(
-      (r) => r.revenue > 0 || r.laborCost > 0 || r.profit !== 0 || r.staffCount > 0,
+      (r) =>
+        r.revenue > 0
+        || r.laborCost > 0
+        || r.profit !== 0
+        || r.staffCount > 0
+        || (r.occupancyPct != null && r.occupancyPct > 0),
     )
   }
   return rowsForVenue(locationId)
@@ -499,7 +537,7 @@ function historyRowsForVenue(locationId: string): PeriodBreakdownRowDto[] {
 function mapHourOverlayPoints(
   points: Array<{ date: string; value: number }>,
 ): Array<{ date: string; value: number }> {
-  if (props.breakdown.granularity !== 'hour' || !props.businessDate) return points
+  if (breakdown.value.granularity !== 'hour' || !props.businessDate) return points
   const prefix = `${props.businessDate}T`
   return points
     .filter((p) => p.date.startsWith(prefix))
@@ -543,13 +581,14 @@ function formatOverlayValue(value: number, metric: MetricKey): string {
   const def = METRIC_DEFS.find((m) => m.key === metric)
   if (!def || !Number.isFinite(value)) return '—'
   if (def.scale === 'count') return String(Math.round(value))
+  if (def.scale === 'percent') return `${Math.round(value)}%`
   if (def.scale === 'eurPerHour') return formatPeriodBreakdownEurPerHour(value)
   return formatPeriodBreakdownMoney(value)
 }
 
 function medianHistoryLabel(): string {
-  if (!props.breakdown.averageHistory) return 'on chart'
-  if (props.breakdown.granularity === 'hour') return `last ${PERIOD_HOUR_OVERLAY_LOOKBACK_DAYS}d`
+  if (!breakdown.value.averageHistory) return 'on chart'
+  if (breakdown.value.granularity === 'hour') return `last ${PERIOD_HOUR_OVERLAY_LOOKBACK_DAYS}d`
   return 'since 2024'
 }
 
@@ -562,7 +601,7 @@ function buildOverlayLines(
 ): GroupedBarReferenceLine[] {
   if (!activeAverages.value.size) return []
 
-  const granularity = props.breakdown.granularity
+  const granularity = breakdown.value.granularity
   const unit = granularityUnit(granularity)
   const history = historyMetricSeries(locationId, metric)
   if (!history.length) return []

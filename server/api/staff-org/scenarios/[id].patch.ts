@@ -1,9 +1,9 @@
 /**
  * @registry-id: api/staff-org/scenarios/[id].patch
  * @created: 2026-07-22T18:00:00.000Z
- * @last-modified: 2026-07-23T01:10:00.000Z
+ * @last-modified: 2026-07-28T16:35:00.000Z
  * @description: PATCH /api/staff-org/scenarios/:id — name/status/rules/placements/org
- * @last-fix: [2026-07-23] Accepts orgAssignments for TeamBuilder
+ * @last-fix: [2026-07-28] Accepts rosterDesiredHours for PT / PT Sr
  * @adr-ref: ADR-016
  */
 

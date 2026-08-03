@@ -1,9 +1,10 @@
 /**
  * @registry-id: dailyOpsSnapshotBuildRevenueProductsSection
  * @created: 2026-05-20T00:00:00.000Z
- * @last-modified: 2026-05-28T00:00:00.000Z
+ * @last-modified: 2026-07-28T16:35:00.000Z
  * @description: Product + category snapshot section — inbox (Datalab) for closed days, Bork API for today.
- * @last-fix: [2026-05-28] For closed business days use inbox.sections.netto_sales.categories (SSOT); Bork fallback for today.
+ * @last-fix: [2026-07-28] Today Bork path: label food/bev via catalog category → Keuken / Dranken hoog|laag (not sub_category)
+ *   Prior: [2026-05-28] For closed business days use inbox.sections.netto_sales.categories (SSOT); Bork fallback for today.
  * @adr-ref: ADR-004
  *
  * @exports-to:
@@ -13,12 +14,24 @@
 import type { Db } from 'mongodb'
 import { ObjectId } from 'mongodb'
 import { resolveBorkAggReadSuffix } from '../borkAggVersionSuffix'
-import { loadProductCatalogCategoryMap } from '../borkFoodBeverageSplit'
+import {
+  BORK_DRINK_NAME_FALLBACK,
+  loadProductCatalogCategoryMap,
+} from '../borkFoodBeverageSplit'
 import { classifyCategoryFromCatalogFields } from '../productCatalog'
 import type { DailyOpsSnapshotRevenueProductsSection } from '../../../types/daily-ops-snapshot'
 import type { BuildRevenueInput } from './buildRevenueSection'
 import type { ProductCatalogCategory } from '~/types/product-catalog'
 import type { BasisReportData } from '../inbox/basis-report-mapper'
+
+/** Inbox-compatible food/bev bucket labels so rollupFoodBeverageFromCategories stays correct. */
+function beverageBucketLabel(hoofdgroep: string | null | undefined): string {
+  const hg = (hoofdgroep ?? '').trim()
+  if (/^dranken\s+hoog$/i.test(hg)) return 'Dranken hoog'
+  if (/^dranken\s+laag$/i.test(hg)) return 'Dranken laag'
+  if (/^bierboetiek$|^bier\s*boetiek$/i.test(hg)) return hg
+  return 'Dranken'
+}
 
 function docRevenueEx(doc: Record<string, unknown>): number {
   const ex = Number(doc.total_revenue_ex_vat ?? 0)
@@ -94,19 +107,18 @@ export async function buildRevenueProductsSection(
   function snapshotCategoryLabel(productId: string, productName: string): string {
     const cat = catalogMap.get(productId)
     const fields = catalogFieldsByKey.get(productId)
-    if (cat === 'beverage') {
-      return fields?.sub_category?.trim() || fields?.hoofdgroep?.trim() || 'Dranken'
-    }
+    // Catalog category is SSOT — never emit sub_category (Limonade, Cocktails, …) as the rollup key.
+    if (cat === 'beverage') return beverageBucketLabel(fields?.hoofdgroep)
     if (cat === 'food') return 'Keuken'
     if (cat === 'other') return 'Non-Food'
     if (fields) {
       const derived = classifyCategoryFromCatalogFields(fields.hoofdgroep, fields.sub_category)
-      if (derived === 'beverage') {
-        return fields.sub_category?.trim() || fields.hoofdgroep?.trim() || 'Dranken'
-      }
+      if (derived === 'beverage') return beverageBucketLabel(fields.hoofdgroep)
       if (derived === 'food') return 'Keuken'
+      if (derived === 'other') return 'Non-Food'
     }
-    return productName
+    if (BORK_DRINK_NAME_FALLBACK.test(productName)) return 'Dranken'
+    return 'Keuken'
   }
 
   const catMap = new Map<string, { revenue_ex_vat: number; quantity: number }>()

@@ -234,6 +234,12 @@ export type PeriodBreakdownStaffByContractDto = {
   zzp: number
 }
 
+/** Keuken + Bediening headcount only (excludes Management / Ziek / Verlof / Afwas-as-other). */
+export type PeriodBreakdownStaffByTeamDto = {
+  keuken: number
+  bediening: number
+}
+
 export type PeriodBreakdownRowDto = {
   bucketKey: string
   bucketLabel: string
@@ -241,8 +247,12 @@ export type PeriodBreakdownRowDto = {
   laborCost: number
   laborHours: number
   productivity: number | null
+  /** Distinct Keuken + Bediening workers (staffByTeam sum when present). */
   staffCount: number
   staffByContract?: PeriodBreakdownStaffByContractDto
+  staffByTeam?: PeriodBreakdownStaffByTeamDto
+  /** Bezettingsgraad % for this bucket (null when unknown). */
+  occupancyPct?: number | null
   profit: number
   prevPeriodRevenue?: number | null
 }

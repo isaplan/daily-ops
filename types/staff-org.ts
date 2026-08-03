@@ -1,9 +1,9 @@
 /**
  * @registry-id: staffOrgTypes
  * @created: 2026-07-22T18:00:00.000Z
- * @last-modified: 2026-07-23T10:40:00.000Z
+ * @last-modified: 2026-07-28T16:35:00.000Z
  * @description: Staff Org scenario / placement / metrics types (ADR-016)
- * @last-fix: [2026-07-23] Location targets: team rev split + labor % actual/target
+ * @last-fix: [2026-07-28] pt_sr role + desiredWeeklyHours for PT lanes
  * @adr-ref: ADR-016
  *
  * @exports-to:
@@ -26,8 +26,9 @@ export type StaffOrgTeam = 'bediening' | 'keuken' | 'bar'
  * Organogram role.
  * Non-ZZP: at most one assignment per member.
  * ZZP: may have multiple assignments (different venues).
+ * pt_sr = senior PT (fixed days/week); pt = flexible PT (hours available).
  */
-export type StaffOrgRole = 'manager' | 'floor_manager' | 'ft' | 'pt' | 'zzp'
+export type StaffOrgRole = 'manager' | 'floor_manager' | 'ft' | 'pt_sr' | 'pt' | 'zzp'
 
 export type StaffOrgScenarioStatus = 'draft' | 'active' | 'archived'
 
@@ -63,6 +64,11 @@ export type StaffOrgRosterMember = {
   teamHint: StaffOrgTeam | null
   contractType: string
   weeklyContractHours: number | null
+  /**
+   * Planner override — hours PT / PT Sr is available or wants to work (u/w).
+   * Scenario-owned; survives roster sync when merged by memberId.
+   */
+  desiredWeeklyHours?: number | null
   hourlyRate: number
   costPerHour: number
   homeLocationId: string | null

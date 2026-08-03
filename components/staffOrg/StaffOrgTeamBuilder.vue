@@ -235,6 +235,8 @@
                     :key="m.memberId"
                     :member="m"
                     compact
+                    :editable-desired-hours="isPtHoursLane(row.roles[teamCol]!)"
+                    @update:desired-hours="onDesiredHours"
                   />
                   <p
                     v-if="!membersInLane(venue.locationId, teamCol, row.roles[teamCol]!).length"
@@ -444,9 +446,9 @@
 /**
  * @registry-id: StaffOrgTeamBuilder
  * @created: 2026-07-23T01:10:00.000Z
- * @last-modified: 2026-07-24T12:25:00.000Z
+ * @last-modified: 2026-07-28T16:35:00.000Z
  * @description: Organogram — Executive + venues (Keuken/Bediening/Bar) + budget
- * @last-fix: [2026-07-24] Empty FT lanes show open (same as Chef)
+ * @last-fix: [2026-07-28] PT Sr lane above PT; editable PT hours
  * @adr-ref: ADR-016
  */
 
@@ -489,6 +491,7 @@ const emit = defineEmits<{
   'update:executive': [executiveAssignments: StaffOrgExecutiveAssignment[]]
   'update:inactive': [inactiveMemberIds: string[]]
   'update:venues': [venues: StaffOrgVenue[]]
+  'update:desiredHours': [memberId: string, hours: number | null]
   'save-targets': [targets: StaffOrgLocationTargets[]]
   'save-rules': [rules: StaffOrgLocationRule[]]
 }>()
@@ -539,7 +542,7 @@ function laneMetricLine(
   const m = teamMetricsFor(locationId, team)
   if (!m) return null
 
-  if (role === 'pt' || role === 'zzp') {
+  if (role === 'pt_sr' || role === 'pt' || role === 'zzp') {
     const hours = m.flexHoursRemainingMonthly
     const budget = m.flexBudgetRemainingMonthly
     const own = m.byRole[role]
@@ -564,7 +567,7 @@ function laneMetricClass(
   team: StaffOrgTeam,
   role: StaffOrgRole,
 ): string {
-  if (role !== 'pt' && role !== 'zzp') return 'text-gray-700'
+  if (role !== 'pt_sr' && role !== 'pt' && role !== 'zzp') return 'text-gray-700'
   const m = teamMetricsFor(locationId, team)
   const budget = m?.flexBudgetRemainingMonthly
   if (budget == null) return 'text-gray-700'
@@ -621,6 +624,10 @@ const builderRows: Array<{
     roles: { keuken: 'ft', bediening: 'ft', bar: 'ft' },
   },
   {
+    key: 'pt_sr',
+    roles: { keuken: 'pt_sr', bediening: 'pt_sr', bar: 'pt_sr' },
+  },
+  {
     key: 'pt',
     roles: { keuken: 'pt', bediening: 'pt', bar: 'pt' },
   },
@@ -631,13 +638,41 @@ const builderRows: Array<{
 ]
 
 const LANE_LABELS: Record<StaffOrgTeam, Partial<Record<StaffOrgRole, string>>> = {
-  keuken: { manager: 'Chef', floor_manager: 'Sous-Chef', ft: 'FT', pt: 'PT', zzp: 'ZZP' },
-  bediening: { manager: 'Bedrijfsleider', floor_manager: 'Floor', ft: 'FT', pt: 'PT', zzp: 'ZZP' },
-  bar: { floor_manager: 'Bar Hoofd', ft: 'FT', pt: 'PT', zzp: 'ZZP' },
+  keuken: {
+    manager: 'Chef',
+    floor_manager: 'Sous-Chef',
+    ft: 'FT',
+    pt_sr: 'PT Sr',
+    pt: 'PT',
+    zzp: 'ZZP',
+  },
+  bediening: {
+    manager: 'Bedrijfsleider',
+    floor_manager: 'Floor',
+    ft: 'FT',
+    pt_sr: 'PT Sr',
+    pt: 'PT',
+    zzp: 'ZZP',
+  },
+  bar: {
+    floor_manager: 'Bar Hoofd',
+    ft: 'FT',
+    pt_sr: 'PT Sr',
+    pt: 'PT',
+    zzp: 'ZZP',
+  },
 }
 
 function laneLabel(team: StaffOrgTeam, role: StaffOrgRole): string {
   return LANE_LABELS[team][role] ?? role
+}
+
+function isPtHoursLane(role: StaffOrgRole): boolean {
+  return role === 'pt_sr' || role === 'pt'
+}
+
+function onDesiredHours(memberId: string, hours: number | null) {
+  emit('update:desiredHours', memberId, hours)
 }
 
 /** Empty vacancy highlight: Chef / Bedrijfsleider / Bar Hoofd / FT. */

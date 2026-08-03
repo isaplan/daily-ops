@@ -1,19 +1,21 @@
 /**
  * @registry-id: borkRebuildAggregationV2Service
  * @created: 2026-04-14T18:00:00.000Z
- * @last-modified: 2026-07-17T18:05:00.000Z
+ * @last-modified: 2026-07-28T16:00:00.000Z
  * @description: V2 Bork aggregates — writes bork_business_days, bork_sales_by_day, bork_sales_by_hour, bork_sales_by_table, bork_sales_by_worker, bork_sales_by_guest_account, bork_sales_by_product (+ version suffix). Every revenue rollup now emits total_revenue (inc VAT, back-compat), total_revenue_ex_vat, total_revenue_inc_vat, total_vat extracted from raw line TotalEx/TotalInc.
- * @last-fix: [2026-07-17] Upsert learned venue tables catalog from table rollups
+ * @last-fix: [2026-07-28] Dedupe orders across overlapping bork_raw_data dumps (newest raw wins) — fixes ~€600 night orderTime inflation
+ *   Prior: [2026-07-17] Upsert learned venue tables catalog from table rollups
  *   Prior: [2026-06-06] Add includeOpenTickets param: for today (realtime), include open/unsettled tickets; for historical (yesterday+), skip as before.
  *
  * @CRITICAL: Line revenue uses Lines[].TotalEx + TotalInc (live data confirmed); paymode totals use Order.Paymodes[].Total (tender amounts, no VAT split).
  *
  * @architecture:
  *   - One pass over bork_raw_data rebuilds all 7 collections.
+ *   - Raw dumps overlap (same Order.Key in multiple sync docs) — sort date desc + skip seen order keys (ADR-018).
  *   - VAT extraction delegated to server/utils/borkVatCalculation.ts (single source of truth).
  *   - Business day = 08:00 Amsterdam → 07:59:59 next ISO day (see calendarToBusinessDay). Client reads use ADR-010 SSOT.
  *
- * @adr-ref: ADR-010
+ * @adr-ref: ADR-010, ADR-018
  *
  * @exports-to:
  * ✓ scripts/bork-backfill-weekly-backward.ts
@@ -80,6 +82,37 @@ function isBorkTicketOpenUnsettled(ticket: { ActualDate?: number | string } | nu
   if (!ticket || typeof ticket !== 'object') return false
   const ad = ticket.ActualDate
   return ad === 10101 || ad === '10101'
+}
+
+/** Stable id for one Bork order across overlapping `bork_raw_data` sync dumps (ADR-018). */
+function borkOrderDedupeKey(
+  locationId: string,
+  ticket: { Key?: unknown; TicketNr?: unknown },
+  order: { Key?: unknown; Date?: unknown; Time?: unknown; TableNr?: unknown },
+): string {
+  const orderKey = String(order.Key ?? '').trim()
+  if (orderKey) return `${locationId}:ord:${orderKey}`
+  const ticketKey = String(ticket.Key ?? ticket.TicketNr ?? '').trim()
+  return `${locationId}:fb:${ticketKey}:${String(order.Date ?? '')}:${String(order.Time ?? '')}:${String(order.TableNr ?? '')}`
+}
+
+function rawDocTimeMs(rawDoc: { date?: unknown; fetchedAt?: unknown }): number {
+  const d = rawDoc.date ?? rawDoc.fetchedAt
+  if (d instanceof Date) return d.getTime()
+  if (typeof d === 'number' && Number.isFinite(d)) return d
+  if (typeof d === 'string' && d) {
+    const t = new Date(d).getTime()
+    return Number.isFinite(t) ? t : 0
+  }
+  return 0
+}
+
+type CanonicalBorkOrder = {
+  rawAt: number
+  unifiedLocationId: unknown
+  unifiedLocationName: string
+  ticket: Record<string, unknown>
+  order: Record<string, unknown>
 }
 
 type ProductRollup = {
@@ -211,7 +244,9 @@ export async function rebuildBorkSalesAggregationV2(
   const byGuestMap = new Map<string, Document>()
   const byProductMap = new Map<string, Document>()
 
+  // No Mongo sort — newest dump wins via in-memory map (ADR-018). Overlapping syncs must not double-count.
   const cursor = db.collection('bork_raw_data').find({ endpoint: 'bork_daily' }).batchSize(32)
+  const canonicalOrders = new Map<string, CanonicalBorkOrder>()
 
   const ensureDayRollup = (
     dayKey: string,
@@ -253,27 +288,60 @@ export async function rebuildBorkSalesAggregationV2(
 
       const unifiedLocationId = locMapping.unifiedId
       const unifiedLocationName = locMapping.name
+      const rawAt = rawDocTimeMs(rawDoc)
       const tickets = Array.isArray(rawDoc.rawApiResponse) ? rawDoc.rawApiResponse : [rawDoc.rawApiResponse]
 
       for (const ticket of tickets) {
         if (!ticket || typeof ticket !== 'object') continue
-        
-        // Skip open/unsettled tickets UNLESS: includeOpenTickets=true
-        // Even when including open tickets, we only include those from today (endDate)
+
         const isOpen = isBorkTicketOpenUnsettled(ticket)
         if (isOpen && !includeOpenTickets) continue
-        
+
+        const orders = Array.isArray((ticket as { Orders?: unknown[] }).Orders)
+          ? (ticket as { Orders: unknown[] }).Orders
+          : []
+
+        for (const order of orders) {
+          if (!order || typeof order !== 'object') continue
+
+          const orderDate = String(
+            (order as { Date?: unknown; ActualDate?: unknown }).Date ||
+              (order as { ActualDate?: unknown }).ActualDate ||
+              '',
+          ).padStart(8, '0')
+          if (!orderDate || orderDate === '00000000') continue
+
+          const orderBorkDate = parseInt(orderDate, 10)
+          if (orderBorkDate < startBorkDate || orderBorkDate > endBorkDate) continue
+
+          const dedupeKey = borkOrderDedupeKey(
+            String(unifiedLocationId),
+            ticket as { Key?: unknown; TicketNr?: unknown },
+            order as { Key?: unknown; Date?: unknown; Time?: unknown; TableNr?: unknown },
+          )
+          const prev = canonicalOrders.get(dedupeKey)
+          if (prev && prev.rawAt >= rawAt) continue
+          canonicalOrders.set(dedupeKey, {
+            rawAt,
+            unifiedLocationId,
+            unifiedLocationName,
+            ticket: ticket as Record<string, unknown>,
+            order: order as Record<string, unknown>,
+          })
+        }
+      }
+    }
+  } finally {
+    await cursor.close()
+  }
+
+  for (const { unifiedLocationId, unifiedLocationName, ticket, order } of canonicalOrders.values()) {
         const calendarHour = extractHour(ticket.Time as string)
         const borkWorkerName = (ticket as { UserName?: string }).UserName || 'Unknown'
         const userMapping =
           userMap.get(borkWorkerName) || userMap.get((ticket as { UserId?: string }).UserId)
         const unifiedWorkerId = String(userMapping?.unifiedId || 'unknown')
         const unifiedWorkerName = userMapping?.name || borkWorkerName
-
-        const orders = Array.isArray(ticket.Orders) ? ticket.Orders : []
-
-        for (const order of orders) {
-          if (!order || typeof order !== 'object') continue
 
           const orderDate = String(order.Date || order.ActualDate || '').padStart(8, '0')
           if (!orderDate || orderDate === '00000000') continue
@@ -659,11 +727,6 @@ export async function rebuildBorkSalesAggregationV2(
             const pmR = drPay.paymodes.get(payKey)!
             pmR.total_revenue += amt
           }
-        }
-      }
-    }
-  } finally {
-    await cursor.close()
   }
 
   const clearStartBusiness = addCalendarDaysISO(startDate, -1)

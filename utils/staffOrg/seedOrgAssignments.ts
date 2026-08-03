@@ -1,9 +1,9 @@
 /**
  * @registry-id: staffOrgSeedOrgAssignments
  * @created: 2026-07-23T01:10:00.000Z
- * @last-modified: 2026-07-23T02:10:00.000Z
+ * @last-modified: 2026-07-28T16:35:00.000Z
  * @description: Seed TeamBuilder assignments from roster home location + contract
- * @last-fix: [2026-07-23] Separate pt/zzp roles; ZZP may multi-locate later via DnD
+ * @last-fix: [2026-07-28] Seed still maps PT bucket → pt (pt_sr is manual drag)
  * @adr-ref: ADR-016
  *
  * @exports-to:

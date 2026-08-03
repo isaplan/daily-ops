@@ -2,6 +2,7 @@
   <DailyOpsPeriodBreakdownChart
     v-if="hasChartData"
     :breakdown="breakdown"
+    :table-occupancy="tableOccupancy"
     :business-date="businessDate"
     :subtitle="chartSubtitle"
   />
@@ -17,11 +18,13 @@
 
 <script setup lang="ts">
 import type { PeriodBreakdownDto } from '~/types/daily-ops-dashboard'
+import type { DailyOpsTableOccupancyKpisDto } from '~/types/daily-ops-venue-tables'
 
 const props = defineProps<{
   breakdown: PeriodBreakdownDto
   periodLabel: string
   businessDate?: string | null
+  tableOccupancy?: DailyOpsTableOccupancyKpisDto | null
 }>()
 
 const hasChartData = computed(

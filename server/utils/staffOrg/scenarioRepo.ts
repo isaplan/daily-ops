@@ -1,9 +1,9 @@
 /**
  * @registry-id: staffOrgScenarioRepo
  * @created: 2026-07-22T18:00:00.000Z
- * @last-modified: 2026-07-23T11:15:00.000Z
+ * @last-modified: 2026-07-28T16:35:00.000Z
  * @description: Mongo CRUD for staff_org_scenarios
- * @last-fix: [2026-07-23] refreshRoster merges org (keep manager/floor roles)
+ * @last-fix: [2026-07-28] pt_sr role + rosterDesiredHours merge
  * @adr-ref: ADR-016
  *
  * @exports-to:
@@ -47,7 +47,7 @@ const ORG_SEED_VERSION = 7
 
 const COLLECTION = 'staff_org_scenarios'
 const ALL_TEAMS: StaffOrgTeam[] = ['bediening', 'keuken', 'bar']
-const ALL_ROLES = ['manager', 'floor_manager', 'ft', 'pt', 'zzp'] as const
+const ALL_ROLES = ['manager', 'floor_manager', 'ft', 'pt_sr', 'pt', 'zzp'] as const
 const EXEC_AREAS: StaffOrgExecutiveArea[] = ['general', 'keuken', 'operations']
 
 function normalizeExecutive(raw: unknown): StaffOrgExecutiveAssignment[] {
@@ -253,7 +253,10 @@ export async function getStaffOrgScenario(
     const executiveAssignments = normalizeExecutive(doc.executiveAssignments)
       .filter((e) => !inactiveMemberIds.includes(e.memberId))
     const execIds = new Set(executiveAssignments.map((e) => e.memberId))
-    const roster = await seedRosterFromMembers(db)
+    const roster = preserveDesiredHoursFromExisting(
+      await seedRosterFromMembers(db),
+      Array.isArray(doc.roster) ? (doc.roster as StaffOrgRosterMember[]) : [],
+    )
     const existingOrg = normalizeAssignments(doc.orgAssignments)
     const closedIds = new Set(venues.filter((v) => v.status === 'closed').map((v) => v.locationId))
     const orgAssignments = (
@@ -308,6 +311,11 @@ export async function getStaffOrgScenario(
   return serialized
 }
 
+export type StaffOrgRosterDesiredHoursPatch = {
+  memberId: string
+  desiredWeeklyHours: number | null
+}
+
 export type StaffOrgScenarioPatch = {
   name?: string
   status?: StaffOrgScenarioStatus
@@ -318,7 +326,45 @@ export type StaffOrgScenarioPatch = {
   orgAssignments?: StaffOrgAssignment[]
   executiveAssignments?: StaffOrgExecutiveAssignment[]
   inactiveMemberIds?: string[]
+  /** Merge PT/PT Sr available hours onto scenario roster (by memberId). */
+  rosterDesiredHours?: StaffOrgRosterDesiredHoursPatch[]
   refreshRoster?: boolean
+}
+
+function mergeDesiredHoursOntoRoster(
+  roster: StaffOrgRosterMember[],
+  patches: StaffOrgRosterDesiredHoursPatch[],
+): StaffOrgRosterMember[] {
+  if (!patches.length) return roster
+  const byId = new Map(
+    patches.map((p) => [
+      p.memberId,
+      p.desiredWeeklyHours == null || !Number.isFinite(p.desiredWeeklyHours)
+        ? null
+        : Math.max(0, Math.round(Number(p.desiredWeeklyHours) * 10) / 10),
+    ]),
+  )
+  return roster.map((m) => {
+    if (!byId.has(m.memberId)) return m
+    return { ...m, desiredWeeklyHours: byId.get(m.memberId) ?? null }
+  })
+}
+
+function preserveDesiredHoursFromExisting(
+  next: StaffOrgRosterMember[],
+  existing: StaffOrgRosterMember[],
+): StaffOrgRosterMember[] {
+  const prev = new Map(
+    existing
+      .filter((m) => m.desiredWeeklyHours != null && Number.isFinite(m.desiredWeeklyHours))
+      .map((m) => [m.memberId, m.desiredWeeklyHours as number]),
+  )
+  if (!prev.size) return next
+  return next.map((m) => {
+    const hours = prev.get(m.memberId)
+    if (hours == null) return m
+    return { ...m, desiredWeeklyHours: hours }
+  })
 }
 
 export async function patchStaffOrgScenario(
@@ -401,7 +447,13 @@ export async function patchStaffOrgScenario(
   }
 
   if (patch.refreshRoster) {
-    const roster = await seedRosterFromMembers(db)
+    const existingRoster = Array.isArray(existing.roster)
+      ? (existing.roster as StaffOrgRosterMember[])
+      : []
+    const roster = preserveDesiredHoursFromExisting(
+      await seedRosterFromMembers(db),
+      existingRoster,
+    )
     $set.roster = roster
     const execIds = new Set(executiveAssignments.map((e) => e.memberId))
     // Merge only — never rebuild (keeps manager / floor / chef lanes)
@@ -413,6 +465,11 @@ export async function patchStaffOrgScenario(
     }).filter((a) => !execIds.has(a.memberId))
     $set.orgAssignments = orgAssignments
     $set.orgSeedVersion = ORG_SEED_VERSION
+  } else if (Array.isArray(patch.rosterDesiredHours) && patch.rosterDesiredHours.length > 0) {
+    const existingRoster = Array.isArray(existing.roster)
+      ? (existing.roster as StaffOrgRosterMember[])
+      : []
+    $set.roster = mergeDesiredHoursOntoRoster(existingRoster, patch.rosterDesiredHours)
   }
 
   let placements = Array.isArray(patch.placements)

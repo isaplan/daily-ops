@@ -70,6 +70,7 @@
         @update:executive="onExecutive"
         @update:inactive="onInactive"
         @update:venues="onVenues"
+        @update:desired-hours="onDesiredHours"
         @save-targets="onSaveTargets"
         @save-rules="onSaveRules"
       />
@@ -114,9 +115,9 @@
 /**
  * @registry-id: pages/staff-org/[id]
  * @created: 2026-07-22T18:00:00.000Z
- * @last-modified: 2026-07-23T15:15:00.000Z
+ * @last-modified: 2026-07-28T16:35:00.000Z
  * @description: Staff Org — TeamBuilder + RosterPlanner tabs
- * @last-fix: [2026-07-23] Pass scenarioName for PDF export
+ * @last-fix: [2026-07-28] Persist PT/PT Sr desiredWeeklyHours
  * @adr-ref: ADR-016
  */
 
@@ -289,12 +290,19 @@ function prunePlacementsToOrg() {
 function boardPatchBody(extra: Record<string, unknown> = {}): Record<string, unknown> {
   const s = data.value?.data.scenario
   if (!s) return { ...extra }
+  const rosterDesiredHours = s.roster
+    .filter((m) => m.desiredWeeklyHours !== undefined)
+    .map((m) => ({
+      memberId: m.memberId,
+      desiredWeeklyHours: m.desiredWeeklyHours ?? null,
+    }))
   return {
     orgAssignments: s.orgAssignments ?? [],
     executiveAssignments: s.executiveAssignments ?? [],
     placements: s.placements ?? [],
     inactiveMemberIds: s.inactiveMemberIds ?? [],
     venues: s.venues,
+    ...(rosterDesiredHours.length ? { rosterDesiredHours } : {}),
     ...extra,
   }
 }
@@ -325,6 +333,14 @@ function onOrg(orgAssignments: StaffOrgAssignment[]) {
   ).filter((e) => !orgIds.has(e.memberId))
   prunePlacementsToOrg()
   recomputeLocalMetrics()
+  scheduleBoardSave()
+}
+
+function onDesiredHours(memberId: string, hours: number | null) {
+  if (!data.value?.data.scenario) return
+  data.value.data.scenario.roster = data.value.data.scenario.roster.map((m) =>
+    m.memberId === memberId ? { ...m, desiredWeeklyHours: hours } : m,
+  )
   scheduleBoardSave()
 }
 

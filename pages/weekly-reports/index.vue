@@ -29,6 +29,14 @@
             View all
           </NuxtLink>
         </div>
+        <div class="border-b border-gray-100 px-4 py-2">
+          <NuxtLink
+            :to="`/weekly-reports/v2?location=${locationId}`"
+            class="text-xs font-medium text-gray-600 underline hover:text-gray-900"
+          >
+            Weekly Reports V2
+          </NuxtLink>
+        </div>
         <div v-if="weeklyPending" class="px-4 py-6 text-sm text-gray-500">Loading…</div>
         <ul v-else class="divide-y divide-gray-100">
           <li v-for="item in weeklyList" :key="`${item.weekKey}-${item.locationId}`">
@@ -96,9 +104,9 @@
 /**
  * @registry-id: weeklyReportsIndexPage
  * @created: 2026-07-14T21:00:00.000Z
- * @last-modified: 2026-07-17T00:00:00.000Z
+ * @last-modified: 2026-07-28T16:32:00.000Z
  * @description: Reports dashboard — last 4 weekly + last 4 monthly
- * @last-fix: [2026-07-17] Two-column dashboard with weekly/monthly previews
+ * @last-fix: [2026-07-28] Link to Weekly Reports V2 sandbox
  * @adr-ref: ADR-015
  */
 

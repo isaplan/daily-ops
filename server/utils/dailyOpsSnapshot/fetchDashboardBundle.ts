@@ -1,11 +1,12 @@
 /**
  * @registry-id: dailyOpsSnapshotFetchDashboardBundle
  * @created: 2026-05-25T00:00:00.000Z
- * @last-modified: 2026-07-20T00:00:00.000Z
+ * @last-modified: 2026-07-28T14:05:34.000Z
  * @description: Snapshot-first Daily Ops dashboard bundle orchestrator (ADR-004/013)
  *   Reads sealed snapshot sections only; no Bork/Eitje/Inbox on GET. Orchestrates section reads
  *   → DTOs → write to read-cache (per ADR-013, snapshot write path SSOT).
- * @last-fix: [2026-07-20] Seal tableOccupancy into dashboard-bundle
+ * @last-fix: [2026-07-28] Seal occupancyPct onto periodBreakdown rows
+ *   Prior: [2026-07-20] Seal tableOccupancy into dashboard-bundle
  *   Prior: [2026-07-16] Extract light path + Cache-Control under monolith budget
  *   Prior: [2026-07-13] Updated metadata: snapshot-only, no live reads on GET
  *   Prior: [2026-07-11] Hourly periodBreakdown staff headcount from shift overlap buckets
@@ -40,7 +41,6 @@ import { amsterdamOpenRegisterBusinessDateYmd } from '~/utils/dailyOpsBusinessDa
 import { loadPnlAssumptions } from '../appSettings/pnlAssumptionsSetting'
 import { fetchCheckInsLaborByBusinessDateHour } from '../venueStrip/checkInLaborByHour'
 import { buildTableOccupancySummary } from '../dailyOpsVenueTables/buildTableOccupancySummary'
-import { buildHourOccupancySeriesFromRevenue } from '../dailyOpsVenueTables/buildOccupancySeries'
 import { aggregateLaborForRange } from './aggregateLaborForRange'
 import { buildProfitByIntervalFromSnapshotHourly } from './buildProfitByIntervalFromSnapshot'
 import { buildRevenueDrilldownSection } from './buildRevenueDrilldownSection'
@@ -67,6 +67,7 @@ import { coverageFromSnapshotMasters, formatCoverageNote } from './bundleCoverag
 import {
   buildHourBreakdownFromDrilldown,
   buildPeriodBreakdownFromLaborMetrics,
+  applyOccupancyToPeriodBreakdown,
 } from './buildPeriodBreakdown'
 import {
   fetchCheckInsStaffByBusinessDateHour,
@@ -228,29 +229,18 @@ export async function fetchDailyOpsDashboardBundle(
           categoryTotals: cat,
         })
 
-  const tableOccupancyRaw = await buildTableOccupancySummary(db, {
+  const tableOccupancy = await buildTableOccupancySummary(db, {
     startDate: ctx.startDate,
     endDate: ctx.endDate,
     locationId: ctx.locationId,
     period: ctx.period,
   })
 
-  const hourlyRows = revenue.drilldown?.hourlyRows
-  const tableOccupancy =
-    ctx.startDate === ctx.endDate && hourlyRows?.length && tableOccupancyRaw.series
-      ? {
-          ...tableOccupancyRaw,
-          series: {
-            ...tableOccupancyRaw.series,
-            hour: buildHourOccupancySeriesFromRevenue(
-              tableOccupancyRaw.activeTables,
-              tableOccupancyRaw.totalTables,
-              tableOccupancyRaw.occupancyPct,
-              hourlyRows,
-            ),
-          },
-        }
-      : tableOccupancyRaw
-
-  return { summary, revenue, labor, periodBreakdown, tableOccupancy }
+  return {
+    summary,
+    revenue,
+    labor,
+    periodBreakdown: applyOccupancyToPeriodBreakdown(periodBreakdown, tableOccupancy),
+    tableOccupancy,
+  }
 }

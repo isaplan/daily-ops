@@ -25,7 +25,7 @@ import {
   netProfitFromHeadline,
 } from '~/server/utils/dailyOpsInsights/pnlFromRevenueLabor'
 import { DEFAULT_PNL_ASSUMPTIONS } from '~/utils/dailyOpsPnlAssumptionsDefaults'
-import { aggregatePeriodBreakdown } from './buildPeriodBreakdown'
+import { aggregatePeriodBreakdown, applyOccupancyToPeriodBreakdown } from './buildPeriodBreakdown'
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100
@@ -131,12 +131,12 @@ export function aggregateDailyBundles(
     estimatesNote: 'Most profitable hour is day-only — omitted for multi-day periods.',
   }
 
-  const periodBreakdown = aggregatePeriodBreakdown(dailyBundles, period.startDate, period.endDate, {
+  const periodBreakdownRaw = aggregatePeriodBreakdown(dailyBundles, period.startDate, period.endDate, {
     assumptions,
     categoryTotals,
   })
-  if (periodBreakdown && coverageNote) {
-    periodBreakdown.coverageNote = coverageNote
+  if (periodBreakdownRaw && coverageNote) {
+    periodBreakdownRaw.coverageNote = coverageNote
   }
 
   const occupancyParts = dailyBundles
@@ -147,6 +147,10 @@ export function aggregateDailyBundles(
     startDate: period.startDate,
     endDate: period.endDate,
   })
+
+  const periodBreakdown = periodBreakdownRaw
+    ? applyOccupancyToPeriodBreakdown(periodBreakdownRaw, tableOccupancy)
+    : undefined
 
   return {
     summary: {

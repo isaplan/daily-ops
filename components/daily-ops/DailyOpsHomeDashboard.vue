@@ -20,7 +20,12 @@
         :table-occupancy="tableOccupancy"
       />
 
-      <DailyOpsVenueStrip :period="period" :anchor="anchor" :period-breakdown="periodBreakdown" />
+      <DailyOpsVenueStrip
+        :period="period"
+        :anchor="anchor"
+        :period-breakdown="periodBreakdown"
+        :table-occupancy="tableOccupancy"
+      />
 
       <UAlert
         v-if="snapshotCoverageAlert"

@@ -449,6 +449,8 @@ API endpoint (`bundle.get.ts`) intelligently serves from the appropriate cache l
 
 6. **Daily Ops unchanged:** No changes to labor GET paths or ADR-013 cache cascade.
 
+**Amendment (2026-07-28):** TeamBuilder roles split PT into **PT Sr** (`pt_sr`, fixed days/week intent) above **PT** (`pt`, flexible). Scenario roster may store planner `desiredWeeklyHours` (u/w available/wanted) for PT / PT Sr; survives roster sync via memberId merge. Not auto-classified from contract CSV yet — drag into lane + set hours in UI.
+
 **Apply map:**
 
 | Surface | File |
@@ -462,6 +464,42 @@ API endpoint (`bundle.get.ts`) intelligently serves from the appropriate cache l
 **Consequences:** One new Mongo collection. Scenarios are self-contained and reloadable. Not a live Eitje planner — organisation / organigram only.
 
 **Related:** ADR-004, ADR-013, ADR-015
+
+---
+
+## ADR-018 — Bork V2 rebuild dedupes orders across raw sync dumps
+
+**Status:** Accepted (2026-07-28)
+
+**Context:** `rebuildBorkSalesAggregationV2` scanned every `bork_raw_data` (`bork_daily`) document and summed matching orders. Nightly/intraday syncs overlap — the same `Order.Key` appears in multiple dumps — so orderTime (and paid) totals were inflated (~€600 on VK 2026-07-27 vs a single dump / Basis netto).
+
+**Decision:**
+
+1. Collect orders into an in-memory map keyed by `locationId` + `Order.Key` (TicketNr/Date/Time/Table fallback).
+2. When the same key appears in multiple `bork_raw_data` dumps, keep the copy from the **newest** dump (`date` / `fetchedAt`).
+3. Aggregate V2 collections from that canonical set only (no double-count).
+
+**Consequences:** V2 hour/day/order-hour rollups match unique orders. Re-run V2 rebuild + snapshot/cache refresh for days already sealed with inflated fat slices. Morning Basis remains sealed headline SSOT (ADR-004).
+
+**Related:** ADR-004, ADR-006, ADR-010
+
+---
+
+## ADR-017 — Period breakdown Staff = Keuken+Bediening; occupancy on graph
+
+**Status:** Accepted (2026-07-28)
+
+**Context:** Venue-strip graph Staff counted all teams (incl. Management / Ziek / Verlof). Bezettingsgraad lived only as a separate section. Hour occupancy was a revenue-share proxy, not real active÷total.
+
+**Decision:**
+
+1. **Staff headcount** on `periodBreakdown` = distinct Keuken + Bediening only (`staffByTeam`). Stacked chart uses two orange shades; total on top. Afwas via strip 50/50 stays in keuken/bediening worker counts; hour path excludes non-keuken/bediening team names.
+2. **Day occupancy** = active tables (snapshot `tables`) ÷ catalog `daily_ops_venue_tables` — sealed as `occupancyPct` / `tableOccupancy`.
+3. **Hour occupancy (real):** snapshot `tablesByHour` from `bork_sales_by_table` (`business_hour`) → `tableOccupancy.hourly[]` + `series.hour` = active÷total per venue×calendar hour. No revenue-share proxy on write path.
+4. Graph joins sealed `tableOccupancy` when row `occupancyPct` missing (pre-reseal caches).
+5. Backfill tables section + dashboard-bundle from **2026-07-01** forward.
+
+**Related:** ADR-004, ADR-013
 
 ---
 

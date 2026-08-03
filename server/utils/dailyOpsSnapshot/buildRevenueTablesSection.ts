@@ -1,9 +1,11 @@
 /**
  * @registry-id: dailyOpsSnapshotBuildRevenueTablesSection
  * @created: 2026-05-20T00:00:00.000Z
- * @last-modified: 2026-07-17T18:05:00.000Z
- * @description: Per-table revenue snapshot from bork_sales_by_table (aggregated per table per day)
- * @last-fix: [2026-07-17] Upsert learned venue tables catalog on snapshot build
+ * @last-modified: 2026-07-29T22:10:00.000Z
+ * @description: Per-table revenue snapshot from bork_sales_by_table (+ tablesByHour)
+ * @last-fix: [2026-07-29] Seal tablesByHour for real hourly bezettingsgraad (ADR-017)
+ *   Prior: [2026-07-17] Upsert learned venue tables catalog on snapshot build
+ * @adr-ref: ADR-004, ADR-013, ADR-017
  *
  * @exports-to:
  * ✓ server/services/dailyOpsSnapshotService.ts
@@ -27,6 +29,11 @@ function docRevenueEx(doc: Record<string, unknown>): number {
   return Number(doc.total_revenue ?? 0)
 }
 
+/** Register business_hour 0..23 → Amsterdam calendar hour (08:00 start). */
+function calendarHourFromBusinessHour(businessHour: number): number {
+  return (businessHour + 8) % 24
+}
+
 export async function buildRevenueTablesSection(
   db: Db,
   input: BuildRevenueInput,
@@ -40,6 +47,7 @@ export async function buildRevenueTablesSection(
     spaces.length > 0 ? resolveSpaceNameForTable(tableNum, spaces) : fallbackSpaceNameForTable(tableNum)
 
   const byTable = new Map<string, { revenue_ex_vat: number; quantity: number; locationSpace: string }>()
+  const byHourTables = new Map<number, Set<string>>()
 
   for (const r of rows) {
     const doc = r as Record<string, unknown>
@@ -52,6 +60,13 @@ export async function buildRevenueTablesSection(
     cur.revenue_ex_vat += rev
     cur.quantity += qty
     byTable.set(tableNum, cur)
+
+    const bhRaw = Number(doc.business_hour)
+    if (Number.isFinite(bhRaw) && bhRaw >= 0 && bhRaw <= 23) {
+      const set = byHourTables.get(bhRaw) ?? new Set<string>()
+      set.add(tableNum)
+      byHourTables.set(bhRaw, set)
+    }
   }
 
   const rawTables = Array.from(byTable.entries())
@@ -73,6 +88,15 @@ export async function buildRevenueTablesSection(
     ? rawTables
     : rawTables.map((t) => ({ ...t, revenue_ex_vat: Math.round(t.revenue_ex_vat * scale * 100) / 100 }))
 
+  const tablesByHour = Array.from({ length: 24 }, (_, businessHour) => {
+    const activeTables = byHourTables.get(businessHour)?.size ?? 0
+    return {
+      businessHour,
+      calendarHour: calendarHourFromBusinessHour(businessHour),
+      activeTables,
+    }
+  })
+
   if (tables.length > 0) {
     await upsertKnownVenueTables(
       db,
@@ -87,11 +111,12 @@ export async function buildRevenueTablesSection(
   }
 
   return {
-    schema_version: 1,
+    schema_version: 2,
     businessDate,
     locationId,
     locationName,
     tables,
+    tablesByHour,
     lastBuiltAt: new Date(),
   }
 }

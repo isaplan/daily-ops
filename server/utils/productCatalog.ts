@@ -1,9 +1,10 @@
 /**
  * @registry-id: productCatalog
  * @created: 2026-05-20T00:00:00.000Z
- * @last-modified: 2026-05-20T00:00:00.000Z
+ * @last-modified: 2026-07-28T16:35:00.000Z
  * @description: Unified product_catalog hub — Bork API catalog + sales rollups
- * @last-fix: [2026-05-24] Brand clustering for all products via productCatalogBrandFamily
+ * @last-fix: [2026-07-28] Expand beverage group hints (Limonade, Warme Dranken, frisdrank)
+ *   Prior: [2026-05-24] Brand clustering for all products via productCatalogBrandFamily
  *
  * @exports-to:
  * ✓ server/services/productCatalogService.ts
@@ -55,7 +56,7 @@ export type BorkGroupCatalogPath = {
 }
 
 const BEVERAGE_GROUP_HINT =
-  /bierboetiek|bier\s*boetiek|(^|\s)dranken\b|speciaalbier|tap\s|wijnen|cocktail|alcohol\s+vrij|fles\s+speciaalbier/i
+  /bierboetiek|bier\s*boetiek|(^|\s)dranken\b|speciaalbier|tap\s|wijnen|cocktail|alcohol\s+vrij|fles\s+speciaalbier|limonade|warme\s+dranken|frisdrank|soft\s*drinks?/i
 
 export function classifyCategoryFromHoofdgroep(
   hoofdgroep: string | null,

@@ -1,9 +1,10 @@
 /**
  * @registry-id: dailyOpsVenueTablesTypes
  * @created: 2026-07-17T18:05:00.000Z
- * @last-modified: 2026-07-22T00:00:00.000Z
+ * @last-modified: 2026-07-29T22:10:00.000Z
  * @description: Learned Bork table inventory per venue (catalog for bezettingsgraad)
- * @last-fix: [2026-07-22] Multi-grain series + avgMonthlyOccupancyPct for yearly
+ * @last-fix: [2026-07-29] Hourly venue occupancy DTO (active÷total per calendar hour)
+ *   Prior: [2026-07-22] Multi-grain series + avgMonthlyOccupancyPct for yearly
  *   Prior: [2026-07-20] Avg-daily aggregation + optional daily series
  *
  * @exports-to:
@@ -12,6 +13,7 @@
  * ✓ server/utils/dailyOpsVenueTables/buildTableOccupancySummary.ts
  * ✓ server/utils/dailyOpsVenueTables/buildOccupancySeries.ts
  * ✓ types/daily-ops-dashboard.ts
+ * ✓ utils/dailyOpsPeriodBreakdownOccupancy.ts
  */
 
 /** One physical/Bork table seen at a venue (grows as Bork data arrives). */
@@ -38,6 +40,16 @@ export type DailyOpsTableOccupancyVenueDto = {
 
 export type DailyOpsTableOccupancyDayDto = {
   date: string
+  locationId: string
+  locationName: string
+  activeTables: number
+  totalTables: number
+  occupancyPct: number | null
+}
+
+/** Per venue × calendar hour (single-day ranges) — real active÷total. */
+export type DailyOpsTableOccupancyHourDto = {
+  calendarHour: number
   locationId: string
   locationName: string
   activeTables: number
@@ -80,6 +92,8 @@ export type DailyOpsTableOccupancyKpisDto = {
   venues: DailyOpsTableOccupancyVenueDto[]
   /** Present for multi-day ranges (per venue × day). */
   daily?: DailyOpsTableOccupancyDayDto[]
+  /** Present for single-day ranges (per venue × calendar hour) when tablesByHour sealed. */
+  hourly?: DailyOpsTableOccupancyHourDto[]
   /** How activeTables / occupancyPct were aggregated. */
   aggregation?: 'day' | 'avg_daily'
   /** Sealed multi-grain series for charts (ADR-013 write path). */

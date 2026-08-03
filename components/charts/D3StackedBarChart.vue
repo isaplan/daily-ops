@@ -37,7 +37,9 @@ const props = withDefaults(
     dateGranularity?: StaffChartGranularity
     showPercentLabels?: boolean
     showValueLabels?: boolean
-    formatSegmentValue?: (value: number) => string
+    formatSegmentValue?: (value: number, key?: string) => string
+    formatStackTotal?: (value: number) => string
+    showStackTotals?: boolean
     formatBucketLabel?: (bucketKey: string) => string
     hideLegend?: boolean
     width?: number
@@ -54,6 +56,7 @@ const props = withDefaults(
     dateGranularity: 'week',
     showPercentLabels: false,
     showValueLabels: false,
+    showStackTotals: false,
     hideLegend: false,
   },
 )
@@ -176,6 +179,7 @@ function createChart() {
     const fmt = props.formatSegmentValue
     layers.each(function (layer) {
       const layerG = d3.select(this)
+      const key = layer.key
       layerG
         .selectAll('g.segment-val')
         .data(layer)
@@ -193,7 +197,7 @@ function createChart() {
             g.remove()
             return
           }
-          const label = fmt(value)
+          const label = fmt(value, key)
           g.append('text')
             .attr('class', 'text-[9px] font-semibold fill-white')
             .attr('text-anchor', 'middle')
@@ -215,6 +219,22 @@ function createChart() {
           g.select('text').attr('opacity', 1)
         })
     })
+  }
+
+  if (props.showStackTotals) {
+    const fmtTotal = props.formatStackTotal ?? ((v: number) => String(Math.round(v)))
+    g.append('g')
+      .attr('class', 'stack-totals')
+      .attr('pointer-events', 'none')
+      .selectAll('text')
+      .data(props.data.filter((d) => stackTotal(d) > 0))
+      .enter()
+      .append('text')
+      .attr('x', (d) => (xScale(String(d.date)) ?? 0) + xScale.bandwidth() / 2)
+      .attr('y', (d) => yScale(stackTotal(d)) - 6)
+      .attr('text-anchor', 'middle')
+      .attr('class', 'fill-gray-900 text-[10px] font-semibold')
+      .text((d) => fmtTotal(stackTotal(d)))
   }
 
   const grid = g.append('g').attr('class', 'reference-grid').attr('pointer-events', 'none')
@@ -356,7 +376,9 @@ watch(
     props.dateGranularity,
     props.showPercentLabels,
     props.showValueLabels,
+    props.showStackTotals,
     props.formatSegmentValue,
+    props.formatStackTotal,
     props.formatBucketLabel,
     props.hideLegend,
   ],

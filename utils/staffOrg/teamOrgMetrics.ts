@@ -1,9 +1,9 @@
 /**
  * @registry-id: staffOrgTeamOrgMetrics
  * @created: 2026-07-23T12:25:00.000Z
- * @last-modified: 2026-07-23T15:10:00.000Z
+ * @last-modified: 2026-07-28T16:35:00.000Z
  * @description: Per location×team labor €, hours, budget + per-role / flex remainder
- * @last-fix: [2026-07-23] Role-lane metrics; PT/ZZP show remaining after contract
+ * @last-fix: [2026-07-28] pt_sr lane; PT desiredWeeklyHours in flex metrics
  * @adr-ref: ADR-016
  *
  * @exports-to:
@@ -19,7 +19,7 @@ import type {
   StaffOrgTeam,
 } from '~/types/staff-org'
 import { STAFF_ORG_WEEKS_PER_MONTH } from '~/types/staff-org'
-import { isContractFtRole, revenueTeamForStaffTeam } from '~/utils/staffOrg/contractLabor'
+import { isContractFtRole, revenueTeamForStaffTeam, weeklyHoursForRole } from '~/utils/staffOrg/contractLabor'
 
 export type StaffOrgRoleLaneMetrics = {
   role: StaffOrgRole
@@ -86,7 +86,7 @@ export function buildTeamColumnMetrics(args: {
   const inactive = new Set(args.inactiveMemberIds)
   const rosterById = new Map(args.roster.map((m) => [m.memberId, m]))
   const teams: StaffOrgTeam[] = ['keuken', 'bediening', 'bar']
-  const roles: StaffOrgRole[] = ['manager', 'floor_manager', 'ft', 'pt', 'zzp']
+  const roles: StaffOrgRole[] = ['manager', 'floor_manager', 'ft', 'pt_sr', 'pt', 'zzp']
 
   const openWeekly: Record<StaffOrgTeam, number> = {
     keuken: weeklyOpenHours(args.slotHours, args.locationId, 'keuken'),
@@ -108,7 +108,7 @@ export function buildTeamColumnMetrics(args: {
     const key = `${a.team}|${a.role}`
     const bucket = byTeamRole.get(key) ?? emptyRoleBucket(a.role)
     bucket.headcount += 1
-    const weekly = member.weeklyContractHours ?? 0
+    const weekly = weeklyHoursForRole(member, a.role)
     if (weekly > 0) {
       bucket.hoursAllocatedMonthly += weekly * STAFF_ORG_WEEKS_PER_MONTH
       bucket.laborCostMonthly += weekly * member.costPerHour * STAFF_ORG_WEEKS_PER_MONTH
