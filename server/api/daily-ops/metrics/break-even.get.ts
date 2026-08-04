@@ -1,10 +1,10 @@
 /**
  * @registry-id: dailyOpsMetricsBreakEvenGet
  * @created: 2026-07-24T11:35:00.000Z
- * @last-modified: 2026-07-24T15:10:00.000Z
+ * @last-modified: 2026-08-04T17:55:00.000Z
  * @description: GET break-even for dashboard period (rolling 12m or sealed actual)
- * @last-fix: [2026-07-24] Optional includeVenues → byVenue[] in one response
- * @adr-ref: ADR-014
+ * @last-fix: [2026-08-04] ADR-019 FT-fixed / PT-ZZP-flex labor in DTO
+ * @adr-ref: ADR-014, ADR-019
  * @data-source: app_settings (break_even_assumptions)
  *
  * @exports-to:

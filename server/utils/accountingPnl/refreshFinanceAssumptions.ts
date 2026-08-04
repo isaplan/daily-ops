@@ -1,10 +1,10 @@
 /**
  * @registry-id: refreshFinanceAssumptions
  * @created: 2026-07-24T11:30:00.000Z
- * @last-modified: 2026-07-24T11:30:00.000Z
+ * @last-modified: 2026-08-04T17:55:00.000Z
  * @description: Rebuild PNL_ASSUMPTIONS + BREAK_EVEN_ASSUMPTIONS from sealed monthly P&L
- * @last-fix: [2026-07-24] Rolling 12m combined for COGS/overhead; BE doc per venue
- * @adr-ref: ADR-014
+ * @last-fix: [2026-08-04] BE rebuild uses FT-fixed / PT-ZZP-flex math (ADR-019)
+ * @adr-ref: ADR-014, ADR-019
  *
  * @exports-to:
  * ✓ server/utils/accountingPnlBenchmarkService.ts

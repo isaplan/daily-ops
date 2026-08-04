@@ -76,9 +76,9 @@
 <script setup lang="ts">
 /**
  * @description: Dashboard KPI tiles with lazy drawer fetches
- * @last-modified: 2026-07-26T20:55:00.000Z
- * @last-fix: [2026-07-26] Revenue drawer: AVG SUN (6) title; drop LY same-day column
- * @adr-ref: ADR-004, ADR-010, ADR-013, ADR-014
+ * @last-modified: 2026-08-04T17:55:00.000Z
+ * @last-fix: [2026-08-04] Surface break-even source (actual vs rolling 12m) in revenue drawer
+ * @adr-ref: ADR-004, ADR-010, ADR-013, ADR-014, ADR-019
  * @data-source: mixed
  * @read-cache-json: dashboard-bundle summary + tableOccupancy; lazy GET break-even, revenue-averages
  * @imports-data-from: props + GET /api/daily-ops/metrics/*
@@ -228,15 +228,24 @@ const revenueYoyLine = computed(() => {
   return formatCompareLine(revenueAveragesCombined.value?.yearAgo ?? null)
 })
 
+function breakEvenSourceLabel (source: string | undefined): string {
+  if (source === 'actual_month') return 'sealed month'
+  if (source === 'rolling_12m') return 'rolling 12m'
+  return 'default'
+}
+
 function formatBreakEvenCell (locationId: string): string {
   if (breakEvenPending.value && !breakEvenByVenue.value.length) return '—'
-  const row = breakEvenByVenue.value.find((v) => v.locationId === locationId)
+  const row = breakEvenByVenue.value.find((v: { locationId: string | null }) => v.locationId === locationId)
   if (!row || row.breakEven <= 0) return '—'
+  const src = breakEvenSourceLabel(row.source)
   if (props.period === 'today' || row.pctVsBreakEven == null) {
-    return formatEurWhole(row.breakEven)
+    return `${formatEurWhole(row.breakEven)} (${src})`
   }
   const pct = formatPctVs(row.pctVsBreakEven)
-  return pct ? `${formatEurWhole(row.breakEven)} · ${pct}` : formatEurWhole(row.breakEven)
+  return pct
+    ? `${formatEurWhole(row.breakEven)} · ${pct} (${src})`
+    : `${formatEurWhole(row.breakEven)} (${src})`
 }
 
 function formatAvgAmount (slice: { revenue: number; pctVsCurrent: number | null } | null | undefined): string {
@@ -727,10 +736,28 @@ const drawerContent = computed(() => {
               : breakEvenData.value && breakEvenData.value.breakEven > 0
                 ? (
                     props.period === 'today' || breakEvenData.value.pctVsBreakEven == null
-                      ? formatEurWhole(breakEvenData.value.breakEven)
-                      : `${formatEurWhole(breakEvenData.value.breakEven)} · ${formatPctVs(breakEvenData.value.pctVsBreakEven) ?? ''}`
+                      ? `${formatEurWhole(breakEvenData.value.breakEven)} (${breakEvenSourceLabel(breakEvenData.value.source)})`
+                      : `${formatEurWhole(breakEvenData.value.breakEven)} · ${formatPctVs(breakEvenData.value.pctVsBreakEven) ?? ''} (${breakEvenSourceLabel(breakEvenData.value.source)})`
                   )
                 : '—',
+          },
+          {
+            label: 'Break-even source',
+            value: breakEvenData.value
+              ? breakEvenSourceLabel(breakEvenData.value.source)
+              : '—',
+          },
+          {
+            label: 'Fixed labor % / Flex labor %',
+            value: breakEvenData.value
+              ? `${breakEvenData.value.fixedLaborPct.toFixed(1)}% / ${breakEvenData.value.flexLaborPct.toFixed(1)}%`
+              : '—',
+          },
+          {
+            label: 'COGS %',
+            value: breakEvenData.value
+              ? `${breakEvenData.value.cogsPct.toFixed(1)}%`
+              : '—',
           },
           {
             label: revenueAveragesCombined.value?.average?.label ?? 'Average (combined)',

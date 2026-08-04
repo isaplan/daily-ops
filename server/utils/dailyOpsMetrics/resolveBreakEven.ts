@@ -1,10 +1,10 @@
 /**
  * @registry-id: resolveBreakEven
  * @created: 2026-07-24T11:35:00.000Z
- * @last-modified: 2026-07-24T15:10:00.000Z
+ * @last-modified: 2026-08-04T17:55:00.000Z
  * @description: Resolve day/week/month break-even from app_settings + period
- * @last-fix: [2026-07-24] Bundle with byVenue (one assumptions load)
- * @adr-ref: ADR-014
+ * @last-fix: [2026-08-04] Pass fixedLaborPct / flexLaborPct (ADR-019)
+ * @adr-ref: ADR-014, ADR-019
  *
  * @exports-to:
  * ✓ server/api/daily-ops/metrics/break-even.get.ts
@@ -187,6 +187,8 @@ function dtoFromSlice (
     monthlyBreakEven: slice.monthlyBreakEven,
     cogsPct: slice.cogsPct,
     laborPct: slice.laborPct,
+    fixedLaborPct: slice.fixedLaborPct,
+    flexLaborPct: slice.flexLaborPct,
   }
 }
 

@@ -1,10 +1,10 @@
 /**
  * @registry-id: accountingPnlBreakEvenMath
  * @created: 2026-07-24T11:30:00.000Z
- * @last-modified: 2026-07-24T11:30:00.000Z
+ * @last-modified: 2026-08-04T17:55:00.000Z
  * @description: Pure break-even math from accounting P&L rows (no I/O)
- * @last-fix: [2026-07-24] BE = (labor+fixed)/(1-cogs%); rolling avg + day/week project
- * @adr-ref: ADR-014
+ * @last-fix: [2026-08-04] FT-fixed + PT/ZZP-flex labor split (ADR-019); fix rolling avg lonen lines
+ * @adr-ref: ADR-014, ADR-019
  *
  * @exports-to:
  * ✓ server/utils/accountingPnl/buildBreakEvenAssumptions.ts
@@ -12,6 +12,16 @@
  */
 
 import type { AccountingPnlRow } from '~/utils/accountingPnlData'
+import {
+  emptyLaborLonenLines,
+  emptyRevenueBevLines,
+  emptyRevenueFoodLines,
+  emptyCogsBevLines,
+  emptyCogsFoodLines,
+  normalizeLaborLonenLines,
+  sumLineMaps,
+  type AccountingPnlLaborLonenLines,
+} from '~/utils/accountingPnlGrandchildLines'
 import type {
   BreakEvenSource,
   BreakEvenVenueKey,
@@ -28,18 +38,75 @@ function round1 (n: number): number {
   return Math.round(n * 10) / 10
 }
 
-/** Monthly break-even: labor+fixed treated as period costs; COGS variable. */
+function num (v: unknown): number {
+  const n = Number(v)
+  return Number.isFinite(n) ? n : 0
+}
+
+/** FT wages + overig lonen (fixed labor lines). */
+export function fixedLonenFromLines (lines: AccountingPnlLaborLonenLines): number {
+  return (
+    num(lines.salarisBediening)
+    + num(lines.salarisKeuken)
+    + num(lines.salarisOverhead)
+    + num(lines.overigLonen)
+  )
+}
+
+/** PT (inhuur F&B) + ZZP (other inhuur) — flex labor lines. */
+export function flexLonenFromLines (lines: AccountingPnlLaborLonenLines): number {
+  return (
+    num(lines.inhuurFb)
+    + num(lines.inhuurAfwas)
+    + num(lines.inhuurStewarding)
+    + num(lines.inhuurKeuken)
+    + num(lines.inhuurOverhead)
+  )
+}
+
+/**
+ * Fixed labor €: FT wages + overigLonen + sociale lasten + pensioen + laborOverig.
+ * Legacy rows without lonen grandchildren → all labor treated as fixed.
+ */
+export function fixedLaborFromRow (row: AccountingPnlRow): number {
+  const lines = normalizeLaborLonenLines(row.laborLonenLines)
+  const fromLines = fixedLonenFromLines(lines)
+  const flex = flexLonenFromLines(lines)
+  const extras = num(row.laborSocialeLasten) + num(row.laborPensioen) + num(row.laborOverig)
+  if (fromLines + flex <= 0 && num(row.labor) > 0) {
+    return round2(num(row.labor))
+  }
+  return round2(fromLines + extras)
+}
+
+/** Flex labor €: PT + ZZP inhuur only. */
+export function flexLaborFromRow (row: AccountingPnlRow): number {
+  const lines = normalizeLaborLonenLines(row.laborLonenLines)
+  const fromLines = fixedLonenFromLines(lines)
+  const flex = flexLonenFromLines(lines)
+  if (fromLines + flex <= 0 && num(row.labor) > 0) {
+    return 0
+  }
+  return round2(flex)
+}
+
+/**
+ * Monthly break-even (ADR-019):
+ * BE = (fixedLabor + fixed) / (1 − cogs% − flexLaborRate)
+ */
 export function breakEvenFromTotals (
   revenue: number,
   cogs: number,
-  labor: number,
+  fixedLabor: number,
+  flexLabor: number,
   fixed: number,
 ): number | null {
   if (revenue <= 0) return null
   const cogsPct = cogs / revenue
-  const cm = 1 - cogsPct
+  const flexLaborRate = flexLabor / revenue
+  const cm = 1 - cogsPct - flexLaborRate
   if (cm < MIN_CM) return null
-  return round2((labor + fixed) / cm)
+  return round2((fixedLabor + fixed) / cm)
 }
 
 export function breakEvenSliceFromRow (
@@ -48,17 +115,26 @@ export function breakEvenSliceFromRow (
   source: BreakEvenSource,
   opts?: { year?: number | null; month?: number | null; monthsInWindow?: number },
 ): BreakEvenVenueSlice | null {
-  const be = breakEvenFromTotals(row.revenue, row.cogs, row.labor, row.fixed)
-  if (be == null || row.revenue <= 0) return null
+  if (row.revenue <= 0) return null
+  const fixedLabor = fixedLaborFromRow(row)
+  const flexLabor = flexLaborFromRow(row)
+  const be = breakEvenFromTotals(row.revenue, row.cogs, fixedLabor, flexLabor, row.fixed)
+  if (be == null) return null
+  const fixedLaborPct = round1((fixedLabor / row.revenue) * 100)
+  const flexLaborPct = round1((flexLabor / row.revenue) * 100)
   return {
     venueId,
     monthlyBreakEven: be,
     monthlyRevenue: round2(row.revenue),
     monthlyLabor: round2(row.labor),
+    monthlyFixedLabor: fixedLabor,
+    monthlyFlexLabor: flexLabor,
     monthlyCogs: round2(row.cogs),
     monthlyFixed: round2(row.fixed),
     cogsPct: round1((row.cogs / row.revenue) * 100),
-    laborPct: round1((row.labor / row.revenue) * 100),
+    laborPct: round1(((fixedLabor + flexLabor) / row.revenue) * 100),
+    fixedLaborPct,
+    flexLaborPct,
     source,
     year: opts?.year ?? null,
     month: opts?.month ?? null,
@@ -66,32 +142,81 @@ export function breakEvenSliceFromRow (
   }
 }
 
-/** Average multiple sealed month rows into one synthetic row for rolling windows. */
+/** Average multiple sealed month rows into one synthetic row for rolling windows (dollar-weighted via sum÷n). */
 export function sumPnlRowsForBreakEven (
   rows: AccountingPnlRow[],
 ): AccountingPnlRow | null {
   if (!rows.length) return null
   let revenue = 0
+  let revenueFood = 0
+  let revenueBeverage = 0
   let cogs = 0
+  let cogsFood = 0
+  let cogsBeverage = 0
   let labor = 0
+  let laborLonen = 0
+  let laborSocialeLasten = 0
+  let laborPensioen = 0
+  let laborOverig = 0
   let fixed = 0
   let fixedOverige = 0
+  let fixedAfschrijving = 0
+  let fixedFinancieel = 0
+  let fixedOpbrengstVorderingen = 0
+  let result = 0
+
+  const lonenMaps = rows.map((r) => normalizeLaborLonenLines(r.laborLonenLines))
+  const summedLonen = sumLineMaps(emptyLaborLonenLines, lonenMaps)
+
   for (const r of rows) {
     revenue += r.revenue
+    revenueFood += r.revenueFood
+    revenueBeverage += r.revenueBeverage
     cogs += r.cogs
+    cogsFood += r.cogsFood
+    cogsBeverage += r.cogsBeverage
     labor += r.labor
+    laborLonen += r.laborLonen
+    laborSocialeLasten += r.laborSocialeLasten
+    laborPensioen += r.laborPensioen
+    laborOverig += r.laborOverig
     fixed += r.fixed
     fixedOverige += r.fixedOverige > 0 ? r.fixedOverige : r.fixed
+    fixedAfschrijving += r.fixedAfschrijving
+    fixedFinancieel += r.fixedFinancieel
+    fixedOpbrengstVorderingen += r.fixedOpbrengstVorderingen
+    result += r.result
   }
   if (revenue <= 0) return null
   const n = rows.length
+  const avgLonen = emptyLaborLonenLines()
+  for (const key of Object.keys(summedLonen) as Array<keyof AccountingPnlLaborLonenLines>) {
+    avgLonen[key] = summedLonen[key] / n
+  }
+
   return {
-    ...rows[0]!,
     revenue: revenue / n,
+    revenueFood: revenueFood / n,
+    revenueBeverage: revenueBeverage / n,
+    revenueFoodLines: emptyRevenueFoodLines(),
+    revenueBevLines: emptyRevenueBevLines(),
     cogs: cogs / n,
+    cogsFood: cogsFood / n,
+    cogsBeverage: cogsBeverage / n,
+    cogsFoodLines: emptyCogsFoodLines(),
+    cogsBevLines: emptyCogsBevLines(),
     labor: labor / n,
+    laborLonen: laborLonen / n,
+    laborLonenLines: avgLonen,
+    laborSocialeLasten: laborSocialeLasten / n,
+    laborPensioen: laborPensioen / n,
+    laborOverig: laborOverig / n,
     fixed: fixed / n,
     fixedOverige: fixedOverige / n,
+    fixedAfschrijving: fixedAfschrijving / n,
+    fixedFinancieel: fixedFinancieel / n,
+    fixedOpbrengstVorderingen: fixedOpbrengstVorderingen / n,
+    result: result / n,
   }
 }
 

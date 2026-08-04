@@ -1,10 +1,10 @@
 /**
  * @registry-id: buildBreakEvenAssumptions
  * @created: 2026-07-24T11:30:00.000Z
- * @last-modified: 2026-07-24T11:30:00.000Z
+ * @last-modified: 2026-08-04T17:55:00.000Z
  * @description: Build break-even assumptions value from sealed monthly P&L docs
- * @last-fix: [2026-07-24] Rolling 12m + per-month actual slices
- * @adr-ref: ADR-014
+ * @last-fix: [2026-08-04] Empty slice includes FT-fixed / PT-ZZP-flex fields (ADR-019)
+ * @adr-ref: ADR-014, ADR-019
  *
  * @exports-to:
  * ✓ server/utils/accountingPnl/refreshFinanceAssumptions.ts
@@ -32,10 +32,14 @@ function emptySlice (venueId: BreakEvenVenueKey): BreakEvenVenueSlice {
     monthlyBreakEven: 0,
     monthlyRevenue: 0,
     monthlyLabor: 0,
+    monthlyFixedLabor: 0,
+    monthlyFlexLabor: 0,
     monthlyCogs: 0,
     monthlyFixed: 0,
     cogsPct: 0,
     laborPct: 0,
+    fixedLaborPct: 0,
+    flexLaborPct: 0,
     source: 'default',
     year: null,
     month: null,

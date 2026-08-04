@@ -1,10 +1,10 @@
 /**
  * @registry-id: breakEvenAssumptionsSetting
  * @created: 2026-07-24T11:30:00.000Z
- * @last-modified: 2026-07-24T11:30:00.000Z
+ * @last-modified: 2026-08-04T17:55:00.000Z
  * @description: Mongo app_settings store for rolling/actual break-even assumptions
- * @last-fix: [2026-07-24] Initial break_even_assumptions key
- * @adr-ref: ADR-014
+ * @last-fix: [2026-08-04] Normalize FT-fixed / PT-ZZP-flex fields (ADR-019)
+ * @adr-ref: ADR-014, ADR-019
  *
  * @exports-to:
  * ✓ server/utils/accountingPnl/refreshFinanceAssumptions.ts
@@ -24,10 +24,14 @@ function emptySlice (venueId: BreakEvenVenueKey): BreakEvenVenueSlice {
     monthlyBreakEven: 0,
     monthlyRevenue: 0,
     monthlyLabor: 0,
+    monthlyFixedLabor: 0,
+    monthlyFlexLabor: 0,
     monthlyCogs: 0,
     monthlyFixed: 0,
     cogsPct: 0,
     laborPct: 0,
+    fixedLaborPct: 0,
+    flexLaborPct: 0,
     source: 'default',
     year: null,
     month: null,
@@ -58,15 +62,23 @@ function normalizeSlice (raw: unknown, venueId: BreakEvenVenueKey): BreakEvenVen
     return Number.isFinite(v) ? v : 0
   }
   const source = r.source
+  const laborPct = num('laborPct')
+  const fixedLaborPct = r.fixedLaborPct != null ? num('fixedLaborPct') : laborPct
+  const flexLaborPct = r.flexLaborPct != null ? num('flexLaborPct') : 0
+  const monthlyLabor = num('monthlyLabor')
   return {
     venueId,
     monthlyBreakEven: num('monthlyBreakEven'),
     monthlyRevenue: num('monthlyRevenue'),
-    monthlyLabor: num('monthlyLabor'),
+    monthlyLabor,
+    monthlyFixedLabor: r.monthlyFixedLabor != null ? num('monthlyFixedLabor') : monthlyLabor,
+    monthlyFlexLabor: r.monthlyFlexLabor != null ? num('monthlyFlexLabor') : 0,
     monthlyCogs: num('monthlyCogs'),
     monthlyFixed: num('monthlyFixed'),
     cogsPct: num('cogsPct'),
-    laborPct: num('laborPct'),
+    laborPct,
+    fixedLaborPct,
+    flexLaborPct,
     source:
       source === 'actual_month' || source === 'rolling_12m' || source === 'default'
         ? source

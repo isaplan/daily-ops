@@ -503,3 +503,37 @@ API endpoint (`bundle.get.ts`) intelligently serves from the appropriate cache l
 
 ---
 
+## ADR-019 — Break-even splits labor into FT-fixed vs PT/ZZP-flex
+
+**Status:** Accepted (2026-08-04)
+
+**Context:** Break-even used `BE = (labor + fixed) / (1 − cogs%)`, treating **all** labor as a period-fixed cost. That overstated Van Kinsbergen break-even (~€177k) vs the accountant’s estimate (~€160–165k) and vs sealed months that still showed a positive result near that revenue. In hospitality, PT (uren) and ZZP scale with volume; only FT contract wages (plus sociale lasten / pensioen) behave as fixed.
+
+**Decision:**
+
+1. **Formula:** `BE = (fixedLabor + fixed) / (1 − cogs% − flexLaborRate)` where:
+   - **fixedLabor** = `salarisBediening + salarisKeuken + salarisOverhead + overigLonen` + `laborSocialeLasten` + `laborPensioen` + `laborOverig`
+   - **flexLaborRate** = `(inhuurFb + inhuurAfwas + inhuurStewarding + inhuurKeuken + inhuurOverhead) / revenue`
+   - **cogs%** and **fixed** (overige + afschrijving + financieel) unchanged
+2. **Rolling window:** last 12 sealed monthly accounting P&L docs; **dollar-weighted** (sum euros across months, divide once) — same weighting as Staff Org labor benchmarks (ADR-016). Not equal-weighted monthly %.
+3. **Actual month preferred** when sealed for closed prior months; else rolling 12m (unchanged `pickSlice`).
+4. **Legacy rows** without Lonen grandchildren: all `labor` treated as fixed (flex = 0).
+5. **Staff Org FT/PT/ZZP helpers stay separate** (ADR-016 does not include `overigLonen` / `laborOverig` in FT) — break-even owns its own line mapping in `utils/accountingPnlBreakEvenMath.ts`.
+6. **Refresh:** saving Finance → P&L (or Recalculate) rebuilds `break_even_assumptions` via `refreshFinanceAssumptions`.
+
+**Apply map:**
+
+| Surface | File |
+|--------|------|
+| Pure math | `utils/accountingPnlBreakEvenMath.ts` |
+| Types | `types/break-even.ts` |
+| Assumptions build / store | `server/utils/accountingPnl/buildBreakEvenAssumptions.ts`, `breakEvenAssumptionsSetting.ts` |
+| Resolve + GET | `resolveBreakEven.ts`, `break-even.get.ts` |
+| UI source label | `components/daily-ops/DailyOpsKpiTiles.vue` |
+
+**Consequences:** After deploy, run Finance P&L **Recalculate** (or re-save a month) so stored assumptions use the new formula. UI shows `actual_month` vs `rolling_12m` next to break-even so silent fallback is visible.
+
+**Related:** ADR-014, ADR-016
+
+---
+

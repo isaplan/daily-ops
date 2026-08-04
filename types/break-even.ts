@@ -1,10 +1,10 @@
 /**
  * @registry-id: breakEvenTypes
  * @created: 2026-07-24T11:30:00.000Z
- * @last-modified: 2026-07-24T11:30:00.000Z
+ * @last-modified: 2026-08-04T17:55:00.000Z
  * @description: Break-even assumptions + metrics DTO types
- * @last-fix: [2026-07-24] Initial break-even types (rolling 12m + actual month)
- * @adr-ref: ADR-014
+ * @last-fix: [2026-08-04] FT-fixed / PT-ZZP-flex labor fields (ADR-019)
+ * @adr-ref: ADR-014, ADR-019
  *
  * @exports-to:
  * ✓ utils/accountingPnlBreakEvenMath.ts
@@ -21,14 +21,20 @@ export type BreakEvenSource = 'actual_month' | 'rolling_12m' | 'default'
 /** Per-venue slice stored in app_settings.break_even_assumptions */
 export type BreakEvenVenueSlice = {
   venueId: BreakEvenVenueKey
-  /** Monthly break-even revenue € = (labor + fixed) / (1 − cogs%) */
+  /** Monthly break-even revenue € = (fixedLabor + fixed) / (1 − cogs% − flexLaborRate) */
   monthlyBreakEven: number
   monthlyRevenue: number
+  /** Total labor € (FT + flex) for the averaged / actual month */
   monthlyLabor: number
+  monthlyFixedLabor: number
+  monthlyFlexLabor: number
   monthlyCogs: number
   monthlyFixed: number
   cogsPct: number
+  /** Combined labor % of revenue (fixedLabor + flexLabor) */
   laborPct: number
+  fixedLaborPct: number
+  flexLaborPct: number
   source: BreakEvenSource
   year: number | null
   month: number | null
@@ -63,6 +69,8 @@ export type DailyOpsBreakEvenDto = {
   monthlyBreakEven: number
   cogsPct: number
   laborPct: number
+  fixedLaborPct: number
+  flexLaborPct: number
 }
 
 /** Combined + per-venue break-even (one assumptions load). */
