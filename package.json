@@ -59,6 +59,8 @@
     "weekly-reports:backfill": "npx --yes tsx scripts/backfill-weekly-reports.ts",
     "monthly-reports:backfill": "npx --yes tsx scripts/backfill-monthly-reports.ts",
     "calendar:seed": "npx --yes tsx scripts/seed-calendar-events.ts",
+    "period-cache:backfill": "npx --yes tsx scripts/backfill-period-cache.ts",
+    "period-cache:validate": "npx --yes tsx scripts/validate-period-cache.ts",
     "start": "node .output/server/index.mjs"
   },
   "dependencies": {

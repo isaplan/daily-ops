@@ -1,14 +1,16 @@
 /**
  * @registry-id: refreshFinanceAssumptions
  * @created: 2026-07-24T11:30:00.000Z
- * @last-modified: 2026-08-05T00:05:00.000Z
+ * @last-modified: 2026-08-08T21:20:00.000Z
  * @description: Rebuild PNL_ASSUMPTIONS + BREAK_EVEN_ASSUMPTIONS from sealed monthly P&L
- * @last-fix: [2026-08-05] ADR-020/022: refresh feeds cache cascade; BE uses ADR-019 math
- * @adr-ref: ADR-013, ADR-014, ADR-019, ADR-020, ADR-022
+ * @last-fix: [2026-08-08] Also refresh daily_ops_ratio_snapshots (ADR-023)
+ *   Prior: [2026-08-05] ADR-020/022: refresh feeds cache cascade; BE uses ADR-019 math
+ * @adr-ref: ADR-013, ADR-014, ADR-019, ADR-020, ADR-022, ADR-023
  *
  * @exports-to:
  * ✓ server/utils/accountingPnlBenchmarkService.ts
  * ✓ server/api/daily-ops/finance/pnl/recalculate.post.ts
+ * ✓ server/utils/dailyOpsPeriodCache/ratioSnapshot.ts
  */
 
 import type { Db } from 'mongodb'
@@ -16,6 +18,7 @@ import { accountingPnlAssumptionsFromRow } from '~/utils/accountingPnlAssumption
 import { sumPnlRowsForBreakEven } from '~/utils/accountingPnlBreakEvenMath'
 import { savePnlAssumptions } from '../appSettings/pnlAssumptionsSetting'
 import { saveBreakEvenAssumptions } from '../appSettings/breakEvenAssumptionsSetting'
+import { refreshRatioSnapshotsFromAssumptions } from '../dailyOpsPeriodCache/ratioSnapshot'
 import { buildBreakEvenAssumptionsFromMonths } from './buildBreakEvenAssumptions'
 import { fetchSealedMonthlyPnlRows } from './fetchSealedMonthlyPnlRows'
 
@@ -23,6 +26,7 @@ export type RefreshFinanceAssumptionsResult = {
   assumptionsUpdated: boolean
   breakEvenUpdated: boolean
   monthsUsed: number
+  ratioSnapshotsWritten?: number
 }
 
 /** Recompute org P&L % assumptions + break-even doc from last 12 sealed months. */
@@ -43,9 +47,12 @@ export async function refreshFinanceAssumptions (db: Db): Promise<RefreshFinance
   const beValue = buildBreakEvenAssumptionsFromMonths(months)
   await saveBreakEvenAssumptions(db, beValue)
 
+  const { written: ratioSnapshotsWritten } = await refreshRatioSnapshotsFromAssumptions(db)
+
   return {
     assumptionsUpdated,
     breakEvenUpdated: true,
     monthsUsed: months.length,
+    ratioSnapshotsWritten,
   }
 }
