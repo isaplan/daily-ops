@@ -1,16 +1,18 @@
 /**
  * @registry-id: dailyOpsSnapshotBuildLaborSection
  * @created: 2026-05-13T00:00:00.000Z
- * @last-modified: 2026-07-13T01:03:00.000Z
+ * @last-modified: 2026-08-05T10:50:00.000Z
  * @description: Builds DailyOpsSnapshotLaborSection for one (businessDate, locationId)
  *   from eitje_time_registration_aggregation — full Eitje rollups including operational/gewerkt.
- * @last-fix: [2026-07-13] Updated metadata: clarify Eitje labor-only read (ADR-004 snapshot sealed via revenue snapshot)
+ * @last-fix: [2026-08-05] ADR-020: scale loaded_cost by Finance÷ops calibration on snapshot write
+ *   Prior: [2026-07-13] Updated metadata: clarify Eitje labor-only read (ADR-004 snapshot sealed via revenue snapshot)
  *   Prior: [2026-05-26] Operational/gewerkte rollup falls back to operational total_hours when gewerkt_* is all-zero/incomplete.
  *
  * @architecture:
  *   - Reads only from eitje_time_registration_aggregation (period, locationId).
  *   - Writers: dailyOpsSnapshotService (cron + rebuild after Eitje agg).
  *   - Readers: venue strip, bundle, metrics — must not re-query eitje_* on GET when section exists (ADR-004).
+ * @adr-ref: ADR-004, ADR-020
  *
  * @exports-to:
  *   ✓ server/services/dailyOpsSnapshotService.ts
@@ -29,6 +31,7 @@ import {
   loadMemberCompensationByShiftUserIds,
 } from '../eitjeAggCompensationEnrich'
 import { fetchLaborByBusinessDateHour } from '../eitjeLaborByHour'
+import { resolveAccountingLaborMultiplier } from '~/utils/accountingPnlLaborMultiplier'
 import type {
   DailyOpsSnapshotLaborSection,
   LaborCostPair,
@@ -51,7 +54,8 @@ function round2(n: number): number {
   return Math.round(n * 100) / 100
 }
 
-const LABOR_BUILD_VERSION_WITH_HOURLY = 3
+/** v4 = ADR-020 employer calibration applied to loaded_cost on write. */
+const LABOR_BUILD_VERSION_WITH_HOURLY = 4
 
 function eitjeAggFilter(businessDate: string, locationId: string): Record<string, unknown> {
   try {
@@ -73,11 +77,16 @@ function addGewerktToTeam(
   team.gewerkt.record_count += 1
 }
 
+function scalePairLoaded (pair: LaborCostPair, mult: number): void {
+  pair.loaded_cost = round2(pair.loaded_cost * mult)
+}
+
 export async function buildLaborSection(
   db: Db,
   input: BuildLaborInput,
 ): Promise<DailyOpsSnapshotLaborSection> {
   const { businessDate, locationId, locationName } = input
+  const employerMult = resolveAccountingLaborMultiplier(businessDate, locationId)
 
   const rows = await db
     .collection('eitje_time_registration_aggregation')
@@ -103,7 +112,9 @@ export async function buildLaborSection(
     const hours = Number(r.total_hours ?? 0)
     const hourlyRate = typeof r.hourly_rate === 'number' ? r.hourly_rate : null
     const wageCost = Number(r.total_cost ?? 0)
-    const loadedCost = Number(r.total_cost_loaded ?? 0)
+    const rawLoaded = Number(r.total_cost_loaded ?? 0)
+    /** ADR-020: calibrate loaded € toward sealed Finance employer labor. */
+    const loadedCost = round2(rawLoaded * employerMult)
     const cph = typeof r.cost_per_hour === 'number' ? r.cost_per_hour : null
     const loadedSource = typeof r.loaded_cost_source === 'string' ? r.loaded_cost_source : 'none'
     const fallback =
@@ -131,7 +142,12 @@ export async function buildLaborSection(
     t.record_count += 1
 
     const gewSlice = resolveRowGewerktSlice(r as Record<string, unknown>, legacyGewerkt)
-    if (gewSlice) addGewerktToTeam(t, gewSlice)
+    if (gewSlice) {
+      addGewerktToTeam(t, {
+        ...gewSlice,
+        loaded: round2(gewSlice.loaded * employerMult),
+      })
+    }
 
     if (!contractsMap.has(contractType)) {
       contractsMap.set(contractType, { ...emptyPair(), contractType })
@@ -167,6 +183,13 @@ export async function buildLaborSection(
   }
 
   const operationalRollup = rollupOperationalLaborForSnapshot(rows as Record<string, unknown>[])
+  if (operationalRollup) {
+    scalePairLoaded(operationalRollup.totals_gewerkt, employerMult)
+    scalePairLoaded(operationalRollup.operational.gewerkt, employerMult)
+    scalePairLoaded(operationalRollup.operational.keuken, employerMult)
+    scalePairLoaded(operationalRollup.operational.bediening, employerMult)
+  }
+
   const hourlyBuckets = await fetchLaborByBusinessDateHour(db, {
     startDate: businessDate,
     endDate: businessDate,
@@ -178,16 +201,20 @@ export async function buildLaborSection(
       return {
         calendar_hour: hour,
         hours: round2(bucket.hours),
-        loaded_cost: round2(bucket.loadedCost),
+        loaded_cost: round2(bucket.loadedCost * employerMult),
       }
     })
     .filter((slot) => Number.isFinite(slot.calendar_hour) && (slot.hours > 0 || slot.loaded_cost > 0))
     .sort((a, b) => a.calendar_hour - b.calendar_hour)
 
+  totals.hours = round2(totals.hours)
+  totals.wage_cost = round2(totals.wage_cost)
+  totals.loaded_cost = round2(totals.loaded_cost)
+
   if (DEBUG) {
     const fb = workers.filter((w) => w.loaded_cost_fallback).length
     console.info(
-      `[snapshot:build] ${businessDate} ${locationName} | labor | rows=${rows.length} hours=${totals.hours.toFixed(2)} hourly=${hourly.length} gewerkt=${operationalRollup?.totals_gewerkt.hours ?? 0} fallback=${fb}/${workers.length}`,
+      `[snapshot:build] ${businessDate} ${locationName} | labor | rows=${rows.length} hours=${totals.hours.toFixed(2)} loaded=${totals.loaded_cost.toFixed(2)} employerMult=${employerMult} hourly=${hourly.length} gewerkt=${operationalRollup?.totals_gewerkt.hours ?? 0} fallback=${fb}/${workers.length}`,
     )
   }
 

@@ -24,7 +24,7 @@
               class="sticky top-0 z-20 border-b border-l-2 border-gray-300 bg-gray-50 px-4 py-3 whitespace-nowrap"
               :class="valueCellAlignClass"
             >
-              Total
+              Total (3 venues)
             </th>
             <th
               v-for="venue in venueColumns"
@@ -246,9 +246,9 @@
 <script setup lang="ts">
 /**
  * @registry-id: AccountingPnlSummaryTable
- * @last-modified: 2026-07-23T15:40:00.000Z
+ * @last-modified: 2026-08-04T22:31:45.000Z
  * @description: Accounting P&L summary table with optional live cell edit
- * @last-fix: [2026-07-23] Analyse grandchildren under Food/Bev and Lonen
+ * @last-fix: [2026-08-04] Year Total column label = Total (3 venues)
  */
 import type { AccountingPnlMonthGridColumn, AccountingPnlMonthGridDto } from '~/types/accounting-pnl-benchmark'
 import type { AccountingPnlRow, AccountingPnlTableLine, AccountingPnlVenueId } from '~/utils/accountingPnlData'

@@ -1,11 +1,13 @@
 /**
  * @registry-id: accountingPnlLaborMultiplier
  * @created: 2026-06-22T00:00:00.000Z
- * @last-modified: 2026-06-22T00:00:00.000Z
- * @description: Eitje loaded labor → accounting personnel calibration (per venue/year).
- * @last-fix: [2026-06-25] Wired into Insights staff costs + Staff %
+ * @last-modified: 2026-08-05T10:50:00.000Z
+ * @description: Employer labor calibration — Finance personnel ÷ ops loaded_cost (ADR-020 SSOT)
+ * @last-fix: [2026-08-05] ADR-020: 2026 sealed Jan–Jun ratios; used by snapshot labor section (not Insights-only)
+ * @adr-ref: ADR-014, ADR-020, ADR-021
  *
  * @exports-to:
+ * ✓ server/utils/dailyOpsSnapshot/buildLaborSection.ts
  * ✓ server/utils/dailyOpsSnapshot/buildProfitByIntervalFromSnapshot.ts
  * ✓ server/utils/dailyOpsMetrics/profitHour.ts
  * ✓ server/utils/dailyOpsSnapshot/drilldown/buildRevenueDrilldownHourly.ts
@@ -15,20 +17,27 @@
 import type { AccountingPnlVenueId, AccountingPnlYear } from '~/utils/accountingPnlData'
 import { DAILY_OPS_PROFIT_VENUE_LOCATIONS } from '~/utils/dailyOpsProfitIntervals'
 
-/** Bump when profit math or assumptions change — invalidates pre-generated bundle JSON. */
-export const DAILY_OPS_BUNDLE_CACHE_VERSION = 3
+/** Bump when profit math or labor load assumptions change — invalidates pre-generated bundle JSON. */
+export const DAILY_OPS_BUNDLE_CACHE_VERSION = 4
 
 const LOCATION_TO_VENUE = Object.fromEntries(
   DAILY_OPS_PROFIT_VENUE_LOCATIONS.map((v) => [v.locationId, v.short.toLowerCase() as AccountingPnlVenueId]),
 ) as Record<string, AccountingPnlVenueId>
 
 /**
- * Accounting personnel ÷ Eitje loaded (full-year 2025 dashboard vs Analyse export).
- * Combined ≈ 1.65; VKB-only ≈ 1.39 — not a single org-wide 1.56.
+ * Finance labor € ÷ ops snapshot `loaded_cost` for sealed months (dollar-weighted).
+ * Apply on snapshot write so dashboard labor € = employer cost (ADR-020).
+ * 2026 = Jan–Jun sealed audit (2026-08-05); 2025 = prior Analyse calibration.
  */
 const CALIBRATED_LABOR_MULTIPLIER: Partial<
   Record<AccountingPnlYear, Record<AccountingPnlVenueId | 'combined', number>>
 > = {
+  2026: {
+    vkb: 1.092,
+    bea: 0.97,
+    lat: 1.236,
+    combined: 1.094,
+  },
   2025: {
     vkb: 1.387,
     bea: 1.695,
@@ -66,14 +75,14 @@ export function resolveAccountingLaborMultiplier (
     if (table?.combined != null) return table.combined
   }
 
-  for (let i = 2025; i >= 2024; i -= 1) {
+  for (let i = 2026; i >= 2024; i -= 1) {
     const y = i as AccountingPnlYear
     const table = CALIBRATED_LABOR_MULTIPLIER[y]
     if (table?.[target] != null) return table[target]!
     if (table?.combined != null) return table.combined
   }
 
-  return 1.647
+  return 1.094
 }
 
 export function scaleEitjeLoadedLabor (

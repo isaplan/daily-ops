@@ -118,6 +118,20 @@ alwaysApply: true
 
 **Architecture SSOT:** If a change affects business rules, collection ownership, or data flow, update [ARCHITECTURE.md](../../ARCHITECTURE.md) and add an ADR to [DECISIONS.md](../../DECISIONS.md) in the same commit. Reference ADRs from metadata headers via `@adr-ref: ADR-00X`.
 
+### ADR precedence (agents MUST obey — full text in DECISIONS.md)
+
+**Rank 1 — Data plane (wins over everything):** ADR-004 → 006 → 010 → **013**. Daily Ops GET = `daily_ops_read_cache` only. Snapshots = write SSOT. Day→week→month→year cascade on write. Never invent year/week metrics on GET.
+
+**Why 013:** Prebuilt small JSON so DO stays fast and rollups stay consistent. Formula ADRs plug *into* the cascade — they do not create a second read path.
+
+**Rank 2 — Truth & verify:** ADR-020 (ops `loaded_cost` = employer labor; reconcile to Finance ≤2–5%), ADR-021 (cross-check API ↔ inbox ↔ Finance; self-heal; UI is never SSOT; silent drift = bug).
+
+**Rank 3 — Formula:** ADR-014 (net profit), ADR-019 (BE FT/flex formula), ADR-022 (BE/Est. net **period composition** + sealed Finance `result` = truth; multi-month = sum of months).
+
+**Rank 4 — Domain:** members/Eitje/weekly/staff-org/UI — must not contradict 1–3.
+
+**Compliance gate:** New Daily Ops metric ADR must name write path + cache profile + GET=cache; `Related:` must include **004 + 013**; verify against sealed Finance before claiming correct. Omitting 013 on a KPI GET → reject (ADR-019 delivery failed this; ADR-022 fixes it).
+
 ---
 
 ## 🛡️ ABSOLUTE PROHIBITIONS
@@ -188,8 +202,9 @@ grep '"type": "service"' function-registry.json
 - Before editing `dailyOpsDashboardMetrics.ts`, `bundle.get.ts`, or `aggregateLaborForRange.ts` → **ask user first** (import helpers only in v1).
 - **Basis inbox revenue pick (SSOT):** `calculateBasisCronPriority` / `pickBasisReportByCronPriority` in `basis-report-mapper.ts`. Morning cron **7 or 8** = final yesterday for `business_date`; **18/23** are intraday partials only. Never pick “latest cron_hour” for headline totals. **Inbox reads only at snapshot write** (`buildRevenueSection`); GET uses `snapshot.totals` (sealed headline).
 - **Daily Ops GET = read-cache only (ADR-004 + ADR-013):** Revenue/labor/dashboard/staff GET APIs read **`daily_ops_read_cache`** (small prebuilt JSON per profile/period). Snapshots are write SSOT only. Never `bork_*`, `inbox-*`, raw, or live snapshot assembly on page load. Missing cache → `dataGap` / zeros; fix via snapshot + cache rebuild.
+- **ADR hierarchy:** See [DECISIONS.md § ADR precedence](../../DECISIONS.md#adr-precedence-mandatory--every-agent-every-change) — 004/013 win; 020/021 truth+verify; 014/019/022 formulas must land in cache cascade; BE/Est. net period rules = ADR-022; labor load = ADR-020.
 - **Weekly Report SSOT:** `GET /api/daily-ops/analytics/weekly-digest` reads **`daily_ops_read_cache` · profile=`weekly-digest` · level=`weekly`**. Builder aggregates 7 sealed daily snapshots (no new snapshot writes). Cron: Monday 01:00 `daily-ops:weekly-digest-cache`. Page: `/daily-ops/analytics/weekly-report`.
-- **Ops notifications:** `/ops-notifications` (sidebar above Organisation). Modular scan: `server/utils/opsNotifications/` — snapshot gaps, **Bork vs Inbox** discrepancy (≥10% or €500), **missed morning cron**, intraday-only Basis, unmapped inbox, **ADR-004 live Bork on GET**, monolith file size. Extend detectors there; never hide issues with Bork fallback on GET.
+- **Ops notifications:** `/ops-notifications` (sidebar above Organisation). Modular scan: `server/utils/opsNotifications/` — snapshot gaps, **Bork vs Inbox** discrepancy (≥10% or €500), **missed morning cron**, intraday-only Basis, unmapped inbox, **ADR-004 live Bork on GET**, monolith file size, **Finance vs ops rev/labor (ADR-021)**. Extend detectors there; never hide issues with Bork fallback on GET.
 - After route/component changes: check dev terminal per RULE #0.5.
 
 ---
@@ -220,6 +235,6 @@ grep '"type": "service"' function-registry.json
 
 - `.cursor/rules/metadata-header-system.md` → Full metadata format + examples
 - `dev-docs/DATA_RETENTION_PLAN.md` → Hot/warm/cold tiers (ADR-006 implementation)
-- `DECISIONS.md` → ADR log (ADR-006 retention)
+- `DECISIONS.md` → ADR log (**precedence ladder** + ADR-006/013/020/021/022)
 - `dev-docs/IMPLEMENTATION_PLAN.md` → Project architecture + timelines
 - See `function-registry.json` for all tracked code

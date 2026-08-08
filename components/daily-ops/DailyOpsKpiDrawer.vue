@@ -107,7 +107,7 @@
               <div v-else-if="venueRows.length">
                 <p class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">By venue</p>
                 <div class="min-w-0 overflow-x-auto overscroll-x-contain touch-pan-x">
-                <table class="w-full min-w-[24rem] text-left text-sm">
+                <table class="w-full min-w-[32rem] text-left text-sm">
                   <thead>
                     <tr class="border-b border-gray-200 text-xs uppercase text-gray-500">
                       <th class="py-2 pr-3 font-medium">Venue</th>

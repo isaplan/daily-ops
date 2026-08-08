@@ -4,6 +4,8 @@
 **Stack:** Nuxt 4 · Nitro · MongoDB · Vue 3 · Nuxt UI  
 **Decisions:** [DECISIONS.md](./DECISIONS.md) · **Roadmap:** [ROADMAP.md](./ROADMAP.md)
 
+**ADR precedence (agents):** Data plane **004→006→010→013** wins → Truth **020/021** → Formula **014/019/022** → Domain. Full ladder + compliance gate: [DECISIONS.md § ADR precedence](./DECISIONS.md#adr-precedence-mandatory--every-agent-every-change). Formula ADRs must land in the ADR-013 cache cascade; GET never invents year/week BE or Est. net.
+
 ---
 
 ## 1. Purpose
@@ -123,7 +125,9 @@ flowchart TB
 | Business day | **08:00 Amsterdam → 07:59:59** next calendar day |
 | Eitje `period` | ISO date of shift start = `business_date` (no 00:00–07:59 shifts assumed) |
 | Revenue in snapshots | **ex_vat**, **inc_vat**, **vat** from Bork line data — no fixed VAT divisor |
-| Nul-uren loaded cost | `hourly_rate × 1.56` when contract type matches `/nul/i` and no stored `cost_per_hour` |
+| Nul-uren loaded cost | `hourly_rate × 1.56` when contract type matches `/nul/i` and no stored `cost_per_hour` — **fallback only**; employer `loaded_cost` must reconcile to Finance labor (ADR-020) |
+| Labor € SSOT | Snapshot/cache `loaded_cost` = employer cost; **scaled on write** by Finance÷ops sealed ratios in `buildLaborSection` (`accountingPnlLaborMultiplier`, ADR-020); cross-check via ADR-021 |
+| BE / Est. net periods | Sealed month = Finance `result`; open = CM on **ops revenue** + rolling COGS/flex %; multi-month = sum; delivery via ADR-013 cascade (ADR-022) |
 | Compensation effective date | `contract_start_date` from import if present, else `importedAt` (ADR-002) |
 | Revision idempotency | No new row if material fields unchanged (ADR-005) |
 | Dashboard reads | Snapshots only (ADR-004) |

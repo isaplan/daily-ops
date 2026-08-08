@@ -1,10 +1,10 @@
 /**
  * @registry-id: accountingPnlBreakEvenMath
  * @created: 2026-07-24T11:30:00.000Z
- * @last-modified: 2026-08-04T17:55:00.000Z
+ * @last-modified: 2026-08-05T00:30:00.000Z
  * @description: Pure break-even math from accounting P&L rows (no I/O)
- * @last-fix: [2026-08-04] FT-fixed + PT/ZZP-flex labor split (ADR-019); fix rolling avg lonen lines
- * @adr-ref: ADR-014, ADR-019
+ * @last-fix: [2026-08-05] resolveFixedFlexTotalsForRows — per-row FT/flex then sum (no lonen avg dilution)
+ * @adr-ref: ADR-013, ADR-014, ADR-019, ADR-020, ADR-022
  *
  * @exports-to:
  * ✓ server/utils/accountingPnl/buildBreakEvenAssumptions.ts
@@ -139,6 +139,86 @@ export function breakEvenSliceFromRow (
     year: opts?.year ?? null,
     month: opts?.month ?? null,
     monthsInWindow: opts?.monthsInWindow ?? 1,
+  }
+}
+
+/**
+ * Dollar-weighted FT/flex totals across sealed months (ADR-019 rule 2).
+ * Resolves fixed/flex **per row** (legacy = all labor fixed) then sums euros —
+ * never averages laborLonenLines across rows (that diluted flex/fixed when legacy months lack lonen lines).
+ */
+export type FixedFlexRowTotals = {
+  revenue: number
+  cogs: number
+  fixedLabor: number
+  flexLabor: number
+  fixed: number
+  labor: number
+  n: number
+}
+
+export function resolveFixedFlexTotalsForRows (rows: AccountingPnlRow[]): FixedFlexRowTotals | null {
+  if (!rows.length) return null
+  let revenue = 0
+  let cogs = 0
+  let fixedLabor = 0
+  let flexLabor = 0
+  let fixed = 0
+  let labor = 0
+  for (const row of rows) {
+    if (num(row.revenue) <= 0) continue
+    revenue += num(row.revenue)
+    cogs += num(row.cogs)
+    fixedLabor += fixedLaborFromRow(row)
+    flexLabor += flexLaborFromRow(row)
+    fixed += num(row.fixed)
+    labor += num(row.labor)
+  }
+  if (revenue <= 0) return null
+  return {
+    revenue: round2(revenue),
+    cogs: round2(cogs),
+    fixedLabor: round2(fixedLabor),
+    flexLabor: round2(flexLabor),
+    fixed: round2(fixed),
+    labor: round2(labor),
+    n: rows.filter((r) => num(r.revenue) > 0).length,
+  }
+}
+
+/** Build rolling BreakEvenVenueSlice from dollar-weighted FT/flex totals (avg monthly €). */
+export function breakEvenSliceFromFixedFlexTotals (
+  venueId: BreakEvenVenueKey,
+  totals: FixedFlexRowTotals,
+  source: BreakEvenSource,
+  opts?: { year?: number | null; month?: number | null },
+): BreakEvenVenueSlice | null {
+  if (totals.n <= 0 || totals.revenue <= 0) return null
+  const avgRev = totals.revenue / totals.n
+  const avgCogs = totals.cogs / totals.n
+  const avgFixedLabor = totals.fixedLabor / totals.n
+  const avgFlexLabor = totals.flexLabor / totals.n
+  const avgFixed = totals.fixed / totals.n
+  const avgLabor = totals.labor / totals.n
+  const be = breakEvenFromTotals(avgRev, avgCogs, avgFixedLabor, avgFlexLabor, avgFixed)
+  if (be == null) return null
+  return {
+    venueId,
+    monthlyBreakEven: be,
+    monthlyRevenue: round2(avgRev),
+    monthlyLabor: round2(avgLabor),
+    monthlyFixedLabor: round2(avgFixedLabor),
+    monthlyFlexLabor: round2(avgFlexLabor),
+    monthlyCogs: round2(avgCogs),
+    monthlyFixed: round2(avgFixed),
+    cogsPct: round1((totals.cogs / totals.revenue) * 100),
+    laborPct: round1(((totals.fixedLabor + totals.flexLabor) / totals.revenue) * 100),
+    fixedLaborPct: round1((totals.fixedLabor / totals.revenue) * 100),
+    flexLaborPct: round1((totals.flexLabor / totals.revenue) * 100),
+    source,
+    year: opts?.year ?? null,
+    month: opts?.month ?? null,
+    monthsInWindow: totals.n,
   }
 }
 

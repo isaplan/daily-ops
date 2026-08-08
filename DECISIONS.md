@@ -6,6 +6,36 @@ Append-only log of locked decisions. When changing behavior that contradicts an 
 
 ---
 
+## ADR precedence (mandatory — every agent, every change)
+
+**Read this before proposing or shipping any Daily Ops change.** Formula and feature ADRs are **not** free to invent a second read path or a second truth.
+
+| Rank | Layer | ADRs | Non-negotiable rule |
+|------|--------|------|---------------------|
+| **1** | **Data plane** | **004 → 006 → 010 → 013** | Snapshots = write SSOT. Hot GET = **`daily_ops_read_cache` only** (ADR-013). Day → week → month → year cascade on **write**. Never live Bork/Eitje/inbox/snapshot assembly on page load. |
+| **2** | **Truth & verify** | **020, 021** | Ops labor/revenue must reconcile to sealed Finance P&L (and inbox cross-checks). Silent drift is a bug. Self-heal + ops alerts required. |
+| **3** | **Formula** | **014, 019, 022** | How profit / BE / Est. net are *calculated*. Must **plug into** ranks 1–2 (write → cascade → GET cache). Period composition is ADR-022. |
+| **4** | **Domain** | 001–003, 005, 007, 009, 011–012, 015–018 | Members, Eitje, weekly reports, staff-org, UI nav, etc. Must not contradict ranks 1–3. |
+
+### Why ADR-013 exists
+
+UI must stay light on DigitalOcean. Assembling year/week/month metrics on every GET is slow and invents inconsistent rollups. **013** forces: prebuilt small JSON per profile/period; GET = `findOne`; miss = `dataGap` + rebuild job — **not** recompute-on-request. That is why BE, Est. net, labor %, and profit belong in the **cache cascade**, not in a clever GET handler.
+
+### Compliance gate (new or amended ADRs)
+
+Before accepting any ADR that touches Daily Ops metrics:
+
+1. Name the **write path** (snapshot / Finance seal / assumptions refresh).
+2. Name the **cache profile + cascade** (ADR-013) — or explicitly justify a one-release transitional GET with a supersede deadline.
+3. Name the **GET path** = read-cache only.
+4. If sealed Finance exists for the period → that number is truth (ADR-020 / ADR-022); live assumptions only for **open** periods.
+5. List `Related:` with **at least ADR-004 and ADR-013** when the ADR affects dashboard/KPI reads.
+6. Update `@adr-ref` + `@last-modified` / `@last-fix` on every file in the apply map (metadata RULE #11).
+
+**If an ADR omits 013 on a Daily Ops GET surface → reject / supersede it.** ADR-019’s original delivery path failed this gate; ADR-022 corrects it.
+
+---
+
 ## ADR-001 — Members are SSOT for current compensation
 
 **Status:** Accepted (2026-05-16)
@@ -341,7 +371,7 @@ API endpoint (`bundle.get.ts`) intelligently serves from the appropriate cache l
 - `aggregateDailyBundles` and cascade logic must strip detail on rollup (implement under ADR-013).
 - `bundleDashboardSectionsIncomplete` rules adjust: period views may omit drilldown/PBI by design.
 
-**Related:** ADR-004, ADR-006, ADR-008, ADR-010, ADR-011  
+**Related:** ADR-004, ADR-006, ADR-008, ADR-010, ADR-011, ADR-020, ADR-022  
 **Docs:** `dev-docs/CACHE_CASCADE.md`, `ARCHITECTURE.md` §2–3
 
 ---
@@ -368,6 +398,12 @@ API endpoint (`bundle.get.ts`) intelligently serves from the appropriate cache l
 
 5. **Cache invalidation:** Bump `DAILY_OPS_BUNDLE_CACHE_VERSION` when profit math changes; rebuild read-cache rollups.
 
+**Amendment (2026-08-05) — live assumptions vs sealed Finance:**
+
+6. **Sealed month:** Prefer percentages and net from sealed `accounting_pnl_benchmark` (Finance). Do not invent a second “estimated” net that disagrees with Finance `result` for sealed months (ADR-022).
+7. **Open / partial periods:** Use rolling sealed-window assumptions (`loadPnlAssumptions` / `refreshFinanceAssumptions`) on ops revenue + **employer-loaded** labor (ADR-020). After each Finance seal, refresh assumptions and rewrite affected cache cascade (ADR-013).
+8. **Labor input to the formula:** `loadedLabor` must be employer cost (ADR-020), not raw Eitje wage. Insights-only multipliers are not SSOT.
+
 **Apply map:**
 
 | Surface | File |
@@ -381,9 +417,9 @@ API endpoint (`bundle.get.ts`) intelligently serves from the appropriate cache l
 | Revenue P&L API | `server/utils/dailyOpsRevenue/computeSimplePnL.ts` |
 | Assumptions (configurable) | `server/utils/appSettings/pnlAssumptionsSetting.ts` |
 
-**Consequences:** Yearly/monthly profit bars align with daily hourly math. Rollup cache must be regenerated after deploy. `profitMarginPct` on summary reflects net margin (after COGS + overhead), not gross margin after labor only.
+**Consequences:** Yearly/monthly profit bars align with daily hourly math. Rollup cache must be regenerated after deploy. `profitMarginPct` on summary reflects net margin (after COGS + overhead), not gross margin after labor only. Sealed months follow Finance; open months follow refreshed assumptions (ADR-020/022).
 
-**Related:** ADR-004, ADR-013
+**Related:** ADR-004, ADR-013, ADR-019, ADR-020, ADR-022
 
 ---
 
@@ -505,11 +541,11 @@ API endpoint (`bundle.get.ts`) intelligently serves from the appropriate cache l
 
 ## ADR-019 — Break-even splits labor into FT-fixed vs PT/ZZP-flex
 
-**Status:** Accepted (2026-08-04)
+**Status:** Accepted (2026-08-04) — **delivery path amended by ADR-022 (2026-08-05)**
 
 **Context:** Break-even used `BE = (labor + fixed) / (1 − cogs%)`, treating **all** labor as a period-fixed cost. That overstated Van Kinsbergen break-even (~€177k) vs the accountant’s estimate (~€160–165k) and vs sealed months that still showed a positive result near that revenue. In hospitality, PT (uren) and ZZP scale with volume; only FT contract wages (plus sociale lasten / pensioen) behave as fixed.
 
-**Decision:**
+**Decision (formula — still valid):**
 
 1. **Formula:** `BE = (fixedLabor + fixed) / (1 − cogs% − flexLaborRate)` where:
    - **fixedLabor** = `salarisBediening + salarisKeuken + salarisOverhead + overigLonen` + `laborSocialeLasten` + `laborPensioen` + `laborOverig`
@@ -521,19 +557,112 @@ API endpoint (`bundle.get.ts`) intelligently serves from the appropriate cache l
 5. **Staff Org FT/PT/ZZP helpers stay separate** (ADR-016 does not include `overigLonen` / `laborOverig` in FT) — break-even owns its own line mapping in `utils/accountingPnlBreakEvenMath.ts`.
 6. **Refresh:** saving Finance → P&L (or Recalculate) rebuilds `break_even_assumptions` via `refreshFinanceAssumptions`.
 
-**Apply map:**
+**Amendment (2026-08-05) — delivery & periods (see ADR-022):**
+
+7. **Formula ADRs do not invent GET paths.** Original apply map (`resolveBreakEven` on every GET) **violated ADR-013 precedence**. Transitional only until BE/Est. net land in read-cache cascade.
+8. **Verified:** Applying ADR-019 math to sealed Finance rows yields Est. net = Finance `result` (exact). Wrong UI year/YTD numbers were **period composition bugs**, not formula bugs — governed by ADR-022.
+9. **Related must include ADR-013** for any Daily Ops KPI surface.
+
+**Apply map (formula):**
 
 | Surface | File |
 |--------|------|
 | Pure math | `utils/accountingPnlBreakEvenMath.ts` |
 | Types | `types/break-even.ts` |
 | Assumptions build / store | `server/utils/accountingPnl/buildBreakEvenAssumptions.ts`, `breakEvenAssumptionsSetting.ts` |
-| Resolve + GET | `resolveBreakEven.ts`, `break-even.get.ts` |
+| Resolve + GET | **Transitional** — target: cache writer + GET read-cache (ADR-022) |
 | UI source label | `components/daily-ops/DailyOpsKpiTiles.vue` |
 
-**Consequences:** After deploy, run Finance P&L **Recalculate** (or re-save a month) so stored assumptions use the new formula. UI shows `actual_month` vs `rolling_12m` next to break-even so silent fallback is visible.
+**Consequences:** After deploy, run Finance P&L **Recalculate**. UI shows `actual_month` vs `rolling_12m`. Implement ADR-022 before treating BE GET as production-complete.
 
-**Related:** ADR-014, ADR-016
+**Related:** ADR-004, ADR-013, ADR-014, ADR-016, ADR-020, ADR-022
+
+---
+
+## ADR-020 — Ops labor cost must reconcile to Finance employer labor
+
+**Status:** Accepted (2026-08-05)
+
+**Context:** Daily Ops stores `wage_cost` (hourly × hours) and `loaded_cost` (employer). Owner-true labor in Finance P&L includes lonen + sociale lasten + pensioen + overig. Agents repeatedly treated wage−vs−Finance gaps as “expected” and left employer load half-wired: nul-uren ×1.56 only; FT depended on imported `cost_per_hour`; `CALIBRATED_LABOR_MULTIPLIER` lived in Insights only (2025 table) and never became snapshot/cache SSOT. 2026 YTD check: ops `loaded_cost` ≈ **−8.6%** vs Finance labor — fail band.
+
+**Decision:**
+
+1. **SSOT for dashboard labor €:** Snapshot / read-cache `loaded_cost` = **employer cost the owner pays**, not raw wage.
+2. **FT and flex both load** to employer cost. Nul-uren ×1.56 is a fallback, not the full story. ZZP stays hourly (invoice) unless Finance proves otherwise.
+3. **Calibration source:** Sealed Finance months (`labor`, `laborLonen`, sociale, pensioen, overig, Lonen lines). Target: after seal, ops monthly `loaded_cost` vs Finance labor within **≤2%** preferred, **≤5%** hard fail → ops notification (ADR-021).
+4. **Where the ratio lives:** Aggregation → `eitje_time_registration_aggregation.total_cost_loaded` → `buildLaborSection` → snapshot → **ADR-013 cache**. Insights-only `scaleEitjeLoadedLabor` is **not** SSOT; either delete or make it call the same SSOT helper.
+5. **Open months:** Use last sealed rolling ratio / `cost_per_hour` from members until next Finance seal; then recalibrate and rewrite history in band (forecast loop later).
+6. **ADR-014 / BE inputs** must consume this employer-loaded labor, not wage.
+
+**Consequences:** Rebuild labor aggregation + snapshots after load-path fix. Update `ARCHITECTURE.md` business rule beyond “nul-uren ×1.56 only.” Members `cost_per_hour` (ADR-001) remains FT storage; missing/wrong cph is an integrity alert, not silent wage display.
+
+**Related:** ADR-001, ADR-004, ADR-009, ADR-013, ADR-014, ADR-019, ADR-021, ADR-022
+
+---
+
+## ADR-021 — Cross-source verify + self-heal is mandatory
+
+**Status:** Accepted (2026-08-05)
+
+**Context:** Live APIs (Bork, Eitje), Gmail inbox, and sealed Finance P&L can disagree. Partial syncs and silent drift produced wrong KPIs. Pieces already exist (ops notifications, Bork↔Inbox detectors, ADR-004 auto-retry) but were never a first-class constitution — so agents skipped “check against Finance / inbox” and blamed UI.
+
+**Decision:**
+
+1. **UI is never SSOT.** It only renders write-path / cache output. Wrong number ⇒ fix compute or data, not the Vue layer.
+2. **Required cross-checks** (extend `server/utils/opsNotifications/`):
+   - Bork API ↔ Basis inbox (existing discrepancy bands).
+   - Eitje API hours ↔ inbox hours / contracts where applicable (ADR-009).
+   - Ops snapshot monthly **revenue** and **loaded labor** ↔ sealed Finance P&L (bands: rev ≤5%, labor ≤5% hard; prefer ≤2%) — ADR-020.
+3. **Self-heal:** Prefer safe auto-retry / snapshot rebuild / cache cascade refresh (ADR-004 amendments). When auto-fix is unsafe → persistent ops alert until human + rebuild.
+4. **Silent drift is a bug.** Never document a known Finance gap as “expected” without an ADR-020 calibration ticket and an alert.
+5. **Verification before claiming “correct”:** Month-level compare against sealed Finance (or inbox) for the metric under change — same discipline as 2026 Jan–Jun BE audit.
+
+**Consequences:** New detectors for Finance vs ops. Agents must plan verify steps when changing revenue/labor/BE. Complements ADR-004 auto-retry; does not replace ADR-013 read-cache rule.
+
+**Related:** ADR-004, ADR-009, ADR-013, ADR-014, ADR-020, ADR-022
+
+---
+
+## ADR-022 — BE / Est. net period composition + Finance seal truth (fixes ADR-019 delivery)
+
+**Status:** Accepted (2026-08-05)  
+**Amends:** ADR-019 delivery path · **Extends:** ADR-013 (BE/Est. net as cache fields) · **Aligns:** ADR-014 sealed vs open assumptions
+
+**Context:** ADR-019 formula is correct on Finance rows (Est. net = Finance `result` exactly). Production UI still showed absurd YTD Est. net because GET math treated **this-year like one month of BE vs YTD revenue**, and/or mixed ops assumptions with sealed months. That is a **period composition** failure and an **ADR-013 violation** (invent-on-GET), not a Vue bug.
+
+**Decision:**
+
+1. **Sealed calendar month:**  
+   - **Est. net** = Finance `result` (SSOT).  
+   - **BE** = ADR-019 math on that month’s Finance row.  
+   - Do not re-estimate sealed months from rolling assumptions.
+
+2. **Multi-month / YTD / year:**  
+   - Compose from **month slices** (sum Est. net = sum of month `result`; BE display = dollar-weighted or per-month then explain — never one monthly BE vs full-year revenue).  
+   - Day ↔ week ↔ month ↔ year must **add both ways** within rounding.
+
+3. **Open month / today / this-week (partial):**  
+   - Use rolling assumptions (ADR-019 refresh) on ops headline revenue + employer-loaded labor (ADR-020).  
+   - Label source (`rolling_12m` vs `actual_month`) in UI.
+
+4. **Delivery (ADR-013):**  
+   - Write BE + Est. net into read-cache cascade (dashboard-bundle and/or dedicated profile) on snapshot seal and on Finance save/recalculate.  
+   - GET reads cache only. `resolveBreakEven` live path is **transitional** until cascade ships; must still obey rules 1–3.
+
+5. **Finance seal event:** Refresh assumptions → rewrite open-month forecasts in band → cascade week/month/year cache (feeds future calibration loop).
+
+6. **Precedence:** If this ADR conflicts with a clever GET shortcut, **013 + this ADR win**.
+
+**Consequences:** Implement cache fields + fix year/week rollup before declaring BE “done.” Update `@adr-ref` on BE files to include ADR-013, ADR-022. Verify each sealed 2026 month: Est. net matches Finance; YTD = sum of months.
+
+**Implementation gaps fixed (2026-08-05):**
+
+1. **Open-month drop:** Multi-month Est. net previously skipped unsealed spans (`if (!doc) continue`), so `this-year` showed only Jan–Jun Finance while revenue included Jul/Aug. Now open spans use CM estimate; mixed periods label `source: blended`.
+2. **Rolling FT/flex dilution:** Averaging `laborLonenLines` across 12 months (÷n) with legacy months lacking lonen lines halved fixed/flex %. Rolling now resolves FT/flex **per row** then dollar-weights (`resolveFixedFlexTotalsForRows`).
+3. **Ops revenue for open Est. net:** CM estimate must use **ops/inbox headline revenue** (ADR-022 §3), not rolling `monthlyRevenue`. `accountingResult` = sealed Finance only; `estimatedNet` = sealed + open CM on ops revenue. UI labels “Finance P&L” only when `source === actual_month`.
+4. **ADR-020 labor load:** Snapshot `buildLaborSection` scales `loaded_cost` by Finance÷ops sealed ratios (2026 venue table in `accountingPnlLaborMultiplier`). Rebuild labor snapshots required after deploy.
+
+**Related:** ADR-004, ADR-013, ADR-014, ADR-019, ADR-020, ADR-021
 
 ---
 

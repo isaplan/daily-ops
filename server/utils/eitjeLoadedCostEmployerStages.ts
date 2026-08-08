@@ -1,11 +1,11 @@
 /**
  * @registry-id: eitjeLoadedCostEmployerStages
  * @created: 2026-05-14T00:00:00.000Z
- * @last-modified: 2026-05-14T12:00:00.000Z
+ * @last-modified: 2026-08-05T00:05:00.000Z
  * @description: Nul-uren employer cph override + per-shift loaded_cost for Eitje rebuild pipeline.
- * @last-fix: [2026-05-18] loaded_cost_source tag for ZZP hourly_rate
+ * @last-fix: [2026-08-05] ADR-020: nul-uren 1.56 is fallback; employer loaded_cost must match Finance
  *
- * @adr-ref: ADR-001
+ * @adr-ref: ADR-001, ADR-020
  *
  * @exports-to:
  *   ✓ server/services/eitjeRebuildAggregationService.ts

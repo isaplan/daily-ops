@@ -1,10 +1,10 @@
 /**
  * @registry-id: buildBreakEvenAssumptions
  * @created: 2026-07-24T11:30:00.000Z
- * @last-modified: 2026-08-04T17:55:00.000Z
+ * @last-modified: 2026-08-05T00:30:00.000Z
  * @description: Build break-even assumptions value from sealed monthly P&L docs
- * @last-fix: [2026-08-04] Empty slice includes FT-fixed / PT-ZZP-flex fields (ADR-019)
- * @adr-ref: ADR-014, ADR-019
+ * @last-fix: [2026-08-05] Rolling FT/flex via resolveFixedFlexTotalsForRows (no lonen-line dilution)
+ * @adr-ref: ADR-013, ADR-014, ADR-019, ADR-022
  *
  * @exports-to:
  * ✓ server/utils/accountingPnl/refreshFinanceAssumptions.ts
@@ -17,9 +17,10 @@ import type {
   BreakEvenVenueSlice,
 } from '~/types/break-even'
 import {
+  breakEvenSliceFromFixedFlexTotals,
   breakEvenSliceFromRow,
   monthKey,
-  sumPnlRowsForBreakEven,
+  resolveFixedFlexTotalsForRows,
 } from '~/utils/accountingPnlBreakEvenMath'
 import type { SealedMonthlyPnlDoc } from './fetchSealedMonthlyPnlRows'
 
@@ -58,10 +59,9 @@ export function buildBreakEvenAssumptionsFromMonths (
   const rolling = {} as Record<BreakEvenVenueKey, BreakEvenVenueSlice>
   for (const key of VENUE_KEYS) {
     const rows = window.map((m) => rowForVenue(m, key)).filter((r) => r.revenue > 0)
-    const avg = sumPnlRowsForBreakEven(rows)
-    const slice = avg
-      ? breakEvenSliceFromRow(key, avg, 'rolling_12m', {
-          monthsInWindow: rows.length,
+    const totals = resolveFixedFlexTotalsForRows(rows)
+    const slice = totals
+      ? breakEvenSliceFromFixedFlexTotals(key, totals, 'rolling_12m', {
           year: window[0]?.year ?? null,
           month: window[0]?.month ?? null,
         })

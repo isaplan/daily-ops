@@ -1,9 +1,10 @@
 /**
  * @registry-id: accountingPnlBenchmarkService
  * @created: 2026-06-21T00:00:00.000Z
- * @last-modified: 2026-07-24T11:35:00.000Z
+ * @last-modified: 2026-08-04T22:31:45.000Z
  * @description: Seed + read + upsert accounting P&L benchmarks (Mongo accounting_pnl_benchmark).
- * @last-fix: [2026-07-24] Monthly save refreshes P&L % + break-even via rolling 12m
+ * @last-fix: [2026-08-04] Year view sums sealed monthly docs (live YTD); not frozen seed YTD
+ * @adr-ref: ADR-014, ADR-019
  *
  * @exports-to:
  * ✓ server/api/daily-ops/finance/pnl.get.ts
@@ -21,6 +22,7 @@ import type {
 import {
   ACCOUNTING_PNL_VENUES,
   ACCOUNTING_PNL_YEARS,
+  ACCOUNTING_PNL_MONTH_LABELS,
   ACCOUNTING_PNL_MONTH_LONG_LABELS,
   accountingPnlMonthsForYear,
   accountingPnlPeriodLabel,
@@ -68,8 +70,70 @@ function linesFromPeriod (doc: AccountingPnlBenchmarkPeriodDoc): AccountingPnlBe
     label: venue.label,
     row: normalized.venues[venue.id],
   }))
-  lines.push({ key: 'combined', label: 'Combined', row: normalized.combined })
+  lines.push({ key: 'combined', label: 'Total (3 venues)', row: normalized.combined })
   return lines
+}
+
+function yearLabelFromMonths (year: number, months: number[]): string {
+  if (!months.length) return String(year)
+  const sorted = [...months].sort((a, b) => a - b)
+  const first = sorted[0]!
+  const last = sorted[sorted.length - 1]!
+  if (first === 1 && last === 12 && sorted.length === 12) return String(year)
+  const short = (m: number): string => ACCOUNTING_PNL_MONTH_LABELS[m - 1] ?? String(m)
+  if (first === last) return `${year} (${short(first)})`
+  return `${year} (${short(first)}–${short(last)} YTD)`
+}
+
+/**
+ * Prefer live sum of sealed monthly docs over the frozen annual/YTD seed doc.
+ * Returns null when no monthly rows with revenue exist (caller falls back to annual).
+ */
+async function buildYearPeriodFromMonths (
+  col: ReturnType<Db['collection']>,
+  year: AccountingPnlYear,
+): Promise<AccountingPnlBenchmarkPeriodDoc | null> {
+  const docs = await col
+    .find({ year, month: { $ne: null, $gte: 1, $lte: 12 } })
+    .sort({ month: 1 })
+    .toArray() as AccountingPnlBenchmarkPeriodDoc[]
+
+  const withRevenue = docs
+    .map((d) => normalizePeriodDoc(d))
+    .filter((d) => Number(d.combined?.revenue ?? 0) > 0 || ACCOUNTING_PNL_VENUES.some((v) => Number(d.venues[v.id]?.revenue ?? 0) > 0))
+
+  if (!withRevenue.length) return null
+
+  const months = withRevenue
+    .map((d) => d.month)
+    .filter((m): m is number => typeof m === 'number')
+
+  const venues = {
+    vkb: sumAccountingPnlRows(withRevenue.map((d) => d.venues.vkb)),
+    bea: sumAccountingPnlRows(withRevenue.map((d) => d.venues.bea)),
+    lat: sumAccountingPnlRows(withRevenue.map((d) => d.venues.lat)),
+  }
+  const combined = sumAccountingPnlRows(Object.values(venues))
+
+  return {
+    year,
+    month: null,
+    periodKind: year === 2026 ? 'ytd' : 'annual',
+    periodLabel: yearLabelFromMonths(year, months),
+    venues,
+    combined,
+    source: 'manual_edit',
+  }
+}
+
+async function resolveYearPeriodDoc (
+  col: ReturnType<Db['collection']>,
+  year: AccountingPnlYear,
+): Promise<AccountingPnlBenchmarkPeriodDoc | null> {
+  const fromMonths = await buildYearPeriodFromMonths(col, year)
+  if (fromMonths) return fromMonths
+  const annual = await col.findOne(accountingPnlPeriodFilter(year, null)) as AccountingPnlBenchmarkPeriodDoc | null
+  return annual ? normalizePeriodDoc(annual) : null
 }
 
 function normalizeYear (raw: unknown): AccountingPnlYear | null {
@@ -128,26 +192,21 @@ async function fetchMonthGrid (
 async function fetchYearGrid (
   col: ReturnType<Db['collection']>,
 ): Promise<AccountingPnlYearGridDto> {
-  const docs = await col
-    .find({ year: { $in: [...ACCOUNTING_PNL_YEARS] }, month: null })
-    .sort({ year: 1 })
-    .toArray() as AccountingPnlBenchmarkPeriodDoc[]
-
-  const byYear = new Map(docs.map((d) => [d.year, d]))
-  const columns = ACCOUNTING_PNL_YEARS.flatMap((year) => {
-    const doc = byYear.get(year)
-    if (!doc) return []
+  const columns = []
+  for (const year of ACCOUNTING_PNL_YEARS) {
+    const doc = await resolveYearPeriodDoc(col, year)
+    if (!doc) continue
     const normalized = normalizePeriodDoc(doc)
-    return [{
+    columns.push({
       year,
-      label: accountingPnlYearLabel(year),
+      label: normalized.periodLabel || accountingPnlYearLabel(year),
       venues: ACCOUNTING_PNL_VENUES.map((venue) => ({
         key: venue.id,
         shortLabel: venue.shortLabel,
         row: normalized.venues[venue.id],
       })),
-    }]
-  })
+    })
+  }
 
   return { columns }
 }
@@ -229,12 +288,34 @@ export async function fetchAccountingPnlBenchmark (
     }
   }
 
-  const doc = await col.findOne(accountingPnlPeriodFilter(year, month))
+  if (month != null) {
+    const monthDoc = await col.findOne(accountingPnlPeriodFilter(year, month)) as AccountingPnlBenchmarkPeriodDoc | null
+    if (!monthDoc) {
+      return {
+        periodLabel: accountingPnlPeriodLabel(year, 'month', month),
+        year,
+        month,
+        lines: [],
+        availableYears: [...ACCOUNTING_PNL_YEARS],
+        availableMonths: accountingPnlMonthsForYear(year),
+      }
+    }
+    return {
+      periodLabel: monthDoc.periodLabel,
+      year: monthDoc.year,
+      month: monthDoc.month,
+      lines: linesFromPeriod(monthDoc),
+      availableYears: [...ACCOUNTING_PNL_YEARS],
+      availableMonths: accountingPnlMonthsForYear(year),
+    }
+  }
+
+  const doc = await resolveYearPeriodDoc(col, year)
   if (!doc) {
     return {
-      periodLabel: month != null ? `Month ${month} ${year}` : String(year),
+      periodLabel: accountingPnlYearLabel(year),
       year,
-      month,
+      month: null,
       lines: [],
       availableYears: [...ACCOUNTING_PNL_YEARS],
       availableMonths: accountingPnlMonthsForYear(year),
@@ -244,7 +325,7 @@ export async function fetchAccountingPnlBenchmark (
   return {
     periodLabel: doc.periodLabel,
     year: doc.year,
-    month: doc.month,
+    month: null,
     lines: linesFromPeriod(doc),
     availableYears: [...ACCOUNTING_PNL_YEARS],
     availableMonths: accountingPnlMonthsForYear(year),

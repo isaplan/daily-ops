@@ -76,9 +76,9 @@
 <script setup lang="ts">
 /**
  * @description: Dashboard KPI tiles with lazy drawer fetches
- * @last-modified: 2026-08-04T17:55:00.000Z
- * @last-fix: [2026-08-04] Surface break-even source (actual vs rolling 12m) in revenue drawer
- * @adr-ref: ADR-004, ADR-010, ADR-013, ADR-014, ADR-019
+ * @last-modified: 2026-08-05T10:50:00.000Z
+ * @last-fix: [2026-08-05] Est. net: Finance badge only when sealed; else estimatedNet on ops revenue
+ * @adr-ref: ADR-004, ADR-010, ADR-013, ADR-014, ADR-019, ADR-022
  * @data-source: mixed
  * @read-cache-json: dashboard-bundle summary + tableOccupancy; lazy GET break-even, revenue-averages
  * @imports-data-from: props + GET /api/daily-ops/metrics/*
@@ -95,6 +95,7 @@ import type {
   VenueStripCardDto,
   VenueStripResponseDto,
 } from '~/types/daily-ops-dashboard'
+import type { DailyOpsBreakEvenDto } from '~/types/break-even'
 import { DAILY_OPS_RANGE_PERIOD_IDS } from '~/types/daily-ops-dashboard'
 import type { KpiDrawerVenueSection } from '~/components/daily-ops/DailyOpsKpiDrawer.vue'
 
@@ -208,14 +209,14 @@ const {
 })
 
 const revenueBeLine = computed(() => {
-  if (breakEvenPending.value && !breakEvenData.value) return 'BE —'
+  if (breakEvenPending.value && !breakEvenData.value) return 'CM BE —'
   const be = breakEvenData.value
-  if (!be || be.breakEven <= 0) return 'BE —'
+  if (!be || be.breakEven <= 0) return 'CM BE —'
   if (props.period === 'today' || be.pctVsBreakEven == null) {
-    return `BE ${formatEurWhole(be.breakEven)}`
+    return `CM BE ${formatEurWhole(be.breakEven)}`
   }
   const pct = formatPctVs(be.pctVsBreakEven)
-  return pct ? `BE ${formatEurWhole(be.breakEven)} · ${pct}` : `BE ${formatEurWhole(be.breakEven)}`
+  return pct ? `CM BE ${formatEurWhole(be.breakEven)} · ${pct}` : `CM BE ${formatEurWhole(be.breakEven)}`
 })
 
 const revenueAvgLine = computed(() => {
@@ -231,12 +232,51 @@ const revenueYoyLine = computed(() => {
 function breakEvenSourceLabel (source: string | undefined): string {
   if (source === 'actual_month') return 'sealed month'
   if (source === 'rolling_12m') return 'rolling 12m'
+  if (source === 'blended') return 'sealed + rolling'
   return 'default'
+}
+
+/**
+ * Prefer sealed Finance P&L when source is actual_month.
+ * Else estimatedNet (ops revenue × CM) from API; fallback local CM on ops revenue.
+ */
+function estNetFromBreakEven (
+  row: Pick<
+    DailyOpsBreakEvenDto,
+    'revenue' | 'breakEven' | 'cogsPct' | 'flexLaborPct' | 'accountingResult' | 'estimatedNet' | 'source'
+  >,
+): { amount: number | null; fromAccounting: boolean } {
+  if (
+    row.source === 'actual_month'
+    && row.accountingResult != null
+    && Number.isFinite(row.accountingResult)
+  ) {
+    return { amount: row.accountingResult, fromAccounting: true }
+  }
+  if (row.estimatedNet != null && Number.isFinite(row.estimatedNet)) {
+    return { amount: row.estimatedNet, fromAccounting: false }
+  }
+  if (!(row.breakEven > 0) || !Number.isFinite(row.revenue)) {
+    return { amount: null, fromAccounting: false }
+  }
+  const cm = 1 - row.cogsPct / 100 - row.flexLaborPct / 100
+  if (!(cm > 0)) return { amount: null, fromAccounting: false }
+  return { amount: (row.revenue - row.breakEven) * cm, fromAccounting: false }
+}
+
+function formatEstNetAmount (
+  amount: number | null,
+  fromAccounting = false,
+): string {
+  if (amount == null || !Number.isFinite(amount)) return '—'
+  const sign = amount > 0 ? '+' : ''
+  const body = `${sign}${formatEurWhole(amount)}`
+  return fromAccounting ? `${body} (Finance P&L)` : body
 }
 
 function formatBreakEvenCell (locationId: string): string {
   if (breakEvenPending.value && !breakEvenByVenue.value.length) return '—'
-  const row = breakEvenByVenue.value.find((v: { locationId: string | null }) => v.locationId === locationId)
+  const row = breakEvenByVenue.value.find((v: DailyOpsBreakEvenDto) => v.locationId === locationId)
   if (!row || row.breakEven <= 0) return '—'
   const src = breakEvenSourceLabel(row.source)
   if (props.period === 'today' || row.pctVsBreakEven == null) {
@@ -248,6 +288,14 @@ function formatBreakEvenCell (locationId: string): string {
     : `${formatEurWhole(row.breakEven)} (${src})`
 }
 
+function formatEstNetCell (locationId: string): string {
+  if (breakEvenPending.value && !breakEvenByVenue.value.length) return '—'
+  const row = breakEvenByVenue.value.find((v: DailyOpsBreakEvenDto) => v.locationId === locationId)
+  if (!row) return '—'
+  const est = estNetFromBreakEven(row)
+  return formatEstNetAmount(est.amount, est.fromAccounting)
+}
+
 function formatAvgAmount (slice: { revenue: number; pctVsCurrent: number | null } | null | undefined): string {
   if (!slice || slice.revenue <= 0) return '—'
   const pct = formatPctVs(slice.pctVsCurrent)
@@ -257,6 +305,13 @@ function formatAvgAmount (slice: { revenue: number; pctVsCurrent: number | null 
 function formatAvgCell (locationId: string): string {
   if (averagesPending.value && !revenueAveragesForLocation(locationId)) return '—'
   return formatAvgAmount(revenueAveragesForLocation(locationId)?.average)
+}
+
+function avgRevColumnLabel (): string {
+  const raw = revenueAveragesCombined.value?.average?.label
+  if (!raw) return 'Avg rev'
+  if (/^avg\s+rev/i.test(raw)) return raw
+  return `Avg rev · ${raw}`
 }
 
 function formatYoyCell (locationId: string): string {
@@ -518,6 +573,7 @@ function venueRevenueRows (): KpiDrawerVenueRow[] {
       formatEurWhole(v.revenue.food),
       formatEurWhole(v.revenue.beverage),
       formatBreakEvenCell(v.locationId),
+      formatEstNetCell(v.locationId),
       formatAvgCell(v.locationId),
     ],
   }))
@@ -723,14 +779,14 @@ const drawerContent = computed(() => {
       return {
         title: 'Total Revenue',
         intro: props.period === 'today'
-          ? 'Headline uses Bork order-time aggregates (ex VAT) for the open register day.'
+          ? 'Headline uses Bork order-time aggregates (ex VAT) for the open register day. CM break-even sums monthly targets for the period. Est. net uses sealed Finance P&L result when available; else (rev − BE) × contribution margin.'
           : s?.revenueLeadSource === 'inbox_basis_ex_vat'
-            ? 'Headline uses Inbox Basis Report (full business day, ex VAT) per venue when available.'
-            : 'Headline uses Bork paid-time business-day aggregates (ex VAT).',
+            ? 'Headline uses Inbox Basis Report (full business day, ex VAT) per venue when available. CM break-even sums monthly targets for the period. Est. net uses sealed Finance P&L result when available; else (rev − BE) × contribution margin.'
+            : 'Headline uses Bork paid-time business-day aggregates (ex VAT). CM break-even sums monthly targets for the period. Est. net uses sealed Finance P&L result when available; else (rev − BE) × contribution margin.',
         summaryRows: [
           { label: 'Combined (3 venues)', value: formatEurWhole(t.revenue) },
           {
-            label: 'Break-even (combined)',
+            label: 'CM break-even (combined)',
             value: breakEvenPending.value && !breakEvenData.value
               ? '—'
               : breakEvenData.value && breakEvenData.value.breakEven > 0
@@ -740,6 +796,15 @@ const drawerContent = computed(() => {
                       : `${formatEurWhole(breakEvenData.value.breakEven)} · ${formatPctVs(breakEvenData.value.pctVsBreakEven) ?? ''} (${breakEvenSourceLabel(breakEvenData.value.source)})`
                   )
                 : '—',
+          },
+          {
+            label: 'Est. net result (combined)',
+            value: (() => {
+              if (breakEvenPending.value && !breakEvenData.value) return '—'
+              if (!breakEvenData.value) return '—'
+              const est = estNetFromBreakEven(breakEvenData.value)
+              return formatEstNetAmount(est.amount, est.fromAccounting)
+            })(),
           },
           {
             label: 'Break-even source',
@@ -760,7 +825,7 @@ const drawerContent = computed(() => {
               : '—',
           },
           {
-            label: revenueAveragesCombined.value?.average?.label ?? 'Average (combined)',
+            label: avgRevColumnLabel() + ' (combined)',
             value: averagesPending.value && !revenueAveragesCombined.value
               ? '—'
               : formatAvgAmount(revenueAveragesCombined.value?.average),
@@ -780,8 +845,9 @@ const drawerContent = computed(() => {
           'Total',
           'Food',
           'Beverage',
-          'Break-even',
-          revenueAveragesCombined.value?.average?.label ?? 'Average',
+          'CM break-even',
+          'Est. net',
+          avgRevColumnLabel(),
         ],
         venueRows: venueRevenueRows(),
       }

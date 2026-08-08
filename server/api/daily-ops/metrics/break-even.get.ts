@@ -1,10 +1,9 @@
 /**
  * @registry-id: dailyOpsMetricsBreakEvenGet
  * @created: 2026-07-24T11:35:00.000Z
- * @last-modified: 2026-08-04T17:55:00.000Z
- * @description: GET break-even for dashboard period (rolling 12m or sealed actual)
- * @last-fix: [2026-08-04] ADR-019 FT-fixed / PT-ZZP-flex labor in DTO
- * @adr-ref: ADR-014, ADR-019
+ * @last-modified: 2026-08-05T00:30:00.000Z
+ * @last-fix: [2026-08-05] Open-month CM estimate + blended source (ADR-022); transitional live GET
+ * @adr-ref: ADR-013, ADR-014, ADR-019, ADR-022
  * @data-source: app_settings (break_even_assumptions)
  *
  * @exports-to:

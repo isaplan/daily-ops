@@ -1,10 +1,10 @@
 /**
  * @registry-id: breakEvenAssumptionsSetting
  * @created: 2026-07-24T11:30:00.000Z
- * @last-modified: 2026-08-04T17:55:00.000Z
+ * @last-modified: 2026-08-05T00:30:00.000Z
  * @description: Mongo app_settings store for rolling/actual break-even assumptions
- * @last-fix: [2026-08-04] Normalize FT-fixed / PT-ZZP-flex fields (ADR-019)
- * @adr-ref: ADR-014, ADR-019
+ * @last-fix: [2026-08-05] Accept blended BreakEvenSource in normalizeSlice
+ * @adr-ref: ADR-013, ADR-014, ADR-019, ADR-022
  *
  * @exports-to:
  * ✓ server/utils/accountingPnl/refreshFinanceAssumptions.ts
@@ -80,7 +80,10 @@ function normalizeSlice (raw: unknown, venueId: BreakEvenVenueKey): BreakEvenVen
     fixedLaborPct,
     flexLaborPct,
     source:
-      source === 'actual_month' || source === 'rolling_12m' || source === 'default'
+      source === 'actual_month'
+      || source === 'rolling_12m'
+      || source === 'blended'
+      || source === 'default'
         ? source
         : 'default',
     year: r.year == null ? null : Number(r.year) || null,

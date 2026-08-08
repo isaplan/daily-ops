@@ -1,10 +1,10 @@
 /**
  * @registry-id: dailyOpsInsightsPnl
  * @created: 2026-06-25T20:00:00.000Z
- * @last-modified: 2026-07-14T12:00:00.000Z
+ * @last-modified: 2026-08-05T00:05:00.000Z
  * @description: SSOT estimated net P&L from headline revenue + loaded labor (ADR-014)
- * @last-fix: [2026-07-14] Single net-profit formula for dashboard summary, rollups, period breakdown
- * @adr-ref: ADR-004, ADR-014
+ * @last-fix: [2026-08-05] ADR-014 amended: sealed Finance vs open assumptions; labor = employer load (020)
+ * @adr-ref: ADR-004, ADR-013, ADR-014, ADR-020, ADR-022
  *
  * @exports-to:
  * ✓ server/utils/dailyOpsInsights/buildPerformanceInsights.ts

@@ -1,12 +1,12 @@
 /**
  * @registry-id: memberCompensationRevisions
  * @created: 2026-05-16T12:00:00.000Z
- * @last-modified: 2026-05-21T12:00:00.000Z
+ * @last-modified: 2026-08-05T00:05:00.000Z
  * @description: Open/close compensation revision intervals on members (forward-only, idempotent)
- * @last-fix: [2026-06-28] seedCompensationBaseline for CSV baseline rates without overwriting headline pay
+ * @last-fix: [2026-08-05] ADR-020: cost_per_hour / resolveCostPerHour feeds employer loaded_cost SSOT
  *
  * @architecture-ref: ARCHITECTURE.md#5-business-rules
- * @adr-ref: ADR-001, ADR-002, ADR-005
+ * @adr-ref: ADR-001, ADR-002, ADR-005, ADR-020
  *
  * @exports-to:
  * ✓ server/services/dataMappingService.ts

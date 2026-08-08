@@ -1,10 +1,10 @@
 /**
  * @registry-id: refreshFinanceAssumptions
  * @created: 2026-07-24T11:30:00.000Z
- * @last-modified: 2026-08-04T17:55:00.000Z
+ * @last-modified: 2026-08-05T00:05:00.000Z
  * @description: Rebuild PNL_ASSUMPTIONS + BREAK_EVEN_ASSUMPTIONS from sealed monthly P&L
- * @last-fix: [2026-08-04] BE rebuild uses FT-fixed / PT-ZZP-flex math (ADR-019)
- * @adr-ref: ADR-014, ADR-019
+ * @last-fix: [2026-08-05] ADR-020/022: refresh feeds cache cascade; BE uses ADR-019 math
+ * @adr-ref: ADR-013, ADR-014, ADR-019, ADR-020, ADR-022
  *
  * @exports-to:
  * ✓ server/utils/accountingPnlBenchmarkService.ts
