@@ -29,6 +29,8 @@ const TITLES: Record<OpsNotificationKind, string> = {
   adr004_live_bork_on_revenue_get: 'ADR-004 violation on GET',
   monolithic_module: 'Monolithic module',
   daily_ops_iso_calendar_misuse: 'ADR-010 ISO date in Daily Ops',
+  snapshot_venue_coverage_incomplete: 'Snapshot venue coverage incomplete',
+  period_cache_food_bev_regex_gap: 'Period-cache food/bev regex gap',
 }
 
 const SEVERITY: Record<OpsNotificationKind, OpsNotificationSeverity> = {
@@ -55,6 +57,8 @@ const SEVERITY: Record<OpsNotificationKind, OpsNotificationSeverity> = {
   adr004_live_bork_on_revenue_get: 'critical',
   monolithic_module: 'info',
   daily_ops_iso_calendar_misuse: 'critical',
+  snapshot_venue_coverage_incomplete: 'warning',
+  period_cache_food_bev_regex_gap: 'warning',
 }
 
 const CATEGORY: Record<OpsNotificationKind, OpsNotificationCategory> = {
@@ -81,6 +85,8 @@ const CATEGORY: Record<OpsNotificationKind, OpsNotificationCategory> = {
   adr004_live_bork_on_revenue_get: 'architecture',
   monolithic_module: 'architecture',
   daily_ops_iso_calendar_misuse: 'architecture',
+  snapshot_venue_coverage_incomplete: 'snapshot',
+  period_cache_food_bev_regex_gap: 'integrity',
 }
 
 export function buildNotificationItem(input: {

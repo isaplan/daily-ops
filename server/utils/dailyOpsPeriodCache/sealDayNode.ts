@@ -3,8 +3,8 @@
  * @created: 2026-08-08T21:20:00.000Z
  * @last-modified: 2026-08-08T21:20:00.000Z
  * @description: Seal day period-cache nodes (open vs ops_sealed) via register business day
- * @last-fix: [2026-08-08] Apply open-register status + inbox lead-source rules
- * @adr-ref: ADR-010, ADR-023
+ * @last-fix: [2026-08-09] @adr-ref → PERIOD_CACHE_ADR L1/L2
+ * @adr-ref: PERIOD_CACHE_ADR L1, L2
  *
  * @exports-to:
  * ✓ scripts/backfill-period-cache.ts

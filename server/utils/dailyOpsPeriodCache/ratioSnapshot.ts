@@ -3,8 +3,8 @@
  * @created: 2026-08-08T21:20:00.000Z
  * @last-modified: 2026-08-08T21:20:00.000Z
  * @description: Ratio snapshots for period-cache — written on Finance seal / rolling refresh
- * @last-fix: [2026-08-08] Persist RatioSnapshot from break_even_assumptions
- * @adr-ref: ADR-019, ADR-022, ADR-023
+ * @last-fix: [2026-08-09] @adr-ref → PERIOD_CACHE_ADR L2/L4
+ * @adr-ref: PERIOD_CACHE_ADR L2, L4
  * @data-source: app_settings + daily_ops_ratio_snapshots
  * @write-cache-json: daily_ops_ratio_snapshots
  *
@@ -19,8 +19,10 @@ import type { RatioSnapshot } from '~/types/daily-ops-period-cache'
 import type { BreakEvenVenueKey, BreakEvenVenueSlice } from '~/types/break-even'
 import { ACCOUNTING_PNL_LOCATION_ID_TO_VENUE } from '~/utils/accountingPnlData'
 import { DEFAULT_PNL_ASSUMPTIONS } from '~/utils/dailyOpsPnlAssumptionsDefaults'
+import { fetchSealedMonthlyPnlRows } from '../accountingPnl/fetchSealedMonthlyPnlRows'
 import { loadBreakEvenAssumptions } from '../appSettings/breakEvenAssumptionsSetting'
 import { loadPnlAssumptions } from '../appSettings/pnlAssumptionsSetting'
+import { findPeriodNode, upsertPeriodNode } from './store'
 
 export const DAILY_OPS_RATIO_SNAPSHOTS_COLLECTION = 'daily_ops_ratio_snapshots'
 
@@ -153,6 +155,46 @@ const LOCATION_IDS = [
 ] as const
 
 /**
+ * Mark month period-cache nodes finance_sealed and set netProfit = Finance result.
+ * Write-time only (PERIOD_CACHE_ADR L2/L3) — never on GET.
+ */
+async function sealFinanceMonthsOnPeriodCache (db: Db): Promise<number> {
+  const sealed = await fetchSealedMonthlyPnlRows(db, { limit: 48 })
+  let updated = 0
+  for (const doc of sealed) {
+    const monthKey = `${doc.year}-${String(doc.month).padStart(2, '0')}`
+    for (const locationId of LOCATION_IDS) {
+      const venue = venueKeyForLocation(locationId)
+      const row = venue === 'combined' ? doc.combined : doc.venues[venue]
+      const node = await findPeriodNode(db, {
+        locationId,
+        level: 'month',
+        periodKey: monthKey,
+      })
+      if (!node) continue
+      const snap = await findRatioSnapshot(db, monthKey, locationId)
+      node.status = 'finance_sealed'
+      node.ratios = {
+        ...node.ratios,
+        netProfit: Math.round(Number(row.result ?? 0) * 100) / 100,
+        breakEven: snap?.breakEvenMonthly ?? node.ratios.breakEven,
+        cogsPct: snap?.cogsPct ?? node.ratios.cogsPct,
+        fixedLaborPct: snap?.fixedLaborPct ?? node.ratios.fixedLaborPct,
+        flexLaborPct: snap?.flexLaborPct ?? node.ratios.flexLaborPct,
+        laborPct: snap
+          ? Math.round((snap.fixedLaborPct + snap.flexLaborPct) * 10) / 10
+          : node.ratios.laborPct,
+        source: 'finance_sealed',
+        ratioAsOf: monthKey,
+      }
+      await upsertPeriodNode(db, node)
+      updated++
+    }
+  }
+  return updated
+}
+
+/**
  * Persist rolling + actual-by-month ratio snapshots from current break-even assumptions.
  * Called from refreshFinanceAssumptions after Finance seal.
  */
@@ -201,5 +243,6 @@ export async function refreshRatioSnapshotsFromAssumptions (
     }
   }
 
+  await sealFinanceMonthsOnPeriodCache(db)
   return { written }
 }

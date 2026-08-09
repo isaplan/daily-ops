@@ -35,6 +35,7 @@ import type {
   WeeklyUpsellMetric,
 } from '~/types/daily-ops-weekly-report'
 import { DEFAULT_PNL_ASSUMPTIONS } from '~/utils/dailyOpsPnlAssumptionsDefaults'
+import { sumFoodBeverageForRange } from '../dailyOpsPeriodCache/foodBeverageFromPeriodCache'
 import { rollupFoodBeverageFromCategories } from '../borkFoodBeverageSplit'
 import { VENUE_STRIP_LOCATIONS } from '../venueStrip/constants'
 import {
@@ -158,7 +159,15 @@ function sumLaborDocs(docs: DailyOpsSnapshotLaborSection[]) {
   return { laborCost, laborHours, teams: [...teams.values()], staffCount: workerIds.size }
 }
 
-function sumFoodBev(products: DailyOpsSnapshotRevenueProductsSection[]) {
+async function sumFoodBev (
+  db: import('mongodb').Db,
+  products: DailyOpsSnapshotRevenueProductsSection[],
+  range: { startDate: string; endDate: string; locationId: string },
+) {
+  const fromCache = await sumFoodBeverageForRange(db, range)
+  if (fromCache.daysFound > 0) {
+    return { food: fromCache.food, beverage: fromCache.beverage }
+  }
   let food = 0
   let beverage = 0
   for (const doc of products) {
@@ -169,12 +178,14 @@ function sumFoodBev(products: DailyOpsSnapshotRevenueProductsSection[]) {
   return { food, beverage }
 }
 
-function buildDailyBreakdown(
+async function buildDailyBreakdown (
+  db: import('mongodb').Db,
   dates: string[],
   revenue: DailyOpsSnapshotRevenueSection[],
   labor: DailyOpsSnapshotLaborSection[],
   products: DailyOpsSnapshotRevenueProductsSection[],
-): WeeklyDayBreakdown[] {
+  locationId: string,
+): Promise<WeeklyDayBreakdown[]> {
   const revByDate = new Map<string, { revenue: number; items: number }>()
   const labByDate = new Map<string, { cost: number; hours: number; staff: Set<string> }>()
   const foodBevByDate = new Map<string, { food: number; beverage: number }>()
@@ -194,13 +205,25 @@ function buildDailyBreakdown(
     for (const w of doc.workers ?? []) prev.staff.add(w.userId)
     labByDate.set(key, prev)
   }
-  for (const doc of products) {
-    const key = doc.businessDate
-    const split = rollupFoodBeverageFromCategories(doc.categories ?? [])
-    const prev = foodBevByDate.get(key) ?? { food: 0, beverage: 0 }
-    prev.food += split.food
-    prev.beverage += split.beverage
-    foodBevByDate.set(key, prev)
+  for (const d of dates) {
+    const fromCache = await sumFoodBeverageForRange(db, {
+      startDate: d,
+      endDate: d,
+      locationId,
+    })
+    if (fromCache.daysFound > 0) {
+      foodBevByDate.set(d, { food: fromCache.food, beverage: fromCache.beverage })
+    }
+  }
+  if (foodBevByDate.size === 0) {
+    for (const doc of products) {
+      const key = doc.businessDate
+      const split = rollupFoodBeverageFromCategories(doc.categories ?? [])
+      const prev = foodBevByDate.get(key) ?? { food: 0, beverage: 0 }
+      prev.food += split.food
+      prev.beverage += split.beverage
+      foodBevByDate.set(key, prev)
+    }
   }
 
   return dates.map((businessDate) => {
@@ -513,7 +536,11 @@ async function monthTotalsFromSnapshots(
   const bundle = await fetchSnapshotBundle(db, range.startDate, range.endDate, locationId)
   const rev = sumRevenueDocs(bundle.revenue)
   const lab = sumLaborDocs(bundle.labor)
-  const { food, beverage } = sumFoodBev(bundle.products)
+  const { food, beverage } = await sumFoodBev(db, bundle.products, {
+    startDate: range.startDate,
+    endDate: range.endDate,
+    locationId: locationId ?? 'all',
+  })
   const laborCostPct = rev.revenue > 0 ? roundWeekly2((lab.laborCost / rev.revenue) * 100) : null
   const foodCogs = food * (DEFAULT_PNL_ASSUMPTIONS.foodCogsPct / 100)
   const bevCogs = beverage * (DEFAULT_PNL_ASSUMPTIONS.bevCogsPct / 100)
@@ -625,7 +652,11 @@ export async function buildMonthlyDigest(
 
   const rev = sumRevenueDocs(bundle.revenue)
   const lab = sumLaborDocs(bundle.labor)
-  const { food, beverage } = sumFoodBev(bundle.products)
+  const { food, beverage } = await sumFoodBev(db, bundle.products, {
+    startDate: range.startDate,
+    endDate: range.endDate,
+    locationId,
+  })
 
   const laborCostPct = rev.revenue > 0 ? roundWeekly2((lab.laborCost / rev.revenue) * 100) : null
   const revenuePerHour = lab.laborHours > 0 ? roundWeekly2(rev.revenue / lab.laborHours) : null
@@ -683,7 +714,14 @@ export async function buildMonthlyDigest(
       laborStatus: laborStatus(laborCostPct, opts.targets),
       pnlStatus: pnlStatus(pnlPct, opts.targets),
     },
-    dailyBreakdown: buildDailyBreakdown(dates, bundle.revenue, bundle.labor, bundle.products),
+    dailyBreakdown: await buildDailyBreakdown(
+      db,
+      dates,
+      bundle.revenue,
+      bundle.labor,
+      bundle.products,
+      locationId,
+    ),
     teams,
     comparisons,
     staffRankings: buildStaffRankings(bundle.labor, bundle.workers),

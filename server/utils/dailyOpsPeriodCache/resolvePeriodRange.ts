@@ -3,8 +3,8 @@
  * @created: 2026-08-08T21:20:00.000Z
  * @last-modified: 2026-08-08T21:20:00.000Z
  * @description: Canonical any-range resolver over daily_ops_period_cache only
- * @last-fix: [2026-08-08] Greedy year→month→week→day cover (Phase 1, unused by pages)
- * @adr-ref: ADR-010, ADR-023
+ * @last-fix: [2026-08-09] @adr-ref → PERIOD_CACHE_ADR L2; used by BE cutover
+ * @adr-ref: PERIOD_CACHE_ADR L2
  * @data-source: period-cache
  * @read-cache-json: daily_ops_period_cache · day|week|month|year
  *

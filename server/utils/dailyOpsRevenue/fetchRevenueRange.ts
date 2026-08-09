@@ -19,6 +19,7 @@ import { DAILY_OPS_SNAPSHOT_COLLECTIONS } from '~/types/daily-ops-snapshot'
 import type { DailyOpsSnapshotRevenueSection } from '~/types/daily-ops-snapshot'
 import type { DailyOpsRevenueQueryContext } from '~/types/daily-ops-revenue'
 import { eachBusinessDate } from './dateRange'
+import { sumFoodBeverageForRange } from '../dailyOpsPeriodCache/foodBeverageFromPeriodCache'
 import { rollupFoodBeverageFromCategories } from '../borkFoodBeverageSplit'
 import {
   headlineExVatFromSnapshotSection,
@@ -61,6 +62,15 @@ async function sumFoodBevFromProductSnapshots(
   db: Db,
   ctx: Pick<DailyOpsRevenueQueryContext, 'startDate' | 'endDate' | 'locationId'>,
 ): Promise<{ food: number; beverage: number }> {
+  const fromCache = await sumFoodBeverageForRange(db, {
+    startDate: ctx.startDate,
+    endDate: ctx.endDate,
+    locationId: ctx.locationId ?? 'all',
+  })
+  if (fromCache.daysFound > 0) {
+    return { food: fromCache.food, beverage: fromCache.beverage }
+  }
+
   const filter: Record<string, unknown> = {
     businessDate: { $gte: ctx.startDate, $lte: ctx.endDate },
   }

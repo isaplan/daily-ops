@@ -50,8 +50,9 @@ function buildDayCardFromBatch(
   rev: DailyOpsSnapshotRevenueSection | undefined,
   labor: DailyOpsSnapshotLaborSection | undefined,
   products: DailyOpsSnapshotRevenueProductsSection | undefined,
+  periodFoodBev?: { food: number; beverage: number } | null,
 ): VenueStripCardDto {
-  const revenueParts = revenueFromSnapshotSections(rev ?? null, products ?? null)
+  const revenueParts = revenueFromSnapshotSections(rev ?? null, products ?? null, periodFoodBev)
   const revenue = {
     total: revenueParts.totalRevenue,
     food: revenueParts.food,
@@ -84,28 +85,32 @@ function buildDayCardFromBatch(
   }
 }
 
-/** Snapshot-only range rollup — 3 queries total, no per-day async labor resolution. */
+/** Snapshot-only range rollup — food/bev from period-cache when present. */
 export async function buildVenueStripRangeRollup(
   db: Db,
   ctx: DailyOpsMetricsContext,
 ): Promise<VenueStripResponseDto> {
   const batchesByDate = await loadVenueStripSnapshotBatchesForRange(db, ctx.startDate, ctx.endDate)
+  const { loadFoodBeverageForDay } = await import('../dailyOpsPeriodCache/foodBeverageFromPeriodCache')
 
-  const venues = VENUE_STRIP_LOCATIONS.map((venue) => {
-    const dailyCards: VenueStripCardDto[] = []
+  const venues = await Promise.all(
+    VENUE_STRIP_LOCATIONS.map(async (venue) => {
+      const dailyCards: VenueStripCardDto[] = []
 
-    for (const batch of batchesByDate.values()) {
-      const rev = batch.revenueByLoc.get(venue.locationId)
-      const labor = batch.laborByLoc.get(venue.locationId)
-      const products = batch.productsByLoc.get(venue.locationId)
-      if (!rev && !labor && !products) continue
-      dailyCards.push(buildDayCardFromBatch(venue, rev, labor, products))
-    }
+      for (const [businessDate, batch] of batchesByDate.entries()) {
+        const rev = batch.revenueByLoc.get(venue.locationId)
+        const labor = batch.laborByLoc.get(venue.locationId)
+        const products = batch.productsByLoc.get(venue.locationId)
+        if (!rev && !labor && !products) continue
+        const periodFoodBev = await loadFoodBeverageForDay(db, businessDate, venue.locationId)
+        dailyCards.push(buildDayCardFromBatch(venue, rev, labor, products, periodFoodBev))
+      }
 
-    if (dailyCards.length === 0) return emptyVenueCard(venue)
-    if (dailyCards.length === 1) return dailyCards[0]!
-    return mergeVenueStripCards(dailyCards)
-  })
+      if (dailyCards.length === 0) return emptyVenueCard(venue)
+      if (dailyCards.length === 1) return dailyCards[0]!
+      return mergeVenueStripCards(dailyCards)
+    }),
+  )
 
   return {
     range: {

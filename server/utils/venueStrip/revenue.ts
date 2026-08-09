@@ -1,9 +1,10 @@
 /**
  * @registry-id: dailyOpsVenueStripRevenue
  * @created: 2026-05-28T00:00:00.000Z
- * @last-modified: 2026-05-28T00:00:00.000Z
+ * @last-modified: 2026-08-09T00:30:00.000Z
  * @description: Venue-strip revenue + contract rollups from snapshot sections
- * @adr-ref: ADR-004
+ * @last-fix: [2026-08-09] Prefer period-cache food/bev when provided (PERIOD_CACHE_ADR L3)
+ * @adr-ref: ADR-004, PERIOD_CACHE_ADR L3
  */
 
 import type { VenueStripCardDto, VenueStripTeamBucket } from '~/types/daily-ops-dashboard'
@@ -68,6 +69,8 @@ export function contractsByTeamFromSnapshot(
 export function revenueFromSnapshotSections(
   rev: DailyOpsSnapshotRevenueSection | null,
   products: DailyOpsSnapshotRevenueProductsSection | null,
+  /** When set (from daily_ops_period_cache), skips local category rollup. */
+  periodFoodBev?: { food: number; beverage: number } | null,
 ): {
   totalRevenue: number
   food: number
@@ -78,9 +81,11 @@ export function revenueFromSnapshotSections(
 } {
   const totalRevenue = round2(headlineExVatFromSnapshotSection(rev))
   const totalIncVat = round2(headlineIncVatFromSnapshotSection(rev))
-  const split = rollupFoodBeverageFromCategories(
-    (products?.categories ?? []).map((c) => ({ name: c.name, revenue_ex_vat: c.revenue_ex_vat })),
-  )
+  const split = periodFoodBev
+    ? { food: periodFoodBev.food, beverage: periodFoodBev.beverage }
+    : rollupFoodBeverageFromCategories(
+        (products?.categories ?? []).map((c) => ({ name: c.name, revenue_ex_vat: c.revenue_ex_vat })),
+      )
   const scaled = proportionalFoodBeverageToHeadline(totalRevenue, split.food, split.beverage)
   const scaledInc = proportionalFoodBeverageToHeadline(totalIncVat, split.food, split.beverage)
   return {

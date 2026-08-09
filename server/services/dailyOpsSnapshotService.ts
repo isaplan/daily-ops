@@ -1,13 +1,13 @@
 /**
  * @registry-id: dailyOpsSnapshotService
  * @created: 2026-05-13T00:00:00.000Z
- * @last-modified: 2026-07-13T00:58:00.000Z
- * @last-fix: [2026-07-13] CRITICAL FIX: Replace buggy Eitje-fallback location discovery with hardcoded VENUE_STRIP_LOCATIONS. 
- *   Prior bug: listLocationIdsForDate() queried stale bork_business_days (empty post-May 2026), fell back to Eitje labor rows only → 
- *   Bork-only venues like Kinsbergen silently skipped when no Eitje shifts clocked in yet. Now always builds all 3 venues.
- * @adr-ref: ADR-004, ADR-006, ADR-007, ADR-013
+ * @last-modified: 2026-08-09T01:50:00.000Z
+ * @last-fix: [2026-08-09] Seal+cascade period-cache BEFORE bundle pregen (food/bev SSOT on first write)
+ *   Prior: [2026-08-09] After bundle cascade, seal+cascade daily_ops_period_cache (PERIOD_CACHE_ADR L2)
+ *   Prior: [2026-07-13] CRITICAL FIX: Replace buggy Eitje-fallback location discovery with hardcoded VENUE_STRIP_LOCATIONS.
+ * @adr-ref: ADR-004, ADR-006, ADR-007, ADR-013, PERIOD_CACHE_ADR L1, L2
  * @data-source: snapshot-write-only
- * @write-cache-json: daily_ops_read_cache · dashboard-bundle · after buildDailyOpsSnapshot + cascadeGenerate
+ * @write-cache-json: daily_ops_read_cache · dashboard-bundle; daily_ops_period_cache · after buildDailyOpsSnapshot
  *
  * @architecture:
  *   - Snapshot always builds all 3 VENUE_STRIP_LOCATIONS (Van Kinsbergen, Bar Bea, l'Amour Toujours) per businessDate, no location discovery fallback.
@@ -19,12 +19,15 @@
  *   - Lead revenue source decided in buildRevenueSection (inbox-sealed > inbox-latest > bork).
  *   - status: 'partial' until morning final (cron 7 or 8) inbox row received, then sealDailyOpsSnapshot() flips to 'final'.
  *   - Idempotent: same input → same output modulo lastBuiltAt / sealedAt.
+ *   - Period-cache hook: sealDayNodesForDate + cascadePeriodRange BEFORE legacy bundle pregen/cascade (failures logged, never fail snapshot).
  *
  * @exports-to:
  *   ✓ server/services/eitjeSyncService.ts (enqueue rebuilds after agg)
  *   ✓ server/services/inboxProcessService.ts (seal on 08:05 basis-report upsert)
  *   ✓ server/services/basisReportBackfillService.ts (same)
  *   ✓ server/api/daily-ops/* (read endpoints — Phase A.3)
+ *   ✓ server/utils/dailyOpsPeriodCache/sealDayNode.ts
+ *   ✓ server/utils/dailyOpsPeriodCache/cascadePeriod.ts
  *   ✓ scripts/validate-snapshot-phase-a1.ts (driver for live data validation)
  */
 
@@ -59,6 +62,8 @@ import {
 import { runPostSealRetention } from '../utils/dailyOpsBlob/runPostSealRetention'
 import { preGenerateBundleForDate, refreshDashboardBundleCache } from '../utils/dailyOpsSnapshot/preGenerateBundleCache'
 import { cascadeGenerate } from '../utils/dailyOpsSnapshot/cacheCascade'
+import { cascadePeriodRange } from '../utils/dailyOpsPeriodCache/cascadePeriod'
+import { sealDayNodesForDate } from '../utils/dailyOpsPeriodCache/sealDayNode'
 import type { SourcesFingerprint } from '../utils/dailyOpsSnapshot/resolveSources'
 
 const runtimeProcess = globalThis as typeof globalThis & {
@@ -337,7 +342,6 @@ export async function buildDailyOpsSnapshot(input: BuildSnapshotInput): Promise<
       if (sealed) {
         await writeRevenueBenchmarkForLocation(db, businessDate, locationId)
       }
-      await preGenerateBundleForDate(db, businessDate, locationId)
       out.built.push({ locationId, locationName })
     } catch (e) {
       out.success = false
@@ -348,6 +352,16 @@ export async function buildDailyOpsSnapshot(input: BuildSnapshotInput): Promise<
 
   if (out.built.length > 0) {
     await writeRevenueBenchmarkAllLocations(db, businessDate)
+    // Period-cache must exist before dashboard bundles (food/bev + BE read period nodes).
+    try {
+      await sealDayNodesForDate(db, businessDate)
+      await cascadePeriodRange(db, businessDate, businessDate)
+    } catch (e) {
+      console.error(`[period-cache] hook failed ${businessDate}`, e)
+    }
+    for (const b of out.built) {
+      await preGenerateBundleForDate(db, businessDate, b.locationId)
+    }
     await preGenerateBundleForDate(db, businessDate, 'all')
     const cacheLocationIds = [...out.built.map((b) => b.locationId), 'all']
     await cascadeGenerate(db, businessDate, businessDate, cacheLocationIds)

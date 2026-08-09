@@ -1,5 +1,5 @@
 /**
- * Backfill daily_ops_period_cache (ADR-023 Phase 1).
+ * Backfill daily_ops_period_cache (PERIOD_CACHE_ADR L2).
  *
  * Per day: seal venue + combined day nodes, then cascade week/month/year.
  * Idempotent upsert — safe to re-run or overlap chunk boundaries.

@@ -3,8 +3,8 @@
  * @created: 2026-08-08T21:20:00.000Z
  * @last-modified: 2026-08-08T21:20:00.000Z
  * @description: Build one day-level DailyOpsPeriodNode from sealed snapshot sections
- * @last-fix: [2026-08-08] Revenue + COGS + food/bev; labor pass-through from snapshot
- * @adr-ref: ADR-004, ADR-010, ADR-023
+ * @last-fix: [2026-08-09] @adr-ref → PERIOD_CACHE_ADR L2/L3; staff.workers from labor section
+ * @adr-ref: PERIOD_CACHE_ADR L2, L3
  * @data-source: snapshot-sections
  * @write-cache-json: daily_ops_period_cache · level=day
  *
@@ -83,6 +83,26 @@ function laborFromSnapshot (
       loadedCost: round2(Number(t.loaded_cost ?? 0)),
     })),
     staffCount: doc.workers?.length ?? 0,
+  }
+}
+
+function staffFromSnapshot (
+  doc: DailyOpsSnapshotLaborSection | null,
+): DailyOpsPeriodNode['staff'] {
+  if (!doc?.workers?.length) return { workers: [] }
+  return {
+    workers: doc.workers.map((w) => {
+      const team = String(w.teamName ?? w.teamId ?? '')
+      const teamLower = team.toLowerCase()
+      return {
+        memberId: String(w.userId ?? ''),
+        hours: round2(Number(w.hours ?? 0)),
+        wage: round2(Number(w.wage_cost ?? 0)),
+        team,
+        sick: /ziek/.test(teamLower) || undefined,
+        leave: /verlof|vakantie/.test(teamLower) || undefined,
+      }
+    }),
   }
 }
 
@@ -216,6 +236,7 @@ export async function buildDayNode (
   }))
 
   const laborBlock = laborFromSnapshot(labor)
+  const staffBlock = staffFromSnapshot(labor)
   const ratioSnap = await loadRatioSnapshotForDay(db, businessDate, locationId)
 
   const foodCogsPct = ratioSnap?.foodCogsPct ?? DEFAULT_PNL_ASSUMPTIONS.foodCogsPct
@@ -266,7 +287,7 @@ export async function buildDayNode (
       leadSource: mapLeadSource(revenue.leadSource),
     },
     labor: laborBlock,
-    staff: { workers: [] },
+    staff: staffBlock,
     cogs: {
       foodPct: foodCogsPct,
       bevPct: bevCogsPct,

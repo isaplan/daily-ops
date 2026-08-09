@@ -2,9 +2,9 @@
  * @registry-id: dailyOpsPeriodCacheTypes
  * @created: 2026-08-08T21:20:00.000Z
  * @last-modified: 2026-08-08T21:20:00.000Z
- * @description: Unified period-cache node + ratio snapshot shapes (ADR-023 Phase 1)
- * @last-fix: [2026-08-08] Initial types for daily_ops_period_cache
- * @adr-ref: ADR-010, ADR-023
+ * @description: Unified period-cache node + ratio snapshot shapes
+ * @last-fix: [2026-08-09] @adr-ref → PERIOD_CACHE_ADR L1/L2
+ * @adr-ref: PERIOD_CACHE_ADR L1, L2
  *
  * @exports-to:
  * ✓ server/utils/dailyOpsPeriodCache/store.ts

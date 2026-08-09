@@ -40,6 +40,10 @@ export async function upsertReadCachePayload<T>(
     businessDateEnd?: string
   },
 ): Promise<void> {
+  const { isRetiredReadCacheProfile } = await import('./retiredProfiles')
+  if (isRetiredReadCacheProfile(input.profile)) {
+    return
+  }
   await ensureReadCacheIndex(db)
   const now = new Date()
   await db.collection(DAILY_OPS_READ_CACHE_COLLECTION).updateOne(

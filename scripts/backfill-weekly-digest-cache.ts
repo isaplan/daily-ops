@@ -1,0 +1,45 @@
+/**
+ * Rebuild daily_ops_read_cache profile=weekly-digest (walks weeks backward).
+ *
+ * Usage:
+ *   pnpm exec tsx scripts/backfill-weekly-digest-cache.ts
+ *   pnpm exec tsx scripts/backfill-weekly-digest-cache.ts -- --stop-start 2024-08-05
+ */
+
+import { getDb } from '../server/utils/db'
+import { aggregateWeeklyReadCache } from '../server/utils/dailyOpsSnapshot/aggregateWeeklyReadCache'
+import { resolveWeeklyRange, previousWeekRange } from '../server/utils/dailyOpsWeeklyReport/weekRange'
+
+function arg(name: string, defaultValue?: string): string | undefined {
+  const idx = process.argv.findIndex((a) => a === `--${name}`)
+  return idx >= 0 && process.argv[idx + 1] ? process.argv[idx + 1] : defaultValue
+}
+
+async function main(): Promise<void> {
+  const stopStart = arg('stop-start', '2024-08-05')!
+  const db = await getDb()
+  process.stdout.write(`[weekly-digest] connected, stopStart=${stopStart}\n`)
+
+  let range = resolveWeeklyRange({ period: 'last-week' })
+  let written = 0
+  let weeks = 0
+
+  while (range.startDate >= stopStart) {
+    process.stdout.write(`[weekly-digest] building ${range.weekKey}…\n`)
+    const r = await aggregateWeeklyReadCache(db, range)
+    written += r.written
+    weeks += 1
+    process.stdout.write(
+      `[weekly-digest] ${range.weekKey} ${range.startDate}..${range.endDate} written=${r.written}\n`,
+    )
+    range = previousWeekRange(range)
+  }
+
+  process.stdout.write(`[weekly-digest] Done weeks=${weeks} docs=${written}\n`)
+  process.exit(0)
+}
+
+main().catch((err) => {
+  process.stderr.write(`${err instanceof Error ? err.message : String(err)}\n`)
+  process.exit(1)
+})

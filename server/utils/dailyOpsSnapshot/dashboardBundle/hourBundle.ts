@@ -95,3 +95,21 @@ export function categoryTotalsFromProducts(
   }
   return { food: snapshotRound2(food), drinks: snapshotRound2(drinks) }
 }
+
+/** Prefer period-cache day nodes; fall back to product-section rollup. */
+export async function categoryTotalsFromPeriodCacheOrProducts (
+  db: import('mongodb').Db,
+  opts: { startDate: string; endDate: string; locationId?: string | null },
+  products: DailyOpsSnapshotRevenueProductsSection[],
+): Promise<{ food: number; drinks: number }> {
+  const { sumFoodBeverageForRange } = await import('../../dailyOpsPeriodCache/foodBeverageFromPeriodCache')
+  const fromCache = await sumFoodBeverageForRange(db, {
+    startDate: opts.startDate,
+    endDate: opts.endDate,
+    locationId: opts.locationId ?? 'all',
+  })
+  if (fromCache.daysFound > 0) {
+    return { food: fromCache.food, drinks: fromCache.beverage }
+  }
+  return categoryTotalsFromProducts(products)
+}

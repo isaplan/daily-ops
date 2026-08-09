@@ -2,9 +2,9 @@
  * @registry-id: dailyOpsPeriodCacheClassifyFoodBeverage
  * @created: 2026-08-08T21:20:00.000Z
  * @last-modified: 2026-08-08T21:20:00.000Z
- * @description: Food/beverage classifier — catalog → inbox digest → flagged regex (ADR-023)
- * @last-fix: [2026-08-08] Priority order: product_catalog, inbox categories, regex gap
- * @adr-ref: ADR-023
+ * @description: Food/beverage classifier — catalog → inbox digest → flagged regex
+ * @last-fix: [2026-08-09] @adr-ref → PERIOD_CACHE_ADR L3
+ * @adr-ref: PERIOD_CACHE_ADR L3
  *
  * @exports-to:
  * ✓ server/utils/dailyOpsPeriodCache/buildDayNode.ts

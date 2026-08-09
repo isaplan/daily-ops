@@ -10,7 +10,7 @@
  * ✓ utils/accountingPnlBreakEvenMath.ts
  * ✓ server/utils/appSettings/breakEvenAssumptionsSetting.ts
  * ✓ server/api/daily-ops/metrics/break-even.get.ts
- * ✓ server/utils/dailyOpsMetrics/resolveBreakEven.ts
+ * ✓ server/utils/dailyOpsPeriodCache/resolveBreakEvenFromPeriodCache.ts
  */
 
 import type { AccountingPnlVenueId } from '~/utils/accountingPnlData'

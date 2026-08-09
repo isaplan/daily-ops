@@ -3,9 +3,10 @@
  * @created: 2026-07-24T11:30:00.000Z
  * @last-modified: 2026-08-08T21:20:00.000Z
  * @description: Rebuild PNL_ASSUMPTIONS + BREAK_EVEN_ASSUMPTIONS from sealed monthly P&L
- * @last-fix: [2026-08-08] Also refresh daily_ops_ratio_snapshots (ADR-023)
+ * @last-fix: [2026-08-09] ratio snapshots → PERIOD_CACHE_ADR L2/L4
+ *   Prior: [2026-08-08] Also refresh daily_ops_ratio_snapshots
  *   Prior: [2026-08-05] ADR-020/022: refresh feeds cache cascade; BE uses ADR-019 math
- * @adr-ref: ADR-013, ADR-014, ADR-019, ADR-020, ADR-022, ADR-023
+ * @adr-ref: ADR-013, ADR-014, ADR-019, ADR-020, ADR-022, PERIOD_CACHE_ADR L2, L4
  *
  * @exports-to:
  * ✓ server/utils/accountingPnlBenchmarkService.ts

@@ -1,10 +1,10 @@
 /**
  * @registry-id: dailyOpsVenueStripSnapshotBatch
  * @created: 2026-05-28T00:00:00.000Z
- * @last-modified: 2026-06-10T00:00:00.000Z
+ * @last-modified: 2026-08-09T00:30:00.000Z
  * @description: Batch snapshot reads + venue card assembly for venue strip
- * @last-fix: [2026-07-01] Venue strip revenue snapshot-only; removed live Bork GET overlay
- * @adr-ref: ADR-004, ADR-010
+ * @last-fix: [2026-08-09] Food/bev from period-cache day node when present
+ * @adr-ref: ADR-004, ADR-010, PERIOD_CACHE_ADR L3
  */
 
 import type { Db } from 'mongodb'
@@ -21,6 +21,7 @@ import { buildVenueActiveWorkers } from './activeWorkers'
 import type { CheckInRow } from './checkIns'
 import { loadMemberCompensationForStaffRows } from '../eitjeAggCompensationEnrich'
 import { enrichLaborWithPct, productivityPerHour, resolveVenueStripLabor } from './labor'
+import { loadFoodBeverageForDay } from '../dailyOpsPeriodCache/foodBeverageFromPeriodCache'
 import { contractsByTeamFromSnapshot, revenueFromSnapshotSections } from './revenue'
 import type { WorkerShiftTimeMaps } from './workerShiftTimes'
 
@@ -126,8 +127,9 @@ export async function buildVenueStripCardFromSnapshots(
   const snapLabor = batch.laborByLoc.get(venue.locationId) ?? null
   const snapProducts = batch.productsByLoc.get(venue.locationId) ?? null
 
+  const periodFoodBev = await loadFoodBeverageForDay(db, ctx.startDate, venue.locationId)
   const { totalRevenue, food, beverage, totalIncVat, foodIncVat, beverageIncVat } =
-    revenueFromSnapshotSections(snapRev, snapProducts)
+    revenueFromSnapshotSections(snapRev, snapProducts, periodFoodBev)
 
   const revenue = {
     total: totalRevenue,

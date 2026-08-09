@@ -1,8 +1,10 @@
-# Architecture Decision Records (ADR)
+# Architecture Decision Records (ADR) — Legacy (pre period-cache)
 
-Append-only log of locked decisions. When changing behavior that contradicts an ADR, add a new ADR that supersedes the old one — do not edit history in place.
+This document is **historical record** for the legacy `daily_ops_read_cache` / live-GET path only. It is **not authoritative** for the period-cache migration (unified day→week→month→year cache for Revenue / Labor / COGS / Staff). For that domain, see **[PERIOD_CACHE_ADR.md](./PERIOD_CACHE_ADR.md)** — sole authority (L1–L4).
 
-**Related:** [ARCHITECTURE.md](./ARCHITECTURE.md) · [ROADMAP.md](./ROADMAP.md)
+Append-only log of locked decisions for legacy surfaces still on the old path. When changing behavior that contradicts an ADR, add a new ADR that supersedes the old one — do not edit history in place.
+
+**Related:** [ARCHITECTURE.md](./ARCHITECTURE.md) · [ROADMAP.md](./ROADMAP.md) · [PERIOD_CACHE_ADR.md](./PERIOD_CACHE_ADR.md)
 
 ---
 
@@ -663,41 +665,6 @@ API endpoint (`bundle.get.ts`) intelligently serves from the appropriate cache l
 4. **ADR-020 labor load:** Snapshot `buildLaborSection` scales `loaded_cost` by Finance÷ops sealed ratios (2026 venue table in `accountingPnlLaborMultiplier`). Rebuild labor snapshots required after deploy.
 
 **Related:** ADR-004, ADR-013, ADR-014, ADR-019, ADR-020, ADR-021
-
----
-
-## ADR-023 — Additive Revenue period-cache (Phase 1, parallel collection)
-
-**Status:** Accepted (2026-08-08)  
-**Extends:** ADR-004, ADR-010, ADR-013 (additive; does not supersede GET cutover yet)
-
-**Context:** Multi-profile `daily_ops_read_cache` plus live GET paths for BE/Est. net produced inconsistent Revenue KPIs (food/bev drift, period composition bugs). We need one hierarchical period document shape with write-time sealing, without risking production UI mid-migration.
-
-**Decision:**
-
-1. **New collection** `daily_ops_period_cache` keyed by `{ locationId, level, periodKey }` where `level` ∈ `day|week|month|year`. Payload = unified `DailyOpsPeriodNode` (revenue + labor pass-through + COGS + ratios + staff stub).
-2. **Parallel, additive:** Existing `daily_ops_read_cache` and all GET consumers stay untouched in Phase 1. No page cutover until validation gate passes.
-3. **Cascade:** Day nodes built from sealed snapshot sections → week (7 days) → month (days) → year (months). Rollups = totals + `childKeys` only (no embedded hourly/product detail).
-4. **Food/beverage priority (no silent guessing):**
-   1. Inbox/snapshot category groupings when present
-   2. Bork `product_catalog.category` for product lines
-   3. Regex name-match only as last resort — product IDs recorded in `provenance.regexFallbackProductIds` for ops follow-up
-5. **Ratios:** Separate `daily_ops_ratio_snapshots` written from Finance assumptions refresh; day nodes reference `ratioAsOf`.
-6. **Business day:** All keys use register `business_date` (ADR-010). Open register day → `status: open`; closed with inbox/Bork headline → `ops_sealed`.
-7. **Non-goals (Phase 2+):** BE/Est.net GET cutover, Labor/Staff deep sections, retiring `daily_ops_read_cache` profiles, ADR ladder rewrite.
-
-**Apply map:**
-
-| Surface | File |
-|--------|------|
-| Types | `types/daily-ops-period-cache.ts` |
-| Store / classify / build / seal / cascade / ratios / resolve | `server/utils/dailyOpsPeriodCache/*` |
-| Finance hook | `server/utils/accountingPnl/refreshFinanceAssumptions.ts` |
-| CLI | `scripts/backfill-period-cache.ts`, `scripts/validate-period-cache.ts` |
-
-**Consequences:** Run chunked backfill + `validate-period-cache` before any UI wiring. Phase 2 plans cutovers only after the validation report is clean.
-
-**Related:** ADR-004, ADR-006, ADR-010, ADR-013, ADR-019, ADR-022
 
 ---
 

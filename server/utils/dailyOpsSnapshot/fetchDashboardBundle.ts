@@ -47,7 +47,7 @@ import { buildRevenueDrilldownSection } from './buildRevenueDrilldownSection'
 import { assembleLaborFromSnapshots } from './dashboardBundle/assembleLaborDto'
 import {
   buildHourBundleFromSnapshots,
-  categoryTotalsFromProducts,
+  categoryTotalsFromPeriodCacheOrProducts,
   mergeHourlySnapshotSections,
 } from './dashboardBundle/hourBundle'
 import { contractRollupsFromSnapshotLabor } from './dashboardBundle/laborContractRollups'
@@ -104,7 +104,11 @@ export async function fetchDailyOpsDashboardBundle(
     rows.revenue,
     rows.labor,
   )
-  const cat = categoryTotalsFromProducts(rows.products)
+  const cat = await categoryTotalsFromPeriodCacheOrProducts(
+    db,
+    { startDate: ctx.startDate, endDate: ctx.endDate, locationId: ctx.locationId },
+    rows.products,
+  )
   const mergedHourly = mergeHourlySnapshotSections(rows.hourly, rows.revenue)
   const hourBundle = buildHourBundleFromSnapshots(mergedHourly, [])
   const headlineRevenueByLocDay = buildHeadlineRevenueByLocDay(rows.revenue)

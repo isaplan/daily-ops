@@ -3,8 +3,8 @@
  * @created: 2026-08-08T21:20:00.000Z
  * @last-modified: 2026-08-08T21:20:00.000Z
  * @description: Day → week → month → year cascade for daily_ops_period_cache
- * @last-fix: [2026-08-08] Totals-only rollups with childKeys refs
- * @adr-ref: ADR-010, ADR-023
+ * @last-fix: [2026-08-09] @adr-ref → PERIOD_CACHE_ADR L2
+ * @adr-ref: PERIOD_CACHE_ADR L2
  * @data-source: period-cache
  * @write-cache-json: daily_ops_period_cache · day→week→month→year
  *

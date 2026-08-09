@@ -1,10 +1,11 @@
 /**
  * @registry-id: dailyOpsMetricsBreakEvenGet
  * @created: 2026-07-24T11:35:00.000Z
- * @last-modified: 2026-08-05T00:30:00.000Z
- * @last-fix: [2026-08-05] Open-month CM estimate + blended source (ADR-022); transitional live GET
- * @adr-ref: ADR-013, ADR-014, ADR-019, ADR-022
- * @data-source: app_settings (break_even_assumptions)
+ * @last-modified: 2026-08-09T00:30:00.000Z
+ * @last-fix: [2026-08-09] GET reads period-cache only (PERIOD_CACHE_ADR L2/L4)
+ * @adr-ref: PERIOD_CACHE_ADR L2, L3, L4
+ * @data-source: period-cache
+ * @read-cache-json: daily_ops_period_cache
  *
  * @exports-to:
  * ✓ components/daily-ops/DailyOpsKpiTiles.vue
@@ -14,9 +15,9 @@
 
 import { getDb } from '../../../utils/db'
 import {
-  resolveBreakEven,
-  resolveBreakEvenBundle,
-} from '../../../utils/dailyOpsMetrics/resolveBreakEven'
+  resolveBreakEvenBundleFromPeriodCache,
+  resolveBreakEvenFromPeriodCache,
+} from '../../../utils/dailyOpsPeriodCache/resolveBreakEvenFromPeriodCache'
 import type { DailyOpsBreakEvenBundleDto, DailyOpsBreakEvenDto } from '~/types/break-even'
 
 function parseVenueRevenue (raw: unknown): Record<string, number> | undefined {
@@ -65,6 +66,6 @@ export default defineEventHandler(async (event): Promise<DailyOpsBreakEvenDto | 
     venueRevenueByLocationId,
   }
 
-  if (includeVenues) return resolveBreakEvenBundle(db, input)
-  return resolveBreakEven(db, input)
+  if (includeVenues) return resolveBreakEvenBundleFromPeriodCache(db, input)
+  return resolveBreakEvenFromPeriodCache(db, input)
 })

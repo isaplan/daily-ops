@@ -1,5 +1,5 @@
 /**
- * Validate daily_ops_period_cache vs legacy snapshots (ADR-023 Phase 1 gate).
+ * Validate daily_ops_period_cache vs legacy snapshots (PERIOD_CACHE_ADR L2 gate).
  *
  * Checks:
  * 1. Day-node revenue/food/bev vs snapshot revenue + products sections

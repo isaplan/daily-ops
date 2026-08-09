@@ -42,6 +42,8 @@ export type OpsNotificationKind =
   | 'adr004_live_bork_on_revenue_get'
   | 'monolithic_module'
   | 'daily_ops_iso_calendar_misuse'
+  // Period-cache food/bev (PERIOD_CACHE_ADR L3)
+  | 'period_cache_food_bev_regex_gap'
 
 export type OpsNotificationDto = {
   id: string
