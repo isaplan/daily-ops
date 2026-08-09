@@ -1,8 +1,9 @@
 /**
  * @registry-id: dailyOpsRevenueFetchStaffAndTables
- * @last-modified: 2026-08-09T00:50:00.000Z
- * @description: Per-staff / per-table revenue — snapshot detail sections (not yet on period-cache)
- * @last-fix: [2026-08-09] Explicit warn: period-cache day nodes lack tables/worker-revenue
+ * @created: 2026-05-20T00:00:00.000Z
+ * @last-modified: 2026-08-09T15:50:00.000Z
+ * @description: Per-staff / per-table revenue from period-cache day nodes (GET)
+ * @last-fix: [2026-08-09] ZERO GET — period-cache byWorker/byTable only (no snapshot)
  * @adr-ref: ADR-004, PERIOD_CACHE_ADR L2
  *
  * @exports-to:
@@ -17,10 +18,10 @@ import type {
   DailyOpsRevenueStaffRow,
   DailyOpsRevenueTableRow,
 } from '~/types/daily-ops-revenue'
-import { DAILY_OPS_SNAPSHOT_COLLECTIONS } from '~/types/daily-ops-snapshot'
 import { LOCATION_SPACE_LABELS, type LocationSpaceId } from './locationSpaces'
+import { loadPeriodDayNodesForRange } from '../dailyOpsPeriodCache/loadPeriodDayNodesForRange'
 
-function round2(n: number): number {
+function round2 (n: number): number {
   return Math.round(n * 100) / 100
 }
 
@@ -28,32 +29,21 @@ export async function fetchStaffRevenue (
   db: Db,
   ctx: DailyOpsRevenueQueryContext,
 ): Promise<DailyOpsRevenueStaffRow[]> {
-  console.warn(
-    `[period-cache] per-staff revenue still snapshot-section ${ctx.startDate}..${ctx.endDate} (no worker-revenue on day nodes yet)`,
-  )
-  const filter: Record<string, unknown> = {
-    businessDate: { $gte: ctx.startDate, $lte: ctx.endDate },
-  }
-  if (ctx.locationId) filter.locationId = ctx.locationId
-
-  const snaps = await db.collection(DAILY_OPS_SNAPSHOT_COLLECTIONS.revenueWorkersSection).find(filter).toArray()
+  const nodes = await loadPeriodDayNodesForRange(db, {
+    startDate: ctx.startDate,
+    endDate: ctx.endDate,
+    locationId: ctx.locationId ?? 'all',
+  })
   const map = new Map<string, { revenue: number; orderCount: number; quantity: number }>()
-  for (const s of snaps) {
-    const workers =
-      (s as {
-        workers?: Array<{
-          workerName: string
-          revenue_ex_vat: number
-          order_count: number
-          quantity: number
-        }>
-      }).workers ?? []
-    for (const w of workers) {
-      const cur = map.get(w.workerName) ?? { revenue: 0, orderCount: 0, quantity: 0 }
-      cur.revenue += w.revenue_ex_vat
-      cur.orderCount += w.order_count
-      cur.quantity += w.quantity
-      map.set(w.workerName, cur)
+  for (const n of nodes) {
+    for (const w of n.revenue.byWorker ?? []) {
+      const name = w.workerName || w.workerId
+      if (!name) continue
+      const cur = map.get(name) ?? { revenue: 0, orderCount: 0, quantity: 0 }
+      cur.revenue += w.exVat
+      cur.orderCount += w.orderCount
+      cur.quantity += w.qty
+      map.set(name, cur)
     }
   }
   return [...map.entries()]
@@ -71,31 +61,22 @@ export async function fetchTableRevenue (
   ctx: DailyOpsRevenueQueryContext,
   spaceFilter?: string,
 ): Promise<DailyOpsRevenueTableRow[]> {
-  console.warn(
-    `[period-cache] per-table revenue still snapshot-section ${ctx.startDate}..${ctx.endDate} (no tables on day nodes yet)`,
-  )
-  const filter: Record<string, unknown> = {
-    businessDate: { $gte: ctx.startDate, $lte: ctx.endDate },
-  }
-  if (ctx.locationId) filter.locationId = ctx.locationId
-
-  const snaps = await db.collection(DAILY_OPS_SNAPSHOT_COLLECTIONS.revenueTablesSection).find(filter).toArray()
+  const nodes = await loadPeriodDayNodesForRange(db, {
+    startDate: ctx.startDate,
+    endDate: ctx.endDate,
+    locationId: ctx.locationId ?? 'all',
+  })
   const map = new Map<string, { revenue: number; itemsCount: number; locationSpace: string }>()
-  for (const s of snaps) {
-    const tables =
-      (s as {
-        tables?: Array<{
-          tableNum: string
-          locationSpace: string
-          revenue_ex_vat: number
-          quantity: number
-        }>
-      }).tables ?? []
-    for (const t of tables) {
+  for (const n of nodes) {
+    for (const t of n.revenue.byTable ?? []) {
       if (spaceFilter && t.locationSpace !== spaceFilter) continue
-      const cur = map.get(t.tableNum) ?? { revenue: 0, itemsCount: 0, locationSpace: t.locationSpace }
-      cur.revenue += t.revenue_ex_vat
-      cur.itemsCount += t.quantity
+      const cur = map.get(t.tableNum) ?? {
+        revenue: 0,
+        itemsCount: 0,
+        locationSpace: t.locationSpace,
+      }
+      cur.revenue += t.exVat
+      cur.itemsCount += t.qty
       map.set(t.tableNum, cur)
     }
   }
@@ -109,7 +90,7 @@ export async function fetchTableRevenue (
     .sort((a, b) => b.revenue - a.revenue)
 }
 
-export async function fetchLocationSpaceSplit(
+export async function fetchLocationSpaceSplit (
   db: Db,
   ctx: DailyOpsRevenueQueryContext,
 ): Promise<Array<{ space: string; revenue: number; itemsCount: number; revenuePerItem: number }>> {

@@ -1,11 +1,11 @@
 /**
  * @registry-id: fetchRevenueAverages
  * @created: 2026-07-25T11:20:00.000Z
- * @last-modified: 2026-07-25T11:20:00.000Z
- * @description: Snapshot-only revenue averages + YoY for dashboard period
- * @last-fix: [2026-07-25] Batch read revenueSection; weekday/week/month windows
- * @adr-ref: ADR-004, ADR-006
- * @data-source: snapshot
+ * @last-modified: 2026-08-09T15:50:00.000Z
+ * @description: Period-cache revenue averages + YoY for dashboard period
+ * @last-fix: [2026-08-09] ZERO GET — period-cache day nodes (no snapshot revenue section)
+ * @adr-ref: ADR-004, ADR-006, PERIOD_CACHE_ADR L2
+ * @data-source: period-cache
  *
  * @exports-to:
  * ✓ server/api/daily-ops/metrics/revenue-averages.get.ts
@@ -17,13 +17,10 @@ import type {
   RevenueAverageCompareSlice,
   RevenueAverageVenueDto,
 } from '~/types/revenue-averages'
-import {
-  DAILY_OPS_SNAPSHOT_COLLECTIONS,
-  type DailyOpsSnapshotRevenueSection,
-} from '~/types/daily-ops-snapshot'
 import { resolveDailyOpsPeriod } from '~/utils/dailyOpsPeriod'
 import { VENUE_STRIP_LOCATIONS } from '../venueStrip/constants'
-import { headlineExVatFromSnapshotSection } from '../dailyOpsSnapshot/snapshotHeadlineRevenue'
+import { DAILY_OPS_PERIOD_CACHE_COLLECTION } from '../dailyOpsPeriodCache/store'
+import type { DailyOpsPeriodNode } from '~/types/daily-ops-period-cache'
 import {
   averageLabel,
   classifyAverageKind,
@@ -80,17 +77,19 @@ async function loadRevenueMap (
   if (!dates.length || !locationIds.length) return out
 
   const rows = await db
-    .collection<DailyOpsSnapshotRevenueSection>(DAILY_OPS_SNAPSHOT_COLLECTIONS.revenueSection)
+    .collection(DAILY_OPS_PERIOD_CACHE_COLLECTION)
     .find({
-      businessDate: { $in: dates },
+      level: 'day',
+      periodKey: { $in: dates },
       locationId: { $in: locationIds },
     })
-    .project({ businessDate: 1, locationId: 1, totals: 1, orderHourly: 1, leadSource: 1 })
+    .project({ periodKey: 1, locationId: 1, 'revenue.exVat': 1 })
     .toArray()
 
   for (const row of rows) {
-    const rev = headlineExVatFromSnapshotSection(row)
-    if (rev > 0) out.set(locDay(row.locationId, row.businessDate), rev)
+    const node = row as unknown as Pick<DailyOpsPeriodNode, 'periodKey' | 'locationId' | 'revenue'>
+    const rev = Number(node.revenue?.exVat ?? 0)
+    if (rev > 0) out.set(locDay(node.locationId, node.periodKey), rev)
   }
   return out
 }

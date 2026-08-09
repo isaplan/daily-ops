@@ -1,9 +1,9 @@
 /**
  * @registry-id: dailyOpsStaffFetchDailyLabor
  * @created: 2026-06-25T12:00:00.000Z
- * @last-modified: 2026-08-09T00:50:00.000Z
+ * @last-modified: 2026-08-09T15:50:00.000Z
  * @description: Daily labor + headcount from period-cache day nodes (GET)
- * @last-fix: [2026-08-09] Period-cache first; logged snapshot fallback on miss
+ * @last-fix: [2026-08-09] ZERO GET — period-cache only; miss → [] (no snapshot)
  *   Prior: [2026-06-29] Overlay members contract on snapshot workers missing contractType
  * @adr-ref: ADR-004, ADR-006, PERIOD_CACHE_ADR L2
  *
@@ -52,18 +52,6 @@ function round2(n: number): number {
   return Math.round(n * 100) / 100
 }
 
-function gewerktHours(doc: Pick<DailyOpsSnapshotLaborSection, 'totals_gewerkt' | 'operational' | 'totals'>): number {
-  const g = doc.totals_gewerkt?.hours ?? doc.operational?.gewerkt?.hours
-  if (g != null && g > 0) return g
-  return Number(doc.totals?.hours ?? 0)
-}
-
-function teamGewerktHours(team: { hours?: number; gewerkt?: { hours?: number } }): number {
-  const g = team.gewerkt?.hours
-  if (g != null && g > 0) return g
-  return Number(team.hours ?? 0)
-}
-
 function workerKey(w: { userId?: string; userName?: string }): string {
   return String(w.userId ?? w.userName ?? '').trim()
 }
@@ -79,12 +67,6 @@ function collectWorkerIds(
     if (id) ids.add(id)
   }
   return [...ids]
-}
-
-function countActiveWorkers(
-  workers: DailyOpsSnapshotLaborSection['workers'] | undefined,
-): number {
-  return collectWorkerIds(workers).length
 }
 
 function buildContractBuckets(
@@ -255,70 +237,6 @@ export async function fetchStaffDailyLaborRows (
     endDate,
     locationId: locationId ?? 'all',
   })
-  if (nodes.length > 0) {
-    return rowsFromPeriodNodes(nodes, contractIndex)
-  }
-
-  console.warn(
-    `[period-cache] staff daily labor miss ${startDate}..${endDate} loc=${locationId ?? 'all'} — snapshot fallback`,
-  )
-
-  const filter: Record<string, unknown> = {
-    businessDate: { $gte: startDate, $lte: endDate },
-  }
-  if (locationId) filter.locationId = locationId
-
-  const docs = await db
-    .collection<DailyOpsSnapshotLaborSection>('daily_ops_snapshot_section_labor')
-    .find(filter)
-    .project({
-      businessDate: 1,
-      locationId: 1,
-      locationName: 1,
-      totals: 1,
-      totals_gewerkt: 1,
-      operational: 1,
-      teams: 1,
-      workers: 1,
-    })
-    .toArray()
-
-  return docs.map((raw) => {
-    const d = raw as DailyOpsSnapshotLaborSection
-    const workers = enrichLaborWorkersFromMembers(d.workers, contractIndex)
-    const teams = Array.isArray(d.teams) ? d.teams : []
-    const gewerkt = round2(gewerktHours(d))
-    const laborLoaded =
-      Number(d.operational?.gewerkt?.loaded_cost ?? d.totals_gewerkt?.loaded_cost ?? d.totals?.loaded_cost ?? 0)
-    const { buckets, workerIds: contractWorkerIds } = buildContractBuckets(workers, gewerkt)
-    const workerIds = collectWorkerIds(workers)
-    return {
-      date: String(d.businessDate),
-      locationId: String(d.locationId),
-      locationName: String(d.locationName ?? d.locationId),
-      hours: round2(Number(d.totals?.hours ?? 0)),
-      gewerkt_hours: gewerkt,
-      staff_count: workerIds.length,
-      workerIds,
-      labor_loaded_cost: round2(laborLoaded),
-      byContract: buckets,
-      contractWorkerIds,
-      teams: teams.map((t) => {
-        const teamName = String(t.teamName ?? 'Other')
-        const teamWorkerIds = collectTeamWorkerIds(workers, teamName)
-        const teamGewerkt = round2(teamGewerktHours(t))
-        const { buckets: teamByContract, workerIds: teamContractWorkerIds } =
-          buildTeamContractFromWorkers(workers, teamName, teamGewerkt)
-        return {
-          teamName,
-          hours: round2(Number(t.hours ?? 0)),
-          gewerkt_hours: teamGewerkt,
-          staff_count: teamWorkerIds.length,
-          workerIds: teamWorkerIds,
-          byContract: teamByContract,
-          contractWorkerIds: teamContractWorkerIds,
-        }
-      }),
-    }
-  })
+  if (nodes.length === 0) return []
+  return rowsFromPeriodNodes(nodes, contractIndex)
 }

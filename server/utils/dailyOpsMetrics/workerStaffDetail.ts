@@ -1,9 +1,10 @@
 /**
  * @registry-id: dailyOpsMetricsWorkerStaffDetail
  * @created: 2026-05-28T00:00:00.000Z
- * @last-modified: 2026-05-28T00:00:00.000Z
- * @description: Worker staff detail drawer — Eitje agg rows + snapshot revenue attribution
- * @adr-ref: ADR-004
+ * @last-modified: 2026-08-09T15:50:00.000Z
+ * @description: Worker staff detail drawer from period-cache staff.workers + day revenue
+ * @last-fix: [2026-08-09] ZERO GET — period-cache only (no live Eitje agg / snapshot)
+ * @adr-ref: ADR-004, PERIOD_CACHE_ADR L2
  *
  * @exports-to:
  * ✓ server/utils/dailyOpsDashboardMetrics.ts (barrel)
@@ -11,66 +12,18 @@
  */
 
 import type { Db } from 'mongodb'
-import { ObjectId } from 'mongodb'
 import type { DailyOpsWorkerStaffDetailDto } from '~/types/daily-ops-dashboard'
-import { fetchSnapshotRevenueByDateAndLocation } from '../dailyOpsRevenue/revenueBenchmark'
+import { loadPeriodDayNodesForRange } from '../dailyOpsPeriodCache/loadPeriodDayNodesForRange'
+import {
+  buildWorkerContractIndex,
+  enrichLaborWorkersFromMembers,
+} from '../dailyOpsStaff/resolveWorkerContractFromMembers'
 import type { DailyOpsMetricsContext } from './context'
 
 const LOC_DAY_KEY_SEP = '\x1f'
 
-export function locationDayKey(date: string, locationId: string): string {
+export function locationDayKey (date: string, locationId: string): string {
   return `${date}${LOC_DAY_KEY_SEP}${String(locationId)}`
-}
-
-function eitjeAggMatch(ctx: DailyOpsMetricsContext): Record<string, unknown> {
-  const q: Record<string, unknown> = {
-    period_type: 'day',
-    period: { $gte: ctx.startDate, $lte: ctx.endDate },
-  }
-  if (ctx.locationId !== undefined) {
-    try {
-      const objId = new ObjectId(ctx.locationId)
-      q.locationId = { $in: [objId, ctx.locationId] }
-    } catch {
-      q.locationId = ctx.locationId
-    }
-  }
-  return q
-}
-
-const EITJE_AGG_MEMBER_LOOKUP = {
-  $lookup: {
-    from: 'members',
-    let: { uid: { $toString: '$userId' } },
-    pipeline: [
-      {
-        $match: {
-          $expr: {
-            $or: [
-              { $eq: [{ $toString: '$eitje_id' }, '$$uid'] },
-              {
-                $gt: [
-                  {
-                    $size: {
-                      $filter: {
-                        input: { $ifNull: ['$eitje_ids', []] },
-                        as: 'x',
-                        cond: { $eq: [{ $toString: '$$x' }, '$$uid'] },
-                      },
-                    },
-                  },
-                  0,
-                ],
-              },
-            ],
-          },
-        },
-      },
-      { $limit: 1 },
-      { $project: { contract_type: 1, first_name: 1, last_name: 1, name: 1 } },
-    ],
-    as: '_m',
-  },
 }
 
 export type WorkerStaffDetailRow = {
@@ -86,73 +39,7 @@ export type WorkerStaffDetailRow = {
   totalCost: number
 }
 
-async function fetchWorkerStaffDetailRows(
-  db: Db,
-  ctx: DailyOpsMetricsContext,
-): Promise<WorkerStaffDetailRow[]> {
-  return (await db
-    .collection('eitje_time_registration_aggregation')
-    .aggregate([
-      { $match: eitjeAggMatch(ctx) },
-      EITJE_AGG_MEMBER_LOOKUP,
-      {
-        $addFields: {
-          contractType: {
-            $ifNull: [{ $arrayElemAt: ['$_m.contract_type', 0] }, '-'],
-          },
-          staffName: {
-            $let: {
-              vars: {
-                memberName: {
-                  $trim: {
-                    input: {
-                      $concat: [
-                        { $ifNull: [{ $arrayElemAt: ['$_m.first_name', 0] }, ''] },
-                        ' ',
-                        { $ifNull: [{ $arrayElemAt: ['$_m.last_name', 0] }, ''] },
-                      ],
-                    },
-                  },
-                },
-              },
-              in: {
-                $cond: [
-                  { $gt: [{ $strLenCP: '$$memberName' }, 0] },
-                  '$$memberName',
-                  {
-                    $ifNull: [
-                      { $arrayElemAt: ['$_m.name', 0] },
-                      { $ifNull: ['$user_name', 'Unknown'] },
-                    ],
-                  },
-                ],
-              },
-            },
-          },
-        },
-      },
-      {
-        $project: {
-          _id: 0,
-          date: '$period',
-          locationId: { $toString: '$locationId' },
-          locationName: { $ifNull: ['$location_name', ''] },
-          teamId: { $toString: '$teamId' },
-          teamName: { $ifNull: ['$team_name', ''] },
-          userId: { $toString: { $ifNull: ['$userId', ''] } },
-          staffName: 1,
-          contractType: 1,
-          totalHours: { $round: [{ $ifNull: ['$total_hours', 0] }, 2] },
-          totalCost: { $round: [{ $ifNull: ['$total_cost', 0] }, 2] },
-        },
-      },
-      { $match: { userId: { $ne: '' } } },
-      { $sort: { date: 1, locationName: 1, teamName: 1, staffName: 1 } },
-    ])
-    .toArray()) as WorkerStaffDetailRow[]
-}
-
-function buildWorkerStaffDetailDto(
+function buildWorkerStaffDetailDto (
   workerStaffDetailRaw: WorkerStaffDetailRow[],
   revByDateLocation: Map<string, number>,
 ): DailyOpsWorkerStaffDetailDto[] {
@@ -178,13 +65,68 @@ function buildWorkerStaffDetailDto(
   })
 }
 
-export async function fetchWorkerStaffDetailMetrics(
+export async function fetchWorkerStaffDetailMetrics (
   db: Db,
   ctx: DailyOpsMetricsContext,
 ): Promise<DailyOpsWorkerStaffDetailDto[]> {
-  const [workerStaffDetailRaw, revByDateLocation] = await Promise.all([
-    fetchWorkerStaffDetailRows(db, ctx),
-    fetchSnapshotRevenueByDateAndLocation(db, ctx.startDate, ctx.endDate, ctx.locationId),
+  const locationId = ctx.locationId ?? 'all'
+  const [nodes, contractIndex] = await Promise.all([
+    loadPeriodDayNodesForRange(db, {
+      startDate: ctx.startDate,
+      endDate: ctx.endDate,
+      locationId,
+    }),
+    buildWorkerContractIndex(db),
   ])
-  return buildWorkerStaffDetailDto(workerStaffDetailRaw, revByDateLocation)
+
+  const revByDateLocation = new Map<string, number>()
+  const rows: WorkerStaffDetailRow[] = []
+
+  for (const n of nodes) {
+    // Prefer venue child keys when reading "all" — use node itself for single venue.
+    if (n.locationId === 'all' && locationId === 'all') {
+      // Combined day node has workers but may lack per-venue attribution; still usable.
+    }
+    revByDateLocation.set(locationDayKey(n.periodKey, n.locationId), Number(n.revenue.exVat ?? 0))
+
+    const pseudoWorkers = (n.staff.workers ?? []).map((w) => ({
+      userId: w.memberId,
+      userName: w.memberId,
+      teamId: w.team,
+      teamName: w.team,
+      hours: w.hours,
+      wage_cost: w.wage,
+      loaded_cost: w.wage,
+      contractType: '',
+      hourly_rate: null,
+      cost_per_hour: null,
+      loaded_cost_fallback: false,
+    })) as NonNullable<import('~/types/daily-ops-snapshot').DailyOpsSnapshotLaborSection['workers']>
+    const enriched = enrichLaborWorkersFromMembers(pseudoWorkers, contractIndex)
+    for (const w of enriched) {
+      const userId = String(w.userId ?? '').trim()
+      if (!userId || Number(w.hours ?? 0) <= 0) continue
+      rows.push({
+        date: n.periodKey,
+        locationId: n.locationId,
+        locationName: n.locationName,
+        teamId: String(w.teamId ?? w.teamName ?? ''),
+        teamName: String(w.teamName ?? ''),
+        userId,
+        staffName: String(w.userName ?? userId),
+        contractType: String(w.contractType ?? '-'),
+        totalHours: Math.round(Number(w.hours ?? 0) * 100) / 100,
+        totalCost: Math.round(Number(w.wage_cost ?? w.loaded_cost ?? 0) * 100) / 100,
+      })
+    }
+  }
+
+  rows.sort((a, b) =>
+    a.date.localeCompare(b.date)
+    || a.locationName.localeCompare(b.locationName)
+    || a.teamName.localeCompare(b.teamName)
+    || a.staffName.localeCompare(b.staffName),
+  )
+
+  return buildWorkerStaffDetailDto(rows, revByDateLocation)
 }

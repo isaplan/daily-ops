@@ -1,38 +1,37 @@
 /**
  * @registry-id: dailyOpsRevenueFetchOrderPaymentRhythm
- * @last-modified: 2026-05-24T15:30:00.000Z
- * @last-fix: [2026-05-24] ADR-004: hourly snapshot only; no bork_raw_data on GET
- * @adr-ref: ADR-004
+ * @created: 2026-05-20T00:00:00.000Z
+ * @last-modified: 2026-08-09T15:50:00.000Z
+ * @description: Order/payment rhythm by hour from period-cache byHour qty
+ * @last-fix: [2026-08-09] ZERO GET — period-cache only (no snapshot hourly section)
+ * @adr-ref: ADR-004, PERIOD_CACHE_ADR L2
+ *
+ * @exports-to:
+ * ✓ server/api/daily-ops/revenue/order-payment-rhythm.get.ts
+ * ✓ server/api/daily-ops/productivity/order-payment-rhythm.get.ts
  */
+
 import type { Db } from 'mongodb'
 import type { DailyOpsOrderPaymentRhythmPoint, DailyOpsRevenueQueryContext } from '~/types/daily-ops-revenue'
-import { DAILY_OPS_SNAPSHOT_COLLECTIONS } from '~/types/daily-ops-snapshot'
+import { loadPeriodDayNodesForRange } from '../dailyOpsPeriodCache/loadPeriodDayNodesForRange'
 
-/** Order counts from revenue hourly snapshot (snapshot-only per ADR-004). */
-export async function fetchOrderPaymentRhythm(
+/** Order counts approximated from period-cache day byHour qty (write SSOT). */
+export async function fetchOrderPaymentRhythm (
   db: Db,
   ctx: DailyOpsRevenueQueryContext,
 ): Promise<DailyOpsOrderPaymentRhythmPoint[]> {
   const orderByHour = Array.from({ length: 24 }, () => 0)
+  const nodes = await loadPeriodDayNodesForRange(db, {
+    startDate: ctx.startDate,
+    endDate: ctx.endDate,
+    locationId: ctx.locationId ?? 'all',
+  })
 
-  const filter: Record<string, unknown> = {
-    businessDate: { $gte: ctx.startDate, $lte: ctx.endDate },
-  }
-  if (ctx.locationId) filter.locationId = ctx.locationId
-
-  const hourlySnaps = await db
-    .collection(DAILY_OPS_SNAPSHOT_COLLECTIONS.revenueHourlySection)
-    .find(filter)
-    .toArray()
-
-  for (const snap of hourlySnaps) {
-    const hourly = (snap as { hourly?: Array<{ business_hour: number; record_count?: number; quantity?: number }> })
-      .hourly
-    if (!hourly) continue
-    for (const h of hourly) {
-      const hour = Number(h.business_hour)
+  for (const n of nodes) {
+    for (const h of n.revenue.byHour ?? []) {
+      const hour = Number(h.hour)
       if (hour >= 0 && hour < 24) {
-        orderByHour[hour]! += Number(h.record_count ?? h.quantity ?? 0)
+        orderByHour[hour]! += Number(h.qty ?? 0)
       }
     }
   }

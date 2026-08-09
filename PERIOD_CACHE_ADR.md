@@ -152,4 +152,6 @@ If L4 conflicts with a clever GET shortcut, **L2 + L3 win**.
 
 Retired (no new writes): `revenue-categories`, `revenue-products`, `revenue-summary`, `revenue-timeseries`, `revenue-rolling-medians`, `staff-timeseries`, `staff-plusmin` — see `server/utils/dailyOpsReadCache/retiredProfiles.ts`.
 
-Legacy-active writers (UI still reads): `dashboard-bundle`, `weekly-digest`. BE / food-bev / ratios already ignore these.
+**Residual (intentional):** `dashboard-bundle` + `weekly-digest` remain **prebuilt read-cache** writers. GET is cache-first / dataGap on miss — **never live assemble**. Deleting these profiles waits until the full dashboard + weekly-report DTOs are served from `daily_ops_period_cache` alone.
+
+**ZERO GET (2026-08-09):** Revenue range/series/hourly/staff-table/order-rhythm/averages and staff labor timeseries read period-cache only; snapshot fallback on GET removed. Day nodes seal `revenue.byWorker` / `revenue.byTable` from snapshot sections at write time.

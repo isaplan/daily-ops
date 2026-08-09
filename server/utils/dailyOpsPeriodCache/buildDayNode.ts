@@ -1,10 +1,10 @@
 /**
  * @registry-id: dailyOpsPeriodCacheBuildDayNode
  * @created: 2026-08-08T21:20:00.000Z
- * @last-modified: 2026-08-09T01:05:00.000Z
+ * @last-modified: 2026-08-09T15:50:00.000Z
  * @description: Build one day-level DailyOpsPeriodNode from sealed snapshot sections
- * @last-fix: [2026-08-09] staff.workers feeds attendance/plusmin GET (PERIOD_CACHE_ADR L2)
- *   Prior: [2026-08-09] @adr-ref → PERIOD_CACHE_ADR L2/L3; staff.workers from labor section
+ * @last-fix: [2026-08-09] Seal byWorker/byTable from snapshot workers/tables sections
+ *   Prior: [2026-08-09] staff.workers feeds attendance/plusmin GET (PERIOD_CACHE_ADR L2)
  * @adr-ref: PERIOD_CACHE_ADR L2, L3
  * @data-source: snapshot-sections
  * @write-cache-json: daily_ops_period_cache · level=day
@@ -20,12 +20,16 @@ import type {
   DailyOpsPeriodNode,
   PeriodLeadRevenueSource,
   PeriodRatioSource,
+  PeriodTableRevenueRow,
+  PeriodWorkerRevenueRow,
 } from '~/types/daily-ops-period-cache'
 import {
   DAILY_OPS_SNAPSHOT_COLLECTIONS,
   type DailyOpsSnapshotLaborSection,
   type DailyOpsSnapshotRevenueProductsSection,
   type DailyOpsSnapshotRevenueSection,
+  type DailyOpsSnapshotRevenueTablesSection,
+  type DailyOpsSnapshotRevenueWorkersSection,
 } from '~/types/daily-ops-snapshot'
 import { DEFAULT_PNL_ASSUMPTIONS } from '~/utils/dailyOpsPnlAssumptionsDefaults'
 import { VENUE_STRIP_LOCATIONS } from '../venueStrip/constants'
@@ -153,6 +157,55 @@ async function loadLaborSection (
     .findOne({ businessDate, locationId })
 }
 
+async function loadWorkersSection (
+  db: Db,
+  businessDate: string,
+  locationId: string,
+): Promise<DailyOpsSnapshotRevenueWorkersSection | null> {
+  return db
+    .collection<DailyOpsSnapshotRevenueWorkersSection>(
+      DAILY_OPS_SNAPSHOT_COLLECTIONS.revenueWorkersSection,
+    )
+    .findOne({ businessDate, locationId })
+}
+
+async function loadTablesSection (
+  db: Db,
+  businessDate: string,
+  locationId: string,
+): Promise<DailyOpsSnapshotRevenueTablesSection | null> {
+  return db
+    .collection<DailyOpsSnapshotRevenueTablesSection>(
+      DAILY_OPS_SNAPSHOT_COLLECTIONS.revenueTablesSection,
+    )
+    .findOne({ businessDate, locationId })
+}
+
+function workersRevenueFromSnapshot (
+  doc: DailyOpsSnapshotRevenueWorkersSection | null,
+): PeriodWorkerRevenueRow[] {
+  if (!doc?.workers?.length) return []
+  return doc.workers.map((w) => ({
+    workerId: String(w.workerId ?? ''),
+    workerName: String(w.workerName ?? ''),
+    exVat: round2(Number(w.revenue_ex_vat ?? 0)),
+    qty: Number(w.quantity ?? 0),
+    orderCount: Number(w.order_count ?? 0),
+  }))
+}
+
+function tablesRevenueFromSnapshot (
+  doc: DailyOpsSnapshotRevenueTablesSection | null,
+): PeriodTableRevenueRow[] {
+  if (!doc?.tables?.length) return []
+  return doc.tables.map((t) => ({
+    tableNum: String(t.tableNum ?? ''),
+    locationSpace: String(t.locationSpace ?? ''),
+    exVat: round2(Number(t.revenue_ex_vat ?? 0)),
+    qty: Number(t.quantity ?? 0),
+  }))
+}
+
 /**
  * Build a day node for one venue from existing snapshot sections.
  * Does not write — caller seals + upserts.
@@ -167,10 +220,12 @@ export async function buildDayNode (
     return { node: null, error: 'Use aggregateVenueDayNodes for locationId=all' }
   }
 
-  const [revenue, products, labor] = await Promise.all([
+  const [revenue, products, labor, workersSec, tablesSec] = await Promise.all([
     loadRevenueSection(db, businessDate, locationId),
     loadProductsSection(db, businessDate, locationId),
     loadLaborSection(db, businessDate, locationId),
+    loadWorkersSection(db, businessDate, locationId),
+    loadTablesSection(db, businessDate, locationId),
   ])
 
   if (!revenue) {
@@ -235,6 +290,8 @@ export async function buildDayNode (
     exVat: round2(Number(h.revenue?.ex_vat ?? 0)),
     qty: Number(h.quantity ?? 0),
   }))
+  const byWorker = workersRevenueFromSnapshot(workersSec)
+  const byTable = tablesRevenueFromSnapshot(tablesSec)
 
   const laborBlock = laborFromSnapshot(labor)
   const staffBlock = staffFromSnapshot(labor)
@@ -285,6 +342,8 @@ export async function buildDayNode (
       byCategory,
       byProductTop,
       byHour,
+      byWorker,
+      byTable,
       leadSource: mapLeadSource(revenue.leadSource),
     },
     labor: laborBlock,
@@ -310,6 +369,8 @@ export async function buildDayNode (
         DAILY_OPS_SNAPSHOT_COLLECTIONS.revenueSection,
         DAILY_OPS_SNAPSHOT_COLLECTIONS.revenueProductsSection,
         DAILY_OPS_SNAPSHOT_COLLECTIONS.laborSection,
+        DAILY_OPS_SNAPSHOT_COLLECTIONS.revenueWorkersSection,
+        DAILY_OPS_SNAPSHOT_COLLECTIONS.revenueTablesSection,
       ],
       lastBuiltAt: new Date().toISOString(),
       snapshotVersion: PERIOD_SNAPSHOT_VERSION,
@@ -337,6 +398,9 @@ export function aggregateVenueDayNodes (
   let cogsAmount = 0
   const regexIds = new Set<string>()
   const byTeamMap = new Map<string, { hours: number; loadedCost: number }>()
+  const workerRevMap = new Map<string, PeriodWorkerRevenueRow>()
+  const tableRevMap = new Map<string, PeriodTableRevenueRow>()
+  const staffWorkerMap = new Map<string, DailyOpsPeriodNode['staff']['workers'][number]>()
 
   for (const v of venues) {
     exVat += v.revenue.exVat
@@ -355,6 +419,39 @@ export function aggregateVenueDayNodes (
       prev.hours += t.hours
       prev.loadedCost += t.loadedCost
       byTeamMap.set(t.team, prev)
+    }
+    for (const w of v.revenue.byWorker ?? []) {
+      const key = w.workerId || w.workerName
+      if (!key) continue
+      const prev = workerRevMap.get(key)
+      if (prev) {
+        prev.exVat = round2(prev.exVat + w.exVat)
+        prev.qty += w.qty
+        prev.orderCount += w.orderCount
+      } else {
+        workerRevMap.set(key, { ...w })
+      }
+    }
+    for (const t of v.revenue.byTable ?? []) {
+      const key = `${t.tableNum}|${t.locationSpace}`
+      const prev = tableRevMap.get(key)
+      if (prev) {
+        prev.exVat = round2(prev.exVat + t.exVat)
+        prev.qty += t.qty
+      } else {
+        tableRevMap.set(key, { ...t })
+      }
+    }
+    for (const w of v.staff.workers ?? []) {
+      const key = w.memberId || `${w.team}|${w.hours}`
+      if (!key) continue
+      const prev = staffWorkerMap.get(key)
+      if (prev) {
+        prev.hours = round2(prev.hours + w.hours)
+        prev.wage = round2(prev.wage + w.wage)
+      } else {
+        staffWorkerMap.set(key, { ...w })
+      }
     }
   }
 
@@ -386,6 +483,8 @@ export function aggregateVenueDayNodes (
       byCategory: [],
       byProductTop: [],
       byHour: [],
+      byWorker: [...workerRevMap.values()],
+      byTable: [...tableRevMap.values()],
       leadSource: first?.revenue.leadSource ?? 'none',
     },
     labor: {
@@ -399,7 +498,7 @@ export function aggregateVenueDayNodes (
       })),
       staffCount,
     },
-    staff: { workers: [] },
+    staff: { workers: [...staffWorkerMap.values()] },
     cogs: {
       foodPct: first?.cogs.foodPct ?? DEFAULT_PNL_ASSUMPTIONS.foodCogsPct,
       bevPct: first?.cogs.bevPct ?? DEFAULT_PNL_ASSUMPTIONS.bevCogsPct,

@@ -1,9 +1,9 @@
 /**
  * @registry-id: dailyOpsPeriodCacheTypes
  * @created: 2026-08-08T21:20:00.000Z
- * @last-modified: 2026-08-08T21:20:00.000Z
+ * @last-modified: 2026-08-09T15:50:00.000Z
  * @description: Unified period-cache node + ratio snapshot shapes
- * @last-fix: [2026-08-09] @adr-ref → PERIOD_CACHE_ADR L1/L2
+ * @last-fix: [2026-08-09] Add day-level byWorker / byTable revenue rows
  * @adr-ref: PERIOD_CACHE_ADR L1, L2
  *
  * @exports-to:
@@ -56,6 +56,23 @@ export type PeriodHourRow = {
   qty: number
 }
 
+/** Day-level per-worker Bork revenue (from snapshot workers section). */
+export type PeriodWorkerRevenueRow = {
+  workerId: string
+  workerName: string
+  exVat: number
+  qty: number
+  orderCount: number
+}
+
+/** Day-level per-table revenue (from snapshot tables section). */
+export type PeriodTableRevenueRow = {
+  tableNum: string
+  locationSpace: string
+  exVat: number
+  qty: number
+}
+
 export type PeriodTeamLaborRow = {
   team: string
   hours: number
@@ -83,6 +100,10 @@ export type PeriodRevenueBlock = {
   byProductTop: PeriodProductRow[]
   /** Day-level hourly; omitted/empty on rollups. */
   byHour: PeriodHourRow[]
+  /** Day-level worker revenue; omitted/empty on rollups. */
+  byWorker?: PeriodWorkerRevenueRow[]
+  /** Day-level table revenue; omitted/empty on rollups. */
+  byTable?: PeriodTableRevenueRow[]
   leadSource: PeriodLeadRevenueSource
 }
 
