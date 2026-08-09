@@ -1,10 +1,11 @@
 /**
  * @registry-id: dailyOpsMonthlyReportBuildDigest
  * @created: 2026-07-17T00:00:00.000Z
- * @last-modified: 2026-07-20T00:00:00.000Z
+ * @last-modified: 2026-08-09T01:05:00.000Z
  * @description: Aggregate calendar-month snapshots into digest payload (reuses WeeklyDigestDto)
- * @last-fix: [2026-07-20] tableOccupancy + rolling12 occupancy comparisons
- * @adr-ref: ADR-004, ADR-013, ADR-015
+ * @last-fix: [2026-08-09] Food/bev from period-cache only (PERIOD_CACHE_ADR L3)
+ *   Prior: [2026-07-20] tableOccupancy + rolling12 occupancy comparisons
+ * @adr-ref: ADR-004, ADR-013, ADR-015, PERIOD_CACHE_ADR L2, L3
  * @data-source: snapshot-write-only
  *
  * @exports-to:
@@ -36,7 +37,6 @@ import type {
 } from '~/types/daily-ops-weekly-report'
 import { DEFAULT_PNL_ASSUMPTIONS } from '~/utils/dailyOpsPnlAssumptionsDefaults'
 import { sumFoodBeverageForRange } from '../dailyOpsPeriodCache/foodBeverageFromPeriodCache'
-import { rollupFoodBeverageFromCategories } from '../borkFoodBeverageSplit'
 import { VENUE_STRIP_LOCATIONS } from '../venueStrip/constants'
 import {
   headlineExVatFromSnapshotSection,
@@ -165,17 +165,8 @@ async function sumFoodBev (
   range: { startDate: string; endDate: string; locationId: string },
 ) {
   const fromCache = await sumFoodBeverageForRange(db, range)
-  if (fromCache.daysFound > 0) {
-    return { food: fromCache.food, beverage: fromCache.beverage }
-  }
-  let food = 0
-  let beverage = 0
-  for (const doc of products) {
-    const split = rollupFoodBeverageFromCategories(doc.categories ?? [])
-    food += split.food
-    beverage += split.beverage
-  }
-  return { food, beverage }
+  void products
+  return { food: fromCache.food, beverage: fromCache.beverage }
 }
 
 async function buildDailyBreakdown (
@@ -211,20 +202,9 @@ async function buildDailyBreakdown (
       endDate: d,
       locationId,
     })
-    if (fromCache.daysFound > 0) {
-      foodBevByDate.set(d, { food: fromCache.food, beverage: fromCache.beverage })
-    }
+    foodBevByDate.set(d, { food: fromCache.food, beverage: fromCache.beverage })
   }
-  if (foodBevByDate.size === 0) {
-    for (const doc of products) {
-      const key = doc.businessDate
-      const split = rollupFoodBeverageFromCategories(doc.categories ?? [])
-      const prev = foodBevByDate.get(key) ?? { food: 0, beverage: 0 }
-      prev.food += split.food
-      prev.beverage += split.beverage
-      foodBevByDate.set(key, prev)
-    }
-  }
+  void products
 
   return dates.map((businessDate) => {
     const rev = revByDate.get(businessDate) ?? { revenue: 0, items: 0 }

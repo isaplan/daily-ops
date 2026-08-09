@@ -1,16 +1,16 @@
 /**
  * @registry-id: dailyOpsOverviewGet
- * @last-modified: 2026-07-02T00:00:00.000Z
- * @description: @deprecated — use /metrics/bundle; snapshot bundle read (ADR-004)
- * @last-fix: [2026-07-02] ADR-013 read-cache metadata
- * @adr-ref: ADR-004, ADR-010, ADR-013
+ * @last-modified: 2026-08-09T00:30:00.000Z
+ * @description: @deprecated — use /metrics/bundle; read-cache only (ADR-004/013)
+ * @last-fix: [2026-08-09] Cache-first via loadDashboardBundleForGet (no live assemble)
+ * @adr-ref: ADR-004, ADR-010, ADR-013, PERIOD_CACHE_ADR L2
  * @data-source: read-cache
  * @read-cache-json: daily_ops_read_cache · profile=dashboard-bundle · levels=daily|weekly|monthly|yearly
  */
 import { getDb } from '../../utils/db'
 import { parseDailyOpsMetricsQuery } from '../../utils/dailyOpsMetrics/context'
 import { VAT_DISCLAIMER } from '../../utils/dailyOpsMetrics/dtoBuilders'
-import { fetchDailyOpsDashboardBundle } from '../../utils/dailyOpsSnapshot/fetchDashboardBundle'
+import { loadDashboardBundleForGet } from '../../utils/dailyOpsSnapshot/loadDashboardBundleForGet'
 import type { DailyOpsOverviewDto } from '~/types/daily-ops-dashboard'
 
 /** @deprecated Removed ADR-004 — use /api/daily-ops/metrics/bundle instead. */
@@ -21,7 +21,7 @@ export default defineEventHandler(async (event): Promise<DailyOpsOverviewDto> =>
 
   const ctx = parseDailyOpsMetricsQuery(getQuery(event) as Record<string, unknown>)
   const db = await getDb()
-  const bundle = await fetchDailyOpsDashboardBundle(db, ctx)
+  const bundle = await loadDashboardBundleForGet(db, ctx)
   const { summary, revenue } = bundle
 
   const revenueByCategory = revenue.revenueByCategory.map((c) => ({

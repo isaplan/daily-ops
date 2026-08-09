@@ -1,14 +1,14 @@
 /**
  * @registry-id: dailyOpsRevenueFetchRange
  * @created: 2026-05-20T00:00:00.000Z
- * @last-modified: 2026-05-28T00:00:00.000Z
- * @description: Revenue + items for a date range — **snapshot read only** (ADR-004/006)
- * @last-fix: [2026-05-28] Headline from snapshot totals; removed inbox-on-GET
- * @adr-ref: ADR-004, ADR-006
+ * @last-modified: 2026-08-09T00:45:00.000Z
+ * @description: Revenue + items for a date range — period-cache day nodes (GET)
+ * @last-fix: [2026-08-09] Prefer period-cache; snapshot fallback only when nodes missing
+ * @adr-ref: ADR-004, ADR-006, PERIOD_CACHE_ADR L2, L3
  *
  * @architecture:
- *   Daily Ops revenue APIs must NOT read bork_* or inbox on GET.
- *   Writers (dailyOpsSnapshotService) materialize inbox + Bork into snapshot sections.
+ *   GET reads daily_ops_period_cache day nodes. Snapshot revenue section is logged fallback
+ *   only when period nodes are missing for the range (not silent).
  *
  * @exports-to:
  * ✓ server/api/daily-ops/revenue/*
@@ -19,30 +19,28 @@ import { DAILY_OPS_SNAPSHOT_COLLECTIONS } from '~/types/daily-ops-snapshot'
 import type { DailyOpsSnapshotRevenueSection } from '~/types/daily-ops-snapshot'
 import type { DailyOpsRevenueQueryContext } from '~/types/daily-ops-revenue'
 import { eachBusinessDate } from './dateRange'
-import { sumFoodBeverageForRange } from '../dailyOpsPeriodCache/foodBeverageFromPeriodCache'
-import { rollupFoodBeverageFromCategories } from '../borkFoodBeverageSplit'
+import {
+  expectedDayCount,
+  loadPeriodDayNodesForRange,
+} from '../dailyOpsPeriodCache/loadPeriodDayNodesForRange'
 import {
   headlineExVatFromSnapshotSection,
   headlineIncVatFromSnapshotSection,
 } from '../dailyOpsSnapshot/snapshotHeadlineRevenue'
 
 export type RevenueRangeTotals = {
-  /** Lead-source headline (ex VAT). */
   revenue: number
-  /** Lead-source inc VAT (same snapshots as `revenue`). */
   revenueIncVat: number
-  /** Bork cross-check ex VAT from snapshot `borkTotals` (written at snapshot build). */
   borkRevenueIncVat: number
   borkRevenueExVat: number
   itemsCount: number
   foodRevenue: number
   beverageRevenue: number
   leadSource: 'inbox_basis' | 'bork_api' | 'datalab_benchmark' | 'unknown'
-  /** True when no snapshot revenue rows exist for the requested range. */
   dataGap: boolean
 }
 
-function round2(n: number): number {
+function round2 (n: number): number {
   return Math.round(n * 100) / 100
 }
 
@@ -58,40 +56,69 @@ const EMPTY_TOTALS: RevenueRangeTotals = {
   dataGap: true,
 }
 
-async function sumFoodBevFromProductSnapshots(
-  db: Db,
-  ctx: Pick<DailyOpsRevenueQueryContext, 'startDate' | 'endDate' | 'locationId'>,
-): Promise<{ food: number; beverage: number }> {
-  const fromCache = await sumFoodBeverageForRange(db, {
-    startDate: ctx.startDate,
-    endDate: ctx.endDate,
-    locationId: ctx.locationId ?? 'all',
-  })
-  if (fromCache.daysFound > 0) {
-    return { food: fromCache.food, beverage: fromCache.beverage }
-  }
-
-  const filter: Record<string, unknown> = {
-    businessDate: { $gte: ctx.startDate, $lte: ctx.endDate },
-  }
-  if (ctx.locationId) filter.locationId = ctx.locationId
-  const rows = await db.collection(DAILY_OPS_SNAPSHOT_COLLECTIONS.revenueProductsSection).find(filter).toArray()
-  let food = 0
-  let beverage = 0
-  for (const doc of rows) {
-    const cats = (doc as { categories?: Array<{ name: string; revenue_ex_vat: number }> }).categories ?? []
-    const split = rollupFoodBeverageFromCategories(cats)
-    food += split.food
-    beverage += split.beverage
-  }
-  return { food, beverage }
+function leadFromPeriod (source: string): RevenueRangeTotals['leadSource'] {
+  if (source === 'inbox_digest') return 'inbox_basis'
+  if (source === 'live_bork') return 'bork_api'
+  return 'unknown'
 }
 
-/** Snapshot-only range rollup — no bork_* / inbox reads. */
-export async function fetchRevenueRange(
+async function fromPeriodCache (
+  db: Db,
+  ctx: DailyOpsRevenueQueryContext,
+): Promise<RevenueRangeTotals | null> {
+  const locationId = ctx.locationId ?? 'all'
+  const nodes = await loadPeriodDayNodesForRange(db, {
+    startDate: ctx.startDate,
+    endDate: ctx.endDate,
+    locationId,
+  })
+  const expected = expectedDayCount(ctx.startDate, ctx.endDate)
+  if (nodes.length === 0) return null
+  // Partial coverage still preferred over silent snapshot (caller may fall back if empty).
+  if (nodes.length < expected && nodes.every((n) => n.revenue.exVat === 0)) return null
+
+  let revenue = 0
+  let revenueIncVat = 0
+  let itemsCount = 0
+  let food = 0
+  let beverage = 0
+  let inboxDays = 0
+  let borkDays = 0
+  for (const n of nodes) {
+    revenue += n.revenue.exVat
+    revenueIncVat += n.revenue.incVat
+    food += n.revenue.food
+    beverage += n.revenue.beverage
+    itemsCount += (n.revenue.byCategory ?? []).reduce((s, c) => s + c.qty, 0)
+    if (n.revenue.leadSource === 'inbox_digest') inboxDays++
+    if (n.revenue.leadSource === 'live_bork') borkDays++
+  }
+
+  return {
+    revenue: round2(revenue),
+    revenueIncVat: round2(revenueIncVat),
+    borkRevenueIncVat: round2(revenueIncVat),
+    borkRevenueExVat: round2(revenue),
+    itemsCount,
+    foodRevenue: round2(food),
+    beverageRevenue: round2(beverage),
+    leadSource:
+      inboxDays > 0
+        ? 'inbox_basis'
+        : borkDays > 0
+          ? 'bork_api'
+          : leadFromPeriod(nodes[0]?.revenue.leadSource ?? 'none'),
+    dataGap: nodes.length === 0,
+  }
+}
+
+async function fromSnapshotFallback (
   db: Db,
   ctx: DailyOpsRevenueQueryContext,
 ): Promise<RevenueRangeTotals> {
+  console.warn(
+    `[period-cache] revenue range miss ${ctx.startDate}..${ctx.endDate} loc=${ctx.locationId ?? 'all'} — snapshot fallback`,
+  )
   const filter: Record<string, unknown> = {
     businessDate: { $gte: ctx.startDate, $lte: ctx.endDate },
   }
@@ -118,20 +145,14 @@ export async function fetchRevenueRange(
     if (doc.leadSource === 'datalab_benchmark') datalabDays++
   }
 
-  const foodBev = await sumFoodBevFromProductSnapshots(db, {
-    startDate: ctx.startDate,
-    endDate: ctx.endDate,
-    locationId: ctx.locationId,
-  })
-
   return {
     revenue: round2(revenue),
     revenueIncVat: round2(revenueIncVat),
     borkRevenueIncVat: round2(borkRevenueIncVat),
     borkRevenueExVat: round2(borkRevenueExVat),
     itemsCount,
-    foodRevenue: foodBev.food,
-    beverageRevenue: foodBev.beverage,
+    foodRevenue: 0,
+    beverageRevenue: 0,
     leadSource:
       inboxDays > 0
         ? 'inbox_basis'
@@ -144,7 +165,17 @@ export async function fetchRevenueRange(
   }
 }
 
-export async function fetchRevenueRangeForDates(
+/** Period-cache first; logged snapshot fallback when nodes missing. */
+export async function fetchRevenueRange (
+  db: Db,
+  ctx: DailyOpsRevenueQueryContext,
+): Promise<RevenueRangeTotals> {
+  const fromCache = await fromPeriodCache(db, ctx)
+  if (fromCache) return fromCache
+  return fromSnapshotFallback(db, ctx)
+}
+
+export async function fetchRevenueRangeForDates (
   db: Db,
   startDate: string,
   endDate: string,
@@ -160,6 +191,6 @@ export async function fetchRevenueRangeForDates(
   })
 }
 
-export function listDatesInRange(startDate: string, endDate: string): string[] {
+export function listDatesInRange (startDate: string, endDate: string): string[] {
   return [...eachBusinessDate(startDate, endDate)]
 }

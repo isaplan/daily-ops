@@ -1,10 +1,11 @@
 /**
  * @registry-id: breakEvenTypes
  * @created: 2026-07-24T11:30:00.000Z
- * @last-modified: 2026-08-05T10:50:00.000Z
+ * @last-modified: 2026-08-09T01:05:00.000Z
  * @description: Break-even assumptions + metrics DTO types
- * @last-fix: [2026-08-05] estimatedNet (ops-rev CM) vs accountingResult (sealed Finance only)
- * @adr-ref: ADR-013, ADR-014, ADR-019, ADR-022
+ * @last-fix: [2026-08-09] @adr-ref + PERIOD_CACHE_ADR (BE GET = period-cache)
+ *   Prior: [2026-08-05] estimatedNet (ops-rev CM) vs accountingResult (sealed Finance only)
+ * @adr-ref: ADR-013, ADR-014, ADR-019, ADR-022, PERIOD_CACHE_ADR L2, L4
  *
  * @exports-to:
  * ✓ utils/accountingPnlBreakEvenMath.ts

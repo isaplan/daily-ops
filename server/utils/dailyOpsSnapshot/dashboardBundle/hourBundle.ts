@@ -1,10 +1,11 @@
 /**
  * @registry-id: dailyOpsDashboardBundleHourBundle
  * @created: 2026-05-28T00:00:00.000Z
- * @last-modified: 2026-06-05T00:00:00.000Z
+ * @last-modified: 2026-08-09T00:40:00.000Z
  * @description: Hourly revenue bundle from snapshot sections (no Bork on GET)
- * @last-fix: [2026-06-05] Fall back to revenue-section hourly when hourly section is empty
- * @adr-ref: ADR-004
+ * @last-fix: [2026-08-09] Food/bev from period-cache only (no product-section fallback)
+ *   Prior: [2026-06-05] Fall back to revenue-section hourly when hourly section is empty
+ * @adr-ref: ADR-004, PERIOD_CACHE_ADR L2, L3
  */
 
 import type {
@@ -96,11 +97,10 @@ export function categoryTotalsFromProducts(
   return { food: snapshotRound2(food), drinks: snapshotRound2(drinks) }
 }
 
-/** Prefer period-cache day nodes; fall back to product-section rollup. */
-export async function categoryTotalsFromPeriodCacheOrProducts (
+/** Period-cache day nodes only (PERIOD_CACHE_ADR L3) — miss → zeros. */
+export async function categoryTotalsFromPeriodCache (
   db: import('mongodb').Db,
   opts: { startDate: string; endDate: string; locationId?: string | null },
-  products: DailyOpsSnapshotRevenueProductsSection[],
 ): Promise<{ food: number; drinks: number }> {
   const { sumFoodBeverageForRange } = await import('../../dailyOpsPeriodCache/foodBeverageFromPeriodCache')
   const fromCache = await sumFoodBeverageForRange(db, {
@@ -108,8 +108,14 @@ export async function categoryTotalsFromPeriodCacheOrProducts (
     endDate: opts.endDate,
     locationId: opts.locationId ?? 'all',
   })
-  if (fromCache.daysFound > 0) {
-    return { food: fromCache.food, drinks: fromCache.beverage }
-  }
-  return categoryTotalsFromProducts(products)
+  return { food: fromCache.food, drinks: fromCache.beverage }
+}
+
+/** @deprecated Use categoryTotalsFromPeriodCache — kept for write-path legacy callers. */
+export async function categoryTotalsFromPeriodCacheOrProducts (
+  db: import('mongodb').Db,
+  opts: { startDate: string; endDate: string; locationId?: string | null },
+  _products: DailyOpsSnapshotRevenueProductsSection[],
+): Promise<{ food: number; drinks: number }> {
+  return categoryTotalsFromPeriodCache(db, opts)
 }

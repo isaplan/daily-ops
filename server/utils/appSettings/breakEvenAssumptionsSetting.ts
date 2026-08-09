@@ -1,10 +1,11 @@
 /**
  * @registry-id: breakEvenAssumptionsSetting
  * @created: 2026-07-24T11:30:00.000Z
- * @last-modified: 2026-08-05T00:30:00.000Z
+ * @last-modified: 2026-08-09T01:05:00.000Z
  * @description: Mongo app_settings store for rolling/actual break-even assumptions
- * @last-fix: [2026-08-05] Accept blended BreakEvenSource in normalizeSlice
- * @adr-ref: ADR-013, ADR-014, ADR-019, ADR-022
+ * @last-fix: [2026-08-09] @adr-ref + PERIOD_CACHE_ADR L2/L4 (feeds ratio snapshots)
+ *   Prior: [2026-08-05] Accept blended BreakEvenSource in normalizeSlice
+ * @adr-ref: ADR-013, ADR-014, ADR-019, ADR-022, PERIOD_CACHE_ADR L2, L4
  *
  * @exports-to:
  * ✓ server/utils/accountingPnl/refreshFinanceAssumptions.ts

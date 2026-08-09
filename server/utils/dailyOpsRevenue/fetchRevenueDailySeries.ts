@@ -1,23 +1,25 @@
 /**
  * @registry-id: dailyOpsRevenueDailySeries
  * @created: 2026-05-22T12:00:00.000Z
- * @last-modified: 2026-06-03T00:00:00.000Z
- * @description: One-query daily revenue series from snapshot sections (ADR-004 hot read)
- * @last-fix: [2026-06-03] Sum all venue rows per date when locationId filter is absent
- * @adr-ref: ADR-004, ADR-006
+ * @last-modified: 2026-08-09T00:45:00.000Z
+ * @description: Daily revenue series from period-cache day nodes (GET)
+ * @last-fix: [2026-08-09] Period-cache first; logged snapshot fallback on miss
+ * @adr-ref: ADR-004, ADR-006, PERIOD_CACHE_ADR L2
  *
  * @exports-to:
  * ✓ server/utils/dailyOpsRevenue/fetchRevenueTimeseries.ts
  * ✓ server/utils/dailyOpsRevenue/computeBenchmark60d.ts
  * ✓ server/utils/dailyOpsRevenue/computeRollingMedians.ts
+ * ✓ server/utils/dailyOpsStaff/fetchStaffTimeseries.ts
  */
 
 import type { Db } from 'mongodb'
 import { DAILY_OPS_SNAPSHOT_COLLECTIONS } from '~/types/daily-ops-snapshot'
 import type { DailyOpsRevenueTimeseriesPoint } from '~/types/daily-ops-revenue'
 import { eachBusinessDate } from './dateRange'
+import { loadPeriodDayNodesForRange } from '../dailyOpsPeriodCache/loadPeriodDayNodesForRange'
 
-function round2(n: number): number {
+function round2 (n: number): number {
   return Math.round(n * 100) / 100
 }
 
@@ -26,13 +28,39 @@ type SnapshotRevenueRow = {
   totals?: { ex_vat?: number; quantity?: number }
 }
 
-/** Single find on daily_ops_snapshot_section_revenue for the whole range. */
-export async function fetchRevenueDailyFromSnapshots(
+async function fromPeriodCache (
+  db: Db,
+  startDate: string,
+  endDate: string,
+  locationId?: string,
+): Promise<Map<string, DailyOpsRevenueTimeseriesPoint> | null> {
+  const nodes = await loadPeriodDayNodesForRange(db, {
+    startDate,
+    endDate,
+    locationId: locationId ?? 'all',
+  })
+  if (nodes.length === 0) return null
+  const map = new Map<string, DailyOpsRevenueTimeseriesPoint>()
+  for (const n of nodes) {
+    const qty = (n.revenue.byCategory ?? []).reduce((s, c) => s + c.qty, 0)
+    map.set(n.periodKey, {
+      date: n.periodKey,
+      revenue: round2(n.revenue.exVat),
+      itemsCount: qty,
+    })
+  }
+  return map
+}
+
+async function fromSnapshotFallback (
   db: Db,
   startDate: string,
   endDate: string,
   locationId?: string,
 ): Promise<Map<string, DailyOpsRevenueTimeseriesPoint>> {
+  console.warn(
+    `[period-cache] revenue daily series miss ${startDate}..${endDate} loc=${locationId ?? 'all'} — snapshot fallback`,
+  )
   const filter: Record<string, unknown> = {
     businessDate: { $gte: startDate, $lte: endDate },
   }
@@ -41,7 +69,7 @@ export async function fetchRevenueDailyFromSnapshots(
   const rows = (await db
     .collection(DAILY_OPS_SNAPSHOT_COLLECTIONS.revenueSection)
     .find(filter, { projection: { businessDate: 1, totals: 1 } })
-    .toArray()) as SnapshotRevenueRow[]
+    .toArray()) as unknown as SnapshotRevenueRow[]
 
   const map = new Map<string, DailyOpsRevenueTimeseriesPoint>()
   for (const row of rows) {
@@ -63,8 +91,19 @@ export async function fetchRevenueDailyFromSnapshots(
   return map
 }
 
-/** Daily points for every calendar day in range (snapshot sections only). */
-export async function buildRevenueDailySeries(
+/** Period-cache first; logged snapshot fallback. Name kept for existing callers. */
+export async function fetchRevenueDailyFromSnapshots (
+  db: Db,
+  startDate: string,
+  endDate: string,
+  locationId?: string,
+): Promise<Map<string, DailyOpsRevenueTimeseriesPoint>> {
+  const fromCache = await fromPeriodCache(db, startDate, endDate, locationId)
+  if (fromCache) return fromCache
+  return fromSnapshotFallback(db, startDate, endDate, locationId)
+}
+
+export async function buildRevenueDailySeries (
   db: Db,
   startDate: string,
   endDate: string,
@@ -82,8 +121,7 @@ export async function buildRevenueDailySeries(
   )
 }
 
-/** Load snapshot + optional Bork daily map for a range (shared by benchmark / rolling). */
-export async function fetchRevenueDailyMap(
+export async function fetchRevenueDailyMap (
   db: Db,
   startDate: string,
   endDate: string,

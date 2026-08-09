@@ -1,10 +1,10 @@
 /**
  * @registry-id: dailyOpsWeeklyDigestGet
  * @created: 2026-07-09T00:00:00.000Z
- * @last-modified: 2026-07-20T00:00:00.000Z
- * @description: GET /api/daily-ops/analytics/weekly-digest — weekly report read-cache
- * @last-fix: [2026-07-20] schemaVersion 11 stale check for tableOccupancy + rolling12
- * @adr-ref: ADR-004, ADR-013
+ * @last-modified: 2026-08-09T00:35:00.000Z
+ * @description: GET /api/daily-ops/analytics/weekly-digest — weekly report read-cache only
+ * @last-fix: [2026-08-09] schemaVersion 12; cache miss → dataGap (no build/upsert on GET)
+ * @adr-ref: ADR-004, ADR-013, PERIOD_CACHE_ADR L2
  * @data-source: read-cache
  * @read-cache-json: daily_ops_read_cache · profile=weekly-digest · level=weekly
  *
@@ -14,16 +14,16 @@
  */
 
 import { getDb } from '../../../utils/db'
-import { findReadCachePayload, upsertReadCachePayload } from '../../../utils/dailyOpsReadCache/readCacheStore'
-import { buildWeeklyDigest } from '../../../utils/dailyOpsWeeklyReport/buildWeeklyDigest'
+import { findReadCachePayload } from '../../../utils/dailyOpsReadCache/readCacheStore'
+import { emptyWeeklyDigestForCacheMiss } from '../../../utils/dailyOpsWeeklyReport/emptyWeeklyDigestForCacheMiss'
 import { resolveWeeklyRange } from '../../../utils/dailyOpsWeeklyReport/weekRange'
 import { resolveWeeklyTargets } from '../../../utils/dailyOpsWeeklyReport/weeklyStatus'
 import type { WeeklyDigestDto } from '~/types/daily-ops-weekly-report'
 import { WEEKLY_DIGEST_PROFILE } from '~/types/daily-ops-weekly-report'
 
-/** Pre–multi-metric chart cache lacks per-day profit / pnl / productivity / staff. */
-function weeklyDigestSchemaStale(d: WeeklyDigestDto): boolean {
-  if ((d.schemaVersion ?? 1) < 11) return true
+/** Pre–schemaVersion 12 digests lack period-cache food/bev totals. */
+function weeklyDigestSchemaStale (d: WeeklyDigestDto): boolean {
+  if ((d.schemaVersion ?? 1) < 12) return true
   if (!d.openingClosing) return true
   if (!d.tableOccupancy) return true
   if (!d.comparisons?.rolling12Week) return true
@@ -60,15 +60,5 @@ export default defineEventHandler(async (event): Promise<WeeklyDigestDto> => {
     return cached
   }
 
-  const built = await buildWeeklyDigest(db, range, { locationId, targets })
-  await upsertReadCachePayload(db, {
-    profile: WEEKLY_DIGEST_PROFILE,
-    level: 'weekly',
-    key: range.weekKey,
-    locationId,
-    businessDateStart: range.startDate,
-    businessDateEnd: range.endDate,
-    payload: built,
-  })
-  return built
+  return emptyWeeklyDigestForCacheMiss(range, locationId, targets)
 })

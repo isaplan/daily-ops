@@ -1,3 +1,15 @@
+/**
+ * @registry-id: opsNotificationTypes
+ * @last-modified: 2026-08-09T01:05:00.000Z
+ * @description: Ops notifications — data gaps, source drift, cron failures, ADR debt
+ * @last-fix: [2026-08-09] period_cache_food_bev_regex_gap + PERIOD_CACHE_ADR L3
+ * @adr-ref: ADR-004, ADR-021, PERIOD_CACHE_ADR L3
+ *
+ * @exports-to:
+ * ✓ server/utils/opsNotifications/notificationItem.ts
+ * ✓ server/utils/opsNotifications/detectors/periodCacheFoodBevGaps.ts
+ */
+
 /** Ops notifications — data gaps, source drift, cron failures, ADR/architecture debt. */
 
 export type OpsNotificationSeverity = 'critical' | 'warning' | 'info'

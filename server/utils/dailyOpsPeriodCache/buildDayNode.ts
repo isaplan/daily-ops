@@ -1,9 +1,10 @@
 /**
  * @registry-id: dailyOpsPeriodCacheBuildDayNode
  * @created: 2026-08-08T21:20:00.000Z
- * @last-modified: 2026-08-08T21:20:00.000Z
+ * @last-modified: 2026-08-09T01:05:00.000Z
  * @description: Build one day-level DailyOpsPeriodNode from sealed snapshot sections
- * @last-fix: [2026-08-09] @adr-ref → PERIOD_CACHE_ADR L2/L3; staff.workers from labor section
+ * @last-fix: [2026-08-09] staff.workers feeds attendance/plusmin GET (PERIOD_CACHE_ADR L2)
+ *   Prior: [2026-08-09] @adr-ref → PERIOD_CACHE_ADR L2/L3; staff.workers from labor section
  * @adr-ref: PERIOD_CACHE_ADR L2, L3
  * @data-source: snapshot-sections
  * @write-cache-json: daily_ops_period_cache · level=day

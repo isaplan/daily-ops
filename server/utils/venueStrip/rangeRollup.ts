@@ -1,9 +1,10 @@
 /**
  * @registry-id: dailyOpsVenueStripRangeRollup
  * @created: 2026-06-10T00:00:00.000Z
- * @last-modified: 2026-06-10T00:00:00.000Z
+ * @last-modified: 2026-08-09T01:05:00.000Z
  * @description: Fast multi-day venue strip from snapshot sections (no per-day DB round-trips)
- * @adr-ref: ADR-004
+ * @last-fix: [2026-08-09] Food/bev from period-cache day nodes (PERIOD_CACHE_ADR L3)
+ * @adr-ref: ADR-004, PERIOD_CACHE_ADR L2, L3
  *
  * @exports-to:
  * ✓ server/utils/dailyOpsVenueStrip.ts

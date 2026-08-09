@@ -1,23 +1,37 @@
+/**
+ * @registry-id: dailyOpsRevenueFetchCategoriesAndProducts
+ * @created: 2026-05-20T00:00:00.000Z
+ * @last-modified: 2026-08-09T00:40:00.000Z
+ * @description: Categories + top products from period-cache day nodes only
+ * @last-fix: [2026-08-09] PERIOD_CACHE_ADR L3 — no snapshot product-section fallback
+ * @adr-ref: ADR-004, ADR-013, PERIOD_CACHE_ADR L2, L3
+ * @data-source: period-cache
+ *
+ * @exports-to:
+ * ✓ server/api/daily-ops/revenue/categories.get.ts
+ * ✓ server/api/daily-ops/revenue/products.get.ts
+ */
+
 import type { Db } from 'mongodb'
 import type {
   DailyOpsRevenueCategoryDto,
   DailyOpsRevenueProductRow,
   DailyOpsRevenueQueryContext,
 } from '~/types/daily-ops-revenue'
-import { DAILY_OPS_SNAPSHOT_COLLECTIONS } from '~/types/daily-ops-snapshot'
 import { addCalendarDaysYmd } from '~/utils/dailyOpsBusinessDate'
 import { findPeriodNode } from '../dailyOpsPeriodCache/store'
+import type { DailyOpsPeriodNode } from '~/types/daily-ops-period-cache'
 
-function round2(n: number): number {
+function round2 (n: number): number {
   return Math.round(n * 100) / 100
 }
 
 async function loadDayNodesForRange (
   db: Db,
   ctx: DailyOpsRevenueQueryContext,
-) {
+): Promise<DailyOpsPeriodNode[]> {
   const locationId = ctx.locationId ?? 'all'
-  const nodes = []
+  const nodes: DailyOpsPeriodNode[] = []
   let cursor = ctx.startDate
   while (cursor <= ctx.endDate) {
     const node = await findPeriodNode(db, {
@@ -31,46 +45,19 @@ async function loadDayNodesForRange (
   return nodes
 }
 
-export async function fetchCategories(
+export async function fetchCategories (
   db: Db,
   ctx: DailyOpsRevenueQueryContext,
 ): Promise<DailyOpsRevenueCategoryDto[]> {
   const nodes = await loadDayNodesForRange(db, ctx)
-  if (nodes.length > 0) {
-    const map = new Map<string, { revenue: number; itemsCount: number }>()
-    for (const node of nodes) {
-      for (const c of node.revenue.byCategory ?? []) {
-        const cur = map.get(c.name) ?? { revenue: 0, itemsCount: 0 }
-        cur.revenue += c.exVat
-        cur.itemsCount += c.qty
-        map.set(c.name, cur)
-      }
-    }
-    const total = [...map.values()].reduce((a, b) => a + b.revenue, 0)
-    return [...map.entries()]
-      .map(([name, v]) => ({
-        name,
-        revenue: round2(v.revenue),
-        itemsCount: v.itemsCount,
-        pctOfTotal: total > 0 ? round2((v.revenue / total) * 100) : 0,
-      }))
-      .sort((a, b) => b.revenue - a.revenue)
-  }
+  if (nodes.length === 0) return []
 
-  const filter: Record<string, unknown> = {
-    businessDate: { $gte: ctx.startDate, $lte: ctx.endDate },
-  }
-  if (ctx.locationId) filter.locationId = ctx.locationId
-
-  const snaps = await db.collection(DAILY_OPS_SNAPSHOT_COLLECTIONS.revenueProductsSection).find(filter).toArray()
   const map = new Map<string, { revenue: number; itemsCount: number }>()
-  for (const s of snaps) {
-    const cats = (s as { categories?: Array<{ name: string; revenue_ex_vat: number; quantity: number }> })
-      .categories ?? []
-    for (const c of cats) {
+  for (const node of nodes) {
+    for (const c of node.revenue.byCategory ?? []) {
       const cur = map.get(c.name) ?? { revenue: 0, itemsCount: 0 }
-      cur.revenue += c.revenue_ex_vat
-      cur.itemsCount += c.quantity
+      cur.revenue += c.exVat
+      cur.itemsCount += c.qty
       map.set(c.name, cur)
     }
   }
@@ -85,63 +72,34 @@ export async function fetchCategories(
     .sort((a, b) => b.revenue - a.revenue)
 }
 
-export async function fetchTopProducts(
+export async function fetchTopProducts (
   db: Db,
   ctx: DailyOpsRevenueQueryContext,
   limit = 20,
 ): Promise<DailyOpsRevenueProductRow[]> {
   const nodes = await loadDayNodesForRange(db, ctx)
-  let base: Array<{ productName: string; revenue: number; itemsCount: number; revenuePerItem: number }>
+  if (nodes.length === 0) return []
 
-  if (nodes.length > 0) {
-    const map = new Map<string, { revenue: number; itemsCount: number }>()
-    for (const node of nodes) {
-      for (const p of node.revenue.byProductTop ?? []) {
-        const cur = map.get(p.name) ?? { revenue: 0, itemsCount: 0 }
-        cur.revenue += p.exVat
-        cur.itemsCount += p.qty
-        map.set(p.name, cur)
-      }
+  const map = new Map<string, { revenue: number; itemsCount: number }>()
+  for (const node of nodes) {
+    for (const p of node.revenue.byProductTop ?? []) {
+      const cur = map.get(p.name) ?? { revenue: 0, itemsCount: 0 }
+      cur.revenue += p.exVat
+      cur.itemsCount += p.qty
+      map.set(p.name, cur)
     }
-    base = [...map.entries()]
-      .map(([productName, v]) => ({
-        productName,
-        revenue: round2(v.revenue),
-        itemsCount: v.itemsCount,
-        revenuePerItem: v.itemsCount > 0 ? round2(v.revenue / v.itemsCount) : 0,
-      }))
-      .sort((a, b) => b.revenue - a.revenue)
-      .slice(0, limit)
-  } else {
-    const filter: Record<string, unknown> = {
-      businessDate: { $gte: ctx.startDate, $lte: ctx.endDate },
-    }
-    if (ctx.locationId) filter.locationId = ctx.locationId
-
-    const snaps = await db.collection(DAILY_OPS_SNAPSHOT_COLLECTIONS.revenueProductsSection).find(filter).toArray()
-    const map = new Map<string, { revenue: number; itemsCount: number }>()
-    for (const s of snaps) {
-      const products = (s as { products?: Array<{ productName: string; revenue_ex_vat: number; quantity: number }> })
-        .products ?? []
-      for (const p of products) {
-        const cur = map.get(p.productName) ?? { revenue: 0, itemsCount: 0 }
-        cur.revenue += p.revenue_ex_vat
-        cur.itemsCount += p.quantity
-        map.set(p.productName, cur)
-      }
-    }
-    base = [...map.entries()]
-      .map(([productName, v]) => ({
-        productName,
-        revenue: round2(v.revenue),
-        itemsCount: v.itemsCount,
-        revenuePerItem: v.itemsCount > 0 ? round2(v.revenue / v.itemsCount) : 0,
-      }))
-      .sort((a, b) => b.revenue - a.revenue)
-      .slice(0, limit)
   }
+  const base = [...map.entries()]
+    .map(([productName, v]) => ({
+      productName,
+      revenue: round2(v.revenue),
+      itemsCount: v.itemsCount,
+      revenuePerItem: v.itemsCount > 0 ? round2(v.revenue / v.itemsCount) : 0,
+    }))
+    .sort((a, b) => b.revenue - a.revenue)
+    .slice(0, limit)
 
-  const byWeekday = await fetchProductWeekdayDistribution(db, ctx, base.map((p) => p.productName))
+  const byWeekday = productWeekdayFromPeriodNodes(nodes, base.map((p) => p.productName))
   return base.map((p) => ({
     ...p,
     byWeekday: byWeekday.get(p.productName),
@@ -151,40 +109,25 @@ export async function fetchTopProducts(
 const DOW_KEYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'] as const
 const WEEKDAY_ORDER = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as const
 
-async function fetchProductWeekdayDistribution(
-  db: Db,
-  ctx: DailyOpsRevenueQueryContext,
+function productWeekdayFromPeriodNodes (
+  nodes: DailyOpsPeriodNode[],
   productNames: string[],
-): Promise<Map<string, Array<{ dayOfWeek: string; itemsCount: number; revenue: number }>>> {
+): Map<string, Array<{ dayOfWeek: string; itemsCount: number; revenue: number }>> {
   const out = new Map<string, Array<{ dayOfWeek: string; itemsCount: number; revenue: number }>>()
   if (productNames.length === 0) return out
-
   const nameSet = new Set(productNames)
-  const filter: Record<string, unknown> = {
-    businessDate: { $gte: ctx.startDate, $lte: ctx.endDate },
-  }
-  if (ctx.locationId) filter.locationId = ctx.locationId
-
-  const snaps = await db
-    .collection(DAILY_OPS_SNAPSHOT_COLLECTIONS.revenueProductsSection)
-    .find(filter)
-    .project({ businessDate: 1, products: 1 })
-    .toArray()
-
   const acc = new Map<string, Map<string, { itemsCount: number; revenue: number }>>()
-  for (const s of snaps) {
-    const date = String((s as { businessDate?: string }).businessDate ?? '')
-    if (!date) continue
+
+  for (const node of nodes) {
+    const date = node.businessDateStart
     const dow = DOW_KEYS[new Date(`${date}T12:00:00Z`).getUTCDay()]!
-    const products = (s as { products?: Array<{ productName: string; revenue_ex_vat: number; quantity: number }> })
-      .products ?? []
-    for (const p of products) {
-      if (!nameSet.has(p.productName)) continue
-      if (!acc.has(p.productName)) acc.set(p.productName, new Map())
-      const m = acc.get(p.productName)!
+    for (const p of node.revenue.byProductTop ?? []) {
+      if (!nameSet.has(p.name)) continue
+      if (!acc.has(p.name)) acc.set(p.name, new Map())
+      const m = acc.get(p.name)!
       const cur = m.get(dow) ?? { itemsCount: 0, revenue: 0 }
-      cur.itemsCount += p.quantity
-      cur.revenue += p.revenue_ex_vat
+      cur.itemsCount += p.qty
+      cur.revenue += p.exVat
       m.set(dow, cur)
     }
   }

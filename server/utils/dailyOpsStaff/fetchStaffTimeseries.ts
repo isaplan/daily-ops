@@ -1,13 +1,13 @@
 /**
  * @registry-id: dailyOpsStaffFetchTimeseries
  * @created: 2026-06-25T12:00:00.000Z
- * @last-modified: 2026-07-02T00:00:00.000Z
- * @description: Staff hours + headcount timeseries from snapshot labor (ADR-004)
- * @last-fix: [2026-07-02] ADR-013 read-cache metadata
- *   Prior: [2026-06-28] Unique active staff per period + team group collapse
- * @adr-ref: ADR-004, ADR-010, ADR-013
- * @data-source: mixed
- * @read-cache-json: daily_ops_read_cache · profile=staff-timeseries · levels=daily|weekly|monthly|yearly
+ * @last-modified: 2026-08-09T01:05:00.000Z
+ * @description: Staff hours + headcount timeseries from period-cache day nodes
+ * @last-fix: [2026-08-09] Period-cache via fetchStaffDailyLaborRows (PERIOD_CACHE_ADR L2)
+ *   Prior: [2026-07-02] ADR-013 read-cache metadata
+ * @adr-ref: ADR-004, ADR-010, ADR-013, PERIOD_CACHE_ADR L2
+ * @data-source: period-cache
+ * @read-cache-json: daily_ops_period_cache · level=day
  *
  * @exports-to:
  * ✓ server/api/daily-ops/staff/timeseries.get.ts

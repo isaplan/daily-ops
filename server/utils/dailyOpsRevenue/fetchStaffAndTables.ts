@@ -1,3 +1,16 @@
+/**
+ * @registry-id: dailyOpsRevenueFetchStaffAndTables
+ * @last-modified: 2026-08-09T00:50:00.000Z
+ * @description: Per-staff / per-table revenue — snapshot detail sections (not yet on period-cache)
+ * @last-fix: [2026-08-09] Explicit warn: period-cache day nodes lack tables/worker-revenue
+ * @adr-ref: ADR-004, PERIOD_CACHE_ADR L2
+ *
+ * @exports-to:
+ * ✓ server/api/daily-ops/revenue/per-staff.get.ts
+ * ✓ server/api/daily-ops/revenue/per-table.get.ts
+ * ✓ server/api/daily-ops/productivity/*
+ */
+
 import type { Db } from 'mongodb'
 import type {
   DailyOpsRevenueQueryContext,
@@ -11,10 +24,13 @@ function round2(n: number): number {
   return Math.round(n * 100) / 100
 }
 
-export async function fetchStaffRevenue(
+export async function fetchStaffRevenue (
   db: Db,
   ctx: DailyOpsRevenueQueryContext,
 ): Promise<DailyOpsRevenueStaffRow[]> {
+  console.warn(
+    `[period-cache] per-staff revenue still snapshot-section ${ctx.startDate}..${ctx.endDate} (no worker-revenue on day nodes yet)`,
+  )
   const filter: Record<string, unknown> = {
     businessDate: { $gte: ctx.startDate, $lte: ctx.endDate },
   }
@@ -50,11 +66,14 @@ export async function fetchStaffRevenue(
     .sort((a, b) => b.revenue - a.revenue)
 }
 
-export async function fetchTableRevenue(
+export async function fetchTableRevenue (
   db: Db,
   ctx: DailyOpsRevenueQueryContext,
   spaceFilter?: string,
 ): Promise<DailyOpsRevenueTableRow[]> {
+  console.warn(
+    `[period-cache] per-table revenue still snapshot-section ${ctx.startDate}..${ctx.endDate} (no tables on day nodes yet)`,
+  )
   const filter: Record<string, unknown> = {
     businessDate: { $gte: ctx.startDate, $lte: ctx.endDate },
   }

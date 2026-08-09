@@ -1,10 +1,11 @@
 /**
  * @registry-id: dailyOpsStaffFetchDailyLabor
  * @created: 2026-06-25T12:00:00.000Z
- * @last-modified: 2026-06-25T12:00:00.000Z
- * @description: Daily labor + headcount from snapshot labor sections (ADR-004)
- * @last-fix: [2026-06-29] Overlay members contract on snapshot workers missing contractType
- * @adr-ref: ADR-004, ADR-006
+ * @last-modified: 2026-08-09T00:50:00.000Z
+ * @description: Daily labor + headcount from period-cache day nodes (GET)
+ * @last-fix: [2026-08-09] Period-cache first; logged snapshot fallback on miss
+ *   Prior: [2026-06-29] Overlay members contract on snapshot workers missing contractType
+ * @adr-ref: ADR-004, ADR-006, PERIOD_CACHE_ADR L2
  *
  * @exports-to:
  * ✓ server/utils/dailyOpsStaff/fetchStaffTimeseries.ts
@@ -13,6 +14,7 @@
 
 import type { Db } from 'mongodb'
 import type { DailyOpsSnapshotLaborSection } from '~/types/daily-ops-snapshot'
+import type { DailyOpsPeriodNode } from '~/types/daily-ops-period-cache'
 import {
   classifyStaffContractType,
   emptyStaffContractBuckets,
@@ -22,6 +24,7 @@ import {
   buildWorkerContractIndex,
   enrichLaborWorkersFromMembers,
 } from './resolveWorkerContractFromMembers'
+import { loadPeriodDayNodesForRange } from '../dailyOpsPeriodCache/loadPeriodDayNodesForRange'
 
 export type StaffDailyLaborRow = {
   date: string
@@ -187,12 +190,79 @@ function countTeamWorkers(
   return collectTeamWorkerIds(workers, teamName).length
 }
 
-export async function fetchStaffDailyLaborRows(
+function rowsFromPeriodNodes (
+  nodes: DailyOpsPeriodNode[],
+  contractIndex: Awaited<ReturnType<typeof buildWorkerContractIndex>>,
+): StaffDailyLaborRow[] {
+  return nodes.map((n) => {
+    const pseudoWorkers = (n.staff.workers ?? []).map((w) => ({
+      userId: w.memberId,
+      userName: w.memberId,
+      teamId: '',
+      teamName: w.team,
+      hours: w.hours,
+      wage_cost: w.wage,
+      loaded_cost: w.wage,
+      contractType: '',
+      hourly_rate: null,
+      cost_per_hour: null,
+      loaded_cost_fallback: false,
+    })) as NonNullable<DailyOpsSnapshotLaborSection['workers']>
+    const workers = enrichLaborWorkersFromMembers(pseudoWorkers, contractIndex)
+    const gewerkt = round2(n.labor.hours)
+    const { buckets, workerIds: contractWorkerIds } = buildContractBuckets(workers, gewerkt)
+    const workerIds = collectWorkerIds(workers)
+    return {
+      date: n.periodKey,
+      locationId: n.locationId,
+      locationName: n.locationName,
+      hours: round2(n.labor.hours),
+      gewerkt_hours: gewerkt,
+      staff_count: workerIds.length || n.labor.staffCount,
+      workerIds,
+      labor_loaded_cost: round2(n.labor.loadedCost),
+      byContract: buckets,
+      contractWorkerIds,
+      teams: (n.labor.byTeam ?? []).map((t) => {
+        const teamName = String(t.team || 'Other')
+        const teamWorkerIds = collectTeamWorkerIds(workers, teamName)
+        const teamGewerkt = round2(t.hours)
+        const { buckets: teamByContract, workerIds: teamContractWorkerIds } =
+          buildTeamContractFromWorkers(workers, teamName, teamGewerkt)
+        return {
+          teamName,
+          hours: round2(t.hours),
+          gewerkt_hours: teamGewerkt,
+          staff_count: teamWorkerIds.length,
+          workerIds: teamWorkerIds,
+          byContract: teamByContract,
+          contractWorkerIds: teamContractWorkerIds,
+        }
+      }),
+    }
+  })
+}
+
+export async function fetchStaffDailyLaborRows (
   db: Db,
   startDate: string,
   endDate: string,
   locationId?: string,
 ): Promise<StaffDailyLaborRow[]> {
+  const contractIndex = await buildWorkerContractIndex(db)
+  const nodes = await loadPeriodDayNodesForRange(db, {
+    startDate,
+    endDate,
+    locationId: locationId ?? 'all',
+  })
+  if (nodes.length > 0) {
+    return rowsFromPeriodNodes(nodes, contractIndex)
+  }
+
+  console.warn(
+    `[period-cache] staff daily labor miss ${startDate}..${endDate} loc=${locationId ?? 'all'} — snapshot fallback`,
+  )
+
   const filter: Record<string, unknown> = {
     businessDate: { $gte: startDate, $lte: endDate },
   }
@@ -213,9 +283,8 @@ export async function fetchStaffDailyLaborRows(
     })
     .toArray()
 
-  const contractIndex = await buildWorkerContractIndex(db)
-
-  return docs.map((d) => {
+  return docs.map((raw) => {
+    const d = raw as DailyOpsSnapshotLaborSection
     const workers = enrichLaborWorkersFromMembers(d.workers, contractIndex)
     const teams = Array.isArray(d.teams) ? d.teams : []
     const gewerkt = round2(gewerktHours(d))

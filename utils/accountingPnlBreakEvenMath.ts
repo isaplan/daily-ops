@@ -1,10 +1,11 @@
 /**
  * @registry-id: accountingPnlBreakEvenMath
  * @created: 2026-07-24T11:30:00.000Z
- * @last-modified: 2026-08-05T00:30:00.000Z
+ * @last-modified: 2026-08-09T01:05:00.000Z
  * @description: Pure break-even math from accounting P&L rows (no I/O)
- * @last-fix: [2026-08-05] resolveFixedFlexTotalsForRows — per-row FT/flex then sum (no lonen avg dilution)
- * @adr-ref: ADR-013, ADR-014, ADR-019, ADR-020, ADR-022
+ * @last-fix: [2026-08-09] @adr-ref + PERIOD_CACHE_ADR L4 (formula only; GET path = period-cache)
+ *   Prior: [2026-08-05] resolveFixedFlexTotalsForRows — per-row FT/flex then sum (no lonen avg dilution)
+ * @adr-ref: ADR-013, ADR-014, ADR-019, ADR-020, ADR-022, PERIOD_CACHE_ADR L4
  *
  * @exports-to:
  * ✓ server/utils/accountingPnl/buildBreakEvenAssumptions.ts

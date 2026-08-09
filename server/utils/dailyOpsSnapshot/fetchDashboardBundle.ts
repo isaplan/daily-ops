@@ -1,25 +1,17 @@
 /**
  * @registry-id: dailyOpsSnapshotFetchDashboardBundle
  * @created: 2026-05-25T00:00:00.000Z
- * @last-modified: 2026-07-28T14:05:34.000Z
- * @description: Snapshot-first Daily Ops dashboard bundle orchestrator (ADR-004/013)
- *   Reads sealed snapshot sections only; no Bork/Eitje/Inbox on GET. Orchestrates section reads
- *   → DTOs → write to read-cache (per ADR-013, snapshot write path SSOT).
- * @last-fix: [2026-07-28] Seal occupancyPct onto periodBreakdown rows
- *   Prior: [2026-07-20] Seal tableOccupancy into dashboard-bundle
- *   Prior: [2026-07-16] Extract light path + Cache-Control under monolith budget
- *   Prior: [2026-07-13] Updated metadata: snapshot-only, no live reads on GET
- *   Prior: [2026-07-11] Hourly periodBreakdown staff headcount from shift overlap buckets
- *   Prior: [2026-07-02] ADR-013 @write-cache-json — orchestrator feeds dashboard-bundle writer
- * @adr-ref: ADR-004, ADR-006, ADR-010, ADR-013
+ * @last-modified: 2026-08-09T00:40:00.000Z
+ * @description: Snapshot-first Daily Ops dashboard bundle orchestrator (ADR-004/013) — WRITE PATH ONLY
+ *   Builds sealed snapshot sections → DTOs → write to read-cache. GETs use loadDashboardBundleForGet.
+ * @last-fix: [2026-08-09] Food/bev from period-cache only; GETs no longer call this
+ *   Prior: [2026-07-28] Seal occupancyPct onto periodBreakdown rows
+ * @adr-ref: ADR-004, ADR-006, ADR-010, ADR-013, PERIOD_CACHE_ADR L2, L3
  * @data-source: snapshot-write-only
  * @write-cache-json: daily_ops_read_cache · dashboard-bundle · daily+weekly+monthly+yearly · orchestrator feeds preGenerateBundleCache after buildDailyOpsSnapshot
  *
  * @exports-to:
- * ✓ server/api/daily-ops/metrics/bundle.get.ts
- * ✓ server/api/daily-ops/metrics/summary.get.ts
- * ✓ server/api/daily-ops/metrics/labor.get.ts
- * ✓ server/api/daily-ops/metrics/revenue-breakdown.get.ts
+ * ✓ server/utils/dailyOpsSnapshot/cacheCascade.ts (write-path pregen)
  */
 
 import type { Db } from 'mongodb'
@@ -47,7 +39,7 @@ import { buildRevenueDrilldownSection } from './buildRevenueDrilldownSection'
 import { assembleLaborFromSnapshots } from './dashboardBundle/assembleLaborDto'
 import {
   buildHourBundleFromSnapshots,
-  categoryTotalsFromPeriodCacheOrProducts,
+  categoryTotalsFromPeriodCache,
   mergeHourlySnapshotSections,
 } from './dashboardBundle/hourBundle'
 import { contractRollupsFromSnapshotLabor } from './dashboardBundle/laborContractRollups'
@@ -104,10 +96,9 @@ export async function fetchDailyOpsDashboardBundle(
     rows.revenue,
     rows.labor,
   )
-  const cat = await categoryTotalsFromPeriodCacheOrProducts(
+  const cat = await categoryTotalsFromPeriodCache(
     db,
     { startDate: ctx.startDate, endDate: ctx.endDate, locationId: ctx.locationId },
-    rows.products,
   )
   const mergedHourly = mergeHourlySnapshotSections(rows.hourly, rows.revenue)
   const hourBundle = buildHourBundleFromSnapshots(mergedHourly, [])
