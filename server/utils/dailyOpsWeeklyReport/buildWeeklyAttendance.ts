@@ -1,13 +1,13 @@
 /**
  * @registry-id: dailyOpsWeeklyReportBuildAttendance
  * @created: 2026-07-09T12:00:00.000Z
- * @last-modified: 2026-07-09T21:15:00.000Z
- * @description: Weekly ziek + verlof rollups for weekly-digest (build-time only)
- * @last-fix: [2026-07-09] Verlof/vakantie from Eitje time_registration agg (same as Eitje uren UI)
- * @adr-ref: ADR-004, ADR-013
+ * @last-modified: 2026-08-09T17:55:00.000Z
+ * @description: Weekly ziek + verlof rollups — RETIRED from GET (Eitje); period-cache gap zeros
+ * @last-fix: [2026-08-09] Not called from weekly/monthly digest GET (ZERO-GET)
+ * @adr-ref: PERIOD_CACHE_ADR L2, ADR-004, ADR-013
  *
  * @exports-to:
- * ✓ server/utils/dailyOpsWeeklyReport/buildWeeklyDigest.ts
+ * ✓ (unused on GET — keep until attendance sealed onto period nodes)
  */
 
 import type { Db } from 'mongodb'

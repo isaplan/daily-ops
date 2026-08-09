@@ -1,9 +1,9 @@
 /**
  * @registry-id: dailyOpsPeriodCacheCascade
  * @created: 2026-08-08T21:20:00.000Z
- * @last-modified: 2026-08-08T21:20:00.000Z
+ * @last-modified: 2026-08-09T17:55:00.000Z
  * @description: Day → week → month → year cascade for daily_ops_period_cache
- * @last-fix: [2026-08-09] @adr-ref → PERIOD_CACHE_ADR L2
+ * @last-fix: [2026-08-09] Clear tablesByHour on week/month/year rollups
  * @adr-ref: PERIOD_CACHE_ADR L2
  * @data-source: period-cache
  * @write-cache-json: daily_ops_period_cache · day→week→month→year
@@ -11,6 +11,7 @@
  * @exports-to:
  * ✓ scripts/backfill-period-cache.ts
  * ✓ server/utils/dailyOpsPeriodCache/resolvePeriodRange.ts
+ * ✓ server/utils/dailyOpsPeriodCache/assembleDashboardBundleFromPeriodCache.ts
  */
 
 import type { Db } from 'mongodb'

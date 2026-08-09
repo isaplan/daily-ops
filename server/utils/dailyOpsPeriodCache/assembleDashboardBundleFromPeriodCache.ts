@@ -10,6 +10,7 @@
  *
  * @exports-to:
  * ✓ server/utils/dailyOpsSnapshot/loadDashboardBundleForGet.ts
+ * ✓ server/api/daily-ops/metrics/bundle.get.ts
  * ✓ server/api/daily-ops/metrics/venue-strip.get.ts
  * ✓ server/api/daily-ops/metrics/table-occupancy-kpis.get.ts
  */

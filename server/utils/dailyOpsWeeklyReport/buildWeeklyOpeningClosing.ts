@@ -1,13 +1,13 @@
 /**
  * @registry-id: dailyOpsWeeklyReportBuildOpeningClosing
  * @created: 2026-07-09T15:30:00.000Z
- * @last-modified: 2026-07-09T15:30:00.000Z
- * @description: Weekly pre-open / post-close hours from Eitje shift timestamps (build-time only)
- * @last-fix: [2026-07-09] Gewerkte Eitje API shifts vs venue opening-hour SSOT
- * @adr-ref: ADR-004, ADR-013
+ * @last-modified: 2026-08-09T17:55:00.000Z
+ * @description: Weekly pre/post hours — RETIRED from GET (Eitje raw); period-cache gap zeros
+ * @last-fix: [2026-08-09] Not called from weekly/monthly digest GET (ZERO-GET)
+ * @adr-ref: PERIOD_CACHE_ADR L2, ADR-004, ADR-013
  *
  * @exports-to:
- * ✓ server/utils/dailyOpsWeeklyReport/buildWeeklyDigest.ts
+ * ✓ (unused on GET — keep until sealed onto period nodes)
  */
 
 import { ObjectId, type Db } from 'mongodb'

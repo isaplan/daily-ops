@@ -1,17 +1,16 @@
 /**
  * @registry-id: dailyOpsWeeklyReportBuildDigest
  * @created: 2026-07-09T00:00:00.000Z
- * @last-modified: 2026-08-09T17:30:00.000Z
+ * @last-modified: 2026-08-09T17:55:00.000Z
  * @description: Aggregate 7 period-cache day nodes into WeeklyDigestDto (Phase 7 GET)
- * @last-fix: [2026-08-09] Phase 7 — period-cache only (no snapshot sections / weekly-digest profile)
- *   Prior: [2026-08-09] schemaVersion 12 — period-cache food/bev; write-path only (no GET build)
+ * @last-fix: [2026-08-09] ZERO-GET — empty attendance/plusmin/opening; occ from period-cache
+ *   Prior: [2026-08-09] Phase 7 — period-cache only (no snapshot sections / weekly-digest profile)
  * @adr-ref: ADR-004, ADR-013, PERIOD_CACHE_ADR L2, L3
  * @data-source: period-cache
  * @read-cache-json: daily_ops_period_cache · level=day
  *
  * @exports-to:
  * ✓ server/api/daily-ops/analytics/weekly-digest.get.ts
- * ✓ server/utils/dailyOpsSnapshot/aggregateWeeklyReadCache.ts
  */
 
 import type { Db } from 'mongodb'
@@ -24,13 +23,16 @@ import type {
   DailyOpsSnapshotRevenueWorkersSection,
 } from '~/types/daily-ops-snapshot'
 import type {
+  WeeklyAttendanceSummary,
   WeeklyCategoryMargin,
   WeeklyCompareTrend,
   WeeklyDayBreakdown,
   WeeklyDigestDto,
   WeeklyHourlyLossCell,
+  WeeklyOpeningClosingSummary,
   WeeklyProductRow,
   WeeklySpaceMargin,
+  WeeklyStaffPlusminSummary,
   WeeklyStaffRanking,
   WeeklyTargetsDto,
   WeeklyTeamBreakdown,
@@ -58,9 +60,6 @@ import {
   weekdayLabel,
 } from './weeklyStatus'
 import { addCalendarDaysYmd } from '~/utils/dailyOpsBusinessDate'
-import { buildWeeklyAttendance } from './buildWeeklyAttendance'
-import { buildWeeklyOpeningClosing } from './buildWeeklyOpeningClosing'
-import { buildWeeklyStaffPlusmin } from './buildWeeklyStaffPlusmin'
 import { buildWeeklyTableOccupancy } from './buildWeeklyTableOccupancy'
 import { occupancyPctByRangeKeys } from '../dailyOpsVenueTables/occupancyPctByRangeKeys'
 import { loadPeriodDayNodesForRange } from '../dailyOpsPeriodCache/loadPeriodDayNodesForRange'
@@ -85,6 +84,42 @@ function locationNameFor(id: string): string {
   if (id === 'all') return 'All locations'
   const hit = VENUE_STRIP_LOCATIONS.find((v) => v.locationId === id)
   return hit?.locationName ?? id
+}
+
+/** Not yet sealed on period nodes — zeros on GET (no Eitje). */
+function emptyAttendance (): WeeklyAttendanceSummary {
+  return {
+    ziekHours: 0,
+    ziekStaffCount: 0,
+    verlofStaffCount: 0,
+    verlofHours: 0,
+    ziekStaff: [],
+    verlofStaff: [],
+  }
+}
+
+function emptyStaffPlusmin (): WeeklyStaffPlusminSummary {
+  return {
+    plusHours: 0,
+    minusHours: 0,
+    netDelta: 0,
+    overThreshold: 0,
+    underThreshold: 0,
+    over: [],
+    under: [],
+    members: [],
+  }
+}
+
+function emptyOpeningClosing (): WeeklyOpeningClosingSummary {
+  const team = { preOpenHours: 0, postCloseHours: 0, outsideHours: 0 }
+  return {
+    preOpenHours: 0,
+    postCloseHours: 0,
+    outsideHours: 0,
+    keuken: team,
+    bediening: team,
+  }
 }
 
 async function fetchSnapshotBundle (
@@ -807,12 +842,15 @@ export async function buildWeeklyDigest(
     occupancyPct: null as number | null,
   }
 
-  const [attendance, staffPlusmin, openingClosing, tableOccupancy] = await Promise.all([
-    buildWeeklyAttendance(db, range.startDate, range.endDate, locationId),
-    buildWeeklyStaffPlusmin(db, range.startDate, range.endDate, locationId),
-    buildWeeklyOpeningClosing(db, range.startDate, range.endDate, locationId),
-    buildWeeklyTableOccupancy(db, range.startDate, range.endDate, locationId),
-  ])
+  const attendance = emptyAttendance()
+  const staffPlusmin = emptyStaffPlusmin()
+  const openingClosing = emptyOpeningClosing()
+  const tableOccupancy = await buildWeeklyTableOccupancy(
+    db,
+    range.startDate,
+    range.endDate,
+    locationId,
+  )
   currentTotals.occupancyPct = tableOccupancy.occupancyPct
   const comparisons = await buildComparisons(db, range, locationId, currentTotals, opts.targets)
 
@@ -864,6 +902,6 @@ export async function buildWeeklyDigest(
     tableOccupancy,
     dataGap: foundDates.size === 0,
     builtAt: new Date().toISOString(),
-    schemaVersion: 13,
+    schemaVersion: 14,
   }
 }

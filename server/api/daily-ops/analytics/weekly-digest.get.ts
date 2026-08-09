@@ -1,9 +1,9 @@
 /**
  * @registry-id: dailyOpsWeeklyDigestGet
  * @created: 2026-07-09T00:00:00.000Z
- * @last-modified: 2026-08-09T17:30:00.000Z
+ * @last-modified: 2026-08-09T17:55:00.000Z
  * @description: GET /api/daily-ops/analytics/weekly-digest — period-cache projection (Phase 7)
- * @last-fix: [2026-08-09] Phase 7 — buildWeeklyDigest from period nodes; no weekly-digest profile
+ * @last-fix: [2026-08-09] ZERO-GET sides empty; occupancy from period-cache
  * @adr-ref: ADR-004, ADR-013, PERIOD_CACHE_ADR L2
  * @data-source: period-cache
  * @read-cache-json: daily_ops_period_cache · level=day

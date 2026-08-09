@@ -75,6 +75,8 @@ If L4 conflicts with a clever GET shortcut, **L2 + L3 win**.
 | Build / seal / cascade | `buildDayNode.ts`, `sealDayNode.ts`, `cascadePeriod.ts` |
 | Ratios | `ratioSnapshot.ts` |
 | Resolve | `resolvePeriodRange.ts` |
+| Dashboard DTO (GET) | `assembleDashboardBundleFromPeriodCache.ts` → `loadDashboardBundleForGet.ts` |
+| Weekly digest (GET) | `buildWeeklyDigest.ts` (period day nodes; attendance/plusmin/opening = zeros until sealed) |
 | Snapshot hook | `server/services/dailyOpsSnapshotService.ts` |
 | CLI | `scripts/backfill-period-cache.ts`, `scripts/validate-period-cache.ts` |
 
@@ -153,3 +155,5 @@ If L4 conflicts with a clever GET shortcut, **L2 + L3 win**.
 **Complete (2026-08-09).** All former `daily_ops_read_cache` profiles are retired — including `dashboard-bundle` and `weekly-digest`. See `server/utils/dailyOpsReadCache/retiredProfiles.ts`.
 
 GET paths project DTOs from `daily_ops_period_cache` day nodes (`assembleDashboardBundleFromPeriodCache`, `buildWeeklyDigest`). Snapshot write still seals period-cache via `sealDayNodesForDate` + `cascadePeriodRange`. Day nodes include `revenue.byWorker`, `revenue.byTable`, and `revenue.tablesByHour` for staff/table/occupancy projection.
+
+**Residual (not live on GET):** weekly attendance / staff-plusmin / opening-closing sections return zeros until those fields are sealed onto period nodes. No Eitje/raw/snapshot reads on Weekly Report GET.

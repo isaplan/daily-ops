@@ -1,21 +1,17 @@
 /**
  * @registry-id: dailyOpsCacheCascade
  * @created: 2026-06-05T18:48:00.000Z
- * @last-modified: 2026-07-22T15:30:00.000Z
- * @description: Cascading cache: daily → weekly → monthly → yearly bundle aggregation
- * @last-fix: [2026-07-22] Skip week/month hits with wiped byVenue staff; recompose from dailies
- *   Prior: [2026-07-16] Seal averageHistory + PBI into week/month/year JSON at write; persist composed misses
- *   Prior: [2026-07-16] Skip month/week/year hits missing profitByInterval; recompose from dailies
- *   Prior: [2026-07-14] Cascade rollups pass P&L assumptions for ADR-014 profit SSOT
- * @adr-ref: ADR-004, ADR-010, ADR-013, ADR-014
- * @data-source: read-cache
- * @write-cache-json: daily_ops_read_cache · dashboard-bundle · daily→weekly→monthly→yearly after buildDailyOpsSnapshot
- * @read-cache-json: daily_ops_read_cache · profile=dashboard-bundle · levels=daily|weekly|monthly|yearly
+ * @last-modified: 2026-08-09T17:55:00.000Z
+ * @description: Phase 7 no-op — dashboard-bundle retired; period-cache cascade elsewhere
+ * @last-fix: [2026-08-09] Phase 7 — stop writing dashboard-bundle; GET uses period-cache
+ *   Prior: [2026-07-22] Skip week/month hits with wiped byVenue staff; recompose from dailies
+ * @adr-ref: PERIOD_CACHE_ADR L2, ADR-004, ADR-013
+ * @data-source: none
+ * @write-cache-json: none (retired)
  *
  * @exports-to:
  * ✓ scripts/pregenerate-dashboard-bundles.ts
- * ✓ server/api/daily-ops/metrics/bundle.get.ts
- * ✓ server/api/daily-ops/metrics/venue-strip.get.ts
+ * ✓ server/plugins/bundle-cache-catchup.ts
  */
 
 import type { Db } from 'mongodb'

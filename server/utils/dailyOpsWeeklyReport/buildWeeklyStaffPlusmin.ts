@@ -1,13 +1,13 @@
 /**
  * @registry-id: dailyOpsWeeklyReportBuildStaffPlusmin
  * @created: 2026-07-09T12:00:00.000Z
- * @last-modified: 2026-07-09T20:45:00.000Z
- * @description: Weekly staff plus/min for weekly-digest (build-time only)
- * @last-fix: [2026-07-09] Team from Eitje agg; location labels for all-venues view
- * @adr-ref: ADR-004, ADR-013
+ * @last-modified: 2026-08-09T17:55:00.000Z
+ * @description: Weekly staff plus/min — RETIRED from GET (Eitje); period-cache gap zeros
+ * @last-fix: [2026-08-09] Not called from weekly/monthly digest GET (ZERO-GET)
+ * @adr-ref: PERIOD_CACHE_ADR L2, ADR-004, ADR-013
  *
  * @exports-to:
- * ✓ server/utils/dailyOpsWeeklyReport/buildWeeklyDigest.ts
+ * ✓ (unused on GET — keep until sealed onto period nodes)
  */
 
 import type { Db } from 'mongodb'

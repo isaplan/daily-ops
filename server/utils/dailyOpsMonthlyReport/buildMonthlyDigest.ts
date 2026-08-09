@@ -1,10 +1,10 @@
 /**
  * @registry-id: dailyOpsMonthlyReportBuildDigest
  * @created: 2026-07-17T00:00:00.000Z
- * @last-modified: 2026-08-09T01:05:00.000Z
- * @description: Aggregate calendar-month snapshots into digest payload (reuses WeeklyDigestDto)
- * @last-fix: [2026-08-09] Food/bev from period-cache only (PERIOD_CACHE_ADR L3)
- *   Prior: [2026-07-20] tableOccupancy + rolling12 occupancy comparisons
+ * @last-modified: 2026-08-09T17:55:00.000Z
+ * @description: Aggregate calendar-month digests (reuses WeeklyDigestDto)
+ * @last-fix: [2026-08-09] ZERO-GET sides — empty attendance/plusmin/opening; occ period-cache
+ *   Prior: [2026-08-09] Food/bev from period-cache only (PERIOD_CACHE_ADR L3)
  * @adr-ref: ADR-004, ADR-013, ADR-015, PERIOD_CACHE_ADR L2, L3
  * @data-source: snapshot-write-only
  *
@@ -23,13 +23,16 @@ import type {
   DailyOpsSnapshotRevenueWorkersSection,
 } from '~/types/daily-ops-snapshot'
 import type {
+  WeeklyAttendanceSummary,
   WeeklyCategoryMargin,
   WeeklyCompareTrend,
   WeeklyDayBreakdown,
   WeeklyDigestDto,
   WeeklyHourlyLossCell,
+  WeeklyOpeningClosingSummary,
   WeeklyProductRow,
   WeeklySpaceMargin,
+  WeeklyStaffPlusminSummary,
   WeeklyStaffRanking,
   WeeklyTargetsDto,
   WeeklyTeamBreakdown,
@@ -51,9 +54,6 @@ import {
   roundWeekly2,
   weekdayLabel,
 } from '../dailyOpsWeeklyReport/weeklyStatus'
-import { buildWeeklyAttendance } from '../dailyOpsWeeklyReport/buildWeeklyAttendance'
-import { buildWeeklyOpeningClosing } from '../dailyOpsWeeklyReport/buildWeeklyOpeningClosing'
-import { buildWeeklyStaffPlusmin } from '../dailyOpsWeeklyReport/buildWeeklyStaffPlusmin'
 import { buildWeeklyTableOccupancy } from '../dailyOpsWeeklyReport/buildWeeklyTableOccupancy'
 import { occupancyPctByRangeKeys } from '../dailyOpsVenueTables/occupancyPctByRangeKeys'
 import {
@@ -87,6 +87,41 @@ function locationNameFor(id: string): string {
   if (id === 'all') return 'All locations'
   const hit = VENUE_STRIP_LOCATIONS.find((v) => v.locationId === id)
   return hit?.locationName ?? id
+}
+
+function emptyAttendance (): WeeklyAttendanceSummary {
+  return {
+    ziekHours: 0,
+    ziekStaffCount: 0,
+    verlofStaffCount: 0,
+    verlofHours: 0,
+    ziekStaff: [],
+    verlofStaff: [],
+  }
+}
+
+function emptyStaffPlusmin (): WeeklyStaffPlusminSummary {
+  return {
+    plusHours: 0,
+    minusHours: 0,
+    netDelta: 0,
+    overThreshold: 0,
+    underThreshold: 0,
+    over: [],
+    under: [],
+    members: [],
+  }
+}
+
+function emptyOpeningClosing (): WeeklyOpeningClosingSummary {
+  const team = { preOpenHours: 0, postCloseHours: 0, outsideHours: 0 }
+  return {
+    preOpenHours: 0,
+    postCloseHours: 0,
+    outsideHours: 0,
+    keuken: team,
+    bediening: team,
+  }
 }
 
 async function fetchSnapshotBundle(
@@ -660,12 +695,15 @@ export async function buildMonthlyDigest(
     occupancyPct: null as number | null,
   }
 
-  const [attendance, staffPlusmin, openingClosing, tableOccupancy] = await Promise.all([
-    buildWeeklyAttendance(db, range.startDate, range.endDate, locationId),
-    buildWeeklyStaffPlusmin(db, range.startDate, range.endDate, locationId),
-    buildWeeklyOpeningClosing(db, range.startDate, range.endDate, locationId),
-    buildWeeklyTableOccupancy(db, range.startDate, range.endDate, locationId),
-  ])
+  const attendance = emptyAttendance()
+  const staffPlusmin = emptyStaffPlusmin()
+  const openingClosing = emptyOpeningClosing()
+  const tableOccupancy = await buildWeeklyTableOccupancy(
+    db,
+    range.startDate,
+    range.endDate,
+    locationId,
+  )
   currentTotals.occupancyPct = tableOccupancy.occupancyPct
   const comparisons = await buildComparisons(db, range, locationId, currentTotals, opts.targets)
 
