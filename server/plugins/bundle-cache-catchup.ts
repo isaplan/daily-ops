@@ -1,30 +1,25 @@
 /**
  * @registry-id: bundleCacheCatchupPlugin
  * @created: 2026-07-01T00:00:00.000Z
- * @last-modified: 2026-07-11T17:30:00.000Z
- * @description: Warm daily_ops_read_cache from snapshots when Mongo cache is cold post-deploy
- * @last-fix: [2026-07-11] Query daily_ops_snapshot master collection (was wrong daily_ops_snapshot_master)
- *   Prior: [2026-07-09] Warm weekly-digest read-cache on cold startup
- *   Prior: [2026-07-02] Check Mongo daily doc count instead of disk-only
- * @adr-ref: ADR-004, ADR-013
- * @data-source: snapshot-write-only
- * @write-cache-json: daily_ops_read_cache · dashboard-bundle · weekly-digest
+ * @last-modified: 2026-08-09T17:30:00.000Z
+ * @description: Warm period-cache cascade when cold post-deploy (Phase 7)
+ * @last-fix: [2026-08-09] Phase 7 — cascade period-cache; no dashboard-bundle / weekly-digest writes
+ * @adr-ref: PERIOD_CACHE_ADR L2
+ * @data-source: period-cache
+ * @write-cache-json: daily_ops_period_cache
  *
  * @exports-to:
  * ✓ nitro startup
  */
 import { getDb } from '../utils/db'
-import { countReadCacheDocs } from '../utils/dailyOpsReadCache/readCacheStore'
-import { refreshDashboardBundleCache } from '../utils/dailyOpsSnapshot/preGenerateBundleCache'
-import { warmRecentWeeklyDigestCache } from '../utils/dailyOpsSnapshot/aggregateWeeklyReadCache'
-import { WEEKLY_DIGEST_PROFILE } from '~/types/daily-ops-weekly-report'
+import { cascadePeriodRange } from '../utils/dailyOpsPeriodCache/cascadePeriod'
+import { DAILY_OPS_PERIOD_CACHE_COLLECTION } from '../utils/dailyOpsPeriodCache/store'
 import { DAILY_OPS_SNAPSHOT_COLLECTIONS } from '~/types/daily-ops-snapshot'
 
 const SNAPSHOT_MASTER = DAILY_OPS_SNAPSHOT_COLLECTIONS.master
+const MIN_PERIOD_DAY_DOCS = 60
 
-const MIN_DAILY_ALL_DOCS = 60
-
-function catchupEnabled(): boolean {
+function catchupEnabled (): boolean {
   if (process.env.BUNDLE_CACHE_CATCHUP_ON_START === '0') return false
   if (process.env.BUNDLE_CACHE_CATCHUP_ON_START === '1') return true
   return process.env.NODE_ENV === 'production'
@@ -36,15 +31,18 @@ export default defineNitroPlugin((nitroApp) => {
       if (!catchupEnabled()) return
 
       const db = await getDb()
-      const dailyAllCount = await countReadCacheDocs(db, 'dashboard-bundle', 'daily', 'all')
+      const dayCount = await db.collection(DAILY_OPS_PERIOD_CACHE_COLLECTION).countDocuments({
+        level: 'day',
+        locationId: 'all',
+      })
 
-      if (dailyAllCount >= MIN_DAILY_ALL_DOCS) {
-        nitroApp.logger?.info(`[bundle-cache-catchup] skip; ${dailyAllCount} Mongo daily all-location docs`)
+      if (dayCount >= MIN_PERIOD_DAY_DOCS) {
+        nitroApp.logger?.info(`[period-cache-catchup] skip; ${dayCount} period day all-location docs`)
         return
       }
 
       nitroApp.logger?.info(
-        `[bundle-cache-catchup] cold Mongo cache (${dailyAllCount} daily) — rebuilding from snapshots`,
+        `[period-cache-catchup] cold period-cache (${dayCount} day/all) — cascading from snapshot range`,
       )
 
       const bounds = await db
@@ -55,32 +53,15 @@ export default defineNitroPlugin((nitroApp) => {
         .toArray()
       const row = bounds[0] as { minDate?: string; maxDate?: string } | undefined
       if (!row?.minDate || !row?.maxDate) {
-        nitroApp.logger?.warn('[bundle-cache-catchup] no snapshot rows — skip')
+        nitroApp.logger?.warn('[period-cache-catchup] no snapshot rows — skip')
         return
       }
 
-      const locationIds = await db
-        .collection(SNAPSHOT_MASTER)
-        .distinct('locationId', { businessDate: { $gte: row.minDate, $lte: row.maxDate } })
-
-      await refreshDashboardBundleCache(
-        db,
-        row.minDate,
-        row.maxDate,
-        [...locationIds.map(String), 'all'],
-      )
-
-      const weeklyCount = await countReadCacheDocs(db, WEEKLY_DIGEST_PROFILE, 'weekly', 'all')
-      if (weeklyCount < 4) {
-        nitroApp.logger?.info(`[bundle-cache-catchup] warming weekly-digest (${weeklyCount} docs)`)
-        const weekly = await warmRecentWeeklyDigestCache(db, 8)
-        nitroApp.logger?.info(`[bundle-cache-catchup] weekly-digest written=${weekly.written}`)
-      }
-
-      nitroApp.logger?.info(`[bundle-cache-catchup] done ${row.minDate}..${row.maxDate}`)
+      await cascadePeriodRange(db, row.minDate, row.maxDate)
+      nitroApp.logger?.info(`[period-cache-catchup] done ${row.minDate}..${row.maxDate}`)
     })().catch((e) => {
       const msg = e instanceof Error ? e.message : String(e)
-      nitroApp.logger?.error(`[bundle-cache-catchup] failed: ${msg}`)
+      nitroApp.logger?.error(`[period-cache-catchup] failed: ${msg}`)
     })
   })
 })

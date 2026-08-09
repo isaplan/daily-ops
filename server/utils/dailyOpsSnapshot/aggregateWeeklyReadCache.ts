@@ -1,12 +1,12 @@
 /**
  * @registry-id: dailyOpsAggregateWeeklyReadCache
  * @created: 2026-07-09T00:00:00.000Z
- * @last-modified: 2026-07-09T00:00:00.000Z
- * @description: Write weekly-digest profile to daily_ops_read_cache (ADR-013)
- * @last-fix: [2026-07-09] Aggregate 7 daily snapshots into weekly read-cache JSON
- * @adr-ref: ADR-004, ADR-013
- * @data-source: snapshot-write-only
- * @write-cache-json: daily_ops_read_cache · profile=weekly-digest · level=weekly
+ * @last-modified: 2026-08-09T17:30:00.000Z
+ * @description: Phase 7 — cascade period-cache weeks (no weekly-digest profile write)
+ * @last-fix: [2026-08-09] Phase 7 retire weekly-digest read-cache writer
+ * @adr-ref: PERIOD_CACHE_ADR L2
+ * @data-source: period-cache
+ * @write-cache-json: daily_ops_period_cache · week cascade
  *
  * @exports-to:
  * ✓ server/tasks/daily-ops/weekly-digest-cache.ts
@@ -14,40 +14,19 @@
  */
 
 import type { Db } from 'mongodb'
-import { upsertReadCachePayload } from '../dailyOpsReadCache/readCacheStore'
-import { VENUE_STRIP_LOCATIONS } from '../venueStrip/constants'
-import { buildWeeklyDigest } from '../dailyOpsWeeklyReport/buildWeeklyDigest'
-import { resolveWeeklyTargets } from '../dailyOpsWeeklyReport/weeklyStatus'
-import { resolveWeeklyRange, previousWeekRange, type WeeklyRange } from '../dailyOpsWeeklyReport/weekRange'
-import { WEEKLY_DIGEST_PROFILE } from '~/types/daily-ops-weekly-report'
+import { cascadePeriodRange } from '../dailyOpsPeriodCache/cascadePeriod'
+import { previousWeekRange, resolveWeeklyRange, type WeeklyRange } from '../dailyOpsWeeklyReport/weekRange'
 
-export async function aggregateWeeklyReadCache(
+export async function aggregateWeeklyReadCache (
   db: Db,
   range: WeeklyRange,
-  locationIds?: string[],
+  _locationIds?: string[],
 ): Promise<{ written: number }> {
-  const targets = resolveWeeklyTargets()
-  const ids = locationIds ?? [...VENUE_STRIP_LOCATIONS.map((v) => v.locationId), 'all']
-  let written = 0
-
-  for (const locationId of ids) {
-    const payload = await buildWeeklyDigest(db, range, { locationId, targets })
-    await upsertReadCachePayload(db, {
-      profile: WEEKLY_DIGEST_PROFILE,
-      level: 'weekly',
-      key: range.weekKey,
-      locationId,
-      businessDateStart: range.startDate,
-      businessDateEnd: range.endDate,
-      payload,
-    })
-    written += 1
-  }
-
-  return { written }
+  await cascadePeriodRange(db, range.startDate, range.endDate)
+  return { written: 0 }
 }
 
-export async function warmRecentWeeklyDigestCache(
+export async function warmRecentWeeklyDigestCache (
   db: Db,
   weeksBack = 8,
 ): Promise<{ written: number }> {

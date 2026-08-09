@@ -1,5 +1,5 @@
 /**
- * Rebuild daily_ops_read_cache profile=weekly-digest (walks weeks backward).
+ * Ensure period-cache week cascade for weeks in range (Phase 7 — no weekly-digest profile).
  *
  * Usage:
  *   npx --yes tsx scripts/backfill-weekly-digest-cache.ts -- --from 2026-06-01 --to 2026-08-09
@@ -7,7 +7,7 @@
  */
 
 import { getDb } from '../server/utils/db'
-import { aggregateWeeklyReadCache } from '../server/utils/dailyOpsSnapshot/aggregateWeeklyReadCache'
+import { cascadePeriodRange } from '../server/utils/dailyOpsPeriodCache/cascadePeriod'
 import {
   resolveWeeklyRange,
   previousWeekRange,
@@ -33,24 +33,22 @@ async function main (): Promise<void> {
 
   const floor = from ?? stopStart
   process.stdout.write(
-    `[weekly-digest] connected, weeks with startDate in [${floor} .. ${range.startDate}]\n`,
+    `[period-cache:week] cascade weeks with startDate in [${floor} .. ${range.startDate}]\n`,
   )
 
-  let written = 0
   let weeks = 0
 
   while (range.startDate >= floor) {
-    process.stdout.write(`[weekly-digest] building ${range.weekKey}…\n`)
-    const r = await aggregateWeeklyReadCache(db, range)
-    written += r.written
+    process.stdout.write(`[period-cache:week] cascading ${range.weekKey}…\n`)
+    const r = await cascadePeriodRange(db, range.startDate, range.endDate)
     weeks += 1
     process.stdout.write(
-      `[weekly-digest] ${range.weekKey} ${range.startDate}..${range.endDate} written=${r.written}\n`,
+      `[period-cache:week] ${range.weekKey} ${range.startDate}..${range.endDate} result=${JSON.stringify(r)}\n`,
     )
     range = previousWeekRange(range)
   }
 
-  process.stdout.write(`[weekly-digest] Done weeks=${weeks} docs=${written}\n`)
+  process.stdout.write(`[period-cache:week] Done weeks=${weeks}\n`)
   process.exit(0)
 }
 

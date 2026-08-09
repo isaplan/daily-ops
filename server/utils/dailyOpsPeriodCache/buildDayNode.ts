@@ -1,10 +1,10 @@
 /**
  * @registry-id: dailyOpsPeriodCacheBuildDayNode
  * @created: 2026-08-08T21:20:00.000Z
- * @last-modified: 2026-08-09T15:50:00.000Z
+ * @last-modified: 2026-08-09T17:30:00.000Z
  * @description: Build one day-level DailyOpsPeriodNode from sealed snapshot sections
- * @last-fix: [2026-08-09] Seal byWorker/byTable from snapshot workers/tables sections
- *   Prior: [2026-08-09] staff.workers feeds attendance/plusmin GET (PERIOD_CACHE_ADR L2)
+ * @last-fix: [2026-08-09] Seal tablesByHour for Phase 7 occupancy projection
+ *   Prior: [2026-08-09] Seal byWorker/byTable from snapshot workers/tables sections
  * @adr-ref: PERIOD_CACHE_ADR L2, L3
  * @data-source: snapshot-sections
  * @write-cache-json: daily_ops_period_cache · level=day
@@ -12,6 +12,7 @@
  * @exports-to:
  * ✓ server/utils/dailyOpsPeriodCache/sealDayNode.ts
  * ✓ server/utils/dailyOpsPeriodCache/cascadePeriod.ts
+ * ✓ server/utils/dailyOpsPeriodCache/assembleDashboardBundleFromPeriodCache.ts
  * ✓ scripts/backfill-period-cache.ts
  */
 
@@ -21,6 +22,7 @@ import type {
   PeriodLeadRevenueSource,
   PeriodRatioSource,
   PeriodTableRevenueRow,
+  PeriodTablesByHourRow,
   PeriodWorkerRevenueRow,
 } from '~/types/daily-ops-period-cache'
 import {
@@ -206,6 +208,16 @@ function tablesRevenueFromSnapshot (
   }))
 }
 
+function tablesByHourFromSnapshot (
+  doc: DailyOpsSnapshotRevenueTablesSection | null,
+): PeriodTablesByHourRow[] {
+  if (!doc?.tablesByHour?.length) return []
+  return doc.tablesByHour.map((h) => ({
+    hour: Number(h.calendarHour ?? h.businessHour ?? 0),
+    activeTables: Number(h.activeTables ?? 0),
+  }))
+}
+
 /**
  * Build a day node for one venue from existing snapshot sections.
  * Does not write — caller seals + upserts.
@@ -292,6 +304,7 @@ export async function buildDayNode (
   }))
   const byWorker = workersRevenueFromSnapshot(workersSec)
   const byTable = tablesRevenueFromSnapshot(tablesSec)
+  const tablesByHour = tablesByHourFromSnapshot(tablesSec)
 
   const laborBlock = laborFromSnapshot(labor)
   const staffBlock = staffFromSnapshot(labor)
@@ -344,6 +357,7 @@ export async function buildDayNode (
       byHour,
       byWorker,
       byTable,
+      tablesByHour,
       leadSource: mapLeadSource(revenue.leadSource),
     },
     labor: laborBlock,
@@ -485,6 +499,7 @@ export function aggregateVenueDayNodes (
       byHour: [],
       byWorker: [...workerRevMap.values()],
       byTable: [...tableRevMap.values()],
+      tablesByHour: [],
       leadSource: first?.revenue.leadSource ?? 'none',
     },
     labor: {

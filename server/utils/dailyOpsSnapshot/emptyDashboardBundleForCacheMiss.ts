@@ -28,7 +28,7 @@ export function emptyDashboardBundleForCacheMiss(
     endDate: ctx.endDate,
   }
   const coverageNote =
-    'Read-cache miss for this period — rebuild with pnpm snapshots:backfill / cascadeGenerate (ADR-013).'
+    'Period-cache miss for this period — rebuild snapshots + period-cache seal/cascade (PERIOD_CACHE_ADR L2).'
 
   const summary: DailyOpsSummaryDto = {
     range,

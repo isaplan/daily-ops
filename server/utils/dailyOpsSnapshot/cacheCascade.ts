@@ -19,14 +19,13 @@
  */
 
 import type { Db } from 'mongodb'
-import { readFile, writeFile, mkdir } from 'node:fs/promises'
+import { readFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { addCalendarDaysYmd, amsterdamOpenRegisterBusinessDateYmd } from '~/utils/dailyOpsBusinessDate'
 import type { DailyOpsMetricsContext } from '../dailyOpsMetrics/context'
 import { enumerateUtcDatesInclusive } from '../dailyOpsMetrics/context'
 import {
   findReadCachePayload,
-  upsertReadCachePayload,
 } from '../dailyOpsReadCache/readCacheStore'
 import {
   aggregateDailyBundles,
@@ -41,6 +40,7 @@ import {
   minYmd,
 } from './aggregateDailyBundles'
 import type { DailyOpsDashboardBundleDto } from './fetchDashboardBundle'
+import type { VenueStripResponseDto } from '~/types/daily-ops-dashboard'
 import { bundleHasCoverageGaps } from './bundleCoverage'
 import { bundlePeriodBreakdownStaffMissing, bundleProfitByIntervalIncomplete } from './bundleInvariant'
 import { loadPnlAssumptions } from '../appSettings/pnlAssumptionsSetting'
@@ -119,7 +119,7 @@ export async function readCachedBundle(
   return hit
 }
 
-async function writeCachedBundle(
+async function writeCachedBundle (
   db: Db,
   level: CacheLevel,
   key: string,
@@ -127,19 +127,13 @@ async function writeCachedBundle(
   bundle: DailyOpsDashboardBundleDto,
   range?: { startDate: string; endDate: string },
 ): Promise<void> {
-  await upsertReadCachePayload(db, {
-    profile: DASHBOARD_PROFILE,
-    level,
-    key,
-    locationId,
-    businessDateStart: range?.startDate,
-    businessDateEnd: range?.endDate,
-    payload: bundle,
-  })
-
-  const path = cachePath(level, key, locationId)
-  await mkdir(resolve(path, '..'), { recursive: true })
-  await writeFile(path, JSON.stringify(bundle, null, 0), 'utf-8')
+  // Phase 7: dashboard-bundle profile retired — GET projects from period-cache.
+  void db
+  void level
+  void key
+  void locationId
+  void bundle
+  void range
 }
 
 export async function loadDailyBundlesInRange(
@@ -509,81 +503,16 @@ export async function generatePartialYearlyBundle(
   }
 }
 
-/** Cascade: generate weekly/monthly/yearly from daily bundles. */
-export async function cascadeGenerate(
+/** Cascade: retired in Phase 7 — period-cache cascade owns rollups. */
+export async function cascadeGenerate (
   db: Db,
   startDate: string,
   endDate: string,
   locationIds: string[],
 ): Promise<{ weekly: number; monthly: number; yearly: number }> {
-  const weeks = new Set<string>()
-  const months = new Set<string>()
-  const years = new Set<string>()
-
-  // Collect unique weeks/months/years in range
-  let cursor = startDate
-  while (cursor <= endDate) {
-    weeks.add(getIsoWeek(cursor))
-    months.add(getMonthKey(cursor))
-    years.add(getYearKey(cursor))
-
-    cursor = addCalendarDaysYmd(cursor, 1)
-  }
-
-  let weeklyCount = 0
-  let monthlyCount = 0
-  let yearlyCount = 0
-
-  // Generate weekly bundles
-  for (const week of weeks) {
-    for (const locationId of locationIds) {
-      // Find any date in this week from the range
-      let weekStart = startDate
-      let cursor = startDate
-      while (cursor <= endDate) {
-        if (getIsoWeek(cursor) === week) {
-          weekStart = getWeekStart(cursor)
-          break
-        }
-        cursor = addCalendarDaysYmd(cursor, 1)
-      }
-      
-      const result = await generateWeeklyBundle(db, week, locationId, weekStart)
-      if (result.written) {
-        weeklyCount++
-      }
-      else if (result.error && !result.error.includes('Missing daily')) {
-        console.warn(`[cache:cascade] Weekly ${week} ${locationId}: ${result.error}`)
-      }
-    }
-  }
-
-  // Generate monthly bundles
-  for (const month of months) {
-    for (const locationId of locationIds) {
-      const result = await generateMonthlyBundle(db, month, locationId)
-      if (result.written) monthlyCount++
-    }
-  }
-
-  // Generate yearly bundles (full sealed years)
-  for (const year of years) {
-    for (const locationId of locationIds) {
-      const result = await generateYearlyBundle(db, year, locationId)
-      if (result.written) yearlyCount++
-    }
-  }
-
-  const openRegister = amsterdamOpenRegisterBusinessDateYmd()
-  const openYear = getYearKey(openRegister)
-  for (const locationId of locationIds) {
-    const ytd = await generatePartialYearlyBundle(db, openYear, openRegister, locationId)
-    if (ytd.written) yearlyCount++
-  }
-
-  console.info(
-    `[cache:cascade] Generated weekly=${weeklyCount}, monthly=${monthlyCount}, yearly=${yearlyCount}`,
-  )
-
-  return { weekly: weeklyCount, monthly: monthlyCount, yearly: yearlyCount }
+  void db
+  void startDate
+  void endDate
+  void locationIds
+  return { weekly: 0, monthly: 0, yearly: 0 }
 }

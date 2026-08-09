@@ -1,9 +1,9 @@
 /**
  * @registry-id: dailyOpsPeriodCacheTypes
  * @created: 2026-08-08T21:20:00.000Z
- * @last-modified: 2026-08-09T15:50:00.000Z
+ * @last-modified: 2026-08-09T17:30:00.000Z
  * @description: Unified period-cache node + ratio snapshot shapes
- * @last-fix: [2026-08-09] Add day-level byWorker / byTable revenue rows
+ * @last-fix: [2026-08-09] Add tablesByHour for occupancy DTO projection (Phase 7)
  * @adr-ref: PERIOD_CACHE_ADR L1, L2
  *
  * @exports-to:
@@ -12,6 +12,7 @@
  * ✓ server/utils/dailyOpsPeriodCache/cascadePeriod.ts
  * ✓ server/utils/dailyOpsPeriodCache/ratioSnapshot.ts
  * ✓ server/utils/dailyOpsPeriodCache/resolvePeriodRange.ts
+ * ✓ server/utils/dailyOpsPeriodCache/assembleDashboardBundleFromPeriodCache.ts
  * ✓ scripts/backfill-period-cache.ts
  * ✓ scripts/validate-period-cache.ts
  */
@@ -73,6 +74,12 @@ export type PeriodTableRevenueRow = {
   qty: number
 }
 
+/** Day-level active tables per clock hour (for bezettingsgraad). */
+export type PeriodTablesByHourRow = {
+  hour: number
+  activeTables: number
+}
+
 export type PeriodTeamLaborRow = {
   team: string
   hours: number
@@ -104,6 +111,8 @@ export type PeriodRevenueBlock = {
   byWorker?: PeriodWorkerRevenueRow[]
   /** Day-level table revenue; omitted/empty on rollups. */
   byTable?: PeriodTableRevenueRow[]
+  /** Day-level active tables by hour; omitted/empty on rollups. */
+  tablesByHour?: PeriodTablesByHourRow[]
   leadSource: PeriodLeadRevenueSource
 }
 

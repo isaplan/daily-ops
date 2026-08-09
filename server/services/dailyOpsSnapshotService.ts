@@ -1,13 +1,12 @@
 /**
  * @registry-id: dailyOpsSnapshotService
  * @created: 2026-05-13T00:00:00.000Z
- * @last-modified: 2026-08-09T01:50:00.000Z
- * @last-fix: [2026-08-09] Seal+cascade period-cache BEFORE bundle pregen (food/bev SSOT on first write)
- *   Prior: [2026-08-09] After bundle cascade, seal+cascade daily_ops_period_cache (PERIOD_CACHE_ADR L2)
- *   Prior: [2026-07-13] CRITICAL FIX: Replace buggy Eitje-fallback location discovery with hardcoded VENUE_STRIP_LOCATIONS.
+ * @last-modified: 2026-08-09T17:30:00.000Z
+ * @last-fix: [2026-08-09] Phase 7 — drop dashboard-bundle writers; period-cache only after snapshot
+ *   Prior: [2026-08-09] Seal+cascade period-cache BEFORE bundle pregen (food/bev SSOT on first write)
  * @adr-ref: ADR-004, ADR-006, ADR-007, ADR-013, PERIOD_CACHE_ADR L1, L2
  * @data-source: snapshot-write-only
- * @write-cache-json: daily_ops_read_cache · dashboard-bundle; daily_ops_period_cache · after buildDailyOpsSnapshot
+ * @write-cache-json: daily_ops_period_cache · after buildDailyOpsSnapshot
  *
  * @architecture:
  *   - Snapshot always builds all 3 VENUE_STRIP_LOCATIONS (Van Kinsbergen, Bar Bea, l'Amour Toujours) per businessDate, no location discovery fallback.
@@ -19,7 +18,7 @@
  *   - Lead revenue source decided in buildRevenueSection (inbox-sealed > inbox-latest > bork).
  *   - status: 'partial' until morning final (cron 7 or 8) inbox row received, then sealDailyOpsSnapshot() flips to 'final'.
  *   - Idempotent: same input → same output modulo lastBuiltAt / sealedAt.
- *   - Period-cache hook: sealDayNodesForDate + cascadePeriodRange BEFORE legacy bundle pregen/cascade (failures logged, never fail snapshot).
+ *   - Period-cache hook: sealDayNodesForDate + cascadePeriodRange (Phase 7 GET SSOT).
  *
  * @exports-to:
  *   ✓ server/services/eitjeSyncService.ts (enqueue rebuilds after agg)
@@ -60,8 +59,7 @@ import {
   writeRevenueBenchmarkForLocation,
 } from '../utils/dailyOpsRevenue/revenueBenchmark'
 import { runPostSealRetention } from '../utils/dailyOpsBlob/runPostSealRetention'
-import { preGenerateBundleForDate, refreshDashboardBundleCache } from '../utils/dailyOpsSnapshot/preGenerateBundleCache'
-import { cascadeGenerate } from '../utils/dailyOpsSnapshot/cacheCascade'
+import { refreshDashboardBundleCache } from '../utils/dailyOpsSnapshot/preGenerateBundleCache'
 import { cascadePeriodRange } from '../utils/dailyOpsPeriodCache/cascadePeriod'
 import { sealDayNodesForDate } from '../utils/dailyOpsPeriodCache/sealDayNode'
 import type { SourcesFingerprint } from '../utils/dailyOpsSnapshot/resolveSources'
@@ -352,19 +350,13 @@ export async function buildDailyOpsSnapshot(input: BuildSnapshotInput): Promise<
 
   if (out.built.length > 0) {
     await writeRevenueBenchmarkAllLocations(db, businessDate)
-    // Period-cache must exist before dashboard bundles (food/bev + BE read period nodes).
+    // Period-cache seal + cascade (Phase 7 GET SSOT). Dashboard-bundle writers retired.
     try {
       await sealDayNodesForDate(db, businessDate)
       await cascadePeriodRange(db, businessDate, businessDate)
     } catch (e) {
       console.error(`[period-cache] hook failed ${businessDate}`, e)
     }
-    for (const b of out.built) {
-      await preGenerateBundleForDate(db, businessDate, b.locationId)
-    }
-    await preGenerateBundleForDate(db, businessDate, 'all')
-    const cacheLocationIds = [...out.built.map((b) => b.locationId), 'all']
-    await cascadeGenerate(db, businessDate, businessDate, cacheLocationIds)
   }
 
   return out
@@ -415,9 +407,6 @@ export async function sealDailyOpsSnapshot(input: { businessDate: string; locati
       .collection(DAILY_OPS_SNAPSHOT_COLLECTIONS.master)
       .updateOne({ businessDate: input.businessDate, locationId: input.locationId }, { $set: { status: 'final', sealedAt: new Date() } })
     await runPostSealRetention(db, input.businessDate, input.locationId)
-    await preGenerateBundleForDate(db, input.businessDate, input.locationId)
-    await preGenerateBundleForDate(db, input.businessDate, 'all')
-    await cascadeGenerate(db, input.businessDate, input.businessDate, [input.locationId, 'all'])
     if (DEBUG) console.info(`[snapshot:seal] ${input.businessDate} ${input.locationId} sealed`)
     return { sealed: true }
   } catch (e) {

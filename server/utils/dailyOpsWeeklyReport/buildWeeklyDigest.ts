@@ -1,21 +1,20 @@
 /**
  * @registry-id: dailyOpsWeeklyReportBuildDigest
  * @created: 2026-07-09T00:00:00.000Z
- * @last-modified: 2026-08-09T00:35:00.000Z
- * @description: Aggregate 7 daily snapshots into weekly-digest payload (ADR-013)
- * @last-fix: [2026-08-09] schemaVersion 12 — period-cache food/bev; write-path only (no GET build)
- *   Prior: [2026-07-20] tableOccupancy + rolling12 occupancy comparisons
+ * @last-modified: 2026-08-09T17:30:00.000Z
+ * @description: Aggregate 7 period-cache day nodes into WeeklyDigestDto (Phase 7 GET)
+ * @last-fix: [2026-08-09] Phase 7 — period-cache only (no snapshot sections / weekly-digest profile)
+ *   Prior: [2026-08-09] schemaVersion 12 — period-cache food/bev; write-path only (no GET build)
  * @adr-ref: ADR-004, ADR-013, PERIOD_CACHE_ADR L2, L3
- * @data-source: snapshot-write-only
- * @write-cache-json: daily_ops_read_cache · profile=weekly-digest · level=weekly
+ * @data-source: period-cache
+ * @read-cache-json: daily_ops_period_cache · level=day
  *
  * @exports-to:
- * ✓ server/utils/dailyOpsSnapshot/aggregateWeeklyReadCache.ts
  * ✓ server/api/daily-ops/analytics/weekly-digest.get.ts
+ * ✓ server/utils/dailyOpsSnapshot/aggregateWeeklyReadCache.ts
  */
 
 import type { Db } from 'mongodb'
-import { DAILY_OPS_SNAPSHOT_COLLECTIONS } from '~/types/daily-ops-snapshot'
 import type {
   DailyOpsSnapshotLaborSection,
   DailyOpsSnapshotMaster,
@@ -38,7 +37,6 @@ import type {
   WeeklyUpsellMetric,
 } from '~/types/daily-ops-weekly-report'
 import { DEFAULT_PNL_ASSUMPTIONS } from '~/utils/dailyOpsPnlAssumptionsDefaults'
-import { sumFoodBeverageForRange } from '../dailyOpsPeriodCache/foodBeverageFromPeriodCache'
 import { VENUE_STRIP_LOCATIONS } from '../venueStrip/constants'
 import {
   headlineExVatFromSnapshotSection,
@@ -59,14 +57,14 @@ import {
   roundWeekly2,
   weekdayLabel,
 } from './weeklyStatus'
-import { findReadCachePayload } from '../dailyOpsReadCache/readCacheStore'
-import { WEEKLY_DIGEST_PROFILE } from '~/types/daily-ops-weekly-report'
 import { addCalendarDaysYmd } from '~/utils/dailyOpsBusinessDate'
 import { buildWeeklyAttendance } from './buildWeeklyAttendance'
 import { buildWeeklyOpeningClosing } from './buildWeeklyOpeningClosing'
 import { buildWeeklyStaffPlusmin } from './buildWeeklyStaffPlusmin'
 import { buildWeeklyTableOccupancy } from './buildWeeklyTableOccupancy'
 import { occupancyPctByRangeKeys } from '../dailyOpsVenueTables/occupancyPctByRangeKeys'
+import { loadPeriodDayNodesForRange } from '../dailyOpsPeriodCache/loadPeriodDayNodesForRange'
+import type { DailyOpsPeriodNode } from '~/types/daily-ops-period-cache'
 
 const UPSell_PATTERNS: Record<WeeklyUpsellMetric['key'], RegExp> = {
   water: /water|spa\b|spa\s*rood|spa\s*blauw/i,
@@ -83,44 +81,155 @@ type SnapshotBundle = {
   workers: DailyOpsSnapshotRevenueWorkersSection[]
 }
 
-function locationFilter(locationId: string | undefined): Record<string, unknown> {
-  if (!locationId || locationId === 'all') return {}
-  return { locationId }
-}
-
 function locationNameFor(id: string): string {
   if (id === 'all') return 'All locations'
   const hit = VENUE_STRIP_LOCATIONS.find((v) => v.locationId === id)
   return hit?.locationName ?? id
 }
 
-async function fetchSnapshotBundle(
+async function fetchSnapshotBundle (
   db: Db,
   startDate: string,
   endDate: string,
   locationId?: string,
 ): Promise<SnapshotBundle> {
-  const dateFilter = { $gte: startDate, $lte: endDate }
-  const loc = locationFilter(locationId)
-  const base = { businessDate: dateFilter, ...loc }
+  const loc = locationId && locationId !== 'all' ? locationId : 'all'
+  let nodes = await loadPeriodDayNodesForRange(db, {
+    startDate,
+    endDate,
+    locationId: loc,
+  })
 
-  const [masters, revenue, labor, products, tables, workers] = await Promise.all([
-    db.collection(DAILY_OPS_SNAPSHOT_COLLECTIONS.master).find(base).toArray(),
-    db.collection(DAILY_OPS_SNAPSHOT_COLLECTIONS.revenueSection).find(base).toArray(),
-    db.collection(DAILY_OPS_SNAPSHOT_COLLECTIONS.laborSection).find(base).toArray(),
-    db.collection(DAILY_OPS_SNAPSHOT_COLLECTIONS.revenueProductsSection).find(base).toArray(),
-    db.collection(DAILY_OPS_SNAPSHOT_COLLECTIONS.revenueTablesSection).find(base).toArray(),
-    db.collection(DAILY_OPS_SNAPSHOT_COLLECTIONS.revenueWorkersSection).find(base).toArray(),
-  ])
-
-  return {
-    masters: masters as DailyOpsSnapshotMaster[],
-    revenue: revenue as DailyOpsSnapshotRevenueSection[],
-    labor: labor as DailyOpsSnapshotLaborSection[],
-    products: products as DailyOpsSnapshotRevenueProductsSection[],
-    tables: tables as DailyOpsSnapshotRevenueTablesSection[],
-    workers: workers as DailyOpsSnapshotRevenueWorkersSection[],
+  if (loc === 'all') {
+    const venueLists = await Promise.all(
+      VENUE_STRIP_LOCATIONS.map((v) =>
+        loadPeriodDayNodesForRange(db, {
+          startDate,
+          endDate,
+          locationId: v.locationId,
+        }),
+      ),
+    )
+    const byKey = new Map<string, DailyOpsPeriodNode>()
+    for (const n of nodes) byKey.set(`${n.locationId}|${n.periodKey}`, n)
+    for (const list of venueLists) {
+      for (const n of list) byKey.set(`${n.locationId}|${n.periodKey}`, n)
+    }
+    nodes = [...byKey.values()].filter((n) => n.locationId !== 'all')
   }
+
+  const masters: DailyOpsSnapshotMaster[] = []
+  const revenue: DailyOpsSnapshotRevenueSection[] = []
+  const labor: DailyOpsSnapshotLaborSection[] = []
+  const products: DailyOpsSnapshotRevenueProductsSection[] = []
+  const tables: DailyOpsSnapshotRevenueTablesSection[] = []
+  const workers: DailyOpsSnapshotRevenueWorkersSection[] = []
+
+  for (const n of nodes) {
+    masters.push({
+      businessDate: n.periodKey,
+      locationId: n.locationId,
+      locationName: n.locationName,
+    } as DailyOpsSnapshotMaster)
+
+    const qty = (n.revenue.byCategory ?? []).reduce((s, c) => s + c.qty, 0)
+    revenue.push({
+      businessDate: n.periodKey,
+      locationId: n.locationId,
+      locationName: n.locationName,
+      leadSource: n.revenue.leadSource === 'inbox_digest' ? 'inbox' : 'bork',
+      totals: {
+        ex_vat: n.revenue.exVat,
+        inc_vat: n.revenue.incVat,
+        vat: n.revenue.vat,
+        quantity: qty,
+      },
+      hourly: (n.revenue.byHour ?? []).map((h) => ({
+        business_hour: h.hour,
+        revenue: { ex_vat: h.exVat },
+        quantity: h.qty,
+      })),
+    } as DailyOpsSnapshotRevenueSection)
+
+    labor.push({
+      businessDate: n.periodKey,
+      locationId: n.locationId,
+      locationName: n.locationName,
+      totals: {
+        hours: n.labor.hours,
+        wage_cost: n.labor.wageCost,
+        loaded_cost: n.labor.loadedCost,
+      },
+      teams: (n.labor.byTeam ?? []).map((t) => ({
+        teamId: t.team,
+        teamName: t.team,
+        hours: t.hours,
+        loaded_cost: t.loadedCost,
+      })),
+      workers: (n.staff.workers ?? []).map((w) => ({
+        userId: w.memberId,
+        userName: w.memberId,
+        teamId: w.team,
+        teamName: w.team,
+        hours: w.hours,
+        wage_cost: w.wage,
+        loaded_cost: w.wage,
+      })),
+    } as DailyOpsSnapshotLaborSection)
+
+    products.push({
+      businessDate: n.periodKey,
+      locationId: n.locationId,
+      locationName: n.locationName,
+      categories: (n.revenue.byCategory ?? []).map((c) => ({
+        categoryName: c.name,
+        revenue_ex_vat: c.exVat,
+        quantity: c.qty,
+      })),
+      products: (n.revenue.byProductTop ?? []).map((p) => ({
+        productId: p.productId,
+        productName: p.name,
+        revenue_ex_vat: p.exVat,
+        quantity: p.qty,
+      })),
+    } as unknown as DailyOpsSnapshotRevenueProductsSection)
+
+    tables.push({
+      businessDate: n.periodKey,
+      locationId: n.locationId,
+      locationName: n.locationName,
+      schema_version: 2,
+      tables: (n.revenue.byTable ?? []).map((t) => ({
+        tableNum: t.tableNum,
+        locationSpace: t.locationSpace,
+        revenue_ex_vat: t.exVat,
+        quantity: t.qty,
+      })),
+      tablesByHour: (n.revenue.tablesByHour ?? []).map((h) => ({
+        businessHour: h.hour,
+        calendarHour: h.hour,
+        activeTables: h.activeTables,
+      })),
+      lastBuiltAt: new Date(),
+    } as DailyOpsSnapshotRevenueTablesSection)
+
+    workers.push({
+      businessDate: n.periodKey,
+      locationId: n.locationId,
+      locationName: n.locationName,
+      schema_version: 1,
+      workers: (n.revenue.byWorker ?? []).map((w) => ({
+        workerId: w.workerId,
+        workerName: w.workerName,
+        revenue_ex_vat: w.exVat,
+        quantity: w.qty,
+        order_count: w.orderCount,
+      })),
+      lastBuiltAt: new Date(),
+    } as DailyOpsSnapshotRevenueWorkersSection)
+  }
+
+  return { masters, revenue, labor, products, tables, workers }
 }
 
 function sumRevenueDocs(docs: DailyOpsSnapshotRevenueSection[]) {
@@ -169,6 +278,7 @@ async function sumFoodBev (
   _products: DailyOpsSnapshotRevenueProductsSection[],
   range: { startDate: string; endDate: string; locationId: string },
 ) {
+  const { sumFoodBeverageForRange } = await import('../dailyOpsPeriodCache/foodBeverageFromPeriodCache')
   const fromCache = await sumFoodBeverageForRange(db, range)
   return { food: fromCache.food, beverage: fromCache.beverage }
 }
@@ -202,6 +312,7 @@ async function buildDailyBreakdown (
     labByDate.set(key, prev)
   }
   for (const d of dates) {
+    const { sumFoodBeverageForRange } = await import('../dailyOpsPeriodCache/foodBeverageFromPeriodCache')
     const fromCache = await sumFoodBeverageForRange(db, {
       startDate: d,
       endDate: d,
@@ -517,24 +628,16 @@ type WeekTotals = {
   occupancyPct: number | null
 }
 
-async function readCachedWeekTotals(
+async function readCachedWeekTotals (
   db: Db,
   range: WeeklyRange,
   locationId: string,
 ): Promise<WeekTotals | null> {
-  const cached = await findReadCachePayload<WeeklyDigestDto>(db, {
-    profile: WEEKLY_DIGEST_PROFILE,
-    level: 'weekly',
-    key: range.weekKey,
-    locationId,
-  })
-  if (!cached || (cached.schemaVersion ?? 1) < 12 || !cached.tableOccupancy) return null
-  return {
-    revenue: cached.totals.revenue,
-    laborCostPct: cached.totals.laborCostPct,
-    pnlPct: cached.totals.pnlPct,
-    occupancyPct: cached.tableOccupancy.occupancyPct ?? null,
-  }
+  // Phase 7: no weekly-digest profile — always compute from period-cache.
+  void db
+  void range
+  void locationId
+  return null
 }
 
 async function weekTotalsFromSnapshots(
@@ -761,6 +864,6 @@ export async function buildWeeklyDigest(
     tableOccupancy,
     dataGap: foundDates.size === 0,
     builtAt: new Date().toISOString(),
-    schemaVersion: 12,
+    schemaVersion: 13,
   }
 }

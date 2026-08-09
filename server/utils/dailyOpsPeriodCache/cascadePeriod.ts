@@ -44,6 +44,7 @@ function emptyDetailRevenue (
     byHour: [],
     byWorker: [],
     byTable: [],
+    tablesByHour: [],
   }
 }
 
