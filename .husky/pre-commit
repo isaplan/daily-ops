@@ -3,7 +3,7 @@
 # 
 # Runs on every commit to:
 # 1. Validate metadata headers are in sync
-# 2. Generate/update function registry
+# 2. Generate/update function registry (must be staged into the commit)
 # 3. Lint & format staged files
 
 set -e
@@ -19,6 +19,9 @@ npx ts-node dev-docs/scripts/generate-registry.ts || {
   echo "❌ Registry generation failed."
   exit 1
 }
+
+# Obligatory: regenerated registry must land in the same commit (not left dirty).
+git add function-registry.json
 
 echo "✅ Metadata & registry validated!"
 echo "🎉 Pre-commit checks passed. Ready to commit!"
