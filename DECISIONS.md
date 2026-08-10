@@ -525,19 +525,20 @@ API endpoint (`bundle.get.ts`) intelligently serves from the appropriate cache l
 
 ## ADR-017 — Period breakdown Staff = Keuken+Bediening; occupancy on graph
 
-**Status:** Accepted (2026-07-28)
+**Status:** Accepted (2026-07-28) — **amended 2026-08-09 (hour→day cascade; no flat day %)**
 
 **Context:** Venue-strip graph Staff counted all teams (incl. Management / Ziek / Verlof). Bezettingsgraad lived only as a separate section. Hour occupancy was a revenue-share proxy, not real active÷total.
 
 **Decision:**
 
 1. **Staff headcount** on `periodBreakdown` = distinct Keuken + Bediening only (`staffByTeam`). Stacked chart uses two orange shades; total on top. Afwas via strip 50/50 stays in keuken/bediening worker counts; hour path excludes non-keuken/bediening team names.
-2. **Day occupancy** = active tables (snapshot `tables`) ÷ catalog `daily_ops_venue_tables` — sealed as `occupancyPct` / `tableOccupancy`.
-3. **Hour occupancy (real):** snapshot `tablesByHour` from `bork_sales_by_table` (`business_hour`) → `tableOccupancy.hourly[]` + `series.hour` = active÷total per venue×calendar hour. No revenue-share proxy on write path.
-4. Graph joins sealed `tableOccupancy` when row `occupancyPct` missing (pre-reseal caches).
-5. Backfill tables section + dashboard-bundle from **2026-07-01** forward.
+2. **Cascade (mandatory):** **hour → day → week → month → year**. Hour is the leaf (active tables that hour ÷ catalog). Day = distinct tables that day ÷ catalog (not mean of hours). Week/month/year = avg of daily occupancyPct. Never invent year/week occupancy on GET.
+3. **Hour occupancy (real):** snapshot `tablesByHour` from `bork_sales_by_table` (`business_hour`) → `tableOccupancy.hourly[]` + `series.hour` = active÷total per venue×calendar hour. No revenue-share proxy. **Never stamp day venue % onto every hour** (that produced flat ~30% bars). Missing hour data → `null` / gap until sealed or Today warm fill.
+4. **Today (open register):** if snapshot tables section lacks `tablesByHour` (schema v1), derive hour leaf from warm Bork on the live Today path; cron/snapshot rebuild must write schema v2 + `tablesByHour`.
+5. Graph joins `tableOccupancy` hourly/series for hour grain; day+ grains may use day/venue rollups.
+6. Backfill tables section from **2026-07-01** forward where warm Bork still exists.
 
-**Related:** ADR-004, ADR-013
+**Related:** ADR-004, ADR-013, PERIOD_CACHE_ADR L2
 
 ---
 

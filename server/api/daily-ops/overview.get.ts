@@ -1,11 +1,11 @@
 /**
  * @registry-id: dailyOpsOverviewGet
- * @last-modified: 2026-08-09T17:55:00.000Z
- * @description: @deprecated — use /metrics/bundle; period-cache projection (Phase 7)
- * @last-fix: [2026-08-09] Phase 7 — period-cache via loadDashboardBundleForGet
+ * @last-modified: 2026-08-09T17:25:00.000Z
+ * @description: @deprecated — use /metrics/bundle; Today live / sealed period-cache
+ * @last-fix: [2026-08-09] Today live exception via loadDashboardBundleForGet
  * @adr-ref: ADR-004, ADR-010, ADR-013, PERIOD_CACHE_ADR L2
- * @data-source: period-cache
- * @read-cache-json: daily_ops_period_cache · level=day
+ * @data-source: snapshot-today-live | period-cache
+ * @read-cache-json: daily_ops_period_cache · level=day (sealed)
  */
 import { getDb } from '../../utils/db'
 import { parseDailyOpsMetricsQuery } from '../../utils/dailyOpsMetrics/context'

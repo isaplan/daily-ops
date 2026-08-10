@@ -1,9 +1,9 @@
 /**
  * @registry-id: dailyOpsPeriodCacheRatioSnapshot
  * @created: 2026-08-08T21:20:00.000Z
- * @last-modified: 2026-08-08T21:20:00.000Z
+ * @last-modified: 2026-08-09T17:25:00.000Z
  * @description: Ratio snapshots for period-cache — written on Finance seal / rolling refresh
- * @last-fix: [2026-08-09] @adr-ref → PERIOD_CACHE_ADR L2/L4
+ * @last-fix: [2026-08-09] Today live GET also reads ratios (PERIOD_CACHE_ADR L2 exception)
  * @adr-ref: PERIOD_CACHE_ADR L2, L4
  * @data-source: app_settings + daily_ops_ratio_snapshots
  * @write-cache-json: daily_ops_ratio_snapshots
@@ -11,6 +11,7 @@
  * @exports-to:
  * ✓ server/utils/dailyOpsPeriodCache/buildDayNode.ts
  * ✓ server/utils/accountingPnl/refreshFinanceAssumptions.ts
+ * ✓ server/utils/dailyOpsSnapshot/fetchDashboardBundle.ts
  * ✓ scripts/backfill-period-cache.ts
  */
 

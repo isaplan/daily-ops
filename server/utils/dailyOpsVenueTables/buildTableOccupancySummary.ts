@@ -1,11 +1,10 @@
 /**
  * @registry-id: dailyOpsBuildTableOccupancySummary
  * @created: 2026-07-20T00:00:00.000Z
- * @last-modified: 2026-07-29T22:10:00.000Z
- * @description: Active tables + bezettingsgraad (daily or avg-of-daily; real hourly when sealed)
- * @last-fix: [2026-07-29] Real series.hour + hourly[] from snapshot tablesByHour
- *   Prior: [2026-07-22] Seal multi-grain series + avgMonthlyOccupancyPct on rollups
- *   Prior: [2026-07-20] Avg daily occupancy for multi-day periods
+ * @last-modified: 2026-08-09T17:45:00.000Z
+ * @description: Active tables + bezettingsgraad — hour→day→week→month cascade (real hourly)
+ * @last-fix: [2026-08-09] Open Today: warm bork tablesByHour when snapshot schema v1 missing hours
+ *   Prior: [2026-07-29] Real series.hour + hourly[] from snapshot tablesByHour
  * @adr-ref: ADR-004, ADR-013, ADR-017
  *
  * @exports-to:
@@ -23,6 +22,9 @@ import type {
   DailyOpsOccupancySeriesPoint,
 } from '../../../types/daily-ops-venue-tables'
 import { DAILY_OPS_SNAPSHOT_COLLECTIONS } from '../../../types/daily-ops-snapshot'
+import { isOpenRegisterBusinessDate } from '~/utils/dailyOpsBusinessDate'
+import { extractBorkTableNumber } from '../bork/extractBorkTableNumber'
+import { fetchBorkTableDayRows } from '../bork/fetchBorkTableDayRows'
 import { enumerateUtcDatesInclusive } from '../dailyOpsMetrics/context'
 import { VENUE_STRIP_LOCATIONS } from '../venueStrip/constants'
 import {
@@ -35,6 +37,55 @@ import {
   combineDailyOccupancyPoints,
 } from './buildOccupancySeries'
 import { hourLabel } from '../dailyOpsSnapshot/drilldown/drilldownShared'
+
+/** Register business_hour 0..23 → Amsterdam calendar hour (08:00 start). */
+function calendarHourFromBusinessHour (businessHour: number): number {
+  return (businessHour + 8) % 24
+}
+
+/**
+ * Today-only: fill missing hour maps from warm `bork_sales_by_table` (live path).
+ * Sealed days must already have snapshot `tablesByHour` (hour→day cascade).
+ */
+async function fillOpenDayHourMapsFromWarmBork (
+  db: Db,
+  locationIds: string[],
+  businessDate: string,
+  hourByLocDate: Map<string, Map<string, Map<number, number>>>,
+): Promise<void> {
+  if (!isOpenRegisterBusinessDate(businessDate)) return
+
+  await Promise.all(
+    locationIds.map(async (locationId) => {
+      const existing = hourByLocDate.get(locationId)?.get(businessDate)
+      if (existing && existing.size > 0) return
+
+      const rows = await fetchBorkTableDayRows(db, businessDate, locationId)
+      if (!rows.length) return
+
+      const hourMap = new Map<number, number>()
+      const byBusinessHour = new Map<number, Set<string>>()
+      for (const r of rows) {
+        const doc = r as Record<string, unknown>
+        const tableNum = extractBorkTableNumber(doc)
+        if (!tableNum) continue
+        const bh = Number(doc.business_hour)
+        if (!Number.isFinite(bh) || bh < 0 || bh > 23) continue
+        const set = byBusinessHour.get(bh) ?? new Set<string>()
+        set.add(tableNum)
+        byBusinessHour.set(bh, set)
+      }
+      for (const [bh, set] of byBusinessHour) {
+        hourMap.set(calendarHourFromBusinessHour(bh), set.size)
+      }
+      if (hourMap.size === 0) return
+
+      const byDate = hourByLocDate.get(locationId) ?? new Map<string, Map<number, number>>()
+      byDate.set(businessDate, hourMap)
+      hourByLocDate.set(locationId, byDate)
+    }),
+  )
+}
 
 export function occupancyPct(active: number, total: number): number | null {
   if (total <= 0) return null
@@ -178,6 +229,11 @@ export async function buildTableOccupancySummary(
       byDateHour.set(businessDate, hourMap)
       hourByLocDate.set(locationId, byDateHour)
     }
+  }
+
+  // Open Today: schema-v1 snapshots lack tablesByHour — derive hour leaf from warm Bork.
+  if (singleDay && dates[0]) {
+    await fillOpenDayHourMapsFromWarmBork(db, locationIds, dates[0], hourByLocDate)
   }
 
   const daily: DailyOpsTableOccupancyDayDto[] = []

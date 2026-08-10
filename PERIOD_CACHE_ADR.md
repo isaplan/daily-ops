@@ -15,7 +15,7 @@ This file is the **sole authority** for the period-cache migration.
 | Layer | Owns | Hard rule |
 |-------|------|-----------|
 | **L1** | Business calendar | Register business day only — never raw ISO calendar “today” |
-| **L2** | Data model & sealing | One node shape; day→week→month→year on write; GET reads nodes only |
+| **L2** | Data model & sealing | One node shape; day→week→month→year on write; GET reads nodes — **except open register Today** |
 | **L3** | SSOT precedence | Which source wins per field / seal state — no silent guessing |
 | **L4** | Formulas | Pure math only; **never** defines a GET/read path — only which L2 field it fills |
 
@@ -59,12 +59,18 @@ If L4 conflicts with a clever GET shortcut, **L2 + L3 win**.
 2. **Shape** `DailyOpsPeriodNode` in [`types/daily-ops-period-cache.ts`](./types/daily-ops-period-cache.ts) — revenue, labor, staff, cogs, ratios together. Hourly/product detail lives on **day** only; rollups are totals + `childKeys`.
 3. **Cascade (write):** day → week (7 days) → month (days) → year (months). Incomplete week (&lt;7 days) is not written as sealed week.
 4. **Status machine:**
-   - `open` — open register day (live Bork/Eitje).
-   - `ops_sealed` — closed day after inbox/Bork headline reconciliation.
+   - `open` — open register day (write-behind / optional; **not** Today UI SSOT).
+   - `ops_sealed` — closed day after inbox/Bork headline reconciliation (**Yesterday and older**).
    - `finance_sealed` — calendar month after accountant P&L lands (hard override of ratios).
    - `partial` — incomplete rollup (e.g. year before all months present).
-5. **Ratios collection** `daily_ops_ratio_snapshots` keyed by `{ monthKey, locationId }`. Nodes store `ratios.ratioAsOf` — never recompute ratios on GET.
-6. **Read path:** `resolvePeriodRange` greedy cover (year → month → week → day). No raw Bork/Eitje/inbox/Finance assembly on page load.
+5. **Ratios collection** `daily_ops_ratio_snapshots` keyed by `{ monthKey, locationId }`. Nodes store `ratios.ratioAsOf` — never recompute ratios on GET. **Today** also reads this file for COGS/overhead/BE % (live revenue/labor stay on the snapshot path).
+6. **Read path (sealed):** `resolvePeriodRange` greedy cover (year → month → week → day). No raw Bork/Eitje/inbox/Finance assembly on page load for **Yesterday and older**.
+7. **Today exception (mandatory — only exception):** The open register business day is **live / now**. It is **not** finished cached period-cache JSON. Do **not** treat Today as a sealed day node for dashboard GET.
+   - **GET Today** → snapshots after each cron + check_ins / open-shift overlays (`fetchDailyOpsDashboardBundle`, `buildVenueStripResponse`) via `loadDashboardBundleForGet`.
+   - **Ratios only** from `daily_ops_ratio_snapshots` (same shared ratio file as sealed nodes).
+   - Period-cache `status: open` may be written as write-behind; it must **not** be the SSOT for Today UI.
+   - No per-hour finished cache for Today (would equal per-cron and fight live).
+8. **Day close:** when the register day is no longer open, nodes must be re-built from final snapshots and set `ops_sealed`. A closed day left as `status: open` is a bug (stale early labor). `loadDashboardBundleForGet` self-heals that case once per GET.
 
 **Apply map:**
 
@@ -75,12 +81,14 @@ If L4 conflicts with a clever GET shortcut, **L2 + L3 win**.
 | Build / seal / cascade | `buildDayNode.ts`, `sealDayNode.ts`, `cascadePeriod.ts` |
 | Ratios | `ratioSnapshot.ts` |
 | Resolve | `resolvePeriodRange.ts` |
-| Dashboard DTO (GET) | `assembleDashboardBundleFromPeriodCache.ts` → `loadDashboardBundleForGet.ts` |
+| Dashboard DTO (sealed GET) | `assembleDashboardBundleFromPeriodCache.ts` |
+| Dashboard GET router | `loadDashboardBundleForGet.ts` — Today live vs sealed period-cache |
+| Today live strip | `dailyOpsVenueStrip.ts` / `venueStrip/*` (Active, open-shift) |
 | Weekly digest (GET) | `buildWeeklyDigest.ts` (period day nodes; attendance/plusmin/opening = zeros until sealed) |
 | Snapshot hook | `server/services/dailyOpsSnapshotService.ts` |
 | CLI | `scripts/backfill-period-cache.ts`, `scripts/validate-period-cache.ts` |
 
-**Consequences:** Snapshot build must refresh period-cache (auto-hook). Manual backfill remains for history only.
+**Consequences:** Snapshot build must refresh period-cache for sealed history (auto-hook). Today UI follows cron → snapshot freshness; ratios stay on the shared ratio snapshot. Manual backfill remains for history only.
 
 ---
 
@@ -96,9 +104,9 @@ If L4 conflicts with a clever GET shortcut, **L2 + L3 win**.
    1. Inbox / snapshot category groupings when present.
    2. Else Bork `product_catalog.category` (`food` \| `beverage`).
    3. Else regex name-match — **data gap only**: record product id in `provenance.regexFallbackProductIds` and raise ops alert. Never treat regex as quiet truth.
-2. **Revenue headline:** open day → live Bork (order-time). Closed day → inbox digest wins when present; else Bork paid headline.
-3. **Ratios / BE / Est. net for a sealed Finance month:** Finance P&L is hard override for that month. Open spans use rolling ratio snapshot. Multi-month = sum of month slices (never one monthly BE vs full-year revenue).
-4. **UI is never SSOT.** Wrong number ⇒ fix write path or data.
+2. **Revenue headline:** open register **Today** → live/order-time via snapshot path (updated after each cron). Closed day → inbox digest wins when present; else Bork paid headline from sealed period-cache.
+3. **Ratios / BE / Est. net for a sealed Finance month:** Finance P&L is hard override for that month. **Today and other open spans** use rolling/`daily_ops_ratio_snapshots` for %. Multi-month = sum of month slices (never one monthly BE vs full-year revenue).
+4. **UI is never SSOT.** Wrong number ⇒ fix write path or data (Today ⇒ snapshot/cron path; sealed ⇒ period-cache seal).
 
 **Apply map:**
 
@@ -152,8 +160,11 @@ If L4 conflicts with a clever GET shortcut, **L2 + L3 win**.
 
 ### Phase 7 status
 
-**Complete (2026-08-09).** All former `daily_ops_read_cache` profiles are retired — including `dashboard-bundle` and `weekly-digest`. See `server/utils/dailyOpsReadCache/retiredProfiles.ts`.
+**Complete (2026-08-09) — amended same day for Today exception.** All former `daily_ops_read_cache` profiles are retired — including `dashboard-bundle` and `weekly-digest`. See `server/utils/dailyOpsReadCache/retiredProfiles.ts`.
 
-GET paths project DTOs from `daily_ops_period_cache` day nodes (`assembleDashboardBundleFromPeriodCache`, `buildWeeklyDigest`). Snapshot write still seals period-cache via `sealDayNodesForDate` + `cascadePeriodRange`. Day nodes include `revenue.byWorker`, `revenue.byTable`, and `revenue.tablesByHour` for staff/table/occupancy projection.
+- **Yesterday and older / multi-day sealed ranges:** GET projects DTOs from `daily_ops_period_cache` (`assembleDashboardBundleFromPeriodCache`, `buildWeeklyDigest`).
+- **Today (open register day) — sole GET exception:** live snapshot + check_ins / open-shift via `loadDashboardBundleForGet` → `fetchDailyOpsDashboardBundle` + `buildVenueStripResponse`. Ratios from `daily_ops_ratio_snapshots` only. Period-cache open nodes are write-behind, not Today SSOT.
 
-**Residual (not live on GET):** weekly attendance / staff-plusmin / opening-closing sections return zeros until those fields are sealed onto period nodes. No Eitje/raw/snapshot reads on Weekly Report GET.
+Snapshot write still seals period-cache via `sealDayNodesForDate` + `cascadePeriodRange` for history. Day nodes include `revenue.byWorker`, `revenue.byTable`, and `revenue.tablesByHour` for sealed projection.
+
+**Residual (sealed Weekly Report):** attendance / staff-plusmin / opening-closing sections return zeros until those fields are sealed onto period nodes.

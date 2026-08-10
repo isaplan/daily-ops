@@ -1,14 +1,15 @@
 /**
  * @registry-id: dailyOpsVenueStrip
  * @created: 2026-05-16T23:30:00.000Z
- * @last-modified: 2026-06-10T00:00:00.000Z
+ * @last-modified: 2026-08-09T17:25:00.000Z
  * @description: Builds per-venue KPI cards for the Daily Ops venue strip (3 fixed locations).
- * @last-fix: [2026-06-10] Fast snapshot rollup for multi-day ranges (fixes year timeout)
- *   Prior: [2026-06-10] Multi-day range rollups via snapshot batch merge
- * @adr-ref: ADR-004, ADR-006
+ * @last-fix: [2026-08-09] Today GET live path via loadDashboardBundleForGet (PERIOD_CACHE_ADR L2 exception)
+ *   Prior: [2026-06-10] Fast snapshot rollup for multi-day ranges (fixes year timeout)
+ * @adr-ref: ADR-004, ADR-006, PERIOD_CACHE_ADR L2
  *
  * @exports-to:
  * ✓ server/api/daily-ops/metrics/venue-strip.get.ts
+ * ✓ server/utils/dailyOpsSnapshot/loadDashboardBundleForGet.ts
  */
 
 import type { Db } from 'mongodb'

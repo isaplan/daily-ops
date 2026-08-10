@@ -88,8 +88,8 @@ flowchart TB
 | `daily_ops_snapshot_section_labor` | Read model | Labor breakdown (teams, workers) | Dashboard labor detail (write path) | `buildLaborSection` | Cache writers |
 | `daily_ops_snapshot_section_revenue` | Read model | Revenue breakdown | Dashboard revenue detail (write path) | `buildRevenueSection` | Cache writers |
 | `daily_ops_read_cache` | Read model | Small prebuilt JSON per profile × period (ADR-013) | **All Daily Ops GET UI** | Post-snapshot cache writers | `bundle.get`, staff/revenue GET APIs |
-| `daily_ops_period_cache` | Read model | Unified period nodes (day→week→month→year) — Revenue/Labor/COGS/Staff ([PERIOD_CACHE_ADR.md](./PERIOD_CACHE_ADR.md)) | Period-cache GET + builders | Snapshot hook, backfill, seal/cascade | `resolvePeriodRange`, BE/food-bev cutovers |
-| `daily_ops_ratio_snapshots` | Read model | Shared COGS/BE/labor % ratios per monthKey × location | Ratio SSOT for period nodes | `refreshFinanceAssumptions` / backfill | `buildDayNode`, period-cache ratios |
+| `daily_ops_period_cache` | Read model | Unified period nodes (day→week→month→year) — **sealed Yesterday+ SSOT** ([PERIOD_CACHE_ADR.md](./PERIOD_CACHE_ADR.md)) | Sealed Daily Ops GET | Snapshot hook, backfill, seal/cascade | `loadDashboardBundleForGet` (not Today) |
+| `daily_ops_ratio_snapshots` | Read model | Shared COGS/BE/labor % ratios per monthKey × location | Ratio SSOT (**incl. Today** %) | `refreshFinanceAssumptions` / backfill | Today live GET + sealed period nodes |
 | `notes` | App data | Notes, todos, agrees (BlockNote JSON) | Note content | Notes API | Member connections, notes UI |
 | `weather_observations` | App data | Daily weather for Den Haag (Open-Meteo) | Weather per calendar day | `daily-ops:weather-sync` cron, backfill script | `weekly_reports` builder |
 | `calendar_events` | App data | NL holidays, regio Midden school holidays, major sports (e.g. Oranje WK), custom events | Central event calendar (app-wide) | Seed script, weekly report UI | `weekly_reports` builder, any feature reading events |

@@ -1,12 +1,12 @@
 /**
  * @registry-id: dailyOpsTableOccupancyKpisGet
  * @created: 2026-07-17T18:05:00.000Z
- * @last-modified: 2026-08-09T17:30:00.000Z
- * @description: GET table-occupancy-kpis — period-cache projection (Phase 7)
- * @last-fix: [2026-08-09] Phase 7 — from assembleDashboardBundleFromPeriodCache
+ * @last-modified: 2026-08-09T17:25:00.000Z
+ * @description: GET table-occupancy-kpis — Today live; sealed days period-cache
+ * @last-fix: [2026-08-09] Today live exception via loadDashboardBundleForGet
  * @adr-ref: ADR-004, ADR-013, PERIOD_CACHE_ADR L2
- * @data-source: period-cache
- * @read-cache-json: daily_ops_period_cache · level=day
+ * @data-source: snapshot-today-live | period-cache
+ * @read-cache-json: daily_ops_period_cache · level=day (sealed)
  *
  * @exports-to:
  * ✓ components/daily-ops/DailyOpsKpiTiles.vue

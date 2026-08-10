@@ -1,12 +1,13 @@
 /**
  * @registry-id: dailyOpsLoadDashboardBundleForGet
  * @created: 2026-08-09T00:30:00.000Z
- * @last-modified: 2026-08-09T17:30:00.000Z
- * @description: GET-only dashboard-bundle loader — period-cache projection (Phase 7)
- * @last-fix: [2026-08-09] Phase 7 — assemble from period-cache; no dashboard-bundle read-cache
- * @adr-ref: ADR-004, ADR-013, PERIOD_CACHE_ADR L2
- * @data-source: period-cache
- * @read-cache-json: daily_ops_period_cache · level=day
+ * @last-modified: 2026-08-10T15:50:00.000Z
+ * @description: Dashboard GET loader — sealed days = period-cache; open register Today = live snapshot path
+ * @last-fix: [2026-08-10] Self-heal closed days still status=open (stale early labor) before assemble
+ *   Prior: [2026-08-09] Today-only exception: fetchDailyOpsDashboardBundle + venue strip
+ * @adr-ref: ADR-004, ADR-010, ADR-013, PERIOD_CACHE_ADR L2
+ * @data-source: period-cache | snapshot-today-live
+ * @read-cache-json: daily_ops_period_cache · level=day (sealed); Today uses snapshots + check_ins
  *
  * @exports-to:
  * ✓ server/api/daily-ops/metrics/bundle.get.ts
@@ -19,14 +20,64 @@
  */
 
 import type { Db } from 'mongodb'
+import { isOpenRegisterBusinessDate } from '~/utils/dailyOpsBusinessDate'
 import type { DailyOpsMetricsContext } from '../dailyOpsMetrics/context'
 import { assembleDashboardBundleFromPeriodCache } from '../dailyOpsPeriodCache/assembleDashboardBundleFromPeriodCache'
-import type { DailyOpsDashboardBundleDto } from './fetchDashboardBundle'
+import { cascadePeriodRange } from '../dailyOpsPeriodCache/cascadePeriod'
+import { sealDayNodesForDate } from '../dailyOpsPeriodCache/sealDayNode'
+import { DAILY_OPS_PERIOD_CACHE_COLLECTION } from '../dailyOpsPeriodCache/store'
+import { buildVenueStripResponse } from '../dailyOpsVenueStrip'
+import {
+  fetchDailyOpsDashboardBundle,
+  type DailyOpsDashboardBundleDto,
+} from './fetchDashboardBundle'
 
-/** Period-cache GET path. Never calls fetchDailyOpsDashboardBundle or read-cache. */
+/** True when the request is exactly the open register business day (Today). */
+export function isOpenRegisterTodayContext (ctx: DailyOpsMetricsContext): boolean {
+  return ctx.startDate === ctx.endDate && isOpenRegisterBusinessDate(ctx.startDate)
+}
+
+/**
+ * Closed single day still marked `open` = day never re-sealed after final snapshot
+ * (shows early-day labor). Rebuild period-cache from snapshots once, then assemble.
+ */
+async function healStaleOpenDayNodes (
+  db: Db,
+  businessDate: string,
+): Promise<void> {
+  if (isOpenRegisterBusinessDate(businessDate)) return
+
+  const staleOpen = await db.collection(DAILY_OPS_PERIOD_CACHE_COLLECTION).countDocuments({
+    level: 'day',
+    periodKey: businessDate,
+    status: 'open',
+  })
+  if (staleOpen === 0) return
+
+  await sealDayNodesForDate(db, businessDate)
+  await cascadePeriodRange(db, businessDate, businessDate)
+}
+
+/**
+ * GET path:
+ * - **Today (open register day):** live snapshot + check_ins / open-shift overlays (not finished period-cache).
+ * - **Yesterday and older / multi-day:** period-cache projection only.
+ */
 export async function loadDashboardBundleForGet (
   db: Db,
   ctx: DailyOpsMetricsContext,
 ): Promise<DailyOpsDashboardBundleDto> {
+  if (isOpenRegisterTodayContext(ctx)) {
+    const [bundle, venueStrip] = await Promise.all([
+      fetchDailyOpsDashboardBundle(db, ctx),
+      buildVenueStripResponse(db, ctx),
+    ])
+    return { ...bundle, venueStrip }
+  }
+
+  if (ctx.startDate === ctx.endDate) {
+    await healStaleOpenDayNodes(db, ctx.startDate)
+  }
+
   return assembleDashboardBundleFromPeriodCache(db, ctx)
 }

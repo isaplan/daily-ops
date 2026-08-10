@@ -1,12 +1,13 @@
 /**
  * @registry-id: dailyOpsVenueStripGet
  * @created: 2026-05-16T23:30:00.000Z
- * @last-modified: 2026-08-09T17:30:00.000Z
- * @description: GET /api/daily-ops/metrics/venue-strip — period-cache projection (Phase 7)
- * @last-fix: [2026-08-09] Phase 7 — period-cache via loadDashboardBundleForGet
+ * @last-modified: 2026-08-09T17:25:00.000Z
+ * @description: GET /api/daily-ops/metrics/venue-strip — Today live strip; sealed days period-cache
+ * @last-fix: [2026-08-09] Today via loadDashboardBundleForGet live exception (Active/open-shift)
+ *   Prior: [2026-08-09] Phase 7 — period-cache via loadDashboardBundleForGet
  * @adr-ref: ADR-004, ADR-010, ADR-013, PERIOD_CACHE_ADR L2
- * @data-source: period-cache
- * @read-cache-json: daily_ops_period_cache · level=day
+ * @data-source: snapshot-today-live | period-cache
+ * @read-cache-json: daily_ops_period_cache · level=day (sealed only)
  *
  * @exports-to:
  * ✓ components/daily-ops/DailyOpsVenueStrip.vue

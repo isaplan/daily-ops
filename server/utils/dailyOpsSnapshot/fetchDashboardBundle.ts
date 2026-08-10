@@ -1,16 +1,15 @@
 /**
  * @registry-id: dailyOpsSnapshotFetchDashboardBundle
  * @created: 2026-05-25T00:00:00.000Z
- * @last-modified: 2026-08-09T00:40:00.000Z
- * @description: Snapshot-first Daily Ops dashboard bundle orchestrator (ADR-004/013) — WRITE PATH ONLY
- *   Builds sealed snapshot sections → DTOs → write to read-cache. GETs use loadDashboardBundleForGet.
- * @last-fix: [2026-08-09] Food/bev from period-cache only; GETs no longer call this
- *   Prior: [2026-07-28] Seal occupancyPct onto periodBreakdown rows
+ * @last-modified: 2026-08-09T17:25:00.000Z
+ * @description: Snapshot dashboard bundle — Today GET live path + write-path builder
+ * @last-fix: [2026-08-09] GET Today exception via loadDashboardBundleForGet; ratios from ratio snapshot
+ *   Prior: [2026-08-09] Food/bev from period-cache; sealed GETs use period-cache assemble
  * @adr-ref: ADR-004, ADR-006, ADR-010, ADR-013, PERIOD_CACHE_ADR L2, L3
- * @data-source: snapshot-write-only
- * @write-cache-json: daily_ops_read_cache · dashboard-bundle · daily+weekly+monthly+yearly · orchestrator feeds preGenerateBundleCache after buildDailyOpsSnapshot
+ * @data-source: snapshot + check_ins (Today GET); period-cache food/bev categories
  *
  * @exports-to:
+ * ✓ server/utils/dailyOpsSnapshot/loadDashboardBundleForGet.ts (Today only)
  * ✓ server/utils/dailyOpsSnapshot/cacheCascade.ts (write-path pregen)
  */
 
@@ -31,6 +30,7 @@ import {
 } from '../dailyOpsMetrics/dtoBuilders'
 import { amsterdamOpenRegisterBusinessDateYmd } from '~/utils/dailyOpsBusinessDate'
 import { loadPnlAssumptions } from '../appSettings/pnlAssumptionsSetting'
+import { loadRatioSnapshotForDay } from '../dailyOpsPeriodCache/ratioSnapshot'
 import { fetchCheckInsLaborByBusinessDateHour } from '../venueStrip/checkInLaborByHour'
 import { buildTableOccupancySummary } from '../dailyOpsVenueTables/buildTableOccupancySummary'
 import { aggregateLaborForRange } from './aggregateLaborForRange'
@@ -119,7 +119,20 @@ export async function fetchDailyOpsDashboardBundle(
     })
     laborByLocHour = mergeLaborHourMaps(laborByLocHour, checkInHourly)
   }
-  const pnlAssumptions = await loadPnlAssumptions(db)
+  let pnlAssumptions = await loadPnlAssumptions(db)
+  // Today: COGS/overhead % from shared ratio snapshot (not finished day period-cache).
+  if (ctx.startDate === ctx.endDate && ctx.startDate === openRegister) {
+    const ratioLoc =
+      ctx.locationId && ctx.locationId !== 'all' ? ctx.locationId : 'all'
+    const ratio = await loadRatioSnapshotForDay(db, ctx.startDate, ratioLoc)
+    if (ratio) {
+      pnlAssumptions = {
+        foodCogsPct: ratio.foodCogsPct,
+        bevCogsPct: ratio.bevCogsPct,
+        overheadPct: ratio.overheadPct,
+      }
+    }
+  }
 
   const snapshotCoverage =
     ctx.startDate !== ctx.endDate ? coverageFromSnapshotMasters(ctx, rows.masters) : undefined

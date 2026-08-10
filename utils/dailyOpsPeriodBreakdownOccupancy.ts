@@ -1,10 +1,10 @@
 /**
  * @registry-id: dailyOpsPeriodBreakdownOccupancy
  * @created: 2026-07-28T14:40:00.000Z
- * @last-modified: 2026-07-29T22:10:00.000Z
+ * @last-modified: 2026-08-09T17:45:00.000Z
  * @description: Join sealed tableOccupancy onto periodBreakdown rows (client + write path)
- * @last-fix: [2026-07-29] Prefer venue hourly[] for hour grain (real active÷total)
- *   Prior: [2026-07-28] Hour key normalize 9↔09; fill occupancy when missing on rows
+ * @last-fix: [2026-08-09] Hour grain: never stamp day venue % — null until tablesByHour exists
+ *   Prior: [2026-07-29] Prefer venue hourly[] for hour grain (real active÷total)
  * @adr-ref: ADR-013, ADR-017
  *
  * @exports-to:
@@ -81,11 +81,20 @@ export function applyOccupancyToPeriodBreakdown(
   const grain = breakdown.granularity
 
   const patchRow = (row: PeriodBreakdownRowDto, locationId?: string): PeriodBreakdownRowDto => {
-    if (locationId && grain === 'hour') {
-      const fromHourly = occupancyFromHourlyVenue(occupancy, locationId, row.bucketKey)
-      if (fromHourly !== undefined) {
-        return { ...row, occupancyPct: fromHourly ?? null }
+    // Hour grain = hour→day cascade leaf. Only real tablesByHour / series.hour — never day %.
+    if (grain === 'hour') {
+      if (locationId) {
+        const fromHourly = occupancyFromHourlyVenue(occupancy, locationId, row.bucketKey)
+        if (fromHourly !== undefined) {
+          return { ...row, occupancyPct: fromHourly ?? null }
+        }
       }
+      const fromSeries = occupancyFromSeries(occupancy, 'hour', row.bucketKey)
+      if (fromSeries !== undefined) {
+        return { ...row, occupancyPct: fromSeries ?? null }
+      }
+      if (row.occupancyPct != null) return row
+      return { ...row, occupancyPct: null }
     }
 
     if (row.occupancyPct != null) return row
