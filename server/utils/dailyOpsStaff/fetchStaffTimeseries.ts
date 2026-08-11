@@ -1,9 +1,10 @@
 /**
  * @registry-id: dailyOpsStaffFetchTimeseries
  * @created: 2026-06-25T12:00:00.000Z
- * @last-modified: 2026-08-09T01:05:00.000Z
+ * @last-modified: 2026-08-11T13:05:00.000Z
  * @description: Staff hours + headcount timeseries from period-cache day nodes
- * @last-fix: [2026-08-09] Period-cache via fetchStaffDailyLaborRows (PERIOD_CACHE_ADR L2)
+ * @last-fix: [2026-08-11] Also used by Finance P&L analytics staff series
+ *   Prior: [2026-08-09] Period-cache via fetchStaffDailyLaborRows (PERIOD_CACHE_ADR L2)
  *   Prior: [2026-07-02] ADR-013 read-cache metadata
  * @adr-ref: ADR-004, ADR-010, ADR-013, PERIOD_CACHE_ADR L2
  * @data-source: period-cache

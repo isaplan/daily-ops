@@ -1,12 +1,13 @@
 /**
  * @registry-id: dailyOpsPeriodCacheResolveBreakEven
  * @created: 2026-08-09T00:30:00.000Z
- * @last-modified: 2026-08-09T00:30:00.000Z
- * @description: BE / Est.net from period-cache nodes only (no live Finance GET assemble)
- * @last-fix: [2026-08-09] Cutover from resolveBreakEven live path
+ * @last-modified: 2026-08-10T23:05:00.000Z
+ * @description: BE / Est.net from period-cache + ratio snapshots (Today uses ratio day project)
+ * @last-fix: [2026-08-10] Project monthly BE → period days when nodes missing (Today strip)
+ *   Prior: [2026-08-09] Cutover from resolveBreakEven live path
  * @adr-ref: PERIOD_CACHE_ADR L2, L3, L4
- * @data-source: period-cache
- * @read-cache-json: daily_ops_period_cache · resolvePeriodRange
+ * @data-source: period-cache | daily_ops_ratio_snapshots
+ * @read-cache-json: daily_ops_period_cache · resolvePeriodRange; ratios for open/Today
  *
  * @exports-to:
  * ✓ server/api/daily-ops/metrics/break-even.get.ts
@@ -20,9 +21,14 @@ import type {
   DailyOpsBreakEvenDto,
 } from '~/types/break-even'
 import { ACCOUNTING_PNL_LOCATION_ID_TO_VENUE } from '~/utils/accountingPnlData'
-import { pctVsBreakEven } from '~/utils/accountingPnlBreakEvenMath'
+import {
+  daysInCalendarMonth,
+  pctVsBreakEven,
+  projectBreakEvenForDays,
+} from '~/utils/accountingPnlBreakEvenMath'
 import { DAILY_OPS_PROFIT_VENUE_LOCATIONS } from '~/utils/dailyOpsProfitIntervals'
 import { resolveDailyOpsPeriod } from '~/utils/dailyOpsPeriod'
+import { enumerateUtcDatesInclusive } from '../dailyOpsMetrics/context'
 import { findPeriodNode } from './store'
 import { loadRatioSnapshotForDay } from './ratioSnapshot'
 import { resolvePeriodRange, sumResolvedNodes } from './resolvePeriodRange'
@@ -164,6 +170,27 @@ async function resolveOneVenue (
     else if (ratio?.source === 'rolling_12m' && sources.size <= 1) source = 'rolling_12m'
     year = Number(range.endDate.slice(0, 4)) || null
     month = cover.nodes.length === 1 ? Number(range.endDate.slice(5, 7)) || null : null
+  }
+
+  // Today / open spans often have no sealed day node yet — still show period BE from ratio monthly.
+  if (!(breakEven > 0) && monthlyBreakEven > 0) {
+    const y = year ?? Number(range.endDate.slice(0, 4))
+    const m = month ?? Number(range.endDate.slice(5, 7))
+    const dim = daysInCalendarMonth(y, m)
+    const dayCount =
+      input.dayCount != null && input.dayCount > 0
+        ? Math.round(input.dayCount)
+        : enumerateUtcDatesInclusive(range.startDate, range.endDate).length
+    breakEven = projectBreakEvenForDays(monthlyBreakEven, dim, Math.max(dayCount, 1))
+  }
+
+  if (
+    accountingResult == null
+    && (!(Number.isFinite(estimatedNet) && estimatedNet !== 0) || cover.nodes.length === 0)
+    && breakEven > 0
+  ) {
+    const cm = Math.max(0, 1 - cogsPct / 100 - flexLaborPct / 100)
+    estimatedNet = round2((revenue - breakEven) * cm)
   }
 
   const includePct = input.includePct && input.period !== 'today'

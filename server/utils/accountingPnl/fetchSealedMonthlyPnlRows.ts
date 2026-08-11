@@ -1,14 +1,15 @@
 /**
  * @registry-id: fetchSealedMonthlyPnlRows
  * @created: 2026-07-24T11:30:00.000Z
- * @last-modified: 2026-07-24T11:30:00.000Z
+ * @last-modified: 2026-08-11T12:55:00.000Z
  * @description: Load sealed monthly accounting_pnl_benchmark docs (revenue > 0)
- * @last-fix: [2026-07-24] Sorted newest-first; optional limit for rolling window
- * @adr-ref: ADR-014
+ * @last-fix: [2026-08-11] Optional unlimited fetch for Finance Analytics
+ * @adr-ref: ADR-014, ADR-022
  *
  * @exports-to:
  * ✓ server/utils/accountingPnl/buildBreakEvenAssumptions.ts
  * ✓ server/utils/accountingPnl/refreshFinanceAssumptions.ts
+ * ✓ server/utils/accountingPnl/buildPnlAnalytics.ts
  * ✓ server/utils/staffOrg/laborBenchmarks.ts
  * ✓ server/utils/dailyOpsPeriodCache/ratioSnapshot.ts
  */
@@ -29,16 +30,16 @@ export type SealedMonthlyPnlDoc = {
 
 export async function fetchSealedMonthlyPnlRows (
   db: Db,
-  opts?: { limit?: number },
+  opts?: { limit?: number | null },
 ): Promise<SealedMonthlyPnlDoc[]> {
-  const limit = opts?.limit ?? 24
-  const docs = await db
+  const limit = opts?.limit === null ? null : (opts?.limit ?? 24)
+  let cursor = db
     .collection<AccountingPnlBenchmarkPeriodDoc>(COLLECTION)
     .find({ month: { $ne: null, $gte: 1, $lte: 12 } })
     .sort({ year: -1, month: -1 })
-    .limit(limit * 2)
-    .toArray()
+  if (limit != null) cursor = cursor.limit(Math.max(limit * 2, limit))
 
+  const docs = await cursor.toArray()
   const out: SealedMonthlyPnlDoc[] = []
   for (const doc of docs) {
     if (doc.month == null) continue
@@ -54,7 +55,7 @@ export async function fetchSealedMonthlyPnlRows (
       },
       combined,
     })
-    if (out.length >= limit) break
+    if (limit != null && out.length >= limit) break
   }
   return out
 }

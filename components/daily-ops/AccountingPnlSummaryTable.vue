@@ -1,15 +1,15 @@
 <template>
   <div
     class="overflow-hidden rounded-lg border-2 border-gray-900 bg-white"
-    :class="layout !== 'month' || monthGrid ? 'max-h-[calc(100dvh-16rem)]' : ''"
+    :class="periodGridColumns.length || layout === 'year' ? 'max-h-[calc(100dvh-16rem)]' : ''"
   >
     <div
       class="overflow-auto overscroll-x-contain touch-pan-x"
-      :class="layout !== 'month' || monthGrid ? 'max-h-[calc(100dvh-16rem)]' : 'overflow-x-auto'"
+      :class="periodGridColumns.length || layout === 'year' ? 'max-h-[calc(100dvh-16rem)]' : 'overflow-x-auto'"
     >
-      <!-- Year: venues as columns, metrics as rows -->
+      <!-- Year fallback (no yearGrid): venues as columns -->
       <table
-        v-if="layout === 'year'"
+        v-if="layout === 'year' && !periodGridColumns.length"
         class="min-w-full border-separate border-spacing-0 text-sm"
       >
         <thead>
@@ -89,11 +89,11 @@
         </tbody>
       </table>
 
-      <!-- Month: months × venue abbreviations, metrics as rows -->
+      <!-- Month / Year grid: Total block + period columns -->
       <table
-        v-else-if="monthGrid"
+        v-else-if="periodGridColumns.length"
         class="table-fixed border-separate border-spacing-0 text-sm"
-        :style="monthTableStyle"
+        :style="periodTableStyle"
       >
         <colgroup>
           <col :style="{ width: `${MONTH_LABEL_PX}px` }">
@@ -106,10 +106,10 @@
             :key="`total-col-${venue.key}`"
             :style="{ width: `${monthCellPx}px` }"
           >
-          <template v-for="column in filteredMonthColumns">
+          <template v-for="column in periodGridColumns">
             <col
               v-for="venue in column.venues"
-              :key="`col-${column.month}-${venue.key}`"
+              :key="`col-${column.id}-${venue.key}`"
               :style="{ width: `${monthCellPx}px` }"
             >
           </template>
@@ -125,14 +125,14 @@
             </th>
             <th
               v-if="totalVenueColumns.length"
-              :colspan="totalVenueColumns.length + 1"
+              :colspan="totalVenueColumns.length + (combinedTotalRow ? 1 : 0)"
               class="sticky top-0 z-20 border-b border-l-2 border-gray-300 bg-gray-50 px-2 py-2 text-center whitespace-nowrap"
             >
               Total
             </th>
             <th
-              v-for="column in filteredMonthColumns"
-              :key="`month-${column.month}`"
+              v-for="column in periodGridColumns"
+              :key="`period-${column.id}`"
               :colspan="column.venues.length"
               class="sticky top-0 z-20 border-b border-l-2 border-gray-300 bg-gray-50 px-2 py-2 text-center whitespace-nowrap"
               :style="{ width: `${column.venues.length * monthCellPx}px`, minWidth: `${column.venues.length * monthCellPx}px` }"
@@ -157,10 +157,10 @@
             >
               {{ venue.shortLabel }}
             </th>
-            <template v-for="column in filteredMonthColumns">
+            <template v-for="column in periodGridColumns">
               <th
                 v-for="(venue, venueIndex) in column.venues"
-                :key="`${column.month}-${venue.key}`"
+                :key="`${column.id}-${venue.key}`"
                 class="sticky top-9.5 z-20 border-b border-gray-200 bg-gray-50 px-2 py-2 text-center whitespace-nowrap"
                 :class="groupStartClass(venueIndex)"
                 :style="{ width: `${monthCellPx}px`, minWidth: `${monthCellPx}px` }"
@@ -172,7 +172,7 @@
         </thead>
         <tbody>
           <tr
-            v-for="metric in monthMetricRows"
+            v-for="metric in periodMetricRows"
             :key="metric.key"
             class="border-b border-gray-100"
             :class="metric.emphasis ? 'bg-gray-50 font-semibold' : ''"
@@ -211,10 +211,10 @@
             >
               {{ metric.format(venue.row) }}
             </td>
-            <template v-for="column in filteredMonthColumns">
+            <template v-for="column in periodGridColumns">
               <td
                 v-for="(venue, venueIndex) in column.venues"
-                :key="`${column.month}-${venue.key}-${metric.key}`"
+                :key="`${column.id}-${venue.key}-${metric.key}`"
                 class="border-b border-gray-100 px-1 py-1 text-center tabular-nums text-xs whitespace-nowrap"
                 :class="[
                   metric.resultTone ? resultClass(venue.row.result) : 'text-gray-900',
@@ -224,12 +224,12 @@
                 :style="{ width: `${monthCellPx}px`, minWidth: `${monthCellPx}px` }"
               >
                 <input
-                  v-if="editing && isEditableMetric(metric)"
+                  v-if="editing && layout === 'month' && isEditableMetric(metric)"
                   type="number"
                   step="1"
                   class="box-border w-full min-w-0 rounded border border-gray-300 bg-white px-1 py-1 text-center text-xs tabular-nums text-gray-900 focus:border-gray-900 focus:outline-none"
                   :value="metricCellValue(venue.row, metric)"
-                  @change="onMonthMetricChange(column.month, venue.key, metric, ($event.target as HTMLInputElement).value)"
+                  @change="onMonthMetricChange(column.id, venue.key, metric, ($event.target as HTMLInputElement).value)"
                 />
                 <template v-else>
                   {{ metric.format(venue.row) }}
@@ -246,11 +246,15 @@
 <script setup lang="ts">
 /**
  * @registry-id: AccountingPnlSummaryTable
- * @last-modified: 2026-08-04T22:31:45.000Z
+ * @last-modified: 2026-08-11T21:30:00.000Z
  * @description: Accounting P&L summary table with optional live cell edit
- * @last-fix: [2026-08-04] Year Total column label = Total (3 venues)
+ * @last-fix: [2026-08-11] Year grid table with Total column (same pattern as months)
  */
-import type { AccountingPnlMonthGridColumn, AccountingPnlMonthGridDto } from '~/types/accounting-pnl-benchmark'
+import type {
+  AccountingPnlMonthGridColumn,
+  AccountingPnlMonthGridDto,
+  AccountingPnlYearGridDto,
+} from '~/types/accounting-pnl-benchmark'
 import type { AccountingPnlRow, AccountingPnlTableLine, AccountingPnlVenueId } from '~/utils/accountingPnlData'
 import { accountingPnlHasMix } from '~/utils/accountingPnlMixData'
 import {
@@ -278,6 +282,12 @@ import {
 type PnlTableLayout = 'year' | 'month'
 type PnlValueMode = 'amount' | 'percent'
 
+type PeriodGridColumn = {
+  id: number
+  label: string
+  venues: AccountingPnlMonthGridColumn['venues']
+}
+
 type MetricRow = {
   key: string
   label: string
@@ -297,6 +307,7 @@ const props = defineProps<{
   periodLabel: string
   layout?: PnlTableLayout
   monthGrid?: AccountingPnlMonthGridDto | null
+  yearGrid?: AccountingPnlYearGridDto | null
   activeVenueIds?: AccountingPnlVenueId[]
   valueMode?: PnlValueMode
   editing?: boolean
@@ -321,13 +332,6 @@ const MONTH_CELL_EDIT_PX = 108
 
 const monthCellPx = computed(() => editing.value ? MONTH_CELL_EDIT_PX : MONTH_CELL_PX)
 
-const monthTableStyle = computed(() => {
-  const monthVenueCols = filteredMonthColumns.value.reduce((n, c) => n + c.venues.length, 0)
-  const totalBlock = (combinedTotalRow.value ? 1 : 0) + totalVenueColumns.value.length
-  const width = MONTH_LABEL_PX + (totalBlock + monthVenueCols) * monthCellPx.value
-  return { width: `${width}px`, minWidth: `${width}px` }
-})
-
 const activeVenueIdSet = computed(() =>
   new Set(props.activeVenueIds?.length ? props.activeVenueIds : ['vkb', 'bea', 'lat']),
 )
@@ -340,20 +344,47 @@ const filteredMonthColumns = computed((): AccountingPnlMonthGridColumn[] => {
   })).filter((column) => column.venues.length > 0)
 })
 
+const periodGridColumns = computed((): PeriodGridColumn[] => {
+  if (layout.value === 'month') {
+    return filteredMonthColumns.value.map((column) => ({
+      id: column.month,
+      label: column.label,
+      venues: column.venues,
+    }))
+  }
+  if (layout.value === 'year' && props.yearGrid?.columns.length) {
+    return props.yearGrid.columns
+      .map((column) => ({
+        id: column.year,
+        label: column.label,
+        venues: column.venues.filter((v) => activeVenueIdSet.value.has(v.key)),
+      }))
+      .filter((column) => column.venues.length > 0)
+  }
+  return []
+})
+
+const periodTableStyle = computed(() => {
+  const periodVenueCols = periodGridColumns.value.reduce((n, c) => n + c.venues.length, 0)
+  const totalBlock = (combinedTotalRow.value ? 1 : 0) + totalVenueColumns.value.length
+  const width = MONTH_LABEL_PX + (totalBlock + periodVenueCols) * monthCellPx.value
+  return { width: `${width}px`, minWidth: `${width}px` }
+})
+
 const totalVenueColumns = computed(() => {
-  const columns = filteredMonthColumns.value
+  const columns = periodGridColumns.value
   if (!columns.length) return []
 
   const venueOrder = columns[0]?.venues.map((v) => v.key) ?? []
   return venueOrder.map((id) => {
-    const monthlyRows = columns
+    const periodRows = columns
       .map((col) => col.venues.find((v) => v.key === id)?.row)
       .filter((row): row is AccountingPnlRow => row != null)
     const sample = columns[0]?.venues.find((v) => v.key === id)
     return {
       key: id,
       shortLabel: sample?.shortLabel ?? id.toUpperCase(),
-      row: sumAccountingPnlRows(monthlyRows),
+      row: sumAccountingPnlRows(periodRows),
     }
   })
 })
@@ -379,7 +410,7 @@ const yearCombinedRow = computed((): AccountingPnlRow | null => {
 })
 
 const monthGridRows = computed(() =>
-  filteredMonthColumns.value.flatMap((column) => column.venues.map((v) => v.row)),
+  periodGridColumns.value.flatMap((column) => column.venues.map((v) => v.row)),
 )
 
 function buildMetricRows (sampleRows: AccountingPnlRow[]): MetricRow[] {
@@ -595,7 +626,7 @@ const yearMetricRows = computed(() =>
   buildMetricRows(venueColumns.value.map((c) => c.row)),
 )
 
-const monthMetricRows = computed(() => buildMetricRows(monthGridRows.value))
+const periodMetricRows = computed(() => buildMetricRows(monthGridRows.value))
 
 function hasMix (row: AccountingPnlRow): boolean {
   return accountingPnlHasMix(row)

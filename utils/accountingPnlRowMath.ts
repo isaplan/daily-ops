@@ -1,9 +1,9 @@
 /**
  * @registry-id: accountingPnlRowMath
  * @created: 2026-07-16T00:00:00.000Z
- * @last-modified: 2026-07-23T17:00:00.000Z
+ * @last-modified: 2026-08-11T15:00:00.000Z
  * @description: Sum / seal / normalize accounting P&L rows (parents from children + grandchildren).
- * @last-fix: [2026-07-23] Fixed child Opbrengst vorderingen (signed income)
+ * @last-fix: [2026-08-11] Seal uses line presence so net-negative COGS (inkoopkortingen) keeps grandchildren
  *
  * @exports-to:
  * ✓ utils/accountingPnlData.ts
@@ -157,6 +157,10 @@ export function sumAccountingPnlRows (rows: AccountingPnlRow[]): AccountingPnlRo
 }
 
 /** Grandchildren → children → parents; result = rev − cogs − labor − fixed. */
+function hasNonZeroLines (lines: Record<string, number>): boolean {
+  return Object.values(lines).some((n) => n !== 0)
+}
+
 export function sealAccountingPnlRow (raw: Partial<AccountingPnlRow>): AccountingPnlRow {
   const row = normalizeAccountingPnlRow(raw)
 
@@ -166,44 +170,56 @@ export function sealAccountingPnlRow (raw: Partial<AccountingPnlRow>): Accountin
   const cogsBevLineSum = sumLineValues(row.cogsBevLines)
   const lonenLineSum = sumLineValues(row.laborLonenLines)
 
-  const revenueFood = foodLineSum > 0 ? foodLineSum : row.revenueFood
-  const revenueBeverage = bevLineSum > 0 ? bevLineSum : row.revenueBeverage
-  const cogsFood = cogsFoodLineSum > 0 ? cogsFoodLineSum : row.cogsFood
-  const cogsBeverage = cogsBevLineSum > 0 ? cogsBevLineSum : row.cogsBeverage
-  const laborLonen = lonenLineSum > 0 ? lonenLineSum : row.laborLonen
+  const hasFoodLines = hasNonZeroLines(row.revenueFoodLines)
+  const hasBevLines = hasNonZeroLines(row.revenueBevLines)
+  const hasCogsFoodLines = hasNonZeroLines(row.cogsFoodLines)
+  const hasCogsBevLines = hasNonZeroLines(row.cogsBevLines)
+  const hasLonenLines = hasNonZeroLines(row.laborLonenLines)
 
+  const revenueFood = hasFoodLines ? foodLineSum : row.revenueFood
+  const revenueBeverage = hasBevLines ? bevLineSum : row.revenueBeverage
+  const cogsFood = hasCogsFoodLines ? cogsFoodLineSum : row.cogsFood
+  const cogsBeverage = hasCogsBevLines ? cogsBevLineSum : row.cogsBeverage
+  const laborLonen = hasLonenLines ? lonenLineSum : row.laborLonen
+
+  const hasRevMix = hasFoodLines || hasBevLines
+  const hasCogsMix = hasCogsFoodLines || hasCogsBevLines
   const revMix = revenueFood + revenueBeverage
   const cogsMix = cogsFood + cogsBeverage
   const laborMix = laborLonen + row.laborSocialeLasten + row.laborPensioen + row.laborOverig
+  const hasLaborMix = hasLonenLines
+    || row.laborSocialeLasten !== 0
+    || row.laborPensioen !== 0
+    || row.laborOverig !== 0
   const fixedMix = row.fixedOverige + row.fixedAfschrijving + row.fixedFinancieel + row.fixedOpbrengstVorderingen
   const hasFixedMix = row.fixedOverige !== 0
     || row.fixedAfschrijving !== 0
     || row.fixedFinancieel !== 0
     || row.fixedOpbrengstVorderingen !== 0
 
-  const revenue = revMix > 0 ? revMix : row.revenue
-  const cogs = cogsMix > 0 ? cogsMix : row.cogs
-  const labor = laborMix > 0 ? laborMix : row.labor
+  const revenue = hasRevMix ? revMix : row.revenue
+  const cogs = hasCogsMix ? cogsMix : row.cogs
+  const labor = hasLaborMix ? laborMix : row.labor
   const fixed = hasFixedMix ? fixedMix : row.fixed
 
   return {
     ...row,
     revenue,
-    revenueFood: revMix > 0 ? revenueFood : 0,
-    revenueBeverage: revMix > 0 ? revenueBeverage : 0,
-    revenueFoodLines: foodLineSum > 0 ? row.revenueFoodLines : emptyRevenueFoodLines(),
-    revenueBevLines: bevLineSum > 0 ? row.revenueBevLines : emptyRevenueBevLines(),
+    revenueFood: hasRevMix ? revenueFood : 0,
+    revenueBeverage: hasRevMix ? revenueBeverage : 0,
+    revenueFoodLines: hasFoodLines ? row.revenueFoodLines : emptyRevenueFoodLines(),
+    revenueBevLines: hasBevLines ? row.revenueBevLines : emptyRevenueBevLines(),
     cogs,
-    cogsFood: cogsMix > 0 ? cogsFood : 0,
-    cogsBeverage: cogsMix > 0 ? cogsBeverage : cogs,
-    cogsFoodLines: cogsFoodLineSum > 0 ? row.cogsFoodLines : emptyCogsFoodLines(),
-    cogsBevLines: cogsBevLineSum > 0 ? row.cogsBevLines : emptyCogsBevLines(),
+    cogsFood: hasCogsMix ? cogsFood : 0,
+    cogsBeverage: hasCogsMix ? cogsBeverage : cogs,
+    cogsFoodLines: hasCogsFoodLines ? row.cogsFoodLines : emptyCogsFoodLines(),
+    cogsBevLines: hasCogsBevLines ? row.cogsBevLines : emptyCogsBevLines(),
     labor,
-    laborLonen: laborMix > 0 ? laborLonen : labor,
-    laborLonenLines: lonenLineSum > 0 ? row.laborLonenLines : emptyLaborLonenLines(),
-    laborSocialeLasten: laborMix > 0 ? row.laborSocialeLasten : 0,
-    laborPensioen: laborMix > 0 ? row.laborPensioen : 0,
-    laborOverig: laborMix > 0 ? row.laborOverig : 0,
+    laborLonen: hasLaborMix ? laborLonen : labor,
+    laborLonenLines: hasLonenLines ? row.laborLonenLines : emptyLaborLonenLines(),
+    laborSocialeLasten: hasLaborMix ? row.laborSocialeLasten : 0,
+    laborPensioen: hasLaborMix ? row.laborPensioen : 0,
+    laborOverig: hasLaborMix ? row.laborOverig : 0,
     fixed,
     fixedOverige: hasFixedMix ? row.fixedOverige : fixed,
     fixedAfschrijving: hasFixedMix ? row.fixedAfschrijving : 0,

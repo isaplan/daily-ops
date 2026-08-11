@@ -139,6 +139,8 @@
       <p v-if="data.assumptions_note" class="text-xs text-gray-500">
         {{ data.assumptions_note }}
       </p>
+
+      <BreakEvenDriversNotesStub />
     </div>
   </DailyOpsDashboardShell>
 </template>
@@ -146,14 +148,15 @@
 <script setup lang="ts">
 /**
  * @description: Performance insights charts and benchmarks
- * @last-modified: 2026-07-02T00:00:00.000Z
- * @last-fix: [2026-07-02] ADR-013 read-cache metadata
- * @adr-ref: ADR-004, ADR-010, ADR-013
+ * @last-modified: 2026-08-11T00:20:00.000Z
+ * @last-fix: [2026-08-11] Mount draft BE drivers stub for later polish
+ * @adr-ref: ADR-004, ADR-010, ADR-013, ADR-019, ADR-022
  * @data-source: read-cache
  * @read-cache-json: insights (via GET /api/daily-ops/insights)
  * @imports-data-from: composables/useDailyOpsInsightsMetrics.ts
  */
 
+import BreakEvenDriversNotesStub from '~/components/daily-ops/insights/BreakEvenDriversNotesStub.vue'
 import InsightsTrendSection from '~/components/daily-ops/insights/InsightsTrendSection.vue'
 import type { DailyOpsInsightsDelta } from '~/types/daily-ops-insights'
 import { formatDashboardEur } from '~/utils/dashboardEurFormat'

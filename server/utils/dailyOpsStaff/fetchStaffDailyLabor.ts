@@ -10,6 +10,7 @@
  * @exports-to:
  * ✓ server/utils/dailyOpsStaff/fetchStaffTimeseries.ts
  * ✓ server/utils/dailyOpsStaff/computeStaffRollingMedians.ts
+ * ✓ server/utils/accountingPnl/buildPnlAnalytics.ts
  */
 
 import type { Db } from 'mongodb'

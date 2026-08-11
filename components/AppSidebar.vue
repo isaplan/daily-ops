@@ -179,6 +179,7 @@
           </button>
           <ul v-if="!collapsed && isFinanceOpen" class="mt-1 ml-4 space-y-0.5 border-l border-gray-200 pl-3">
             <li><NuxtLink to="/daily-ops/finance/pnl" :class="navLinkClass(route.path === '/daily-ops/finance/pnl')">P&L</NuxtLink></li>
+            <li><NuxtLink to="/daily-ops/finance/analytics" :class="navLinkClass(route.path === '/daily-ops/finance/analytics')">Analytics</NuxtLink></li>
           </ul>
         </li>
         <!-- Settings -->
@@ -489,6 +490,9 @@ const financeDropdownItems = computed(() => [
   [{
     label: 'P&L',
     to: '/daily-ops/finance/pnl',
+  }, {
+    label: 'Analytics',
+    to: '/daily-ops/finance/analytics',
   }],
 ])
 

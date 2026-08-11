@@ -87,7 +87,7 @@
           </div>
 
           <div
-            v-if="viewMode === 'month' || (viewMode === 'year' && displayMode === 'table')"
+            v-if="viewMode === 'month'"
             class="space-y-2"
           >
             <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Year</p>
@@ -120,7 +120,7 @@
         </div>
 
         <div
-          v-if="viewMode === 'month' || (viewMode === 'year' && displayMode === 'graph')"
+          v-if="viewMode === 'month' || viewMode === 'year'"
           class="space-y-2 border-t border-gray-100 pt-4"
         >
           <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Locations</p>
@@ -162,6 +162,7 @@
       :period-label="tablePeriodLabel"
       :layout="viewMode"
       :month-grid="draftMonthGrid"
+      :year-grid="yearGrid"
       :active-venue-ids="activeVenueIdList"
       :value-mode="valueMode"
       :editing="editing"
@@ -210,9 +211,9 @@
 <script setup lang="ts">
 /**
  * @registry-id: dailyOpsFinancePnl
- * @last-modified: 2026-07-24T11:40:00.000Z
+ * @last-modified: 2026-08-11T21:30:00.000Z
  * @description: Accounting P&L benchmarks with manual edit/save
- * @last-fix: [2026-07-24] Recalculate P&L % + break-even; save refreshes assumptions
+ * @last-fix: [2026-08-11] Year table uses yearGrid + Total column (like months)
  * @adr-ref: ADR-013, ADR-014
  * @data-source: direct-db
  * @read-cache-json: none
@@ -301,9 +302,8 @@ function normalizeYear (raw: unknown): AccountingPnlYear {
 const pnlQuery = computed(() => {
   const year = normalizeYear(selectedYear.value)
   const q: Record<string, string | number> = { year }
-  if (viewMode.value === 'month' || (viewMode.value === 'year' && displayMode.value === 'graph')) {
-    q.grid = viewMode.value === 'month' ? 'months' : 'years'
-  }
+  if (viewMode.value === 'month') q.grid = 'months'
+  if (viewMode.value === 'year') q.grid = 'years'
   return q
 })
 
@@ -391,7 +391,10 @@ function monthColumnHasData (venues: AccountingPnlMonthGridDto['columns'][0]['ve
 const tableLines = computed(() => data.value?.lines ?? [])
 const monthGrid = computed(() => data.value?.monthGrid ?? null)
 const yearGrid = computed(() => data.value?.yearGrid ?? null)
-const tablePeriodLabel = computed(() => data.value?.periodLabel ?? '')
+const tablePeriodLabel = computed(() => {
+  if (viewMode.value === 'year') return data.value?.periodLabel || 'All years'
+  return data.value?.periodLabel ?? ''
+})
 const graphPeriodLabel = computed(() => {
   if (viewMode.value === 'year') return 'Revenue by venue · all years'
   return tablePeriodLabel.value
@@ -401,7 +404,7 @@ const hasTableData = computed(() => {
     return (draftMonthGrid.value?.columns.length ?? monthGrid.value?.columns.length ?? 0) > 0
       && activeVenueIdList.value.length > 0
   }
-  return (draftLines.value.length || tableLines.value.length) > 0
+  return (yearGrid.value?.columns.length ?? 0) > 0 && activeVenueIdList.value.length > 0
 })
 const hasGraphData = computed(() => {
   if (viewMode.value === 'month') {
