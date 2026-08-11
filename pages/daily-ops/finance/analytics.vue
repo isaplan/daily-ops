@@ -71,6 +71,8 @@
         </p>
       </UCard>
 
+      <DailyOpsFinancePnlBudgetForecastCard :venue="venue" />
+
       <UCard
         v-if="data.seasonal.length"
         class="border border-gray-200 !bg-white ring-0 shadow-none"
@@ -99,9 +101,9 @@
 /**
  * @registry-id: dailyOpsFinanceAnalytics
  * @created: 2026-08-11T12:55:00.000Z
- * @last-modified: 2026-08-11T13:05:00.000Z
- * @description: Finance Analytics — sealed P&L narrative + full-history chart + PDF
- * @last-fix: [2026-08-11] Wire staff_series into trend chart
+ * @last-modified: 2026-08-12T00:20:00.000Z
+ * @description: Finance Analytics — sealed P&L narrative + budget/forecast + chart + PDF
+ * @last-fix: [2026-08-12] Mount PnlBudgetForecastCard (10% margin + seasonal)
  * @adr-ref: ADR-022
  * @data-source: direct-db
  * @read-cache-json: none
