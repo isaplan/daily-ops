@@ -1,9 +1,9 @@
 /**
  * @registry-id: dailyOpsFinanceAnalyticsBudgetGet
  * @created: 2026-08-12T00:15:00.000Z
- * @last-modified: 2026-08-12T00:15:00.000Z
- * @description: GET /api/daily-ops/finance/analytics/budget — 10% margin budget/forecast
- * @last-fix: [2026-08-12] Initial budget endpoint (seasonal | manual_pct)
+ * @last-modified: 2026-08-12T00:40:00.000Z
+ * @description: GET /api/daily-ops/finance/analytics/budget — 10% margin cost envelope budget
+ * @last-fix: [2026-08-12] Phase 1: cost=rev−10%, COGS@25%, flex leftover, weekly ÷4
  * @adr-ref: ADR-019, ADR-022
  * @data-source: direct-db
  * @read-cache-json: none

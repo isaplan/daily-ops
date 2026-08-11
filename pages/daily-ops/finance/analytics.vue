@@ -101,9 +101,9 @@
 /**
  * @registry-id: dailyOpsFinanceAnalytics
  * @created: 2026-08-11T12:55:00.000Z
- * @last-modified: 2026-08-12T00:20:00.000Z
- * @description: Finance Analytics — sealed P&L narrative + budget/forecast + chart + PDF
- * @last-fix: [2026-08-12] Mount PnlBudgetForecastCard (10% margin + seasonal)
+ * @last-modified: 2026-08-12T00:40:00.000Z
+ * @description: Finance Analytics — sealed P&L narrative + cost-envelope budget + chart + PDF
+ * @last-fix: [2026-08-12] Budget card Phase 1 (cost=rev−10%, COGS 25%, week toggle)
  * @adr-ref: ADR-022
  * @data-source: direct-db
  * @read-cache-json: none

@@ -1,12 +1,13 @@
 <template>
-  <UCard class="border-2 border-gray-900 !bg-white ring-0 shadow-none">
+  <UCard class="border-2 border-gray-900 bg-white! ring-0 shadow-none">
     <div class="flex flex-wrap items-start justify-between gap-3">
       <div>
         <h2 class="text-sm font-semibold text-gray-900">
-          Budget / forecast — 10% margin floor
+          Budget / forecast — cost envelope
         </h2>
         <p class="mt-1 text-xs text-gray-500">
-          Next {{ horizon }} months at clean sealed cost rates. Target: result ≥ 10% of revenue every month.
+          Cost budget = revenue − 10% result. COGS target 25% (margin 4). Rest = labor + OH; leftover = flex.
+          Week = month ÷ {{ weeksPerMonth }}.
         </p>
       </div>
     </div>
@@ -44,7 +45,7 @@
           step="1000"
           min="0"
           size="sm"
-          class="max-w-[10rem]"
+          class="max-w-40"
         />
       </div>
 
@@ -58,7 +59,7 @@
           type="number"
           step="1"
           size="sm"
-          class="max-w-[8rem]"
+          class="max-w-32"
         />
       </div>
 
@@ -98,49 +99,64 @@
     </div>
 
     <template v-else-if="budget">
-      <div class="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div class="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
         <div class="rounded-lg border border-gray-200 px-3 py-2">
           <p class="text-[11px] font-semibold uppercase tracking-wide text-gray-500">
-            Break-even
+            Cost budget (yr)
           </p>
           <p class="mt-0.5 text-lg font-semibold text-gray-900">
-            {{ fmt(budget.baseline.break_even) }}
+            {{ fmt(budget.totals.cost_budget) }}
           </p>
           <p class="text-xs text-gray-500">
-            at clean rates
+            = rev − 10%
           </p>
         </div>
         <div class="rounded-lg border border-gray-200 px-3 py-2">
           <p class="text-[11px] font-semibold uppercase tracking-wide text-gray-500">
-            Rev for 10%
+            COGS @ 25%
           </p>
           <p class="mt-0.5 text-lg font-semibold text-gray-900">
-            {{ fmt(budget.baseline.revenue_for_target_margin) }}
+            {{ fmt(budget.totals.cogs_budget) }}
           </p>
           <p class="text-xs text-gray-500">
-            no cost cuts
+            actual {{ budget.baseline.cogs_pct.toFixed(0) }}% sealed
           </p>
         </div>
         <div class="rounded-lg border border-gray-200 px-3 py-2">
           <p class="text-[11px] font-semibold uppercase tracking-wide text-gray-500">
-            Months @ 10%
+            Labor + OH pot
           </p>
           <p class="mt-0.5 text-lg font-semibold text-gray-900">
-            {{ budget.totals.months_hitting_target }}/{{ budget.months.length }}
+            {{ fmt(budget.totals.labor_oh_budget) }}
           </p>
           <p class="text-xs text-gray-500">
-            at current rates
+            after COGS target
           </p>
         </div>
         <div class="rounded-lg border border-gray-200 px-3 py-2">
           <p class="text-[11px] font-semibold uppercase tracking-wide text-gray-500">
-            Year gap to 10%
+            Flex leftover (yr)
           </p>
-          <p class="mt-0.5 text-lg font-semibold text-gray-900">
-            {{ fmt(budget.totals.gap_to_target) }}
+          <p
+            class="mt-0.5 text-lg font-semibold"
+            :class="budget.totals.flex_budget >= 0 ? 'text-emerald-700' : 'text-amber-800'"
+          >
+            {{ fmt(budget.totals.flex_budget) }}
           </p>
           <p class="text-xs text-gray-500">
-            shortfall sum
+            {{ budget.totals.months_flex_ok }}/{{ budget.months.length }} months OK
+          </p>
+        </div>
+        <div class="rounded-lg border border-gray-200 px-3 py-2">
+          <p class="text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+            Fixed (sealed)
+          </p>
+          <p class="mt-0.5 text-lg font-semibold text-gray-900">
+            {{ fmt(budget.baseline.fixed_total) }}
+            <span class="text-sm font-normal text-gray-500">/mo</span>
+          </p>
+          <p class="text-xs text-gray-500">
+            FT {{ fmt(budget.baseline.fixed_labor) }} + OH {{ fmt(budget.baseline.fixed_oh) }}
           </p>
         </div>
       </div>
@@ -164,11 +180,9 @@
       </ul>
 
       <p class="mt-3 text-xs text-gray-600">
-        CM {{ budget.baseline.contribution_margin.toFixed(1) }}%
-        · COGS {{ budget.baseline.cogs_pct.toFixed(1) }}%
-        · flex {{ budget.baseline.flex_pct.toFixed(1) }}%
-        · fixed {{ fmt(budget.baseline.fixed_total) }}/mo
-        (FT {{ fmt(budget.baseline.fixed_labor) }} + OH {{ fmt(budget.baseline.fixed_oh) }})
+        BE {{ fmt(budget.baseline.break_even) }}/mo
+        · need {{ fmt(budget.baseline.revenue_for_target_margin) }} for 10% at current rates
+        · CM {{ budget.baseline.contribution_margin.toFixed(1) }}%
       </p>
 
       <ul v-if="budget.notes.length" class="mt-2 space-y-1 text-xs text-gray-500">
@@ -177,7 +191,30 @@
         </li>
       </ul>
 
-      <div class="mt-4 overflow-x-auto">
+      <div class="mt-4 flex flex-wrap gap-1">
+        <button
+          type="button"
+          class="rounded-full border px-2.5 py-1 text-[11px] font-semibold tracking-wide transition-colors"
+          :class="periodView === 'month'
+            ? 'border-gray-900 bg-gray-900 text-white'
+            : 'border-gray-300 bg-white text-gray-600 hover:border-gray-900'"
+          @click="periodView = 'month'"
+        >
+          Month
+        </button>
+        <button
+          type="button"
+          class="rounded-full border px-2.5 py-1 text-[11px] font-semibold tracking-wide transition-colors"
+          :class="periodView === 'week'
+            ? 'border-gray-900 bg-gray-900 text-white'
+            : 'border-gray-300 bg-white text-gray-600 hover:border-gray-900'"
+          @click="periodView = 'week'"
+        >
+          Week (÷{{ weeksPerMonth }})
+        </button>
+      </div>
+
+      <div class="mt-3 overflow-x-auto">
         <table class="min-w-full text-left text-xs">
           <thead>
             <tr class="border-b border-gray-200 text-[11px] uppercase tracking-wide text-gray-500">
@@ -191,19 +228,25 @@
                 Revenue
               </th>
               <th class="py-2 pr-3 font-semibold text-right">
-                vs avg
+                10% result
               </th>
               <th class="py-2 pr-3 font-semibold text-right">
-                Result @ rates
+                Cost budget
               </th>
               <th class="py-2 pr-3 font-semibold text-right">
-                10% target
+                COGS 25%
               </th>
               <th class="py-2 pr-3 font-semibold text-right">
-                Gap
+                Labor+OH
+              </th>
+              <th class="py-2 pr-3 font-semibold text-right">
+                Fixed L+OH
+              </th>
+              <th class="py-2 pr-3 font-semibold text-right">
+                Flex left
               </th>
               <th class="py-2 font-semibold">
-                Lever
+                Note
               </th>
             </tr>
           </thead>
@@ -220,39 +263,48 @@
                 {{ m.season_label }}
               </td>
               <td class="py-2 pr-3 text-right tabular-nums text-gray-800">
-                {{ fmt(m.revenue) }}
-              </td>
-              <td
-                class="py-2 pr-3 text-right tabular-nums"
-                :class="(m.vs_avg_pct ?? 0) >= 0 ? 'text-gray-700' : 'text-amber-800'"
-              >
-                {{ fmtVsAvg(m.vs_avg_pct) }}
-              </td>
-              <td
-                class="py-2 pr-3 text-right tabular-nums"
-                :class="(m.result_pct_at_rates ?? 0) >= 10 ? 'text-emerald-700' : 'text-gray-800'"
-              >
-                {{ fmt(m.result_at_rates) }}
-                <span class="text-gray-400">
-                  ({{ m.result_pct_at_rates?.toFixed(1) ?? '—' }}%)
-                </span>
+                {{ fmt(periodView === 'week' ? m.week.revenue : m.revenue) }}
               </td>
               <td class="py-2 pr-3 text-right tabular-nums text-gray-600">
-                {{ fmt(m.target_result) }}
+                {{ fmt(periodView === 'week' ? m.week.target_result : m.target_result) }}
+              </td>
+              <td class="py-2 pr-3 text-right tabular-nums font-medium text-gray-900">
+                {{ fmt(periodView === 'week' ? m.week.cost_budget : m.envelope.cost_budget) }}
+              </td>
+              <td class="py-2 pr-3 text-right tabular-nums text-gray-800">
+                {{ fmt(periodView === 'week' ? m.week.cogs_budget : m.envelope.cogs_budget) }}
+                <span
+                  v-if="periodView === 'month' && m.cogs_gap_vs_target > 50"
+                  class="block text-[10px] text-amber-800"
+                >
+                  actual +{{ fmt(m.cogs_gap_vs_target) }}
+                </span>
+              </td>
+              <td class="py-2 pr-3 text-right tabular-nums text-gray-800">
+                {{ fmt(periodView === 'week' ? m.week.labor_oh_budget : m.envelope.labor_oh_budget) }}
+              </td>
+              <td class="py-2 pr-3 text-right tabular-nums text-gray-600">
+                {{ fmt(periodView === 'week'
+                  ? m.week.fixed_labor + m.week.fixed_oh
+                  : m.envelope.fixed_labor + m.envelope.fixed_oh) }}
               </td>
               <td
-                class="py-2 pr-3 text-right tabular-nums"
-                :class="m.hits_target ? 'text-emerald-700' : 'text-amber-800'"
+                class="py-2 pr-3 text-right tabular-nums font-medium"
+                :class="(periodView === 'week' ? m.week.flex_budget : m.envelope.flex_budget) >= 0
+                  ? 'text-emerald-700'
+                  : 'text-amber-800'"
               >
-                {{ m.hits_target ? 'OK' : fmt(m.gap_to_target) }}
+                {{ fmt(periodView === 'week' ? m.week.flex_budget : m.envelope.flex_budget) }}
               </td>
               <td class="py-2 text-gray-600">
-                <template v-if="m.hits_target">
+                <template v-if="m.envelope.flex_budget_ok && m.cogs_gap_vs_target <= 50">
                   —
                 </template>
+                <template v-else-if="!m.envelope.flex_budget_ok">
+                  Cut fixed or COGS — no flex room
+                </template>
                 <template v-else>
-                  −{{ fmt(m.cut_fixed_needed) }} fixed
-                  or −{{ m.cut_variable_pp_needed.toFixed(1) }}pp COGS/flex
+                  COGS above 25% target
                 </template>
               </td>
             </tr>
@@ -260,22 +312,28 @@
           <tfoot>
             <tr class="border-t border-gray-300 font-semibold text-gray-900">
               <td class="py-2 pr-3" colspan="2">
-                Total
+                Total {{ periodView === 'week' ? '(weeks sum)' : '' }}
               </td>
               <td class="py-2 pr-3 text-right tabular-nums">
-                {{ fmt(budget.totals.revenue) }}
+                {{ fmt(periodView === 'week' ? budget.totals.revenue / weeksPerMonth : budget.totals.revenue) }}
+              </td>
+              <td class="py-2 pr-3 text-right tabular-nums">
+                {{ fmt(periodView === 'week' ? budget.totals.target_result / weeksPerMonth : budget.totals.target_result) }}
+              </td>
+              <td class="py-2 pr-3 text-right tabular-nums">
+                {{ fmt(periodView === 'week' ? budget.totals.cost_budget / weeksPerMonth : budget.totals.cost_budget) }}
+              </td>
+              <td class="py-2 pr-3 text-right tabular-nums">
+                {{ fmt(periodView === 'week' ? budget.totals.cogs_budget / weeksPerMonth : budget.totals.cogs_budget) }}
+              </td>
+              <td class="py-2 pr-3 text-right tabular-nums">
+                {{ fmt(periodView === 'week' ? budget.totals.labor_oh_budget / weeksPerMonth : budget.totals.labor_oh_budget) }}
               </td>
               <td class="py-2 pr-3">
 &nbsp;
               </td>
               <td class="py-2 pr-3 text-right tabular-nums">
-                {{ fmt(budget.totals.result_at_rates) }}
-              </td>
-              <td class="py-2 pr-3 text-right tabular-nums">
-                {{ fmt(budget.totals.target_result) }}
-              </td>
-              <td class="py-2 pr-3 text-right tabular-nums">
-                {{ fmt(budget.totals.gap_to_target) }}
+                {{ fmt(periodView === 'week' ? budget.totals.flex_budget / weeksPerMonth : budget.totals.flex_budget) }}
               </td>
               <td class="py-2">
 &nbsp;
@@ -292,9 +350,9 @@
 /**
  * @registry-id: PnlBudgetForecastCard
  * @created: 2026-08-12T00:15:00.000Z
- * @last-modified: 2026-08-12T00:20:00.000Z
- * @description: Budget/forecast card — seasonal or ±% revenue, 10% margin levers
- * @last-fix: [2026-08-12] Season story strip + vs-avg column
+ * @last-modified: 2026-08-12T00:40:00.000Z
+ * @description: Budget/forecast — cost=rev−10%, COGS@25%, fixed vs flex, month/week toggle
+ * @last-fix: [2026-08-12] Phase 1 cost envelope + weekly ÷4 view for team planning
  * @adr-ref: ADR-019, ADR-022
  *
  * @exports-to:
@@ -302,6 +360,7 @@
  */
 import type { AccountingPnlAnalyticsVenue } from '~/types/accounting-pnl-analytics'
 import type { PnlBudgetDto, PnlBudgetRevenueMode } from '~/types/accounting-pnl-budget'
+import { PNL_BUDGET_WEEKS_PER_MONTH } from '~/types/accounting-pnl-budget'
 import { formatAccountingPnlCompact } from '~/utils/accountingPnlFormat'
 
 const props = defineProps<{
@@ -312,6 +371,8 @@ const mode = ref<PnlBudgetRevenueMode>('seasonal')
 const targetAvg = ref(160_000)
 const revenuePct = ref(0)
 const horizon = ref(12)
+const periodView = ref<'month' | 'week'>('month')
+const weeksPerMonth = PNL_BUDGET_WEEKS_PER_MONTH
 
 const modeOptions: Array<{ value: PnlBudgetRevenueMode; label: string }> = [
   { value: 'seasonal', label: 'Seasonal / trend' },
@@ -339,11 +400,5 @@ const fetchError = computed(() => {
 function fmt (n: number | null | undefined): string {
   if (n == null || !Number.isFinite(n)) return '—'
   return formatAccountingPnlCompact(n)
-}
-
-function fmtVsAvg (pct: number | null | undefined): string {
-  if (pct == null || !Number.isFinite(pct)) return '—'
-  const sign = pct > 0 ? '+' : ''
-  return `${sign}${pct.toFixed(0)}%`
 }
 </script>
