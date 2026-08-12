@@ -1,16 +1,17 @@
 /**
  * @registry-id: accountingPnlBudgetTypes
  * @created: 2026-08-12T00:15:00.000Z
- * @last-modified: 2026-08-12T00:40:00.000Z
- * @description: Finance Analytics budget/forecast DTO — 10% margin cost envelope + COGS/labor split
- * @last-fix: [2026-08-12] Phase 1: cost=rev−10%, COGS@25%, fixed vs flex, weekly slice
+ * @last-modified: 2026-08-12T01:50:00.000Z
+ * @description: Finance Budget/forecast DTO — 10% margin cost envelope + season groups
+ * @last-fix: [2026-08-12] Season groups + vs_season_pct + plain-language summaries
  * @adr-ref: ADR-019, ADR-022
  *
  * @exports-to:
  * ✓ server/utils/accountingPnl/buildPnlBudget.ts
  * ✓ server/api/daily-ops/finance/analytics/budget.get.ts
  * ✓ components/daily-ops/finance/PnlBudgetForecastCard.vue
- * ✓ pages/daily-ops/finance/analytics.vue
+ * ✓ components/daily-ops/finance/PnlBudgetInfoSheet.vue
+ * ✓ pages/daily-ops/finance/budget.vue
  */
 
 import type { AccountingPnlAnalyticsVenue } from '~/types/accounting-pnl-analytics'
@@ -91,8 +92,12 @@ export type PnlBudgetMonth = {
   month: number
   season: PnlBudgetSeasonPhase
   season_label: string
-  /** vs target avg (e.g. −18 = soft month) */
+  /** vs target year avg (e.g. −18 = soft month) */
   vs_avg_pct: number | null
+  /** vs this season’s average revenue in the forecast window */
+  vs_season_pct: number | null
+  /** One-line spend guidance for the team */
+  plain_summary: string
   revenue: number
   /** 10% × revenue */
   target_result: number
@@ -125,6 +130,19 @@ export type PnlBudgetSeasonStory = {
   note: string
 }
 
+/** Season → months in forecast order (upcoming window only). */
+export type PnlBudgetSeasonGroup = {
+  phase: PnlBudgetSeasonPhase
+  label: string
+  months_label: string
+  note: string
+  avg_revenue: number
+  /** Season avg vs target year avg */
+  vs_year_avg_pct: number | null
+  plain_summary: string
+  months: PnlBudgetMonth[]
+}
+
 export type PnlBudgetDto = {
   venue: AccountingPnlAnalyticsVenue
   mode: PnlBudgetRevenueMode
@@ -137,6 +155,8 @@ export type PnlBudgetDto = {
   baseline: PnlBudgetBaselineRates
   /** Fixed narrative of the annual traffic pattern. */
   season_story: PnlBudgetSeasonStory[]
+  /** Forecast months grouped by season (appearance order). */
+  seasons: PnlBudgetSeasonGroup[]
   months: PnlBudgetMonth[]
   totals: {
     revenue: number

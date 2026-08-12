@@ -1,9 +1,9 @@
 /**
  * @registry-id: buildPnlBudget
  * @created: 2026-08-12T00:15:00.000Z
- * @last-modified: 2026-08-12T00:40:00.000Z
- * @description: 10% margin budget/forecast — cost envelope, COGS@25%, fixed vs flex, weekly ÷4
- * @last-fix: [2026-08-12] Phase 1: cost=rev−10%, COGS target 25%, flex leftover, week slice
+ * @last-modified: 2026-08-12T01:50:00.000Z
+ * @description: 10% margin budget/forecast — cost envelope, seasons, plain-language summaries
+ * @last-fix: [2026-08-12] Season groups + vs_season_pct + team-facing plain summaries
  * @adr-ref: ADR-019, ADR-022
  *
  * @exports-to:
@@ -18,6 +18,7 @@ import type {
   PnlBudgetDto,
   PnlBudgetMonth,
   PnlBudgetRevenueMode,
+  PnlBudgetSeasonGroup,
   PnlBudgetSeasonPhase,
   PnlBudgetSeasonStory,
   PnlBudgetWeekSlice,
@@ -27,6 +28,10 @@ import {
   PNL_BUDGET_TARGET_MARGIN,
   PNL_BUDGET_WEEKS_PER_MONTH,
 } from '~/types/accounting-pnl-budget'
+import {
+  buildPnlCostEnvelope,
+  weekSliceFromEnvelope,
+} from '~/utils/accountingPnl/costEnvelope'
 import type { AccountingPnlRow, AccountingPnlVenueId } from '~/utils/accountingPnlData'
 import { ACCOUNTING_PNL_MONTH_LABELS } from '~/utils/accountingPnlData'
 import {
@@ -72,19 +77,27 @@ function addMonth (year: number, month: number, delta: number): { year: number; 
 
 /** Ops calendar: Jan–Mar weak, spring up, summer stable/soft, autumn slow, Dec strong. */
 function seasonForMonth (month: number): { phase: PnlBudgetSeasonPhase; label: string } {
-  if (month >= 1 && month <= 3) return { phase: 'winter_weak', label: 'Winter weak' }
-  if (month >= 4 && month <= 5) return { phase: 'spring_up', label: 'Spring up' }
-  if (month >= 6 && month <= 8) return { phase: 'summer_stable', label: 'Summer stable' }
-  if (month >= 9 && month <= 11) return { phase: 'autumn_slow', label: 'Autumn slow' }
-  return { phase: 'december_strong', label: 'December strong' }
+  if (month >= 1 && month <= 3) return { phase: 'winter_weak', label: 'Winter (quiet)' }
+  if (month >= 4 && month <= 5) return { phase: 'spring_up', label: 'Spring (building)' }
+  if (month >= 6 && month <= 8) return { phase: 'summer_stable', label: 'Summer (steady)' }
+  if (month >= 9 && month <= 11) return { phase: 'autumn_slow', label: 'Autumn (easing)' }
+  return { phase: 'december_strong', label: 'December (strong)' }
 }
 
 const SEASON_STORY: PnlBudgetSeasonStory[] = [
-  { phase: 'winter_weak', label: 'Winter weak', months: 'Jan–Mar', note: 'Traffic soft after the holidays — Jan & Feb weakest; March still cautious.' },
-  { phase: 'spring_up', label: 'Spring up', months: 'Apr–May', note: 'Demand rebuilds — revenue steps up from the winter floor.' },
-  { phase: 'summer_stable', label: 'Summer stable', months: 'Jun–Aug', note: 'Peak / plateau — high months with a small decline into late summer.' },
-  { phase: 'autumn_slow', label: 'Autumn slow', months: 'Sep–Nov', note: 'Traffic eases — softer covers before the year-end spike.' },
-  { phase: 'december_strong', label: 'December strong', months: 'Dec', note: 'Strongest trading month — parties & year-end volume.' },
+  { phase: 'winter_weak', label: 'Winter (quiet)', months: 'Jan–Mar', note: 'Quieter after the holidays. January and February are usually the softest.' },
+  { phase: 'spring_up', label: 'Spring (building)', months: 'Apr–May', note: 'Sales pick up from the winter floor as the year warms up.' },
+  { phase: 'summer_stable', label: 'Summer (steady)', months: 'Jun–Aug', note: 'Busy, fairly steady months — often the high plateau of the year.' },
+  { phase: 'autumn_slow', label: 'Autumn (easing)', months: 'Sep–Nov', note: 'Traffic eases a bit before the year-end rush.' },
+  { phase: 'december_strong', label: 'December (strong)', months: 'Dec', note: 'Strongest month — parties and year-end volume.' },
+]
+
+const SEASON_ORDER: PnlBudgetSeasonPhase[] = [
+  'winter_weak',
+  'spring_up',
+  'summer_stable',
+  'autumn_slow',
+  'december_strong',
 ]
 
 export type BuildPnlBudgetOpts = {
@@ -99,6 +112,27 @@ export type BuildPnlBudgetOpts = {
 
 function resolveMode (raw: unknown): PnlBudgetRevenueMode {
   return raw === 'manual_pct' ? 'manual_pct' : 'seasonal'
+}
+
+function fmtEurPlain (n: number): string {
+  return `€${Math.round(n).toLocaleString('nl-NL')}`
+}
+
+function vsAvgPhrase (pct: number | null, vsWhat: string): string {
+  if (pct == null || !Number.isFinite(pct)) return `about the same as ${vsWhat}`
+  if (Math.abs(pct) < 2) return `about the same as ${vsWhat}`
+  if (pct > 0) return `about ${Math.abs(pct).toFixed(0)}% busier than ${vsWhat}`
+  return `about ${Math.abs(pct).toFixed(0)}% quieter than ${vsWhat}`
+}
+
+function monthPlainSummary (m: Omit<PnlBudgetMonth, 'plain_summary' | 'vs_season_pct'>): string {
+  const spend = fmtEurPlain(m.envelope.cost_budget)
+  const food = fmtEurPlain(m.envelope.cogs_budget)
+  const flex = fmtEurPlain(m.envelope.flex_budget)
+  if (!m.envelope.flex_budget_ok) {
+    return `${m.label}: expect ${fmtEurPlain(m.revenue)} sales. You can spend up to ${spend} (keep ${fmtEurPlain(m.target_result)} as 10% profit). Food & drinks target ${food}. Fixed costs already use the whole labor+OH pot — no flex room this month.`
+  }
+  return `${m.label}: expect ${fmtEurPlain(m.revenue)} sales. Spend up to ${spend} total (${food} food & drinks; ${flex} left for flexible staff after fixed labor & overhead).`
 }
 
 function buildBaseline (rows: AccountingPnlRow[]): PnlBudgetBaselineRates | null {
@@ -174,42 +208,40 @@ function buildEnvelope (
   fixedLabor: number,
   fixedOh: number,
 ): PnlBudgetCostEnvelope {
-  const cost_budget = round2(revenue * (1 - PNL_BUDGET_TARGET_MARGIN))
-  const cogs_budget = round2(revenue * PNL_BUDGET_TARGET_COGS_PCT)
-  const labor_oh_budget = round2(cost_budget - cogs_budget)
-  const flex_budget = round2(labor_oh_budget - fixedLabor - fixedOh)
+  const env = buildPnlCostEnvelope(revenue, fixedLabor, fixedOh)
   return {
-    cost_budget,
-    cogs_budget,
-    labor_oh_budget,
-    fixed_labor: round2(fixedLabor),
-    fixed_oh: round2(fixedOh),
-    flex_budget,
-    flex_budget_ok: flex_budget >= -0.5,
+    cost_budget: env.cost_budget,
+    cogs_budget: env.cogs_budget,
+    labor_oh_budget: env.labor_oh_budget,
+    fixed_labor: env.fixed_labor,
+    fixed_oh: env.fixed_oh,
+    flex_budget: env.flex_budget,
+    flex_budget_ok: env.flex_budget_ok,
   }
 }
 
-function weekFromMonth (envelope: PnlBudgetCostEnvelope, revenue: number, targetResult: number): PnlBudgetWeekSlice {
-  const w = PNL_BUDGET_WEEKS_PER_MONTH
+function weekFromMonth (envelope: PnlBudgetCostEnvelope, revenue: number): PnlBudgetWeekSlice {
+  const full = buildPnlCostEnvelope(revenue, envelope.fixed_labor, envelope.fixed_oh)
+  const w = weekSliceFromEnvelope(full)
   return {
-    revenue: round2(revenue / w),
-    target_result: round2(targetResult / w),
-    cost_budget: round2(envelope.cost_budget / w),
-    cogs_budget: round2(envelope.cogs_budget / w),
-    labor_oh_budget: round2(envelope.labor_oh_budget / w),
-    fixed_labor: round2(envelope.fixed_labor / w),
-    fixed_oh: round2(envelope.fixed_oh / w),
-    flex_budget: round2(envelope.flex_budget / w),
+    revenue: w.revenue,
+    target_result: w.target_result,
+    cost_budget: w.cost_budget,
+    cogs_budget: w.cogs_budget,
+    labor_oh_budget: w.labor_oh_budget,
+    fixed_labor: w.fixed_labor,
+    fixed_oh: w.fixed_oh,
+    flex_budget: w.flex_budget,
   }
 }
 
-function monthBudget (
+function monthBudgetDraft (
   year: number,
   month: number,
   revenue: number,
   baseline: PnlBudgetBaselineRates,
   targetAvg: number,
-): PnlBudgetMonth {
+): Omit<PnlBudgetMonth, 'plain_summary' | 'vs_season_pct'> {
   const cogsPct = baseline.cogs_pct / 100
   const flexPct = baseline.flex_pct / 100
   const cogs_at_rates = round2(revenue * cogsPct)
@@ -239,7 +271,7 @@ function monthBudget (
     target_result,
     max_costs: envelope.cost_budget,
     envelope,
-    week: weekFromMonth(envelope, revenue, target_result),
+    week: weekFromMonth(envelope, revenue),
     costs_at_rates,
     result_at_rates,
     result_pct_at_rates: revenue > 0 ? round1((result_at_rates / revenue) * 100) : null,
@@ -249,6 +281,90 @@ function monthBudget (
     hits_target,
     cut_fixed_needed,
     cut_variable_pp_needed,
+  }
+}
+
+function groupSeasons (months: PnlBudgetMonth[], targetAvg: number): PnlBudgetSeasonGroup[] {
+  const byPhase = new Map<PnlBudgetSeasonPhase, PnlBudgetMonth[]>()
+  for (const m of months) {
+    const list = byPhase.get(m.season) ?? []
+    list.push(m)
+    byPhase.set(m.season, list)
+  }
+
+  const groups: PnlBudgetSeasonGroup[] = []
+  const appearance = months.map((m) => m.season).filter((p, i, arr) => arr.indexOf(p) === i)
+  const ordered = [
+    ...appearance,
+    ...SEASON_ORDER.filter((p) => !appearance.includes(p) && byPhase.has(p)),
+  ]
+
+  for (const phase of ordered) {
+    const list = byPhase.get(phase)
+    if (!list?.length) continue
+    const story = SEASON_STORY.find((s) => s.phase === phase)!
+    const avg_revenue = round2(list.reduce((s, m) => s + m.revenue, 0) / list.length)
+    const vs_year_avg_pct = targetAvg > 0
+      ? round1(((avg_revenue - targetAvg) / targetAvg) * 100)
+      : null
+    groups.push({
+      phase,
+      label: story.label,
+      months_label: story.months,
+      note: story.note,
+      avg_revenue,
+      vs_year_avg_pct,
+      plain_summary: `${story.label} (${story.months}): ${vsAvgPhrase(vs_year_avg_pct, 'your year average')}. ${story.note}`,
+      months: list,
+    })
+  }
+  return groups
+}
+
+function emptyDto (
+  venue: AccountingPnlAnalyticsVenue,
+  mode: PnlBudgetRevenueMode,
+  targetAvg: number,
+  revenuePct: number,
+  horizon: number,
+): PnlBudgetDto {
+  return {
+    venue,
+    mode,
+    target_margin: PNL_BUDGET_TARGET_MARGIN,
+    target_cogs_pct: PNL_BUDGET_TARGET_COGS_PCT,
+    weeks_per_month: PNL_BUDGET_WEEKS_PER_MONTH,
+    target_avg_revenue: targetAvg,
+    revenue_pct: revenuePct,
+    horizon_months: horizon,
+    baseline: {
+      months_used: 0,
+      avg_revenue: 0,
+      cogs_pct: 0,
+      flex_pct: 0,
+      contribution_margin: 0,
+      fixed_labor: 0,
+      fixed_oh: 0,
+      fixed_total: 0,
+      break_even: null,
+      revenue_for_target_margin: null,
+    },
+    season_story: SEASON_STORY,
+    seasons: [],
+    months: [],
+    totals: {
+      revenue: 0,
+      target_result: 0,
+      cost_budget: 0,
+      cogs_budget: 0,
+      labor_oh_budget: 0,
+      flex_budget: 0,
+      result_at_rates: 0,
+      gap_to_target: 0,
+      months_hitting_target: 0,
+      months_flex_ok: 0,
+    },
+    notes: ['No sealed P&L months available for budget.'],
   }
 }
 
@@ -271,43 +387,7 @@ export async function buildPnlBudget (
 
   const baseline = buildBaseline(sealed.map((s) => s.row))
   if (!baseline || !sealed.length) {
-    return {
-      venue,
-      mode,
-      target_margin: PNL_BUDGET_TARGET_MARGIN,
-      target_cogs_pct: PNL_BUDGET_TARGET_COGS_PCT,
-      weeks_per_month: PNL_BUDGET_WEEKS_PER_MONTH,
-      target_avg_revenue: targetAvg,
-      revenue_pct: revenuePct,
-      horizon_months: horizon,
-      baseline: {
-        months_used: 0,
-        avg_revenue: 0,
-        cogs_pct: 0,
-        flex_pct: 0,
-        contribution_margin: 0,
-        fixed_labor: 0,
-        fixed_oh: 0,
-        fixed_total: 0,
-        break_even: null,
-        revenue_for_target_margin: null,
-      },
-      season_story: SEASON_STORY,
-      months: [],
-      totals: {
-        revenue: 0,
-        target_result: 0,
-        cost_budget: 0,
-        cogs_budget: 0,
-        labor_oh_budget: 0,
-        flex_budget: 0,
-        result_at_rates: 0,
-        gap_to_target: 0,
-        months_hitting_target: 0,
-        months_flex_ok: 0,
-      },
-      notes: ['No sealed P&L months available for budget.'],
-    }
+    return emptyDto(venue, mode, targetAvg, revenuePct, horizon)
   }
 
   const shape = seasonalAvgByMonth(sealed)
@@ -319,12 +399,33 @@ export async function buildPnlBudget (
 
   const last = sealed[sealed.length - 1]!
   const start = addMonth(last.year, last.month, 1)
-  const months: PnlBudgetMonth[] = []
+  const drafts: Array<Omit<PnlBudgetMonth, 'plain_summary' | 'vs_season_pct'>> = []
   for (let i = 0; i < horizon; i++) {
     const ym = addMonth(start.year, start.month, i)
     const rev = monthlyRevs[ym.month - 1]!
-    months.push(monthBudget(ym.year, ym.month, rev, baseline, targetAvg))
+    drafts.push(monthBudgetDraft(ym.year, ym.month, rev, baseline, targetAvg))
   }
+
+  const seasonAvgs = new Map<PnlBudgetSeasonPhase, number>()
+  for (const phase of SEASON_ORDER) {
+    const list = drafts.filter((m) => m.season === phase)
+    if (!list.length) continue
+    seasonAvgs.set(phase, list.reduce((s, m) => s + m.revenue, 0) / list.length)
+  }
+
+  const months: PnlBudgetMonth[] = drafts.map((d) => {
+    const seasonAvg = seasonAvgs.get(d.season)
+    const vs_season_pct = seasonAvg && seasonAvg > 0
+      ? round1(((d.revenue - seasonAvg) / seasonAvg) * 100)
+      : null
+    return {
+      ...d,
+      vs_season_pct,
+      plain_summary: monthPlainSummary(d),
+    }
+  })
+
+  const seasons = groupSeasons(months, targetAvg)
 
   const totals = {
     revenue: round2(months.reduce((s, m) => s + m.revenue, 0)),
@@ -340,25 +441,17 @@ export async function buildPnlBudget (
   }
 
   const notes: string[] = [
-    `Cost budget = revenue − ${(PNL_BUDGET_TARGET_MARGIN * 100).toFixed(0)}% result (= ${(100 - PNL_BUDGET_TARGET_MARGIN * 100).toFixed(0)}% of sales).`,
-    `COGS target ${(PNL_BUDGET_TARGET_COGS_PCT * 100).toFixed(0)}% (menu margin 4). Labor+OH budget = cost − COGS; flex = that − fixed labor − fixed OH.`,
-    `Weekly = monthly ÷ ${PNL_BUDGET_WEEKS_PER_MONTH} (same as Staff Org).`,
-    `Rates from ${baseline.months_used} clean sealed months (OH-stamp months excluded). Actual COGS ${baseline.cogs_pct.toFixed(1)}% vs target ${(PNL_BUDGET_TARGET_COGS_PCT * 100).toFixed(0)}%.`,
-    'Seasonal €: winter weak → spring up → summer stable → autumn slow → December strong.',
+    'Keep 10% of sales as profit. Everything else is your cost budget.',
+    'Food & drinks should stay near 25% of sales (menu priced at margin 4).',
+    'After fixed staff and overhead, what’s left is the flex staff budget.',
+    `A week is 1/${PNL_BUDGET_WEEKS_PER_MONTH} of the month (same as Staff Org).`,
+    `Numbers use ${baseline.months_used} clean sealed months (odd OH credits skipped).`,
   ]
-  if (baseline.break_even != null) {
-    notes.push(`Break-even at current rates ≈ ${Math.round(baseline.break_even).toLocaleString('nl-NL')} €/mo.`)
-  }
-  if (baseline.revenue_for_target_margin != null) {
-    notes.push(
-      `Need ≈ ${Math.round(baseline.revenue_for_target_margin).toLocaleString('nl-NL')} €/mo revenue for 10% at current rates (no cost cuts).`,
-    )
-  }
   if (mode === 'seasonal') {
-    notes.push(`Revenue = seasonal shape scaled to ${Math.round(targetAvg).toLocaleString('nl-NL')} € avg/mo.`)
+    notes.push(`Sales follow your sealed seasonal shape, scaled to ${fmtEurPlain(targetAvg)} average per month.`)
   } else {
     notes.push(
-      `Revenue = seasonal shape @ ${Math.round(targetAvg).toLocaleString('nl-NL')} € avg, then ${revenuePct >= 0 ? '+' : ''}${revenuePct}% for the season.`,
+      `Sales follow the seasonal shape at ${fmtEurPlain(targetAvg)} average, then ${revenuePct >= 0 ? '+' : ''}${revenuePct}% across the horizon.`,
     )
   }
 
@@ -373,6 +466,7 @@ export async function buildPnlBudget (
     horizon_months: horizon,
     baseline,
     season_story: SEASON_STORY,
+    seasons,
     months,
     totals,
     notes,

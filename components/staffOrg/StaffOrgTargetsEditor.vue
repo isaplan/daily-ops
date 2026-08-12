@@ -45,9 +45,9 @@
 /**
  * @registry-id: StaffOrgTargetsEditor
  * @created: 2026-07-22T22:45:00.000Z
- * @last-modified: 2026-07-22T22:45:00.000Z
+ * @last-modified: 2026-08-12T00:50:00.000Z
  * @description: Edit monthly revenue + min €/h for one location
- * @last-fix: [2026-07-22] Initial targets editor
+ * @last-fix: [2026-08-12] Preserve costEnvelope on save
  * @adr-ref: ADR-016
  */
 
@@ -99,6 +99,7 @@ function emitSave() {
       laborCostPctTarget: prev?.laborCostPctTarget ?? {
         total: null, ft: null, pt: null, zzp: null,
       },
+      costEnvelope: prev?.costEnvelope ?? null,
     },
   ])
 }

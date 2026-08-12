@@ -1,9 +1,9 @@
 /**
  * @registry-id: staffOrgTypes
  * @created: 2026-07-22T18:00:00.000Z
- * @last-modified: 2026-07-28T16:35:00.000Z
+ * @last-modified: 2026-08-12T00:50:00.000Z
  * @description: Staff Org scenario / placement / metrics types (ADR-016)
- * @last-fix: [2026-07-28] pt_sr role + desiredWeeklyHours for PT lanes
+ * @last-fix: [2026-08-12] Phase 2: cost envelope seed fields on targets + benchmarks
  * @adr-ref: ADR-016
  *
  * @exports-to:
@@ -13,6 +13,7 @@
  * ✓ components/staffOrg/*
  * ✓ utils/staffOrg/locationTargets.ts
  * ✓ utils/staffOrg/productivity.ts
+ * ✓ utils/accountingPnl/costEnvelope.ts
  */
 
 /** Monday = 0 … Sunday = 6 */
@@ -123,6 +124,26 @@ export type StaffOrgLocationTargets = {
   laborCostPctActual: StaffOrgLaborCostPctBuckets
   /** Planner target — “what it should be”. */
   laborCostPctTarget: StaffOrgLaborCostPctBuckets
+  /**
+   * Finance cost envelope snapshot (rev−10%, COGS@25%, flex leftover).
+   * Null until Seed / Save from budget card.
+   */
+  costEnvelope: StaffOrgCostEnvelopeSnapshot | null
+}
+
+/** Persisted / seeded Finance cost envelope aligned with Analytics budget. */
+export type StaffOrgCostEnvelopeSnapshot = {
+  costBudget: number
+  cogsBudget: number
+  laborOhBudget: number
+  fixedLabor: number
+  fixedOh: number
+  flexBudget: number
+  /** Weekly = monthly ÷ STAFF_ORG_WEEKS_PER_MONTH */
+  weekCostBudget: number
+  weekFlexBudget: number
+  targetMargin: number
+  targetCogsPct: number
 }
 
 /** Seed payload from last-12 sealed accounting P&L months (ADR-016). */
@@ -134,6 +155,12 @@ export type StaffOrgLaborBenchmark = {
   laborCostPct: StaffOrgLaborCostPctBuckets
   keukenRevenueShare: number
   bedieningRevenueShare: number
+  /** Avg fixed labor €/mo from clean sealed months (OH-stamp excluded). */
+  fixedLaborMonthly: number
+  /** Avg fixed OH €/mo from clean sealed months. */
+  fixedOhMonthly: number
+  /** Envelope at monthlyRevenue (10% / COGS 25% / flex leftover). */
+  costEnvelope: StaffOrgCostEnvelopeSnapshot
 }
 
 export type StaffOrgScenario = {

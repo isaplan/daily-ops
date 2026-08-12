@@ -1,10 +1,10 @@
 /**
  * @registry-id: staffOrgLocationTargets
  * @created: 2026-07-23T10:40:00.000Z
- * @last-modified: 2026-07-23T10:40:00.000Z
- * @description: Default + normalize Staff Org location targets (rev split, labor %)
- * @last-fix: [2026-07-23] Food→keuken / beverage→bediening+bar splits; labor % buckets
- * @adr-ref: ADR-016
+ * @last-modified: 2026-08-12T00:50:00.000Z
+ * @description: Default + normalize Staff Org location targets (rev split, labor %, cost envelope)
+ * @last-fix: [2026-08-12] Phase 2: normalize costEnvelope snapshot on location targets
+ * @adr-ref: ADR-016, ADR-022
  *
  * @exports-to:
  * ✓ server/utils/staffOrg/scenarioRepo.ts
@@ -13,6 +13,7 @@
  */
 
 import type {
+  StaffOrgCostEnvelopeSnapshot,
   StaffOrgLaborCostPctBuckets,
   StaffOrgLocationTargets,
 } from '~/types/staff-org'
@@ -49,6 +50,7 @@ export function defaultLocationTarget(locationId: string, locationName?: string)
     contractLaborCostMonthly: null,
     laborCostPctActual: emptyLaborCostPctBuckets(),
     laborCostPctTarget: emptyLaborCostPctBuckets(),
+    costEnvelope: null,
   }
 }
 
@@ -79,6 +81,27 @@ function normalizeBuckets(raw: unknown): StaffOrgLaborCostPctBuckets {
     ft: num('ft'),
     pt: num('pt'),
     zzp: num('zzp'),
+  }
+}
+
+function normalizeCostEnvelope(raw: unknown): StaffOrgCostEnvelopeSnapshot | null {
+  if (!raw || typeof raw !== 'object') return null
+  const r = raw as Record<string, unknown>
+  const n = (k: string): number => {
+    const v = Number(r[k])
+    return Number.isFinite(v) ? Math.round(v * 100) / 100 : 0
+  }
+  return {
+    costBudget: n('costBudget'),
+    cogsBudget: n('cogsBudget'),
+    laborOhBudget: n('laborOhBudget'),
+    fixedLabor: n('fixedLabor'),
+    fixedOh: n('fixedOh'),
+    flexBudget: n('flexBudget'),
+    weekCostBudget: n('weekCostBudget'),
+    weekFlexBudget: n('weekFlexBudget'),
+    targetMargin: n('targetMargin') || 0.1,
+    targetCogsPct: n('targetCogsPct') || 0.25,
   }
 }
 
@@ -128,6 +151,7 @@ export function normalizeLocationTargets(raw: unknown): StaffOrgLocationTargets[
           : Math.max(0, Number(r.contractLaborCostMonthly) || 0),
       laborCostPctActual: normalizeBuckets(r.laborCostPctActual),
       laborCostPctTarget: normalizeBuckets(r.laborCostPctTarget),
+      costEnvelope: normalizeCostEnvelope(r.costEnvelope),
     })
   }
   return out

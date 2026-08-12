@@ -1,390 +1,246 @@
 <template>
-  <UCard class="border-2 border-gray-900 bg-white! ring-0 shadow-none">
-    <div class="flex flex-wrap items-start justify-between gap-3">
-      <div>
-        <h2 class="text-sm font-semibold text-gray-900">
-          Budget / forecast — cost envelope
-        </h2>
-        <p class="mt-1 text-xs text-gray-500">
-          Cost budget = revenue − 10% result. COGS target 25% (margin 4). Rest = labor + OH; leftover = flex.
-          Week = month ÷ {{ weeksPerMonth }}.
-        </p>
-      </div>
-    </div>
-
-    <div class="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-      <div class="space-y-1.5">
-        <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">
-          Revenue mode
-        </p>
-        <div class="inline-flex flex-wrap gap-1">
-          <button
-            v-for="opt in modeOptions"
-            :key="opt.value"
-            type="button"
-            class="rounded-full border px-2.5 py-1 text-[11px] font-semibold tracking-wide transition-colors"
-            :class="mode === opt.value
-              ? 'border-gray-900 bg-gray-900 text-white'
-              : 'border-gray-300 bg-white text-gray-600 hover:border-gray-900 hover:text-gray-900'"
-            :aria-pressed="mode === opt.value"
-            @click="mode = opt.value"
-          >
-            {{ opt.label }}
-          </button>
-        </div>
-      </div>
-
-      <div class="space-y-1.5">
-        <label class="text-xs font-semibold uppercase tracking-wide text-gray-500" for="budget-avg-rev">
-          Target avg €/mo
-        </label>
-        <UInput
-          id="budget-avg-rev"
-          v-model.number="targetAvg"
-          type="number"
-          step="1000"
-          min="0"
-          size="sm"
-          class="max-w-40"
-        />
-      </div>
-
-      <div v-if="mode === 'manual_pct'" class="space-y-1.5">
-        <label class="text-xs font-semibold uppercase tracking-wide text-gray-500" for="budget-rev-pct">
-          Season ±%
-        </label>
-        <UInput
-          id="budget-rev-pct"
-          v-model.number="revenuePct"
-          type="number"
-          step="1"
-          size="sm"
-          class="max-w-32"
-        />
-      </div>
-
-      <div class="space-y-1.5">
-        <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">
-          Horizon
-        </p>
-        <div class="inline-flex flex-wrap gap-1">
-          <button
-            v-for="h in [6, 12]"
-            :key="h"
-            type="button"
-            class="rounded-full border px-2.5 py-1 text-[11px] font-semibold tracking-wide transition-colors"
-            :class="horizon === h
-              ? 'border-gray-900 bg-gray-900 text-white'
-              : 'border-gray-300 bg-white text-gray-600 hover:border-gray-900 hover:text-gray-900'"
-            @click="horizon = h"
-          >
-            {{ h }}m
-          </button>
-        </div>
-      </div>
-    </div>
-
+  <div class="space-y-4">
     <UAlert
       v-if="fetchError"
-      class="mt-4"
       color="error"
       variant="soft"
       title="Could not load budget"
       :description="fetchError"
     />
 
-    <div v-else-if="pending && !budget" class="mt-4 space-y-2">
-      <USkeleton class="h-16 w-full rounded-lg" />
-      <USkeleton class="h-48 w-full rounded-lg" />
+    <div v-else-if="pending && !budget" class="space-y-2">
+      <USkeleton class="h-20 w-full rounded-lg" />
+      <USkeleton class="h-40 w-full rounded-lg" />
     </div>
 
     <template v-else-if="budget">
-      <div class="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-        <div class="rounded-lg border border-gray-200 px-3 py-2">
-          <p class="text-[11px] font-semibold uppercase tracking-wide text-gray-500">
-            Cost budget (yr)
-          </p>
-          <p class="mt-0.5 text-lg font-semibold text-gray-900">
-            {{ fmt(budget.totals.cost_budget) }}
-          </p>
-          <p class="text-xs text-gray-500">
-            = rev − 10%
-          </p>
-        </div>
-        <div class="rounded-lg border border-gray-200 px-3 py-2">
-          <p class="text-[11px] font-semibold uppercase tracking-wide text-gray-500">
-            COGS @ 25%
-          </p>
-          <p class="mt-0.5 text-lg font-semibold text-gray-900">
-            {{ fmt(budget.totals.cogs_budget) }}
-          </p>
-          <p class="text-xs text-gray-500">
-            actual {{ budget.baseline.cogs_pct.toFixed(0) }}% sealed
-          </p>
-        </div>
-        <div class="rounded-lg border border-gray-200 px-3 py-2">
-          <p class="text-[11px] font-semibold uppercase tracking-wide text-gray-500">
-            Labor + OH pot
-          </p>
-          <p class="mt-0.5 text-lg font-semibold text-gray-900">
-            {{ fmt(budget.totals.labor_oh_budget) }}
-          </p>
-          <p class="text-xs text-gray-500">
-            after COGS target
-          </p>
-        </div>
-        <div class="rounded-lg border border-gray-200 px-3 py-2">
-          <p class="text-[11px] font-semibold uppercase tracking-wide text-gray-500">
-            Flex leftover (yr)
-          </p>
-          <p
-            class="mt-0.5 text-lg font-semibold"
-            :class="budget.totals.flex_budget >= 0 ? 'text-emerald-700' : 'text-amber-800'"
-          >
-            {{ fmt(budget.totals.flex_budget) }}
-          </p>
-          <p class="text-xs text-gray-500">
-            {{ budget.totals.months_flex_ok }}/{{ budget.months.length }} months OK
-          </p>
-        </div>
-        <div class="rounded-lg border border-gray-200 px-3 py-2">
-          <p class="text-[11px] font-semibold uppercase tracking-wide text-gray-500">
-            Fixed (sealed)
-          </p>
-          <p class="mt-0.5 text-lg font-semibold text-gray-900">
-            {{ fmt(budget.baseline.fixed_total) }}
-            <span class="text-sm font-normal text-gray-500">/mo</span>
-          </p>
-          <p class="text-xs text-gray-500">
-            FT {{ fmt(budget.baseline.fixed_labor) }} + OH {{ fmt(budget.baseline.fixed_oh) }}
-          </p>
-        </div>
-      </div>
-
-      <ul class="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
-        <li
-          v-for="s in budget.season_story"
-          :key="s.phase"
-          class="rounded-lg border border-gray-200 px-2.5 py-2"
-        >
-          <p class="text-[11px] font-semibold uppercase tracking-wide text-gray-500">
-            {{ s.months }}
-          </p>
-          <p class="text-xs font-semibold text-gray-900">
-            {{ s.label }}
-          </p>
-          <p class="mt-0.5 text-[11px] leading-snug text-gray-500">
-            {{ s.note }}
-          </p>
-        </li>
-      </ul>
-
-      <p class="mt-3 text-xs text-gray-600">
-        BE {{ fmt(budget.baseline.break_even) }}/mo
-        · need {{ fmt(budget.baseline.revenue_for_target_margin) }} for 10% at current rates
-        · CM {{ budget.baseline.contribution_margin.toFixed(1) }}%
-      </p>
-
-      <ul v-if="budget.notes.length" class="mt-2 space-y-1 text-xs text-gray-500">
-        <li v-for="(n, i) in budget.notes" :key="i">
-          {{ n }}
-        </li>
-      </ul>
-
-      <div class="mt-4 flex flex-wrap gap-1">
-        <button
-          type="button"
-          class="rounded-full border px-2.5 py-1 text-[11px] font-semibold tracking-wide transition-colors"
-          :class="periodView === 'month'
-            ? 'border-gray-900 bg-gray-900 text-white'
-            : 'border-gray-300 bg-white text-gray-600 hover:border-gray-900'"
-          @click="periodView = 'month'"
-        >
-          Month
-        </button>
-        <button
-          type="button"
-          class="rounded-full border px-2.5 py-1 text-[11px] font-semibold tracking-wide transition-colors"
-          :class="periodView === 'week'
-            ? 'border-gray-900 bg-gray-900 text-white'
-            : 'border-gray-300 bg-white text-gray-600 hover:border-gray-900'"
-          @click="periodView = 'week'"
-        >
-          Week (÷{{ weeksPerMonth }})
-        </button>
-      </div>
-
-      <div class="mt-3 overflow-x-auto">
-        <table class="min-w-full text-left text-xs">
-          <thead>
-            <tr class="border-b border-gray-200 text-[11px] uppercase tracking-wide text-gray-500">
-              <th class="py-2 pr-3 font-semibold">
-                Month
-              </th>
-              <th class="py-2 pr-3 font-semibold">
-                Season
-              </th>
-              <th class="py-2 pr-3 font-semibold text-right">
-                Revenue
-              </th>
-              <th class="py-2 pr-3 font-semibold text-right">
-                10% result
-              </th>
-              <th class="py-2 pr-3 font-semibold text-right">
-                Cost budget
-              </th>
-              <th class="py-2 pr-3 font-semibold text-right">
-                COGS 25%
-              </th>
-              <th class="py-2 pr-3 font-semibold text-right">
-                Labor+OH
-              </th>
-              <th class="py-2 pr-3 font-semibold text-right">
-                Fixed L+OH
-              </th>
-              <th class="py-2 pr-3 font-semibold text-right">
-                Flex left
-              </th>
-              <th class="py-2 font-semibold">
-                Note
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr
-              v-for="m in budget.months"
-              :key="m.date"
-              class="border-b border-gray-100"
+      <UCard class="border-2 border-gray-900 bg-white! ring-0 shadow-none">
+        <p class="text-sm text-gray-700">
+          Keep <strong>10%</strong> of sales as profit. The rest is what you may spend.
+          Food &amp; drinks ≈ <strong>25%</strong>. What’s left after fixed staff &amp; overhead is
+          <strong>flex</strong>.
+        </p>
+        <div class="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div class="rounded-lg border border-gray-200 px-3 py-2">
+            <p class="text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+              Sales (horizon)
+            </p>
+            <p class="mt-0.5 text-lg font-semibold text-gray-900">
+              {{ fmt(budget.totals.revenue) }}
+            </p>
+          </div>
+          <div class="rounded-lg border border-gray-200 px-3 py-2">
+            <p class="text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+              Cost budget
+            </p>
+            <p class="mt-0.5 text-lg font-semibold text-gray-900">
+              {{ fmt(budget.totals.cost_budget) }}
+            </p>
+            <p class="text-xs text-gray-500">
+              sales − 10%
+            </p>
+          </div>
+          <div class="rounded-lg border border-gray-200 px-3 py-2">
+            <p class="text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+              Food &amp; drinks
+            </p>
+            <p class="mt-0.5 text-lg font-semibold text-gray-900">
+              {{ fmt(budget.totals.cogs_budget) }}
+            </p>
+            <p class="text-xs text-gray-500">
+              25% target
+            </p>
+          </div>
+          <div class="rounded-lg border border-gray-200 px-3 py-2">
+            <p class="text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+              Flex left
+            </p>
+            <p
+              class="mt-0.5 text-lg font-semibold"
+              :class="budget.totals.flex_budget >= 0 ? 'text-emerald-700' : 'text-amber-800'"
             >
-              <td class="py-2 pr-3 font-medium text-gray-900">
-                {{ m.label }}
-              </td>
-              <td class="py-2 pr-3 text-gray-600">
-                {{ m.season_label }}
-              </td>
-              <td class="py-2 pr-3 text-right tabular-nums text-gray-800">
-                {{ fmt(periodView === 'week' ? m.week.revenue : m.revenue) }}
-              </td>
-              <td class="py-2 pr-3 text-right tabular-nums text-gray-600">
-                {{ fmt(periodView === 'week' ? m.week.target_result : m.target_result) }}
-              </td>
-              <td class="py-2 pr-3 text-right tabular-nums font-medium text-gray-900">
-                {{ fmt(periodView === 'week' ? m.week.cost_budget : m.envelope.cost_budget) }}
-              </td>
-              <td class="py-2 pr-3 text-right tabular-nums text-gray-800">
-                {{ fmt(periodView === 'week' ? m.week.cogs_budget : m.envelope.cogs_budget) }}
-                <span
-                  v-if="periodView === 'month' && m.cogs_gap_vs_target > 50"
-                  class="block text-[10px] text-amber-800"
-                >
-                  actual +{{ fmt(m.cogs_gap_vs_target) }}
-                </span>
-              </td>
-              <td class="py-2 pr-3 text-right tabular-nums text-gray-800">
-                {{ fmt(periodView === 'week' ? m.week.labor_oh_budget : m.envelope.labor_oh_budget) }}
-              </td>
-              <td class="py-2 pr-3 text-right tabular-nums text-gray-600">
-                {{ fmt(periodView === 'week'
-                  ? m.week.fixed_labor + m.week.fixed_oh
-                  : m.envelope.fixed_labor + m.envelope.fixed_oh) }}
-              </td>
-              <td
-                class="py-2 pr-3 text-right tabular-nums font-medium"
-                :class="(periodView === 'week' ? m.week.flex_budget : m.envelope.flex_budget) >= 0
-                  ? 'text-emerald-700'
-                  : 'text-amber-800'"
+              {{ fmt(budget.totals.flex_budget) }}
+            </p>
+            <p class="text-xs text-gray-500">
+              {{ budget.totals.months_flex_ok }}/{{ budget.months.length }} months OK
+            </p>
+          </div>
+        </div>
+      </UCard>
+
+      <div
+        v-for="season in budget.seasons"
+        :key="season.phase"
+        class="overflow-hidden rounded-xl border-2 border-gray-900 bg-white"
+      >
+        <button
+          type="button"
+          class="flex w-full items-start justify-between gap-3 px-4 py-3 text-left hover:bg-gray-50"
+          @click="toggleSeason(season.phase)"
+        >
+          <div class="min-w-0">
+            <div class="flex flex-wrap items-center gap-2">
+              <p class="text-sm font-semibold text-gray-900">
+                {{ season.label }}
+              </p>
+              <span class="text-xs text-gray-500">
+                {{ season.months_label }}
+              </span>
+              <span
+                v-if="season.vs_year_avg_pct != null"
+                class="rounded-full border px-2 py-0.5 text-[11px] font-semibold tabular-nums"
+                :class="season.vs_year_avg_pct >= 0
+                  ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                  : 'border-amber-200 bg-amber-50 text-amber-900'"
               >
-                {{ fmt(periodView === 'week' ? m.week.flex_budget : m.envelope.flex_budget) }}
-              </td>
-              <td class="py-2 text-gray-600">
-                <template v-if="m.envelope.flex_budget_ok && m.cogs_gap_vs_target <= 50">
-                  —
-                </template>
-                <template v-else-if="!m.envelope.flex_budget_ok">
-                  Cut fixed or COGS — no flex room
-                </template>
-                <template v-else>
-                  COGS above 25% target
-                </template>
-              </td>
-            </tr>
-          </tbody>
-          <tfoot>
-            <tr class="border-t border-gray-300 font-semibold text-gray-900">
-              <td class="py-2 pr-3" colspan="2">
-                Total {{ periodView === 'week' ? '(weeks sum)' : '' }}
-              </td>
-              <td class="py-2 pr-3 text-right tabular-nums">
-                {{ fmt(periodView === 'week' ? budget.totals.revenue / weeksPerMonth : budget.totals.revenue) }}
-              </td>
-              <td class="py-2 pr-3 text-right tabular-nums">
-                {{ fmt(periodView === 'week' ? budget.totals.target_result / weeksPerMonth : budget.totals.target_result) }}
-              </td>
-              <td class="py-2 pr-3 text-right tabular-nums">
-                {{ fmt(periodView === 'week' ? budget.totals.cost_budget / weeksPerMonth : budget.totals.cost_budget) }}
-              </td>
-              <td class="py-2 pr-3 text-right tabular-nums">
-                {{ fmt(periodView === 'week' ? budget.totals.cogs_budget / weeksPerMonth : budget.totals.cogs_budget) }}
-              </td>
-              <td class="py-2 pr-3 text-right tabular-nums">
-                {{ fmt(periodView === 'week' ? budget.totals.labor_oh_budget / weeksPerMonth : budget.totals.labor_oh_budget) }}
-              </td>
-              <td class="py-2 pr-3">
-&nbsp;
-              </td>
-              <td class="py-2 pr-3 text-right tabular-nums">
-                {{ fmt(periodView === 'week' ? budget.totals.flex_budget / weeksPerMonth : budget.totals.flex_budget) }}
-              </td>
-              <td class="py-2">
-&nbsp;
-              </td>
-            </tr>
-          </tfoot>
-        </table>
+                {{ fmtPct(season.vs_year_avg_pct) }} vs year avg
+              </span>
+            </div>
+            <p class="mt-1 text-xs leading-snug text-gray-600">
+              {{ season.plain_summary }}
+            </p>
+          </div>
+          <UIcon
+            name="i-lucide-chevron-down"
+            class="mt-0.5 size-4 shrink-0 text-gray-500 transition-transform"
+            :class="openSeasons.has(season.phase) && 'rotate-180'"
+          />
+        </button>
+
+        <div
+          v-if="openSeasons.has(season.phase)"
+          class="space-y-3 border-t border-gray-200 px-4 py-3"
+        >
+          <div
+            v-for="m in season.months"
+            :key="m.date"
+            class="rounded-lg border border-gray-200"
+          >
+            <button
+              type="button"
+              class="flex w-full items-start justify-between gap-3 px-3 py-2.5 text-left hover:bg-gray-50"
+              @click="toggleMonth(m.date)"
+            >
+              <div class="min-w-0">
+                <div class="flex flex-wrap items-center gap-2">
+                  <p class="text-sm font-medium text-gray-900">
+                    {{ m.label }}
+                  </p>
+                  <span
+                    v-if="m.vs_avg_pct != null"
+                    class="text-[11px] tabular-nums text-gray-500"
+                  >
+                    {{ fmtPct(m.vs_avg_pct) }} vs year
+                  </span>
+                  <span
+                    v-if="m.vs_season_pct != null"
+                    class="text-[11px] tabular-nums text-gray-500"
+                  >
+                    · {{ fmtPct(m.vs_season_pct) }} vs season
+                  </span>
+                </div>
+                <p class="mt-1 text-xs leading-snug text-gray-600">
+                  {{ m.plain_summary }}
+                </p>
+                <div class="mt-2 flex flex-wrap gap-3 text-xs tabular-nums text-gray-700">
+                  <span>Sales {{ fmt(m.revenue) }}</span>
+                  <span>Spend ≤ {{ fmt(m.envelope.cost_budget) }}</span>
+                  <span>Food {{ fmt(m.envelope.cogs_budget) }}</span>
+                  <span
+                    :class="m.envelope.flex_budget >= 0 ? 'text-emerald-700' : 'text-amber-800'"
+                  >
+                    Flex {{ fmt(m.envelope.flex_budget) }}
+                  </span>
+                </div>
+              </div>
+              <UIcon
+                name="i-lucide-chevron-down"
+                class="mt-0.5 size-4 shrink-0 text-gray-400 transition-transform"
+                :class="openMonths.has(m.date) && 'rotate-180'"
+              />
+            </button>
+
+            <div
+              v-if="openMonths.has(m.date)"
+              class="border-t border-gray-100 px-3 py-2"
+            >
+              <p class="mb-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                Upcoming weeks (month ÷ {{ weeksPerMonth }})
+              </p>
+              <div class="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                <div
+                  v-for="w in weekSlots(m)"
+                  :key="w.label"
+                  class="rounded-md border border-gray-200 px-2.5 py-2"
+                >
+                  <p class="text-[11px] font-semibold text-gray-500">
+                    {{ w.label }}
+                  </p>
+                  <p class="mt-1 text-xs text-gray-800">
+                    Sales {{ fmt(w.revenue) }}
+                  </p>
+                  <p class="text-xs text-gray-600">
+                    Spend ≤ {{ fmt(w.cost_budget) }}
+                  </p>
+                  <p class="text-xs text-gray-600">
+                    Food {{ fmt(w.cogs_budget) }}
+                  </p>
+                  <p
+                    class="text-xs font-medium"
+                    :class="w.flex_budget >= 0 ? 'text-emerald-700' : 'text-amber-800'"
+                  >
+                    Flex {{ fmt(w.flex_budget) }}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </template>
-  </UCard>
+  </div>
 </template>
 
 <script setup lang="ts">
 /**
  * @registry-id: PnlBudgetForecastCard
  * @created: 2026-08-12T00:15:00.000Z
- * @last-modified: 2026-08-12T00:40:00.000Z
- * @description: Budget/forecast — cost=rev−10%, COGS@25%, fixed vs flex, month/week toggle
- * @last-fix: [2026-08-12] Phase 1 cost envelope + weekly ÷4 view for team planning
+ * @last-modified: 2026-08-12T01:50:00.000Z
+ * @description: Season → month → week forecast with plain-language cost envelopes
+ * @last-fix: [2026-08-12] Season accordion + week slots; inputs moved to page
  * @adr-ref: ADR-019, ADR-022
  *
  * @exports-to:
- * ✓ pages/daily-ops/finance/analytics.vue
+ * ✓ pages/daily-ops/finance/budget.vue
  */
 import type { AccountingPnlAnalyticsVenue } from '~/types/accounting-pnl-analytics'
-import type { PnlBudgetDto, PnlBudgetRevenueMode } from '~/types/accounting-pnl-budget'
+import type {
+  PnlBudgetDto,
+  PnlBudgetMonth,
+  PnlBudgetRevenueMode,
+  PnlBudgetSeasonPhase,
+} from '~/types/accounting-pnl-budget'
 import { PNL_BUDGET_WEEKS_PER_MONTH } from '~/types/accounting-pnl-budget'
 import { formatAccountingPnlCompact } from '~/utils/accountingPnlFormat'
 
 const props = defineProps<{
   venue: AccountingPnlAnalyticsVenue
+  mode: PnlBudgetRevenueMode
+  targetAvg: number
+  revenuePct: number
+  horizon: number
 }>()
 
-const mode = ref<PnlBudgetRevenueMode>('seasonal')
-const targetAvg = ref(160_000)
-const revenuePct = ref(0)
-const horizon = ref(12)
-const periodView = ref<'month' | 'week'>('month')
 const weeksPerMonth = PNL_BUDGET_WEEKS_PER_MONTH
-
-const modeOptions: Array<{ value: PnlBudgetRevenueMode; label: string }> = [
-  { value: 'seasonal', label: 'Seasonal / trend' },
-  { value: 'manual_pct', label: '±% season' },
-]
+const openSeasons = ref<Set<PnlBudgetSeasonPhase>>(new Set())
+const openMonths = ref<Set<string>>(new Set())
 
 const query = computed(() => ({
   venue: props.venue,
-  mode: mode.value,
-  target_avg_revenue: targetAvg.value,
-  revenue_pct: mode.value === 'manual_pct' ? revenuePct.value : 0,
-  horizon_months: horizon.value,
+  mode: props.mode,
+  target_avg_revenue: props.targetAvg,
+  revenue_pct: props.mode === 'manual_pct' ? props.revenuePct : 0,
+  horizon_months: props.horizon,
 }))
 
 const { data: budget, pending, error: fetchErr } = useFetch<PnlBudgetDto>(
@@ -392,13 +248,48 @@ const { data: budget, pending, error: fetchErr } = useFetch<PnlBudgetDto>(
   { query, watch: [query] },
 )
 
+watch(budget, (b) => {
+  if (!b?.seasons?.length) return
+  if (openSeasons.value.size) return
+  openSeasons.value = new Set([b.seasons[0]!.phase])
+}, { immediate: true })
+
 const fetchError = computed(() => {
   if (!fetchErr.value) return null
   return fetchErr.value.message ?? 'Unknown error'
 })
 
+function toggleSeason (phase: PnlBudgetSeasonPhase): void {
+  const next = new Set(openSeasons.value)
+  if (next.has(phase)) next.delete(phase)
+  else next.add(phase)
+  openSeasons.value = next
+}
+
+function toggleMonth (date: string): void {
+  const next = new Set(openMonths.value)
+  if (next.has(date)) next.delete(date)
+  else next.add(date)
+  openMonths.value = next
+}
+
+function weekSlots (m: PnlBudgetMonth) {
+  return Array.from({ length: weeksPerMonth }, (_, i) => ({
+    label: `Week ${i + 1}`,
+    revenue: m.week.revenue,
+    cost_budget: m.week.cost_budget,
+    cogs_budget: m.week.cogs_budget,
+    flex_budget: m.week.flex_budget,
+  }))
+}
+
 function fmt (n: number | null | undefined): string {
   if (n == null || !Number.isFinite(n)) return '—'
   return formatAccountingPnlCompact(n)
+}
+
+function fmtPct (n: number): string {
+  const sign = n > 0 ? '+' : ''
+  return `${sign}${n.toFixed(0)}%`
 }
 </script>

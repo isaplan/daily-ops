@@ -115,9 +115,9 @@
 /**
  * @registry-id: pages/staff-org/[id]
  * @created: 2026-07-22T18:00:00.000Z
- * @last-modified: 2026-07-28T16:35:00.000Z
+ * @last-modified: 2026-08-12T01:30:00.000Z
  * @description: Staff Org — TeamBuilder + RosterPlanner tabs
- * @last-fix: [2026-07-28] Persist PT/PT Sr desiredWeeklyHours
+ * @last-fix: [2026-08-12] Toast “Budget targets saved” after targets PATCH
  * @adr-ref: ADR-016
  */
 
@@ -443,6 +443,7 @@ async function onSaveTargets(locationTargets: StaffOrgLocationTargets[]) {
       data.value.data.scenario.locationTargets = locationTargets
     }
     await flushBoardSave({ locationTargets })
+    showSaveToast('Budget targets saved', 'green', 2200)
   } finally {
     savingTargets.value = false
   }

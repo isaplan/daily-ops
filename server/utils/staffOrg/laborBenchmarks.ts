@@ -1,34 +1,45 @@
 /**
  * @registry-id: staffOrgLaborBenchmarks
  * @created: 2026-07-23T10:40:00.000Z
- * @last-modified: 2026-07-27T17:20:00.000Z
- * @description: Seed labor % + food/bev shares from last 12 sealed accounting P&L months
- * @last-fix: [2026-07-27] Rolling 12m sealed avg; FT=salaris*, PT=inhuurFb, ZZP=other inhuur*
- * @adr-ref: ADR-016
+ * @last-modified: 2026-08-12T00:50:00.000Z
+ * @description: Seed labor % + cost envelope from last 12 sealed accounting P&L months
+ * @last-fix: [2026-08-12] Phase 2: attach Finance cost envelope (10%/COGS25%/flex) to seed
+ * @adr-ref: ADR-016, ADR-019, ADR-022
  *
  * @exports-to:
  * ✓ server/api/staff-org/labor-benchmarks.get.ts
  */
 
 import type { Db } from 'mongodb'
-import type { StaffOrgLaborBenchmark } from '~/types/staff-org'
+import type { StaffOrgCostEnvelopeSnapshot, StaffOrgLaborBenchmark } from '~/types/staff-org'
+import { STAFF_ORG_WEEKS_PER_MONTH } from '~/types/staff-org'
+import {
+  PNL_BUDGET_TARGET_COGS_PCT,
+  PNL_BUDGET_TARGET_MARGIN,
+} from '~/types/accounting-pnl-budget'
 import { fetchSealedMonthlyPnlRows } from '~/server/utils/accountingPnl/fetchSealedMonthlyPnlRows'
 import {
   ACCOUNTING_PNL_LOCATION_ID_TO_VENUE,
+  type AccountingPnlRow,
   type AccountingPnlVenueId,
 } from '~/utils/accountingPnlData'
 import { sumLineValues } from '~/utils/accountingPnlGrandchildLines'
+import {
+  fixedLaborFromRow,
+} from '~/utils/accountingPnlBreakEvenMath'
+import { buildPnlCostEnvelope, weekSliceFromEnvelope } from '~/utils/accountingPnl/costEnvelope'
 import { DAILY_OPS_PROFIT_VENUE_LOCATIONS } from '~/utils/dailyOpsProfitIntervals'
 import { defaultTeamRevenueSplit } from '~/utils/staffOrg/locationTargets'
 
 const ROLLING_MONTHS = 12
+const OH_STAMP_OVERIGE_LT = -50_000
 
-function pct(part: number, whole: number): number | null {
+function pct (part: number, whole: number): number | null {
   if (!(whole > 0) || !Number.isFinite(part)) return null
   return Math.round((part / whole) * 1000) / 10
 }
 
-function shareOrDefault(
+function shareOrDefault (
   food: number,
   bev: number,
   locationId: string,
@@ -41,28 +52,50 @@ function shareOrDefault(
   }
 }
 
-/** Contract (FT) = bruto salarissen. */
-function lonenFt(lines: Record<string, number>): number {
+function lonenFt (lines: Record<string, number>): number {
   return (
-    (lines.salarisBediening ?? 0) +
-    (lines.salarisKeuken ?? 0) +
-    (lines.salarisOverhead ?? 0)
+    (lines.salarisBediening ?? 0)
+    + (lines.salarisKeuken ?? 0)
+    + (lines.salarisOverhead ?? 0)
   )
 }
 
-/** Inhuur (PT) = Inhuur F&B only. */
-function lonenPt(lines: Record<string, number>): number {
+function lonenPt (lines: Record<string, number>): number {
   return lines.inhuurFb ?? 0
 }
 
-/** ZZP = remaining inhuur lines (Afwas / Stewarding / Keuken / Overhead). */
-function lonenZzp(lines: Record<string, number>): number {
+function lonenZzp (lines: Record<string, number>): number {
   return (
-    (lines.inhuurAfwas ?? 0) +
-    (lines.inhuurStewarding ?? 0) +
-    (lines.inhuurKeuken ?? 0) +
-    (lines.inhuurOverhead ?? 0)
+    (lines.inhuurAfwas ?? 0)
+    + (lines.inhuurStewarding ?? 0)
+    + (lines.inhuurKeuken ?? 0)
+    + (lines.inhuurOverhead ?? 0)
   )
+}
+
+function isOhStampMonth (row: AccountingPnlRow): boolean {
+  return Number(row.fixedOverige ?? 0) < OH_STAMP_OVERIGE_LT || Number(row.fixed) < 0
+}
+
+function snapshotFromEnvelope (
+  revenue: number,
+  fixedLabor: number,
+  fixedOh: number,
+): StaffOrgCostEnvelopeSnapshot {
+  const env = buildPnlCostEnvelope(revenue, fixedLabor, fixedOh)
+  const week = weekSliceFromEnvelope(env)
+  return {
+    costBudget: env.cost_budget,
+    cogsBudget: env.cogs_budget,
+    laborOhBudget: env.labor_oh_budget,
+    fixedLabor: env.fixed_labor,
+    fixedOh: env.fixed_oh,
+    flexBudget: env.flex_budget,
+    weekCostBudget: week.cost_budget,
+    weekFlexBudget: week.flex_budget,
+    targetMargin: PNL_BUDGET_TARGET_MARGIN,
+    targetCogsPct: PNL_BUDGET_TARGET_COGS_PCT,
+  }
 }
 
 type VenueAcc = {
@@ -75,9 +108,12 @@ type VenueAcc = {
   pt: number
   zzp: number
   monthsWithLonen: number
+  cleanFixedLabor: number
+  cleanFixedOh: number
+  cleanMonths: number
 }
 
-function emptyAcc(): VenueAcc {
+function emptyAcc (): VenueAcc {
   return {
     revenue: 0,
     labor: 0,
@@ -88,6 +124,9 @@ function emptyAcc(): VenueAcc {
     pt: 0,
     zzp: 0,
     monthsWithLonen: 0,
+    cleanFixedLabor: 0,
+    cleanFixedOh: 0,
+    cleanMonths: 0,
   }
 }
 
@@ -95,10 +134,11 @@ function emptyAcc(): VenueAcc {
  * Last 12 sealed monthly P&L rows (revenue > 0).
  * Total labor % + food/bev shares use the full window.
  * FT/PT/ZZP % use months that have Labor Lonen grandchildren (else null).
+ * Cost envelope uses clean months (OH-stamp excluded) for fixed labor/OH.
  */
-export async function buildStaffOrgLaborBenchmarks(
+export async function buildStaffOrgLaborBenchmarks (
   db: Db,
-): Promise<{ months: number; year: number; venues: StaffOrgLaborBenchmark[] }> {
+): Promise<{ months: number; year: number; weeksPerMonth: number; venues: StaffOrgLaborBenchmark[] }> {
   const sealed = await fetchSealedMonthlyPnlRows(db, { limit: ROLLING_MONTHS })
   const months = sealed.length
   const year = sealed[0]?.year ?? new Date().getFullYear()
@@ -120,10 +160,16 @@ export async function buildStaffOrgLaborBenchmarks(
       const lines = row.laborLonenLines
       if (sumLineValues(lines) > 0) {
         acc.lonenRevenue += row.revenue
-        acc.ft += lonenFt(lines)
-        acc.pt += lonenPt(lines)
-        acc.zzp += lonenZzp(lines)
+        acc.ft += lonenFt(lines as Record<string, number>)
+        acc.pt += lonenPt(lines as Record<string, number>)
+        acc.zzp += lonenZzp(lines as Record<string, number>)
         acc.monthsWithLonen += 1
+      }
+
+      if (row.revenue > 0 && !isOhStampMonth(row)) {
+        acc.cleanFixedLabor += fixedLaborFromRow(row)
+        acc.cleanFixedOh += row.fixed
+        acc.cleanMonths += 1
       }
     }
   }
@@ -139,11 +185,18 @@ export async function buildStaffOrgLaborBenchmarks(
 
     const hasLonen = acc.monthsWithLonen > 0 && acc.lonenRevenue > 0
     const split = shareOrDefault(acc.revenueFood, acc.revenueBeverage, venue.locationId)
+    const monthlyRevenue = Math.round(acc.revenue / months)
+    const fixedLaborMonthly = acc.cleanMonths > 0
+      ? Math.round(acc.cleanFixedLabor / acc.cleanMonths)
+      : 0
+    const fixedOhMonthly = acc.cleanMonths > 0
+      ? Math.round(acc.cleanFixedOh / acc.cleanMonths)
+      : 0
 
     venues.push({
       locationId: venue.locationId,
       year,
-      monthlyRevenue: Math.round(acc.revenue / months),
+      monthlyRevenue,
       laborCostPct: {
         total: pct(acc.labor, acc.revenue),
         ft: hasLonen ? pct(acc.ft, acc.lonenRevenue) : null,
@@ -152,8 +205,11 @@ export async function buildStaffOrgLaborBenchmarks(
       },
       keukenRevenueShare: split.keukenRevenueShare,
       bedieningRevenueShare: split.bedieningRevenueShare,
+      fixedLaborMonthly,
+      fixedOhMonthly,
+      costEnvelope: snapshotFromEnvelope(monthlyRevenue, fixedLaborMonthly, fixedOhMonthly),
     })
   }
 
-  return { months, year, venues }
+  return { months, year, weeksPerMonth: STAFF_ORG_WEEKS_PER_MONTH, venues }
 }
