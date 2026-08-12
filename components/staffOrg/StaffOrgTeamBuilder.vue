@@ -300,8 +300,9 @@
         </div>
       </div>
 
-      <!-- Unassigned sits as the rightmost column beside venues -->
+      <!-- ≤2 venues: Unassigned fills the remaining column in this row -->
       <div
+        v-if="unassignedBesideVenues"
         data-pdf-unassigned
         class="flex flex-col rounded-lg border-2 border-red-500 bg-white p-3"
         @dragover.prevent
@@ -380,7 +381,35 @@
       </template>
     </UModal>
 
-    <div class="grid gap-3 md:grid-cols-2">
+    <div class="grid gap-3" :class="bottomGridClass">
+      <!-- ≥3 venues: Unassigned sits below, next to Not active -->
+      <div
+        v-if="!unassignedBesideVenues"
+        data-pdf-unassigned
+        class="flex flex-col rounded-lg border-2 border-red-500 bg-white p-3"
+        @dragover.prevent
+        @drop.prevent="onDropUnassigned"
+      >
+        <div class="mb-2 min-w-0">
+          <h3 class="text-sm font-semibold text-gray-900">
+            Unassigned
+            <span class="font-normal text-gray-600">({{ unassigned.length }})</span>
+          </h3>
+          <p class="text-xs text-gray-600">Includes staff from closed venues.</p>
+        </div>
+        <div class="flex max-h-40 flex-col gap-1 overflow-y-auto">
+          <StaffOrgStaffCard
+            v-for="m in unassigned"
+            :key="`u-b-${m.memberId}`"
+            :member="m"
+            compact
+          />
+          <p v-if="!unassigned.length" class="py-4 text-center text-[10px] text-gray-400">
+            Drop staff here
+          </p>
+        </div>
+      </div>
+
       <div
         class="rounded-lg border border-dashed border-red-200 bg-red-50/40 p-3"
         @dragover.prevent
@@ -446,9 +475,9 @@
 /**
  * @registry-id: StaffOrgTeamBuilder
  * @created: 2026-07-23T01:10:00.000Z
- * @last-modified: 2026-07-28T16:35:00.000Z
+ * @last-modified: 2026-08-12T13:35:00.000Z
  * @description: Organogram — Executive + venues (Keuken/Bediening/Bar) + budget
- * @last-fix: [2026-07-28] PT Sr lane above PT; editable PT hours
+ * @last-fix: [2026-08-12] Max 3 venue cols; Unassigned beside ≤2 venues else next to Not active
  * @adr-ref: ADR-016
  */
 
@@ -689,23 +718,28 @@ const newShort = ref('')
 const openVenues = computed(() => props.venues.filter((v) => v.status === 'open'))
 const closedVenues = computed(() => props.venues.filter((v) => v.status === 'closed'))
 
-/** Venues + Unassigned column on the right. */
+/** ≤2 open venues → Unassigned in venue row; ≥3 → Unassigned below next to Not active. */
+const unassignedBesideVenues = computed(() => openVenues.value.length <= 2)
+
+/** Venue row only (Unassigned joins when ≤2). Cap at 3 columns. */
 const venueGridClass = computed(() => {
-  const cols = openVenues.value.length + 1
-  if (cols >= 4) return 'xl:grid-cols-4 lg:grid-cols-2'
-  if (cols === 3) return 'xl:grid-cols-3 md:grid-cols-2'
+  const cols = openVenues.value.length + (unassignedBesideVenues.value ? 1 : 0)
+  if (cols >= 3) return 'xl:grid-cols-3 md:grid-cols-2'
   if (cols === 2) return 'md:grid-cols-2'
   return ''
 })
 
-/** Fixed desktop columns for PDF — always like the wide HTML (Scenario-11). */
+/** Fixed desktop columns for PDF — max 3. */
 const pdfVenueGridClass = computed(() => {
-  const cols = openVenues.value.length + 1
-  if (cols >= 4) return 'grid-cols-4'
-  if (cols === 3) return 'grid-cols-3'
+  const cols = openVenues.value.length + (unassignedBesideVenues.value ? 1 : 0)
+  if (cols >= 3) return 'grid-cols-3'
   if (cols === 2) return 'grid-cols-2'
   return 'grid-cols-1'
 })
+
+const bottomGridClass = computed(() =>
+  unassignedBesideVenues.value ? 'md:grid-cols-2' : 'md:grid-cols-3',
+)
 
 /** CSS width that matches the wide organogram layout users expect in PDF. */
 const PDF_EXPORT_WIDTH_PX = 1280
