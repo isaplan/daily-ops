@@ -7,6 +7,7 @@
  *
  * @exports-to:
  * ✓ server/utils/dailyOpsStaff/fetchStaffDailyLabor.ts
+ * ✓ server/utils/dailyOpsStaff/buildLeaveCalendar.ts
  */
 
 import type { Db } from 'mongodb'

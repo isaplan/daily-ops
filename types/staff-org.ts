@@ -1,9 +1,9 @@
 /**
  * @registry-id: staffOrgTypes
  * @created: 2026-07-22T18:00:00.000Z
- * @last-modified: 2026-08-12T00:50:00.000Z
+ * @last-modified: 2026-08-13T11:20:00.000Z
  * @description: Staff Org scenario / placement / metrics types (ADR-016)
- * @last-fix: [2026-08-12] Phase 2: cost envelope seed fields on targets + benchmarks
+ * @last-fix: [2026-08-13] desiredWeeklyDays on roster for FT days/week override
  * @adr-ref: ADR-016
  *
  * @exports-to:
@@ -25,8 +25,8 @@ export type StaffOrgTeam = 'bediening' | 'keuken' | 'bar'
 
 /**
  * Organogram role.
- * Non-ZZP: at most one assignment per member.
- * ZZP: may have multiple assignments (different venues).
+ * Anyone may have assignments at multiple venues (location pills).
+ * ZZP may also sit on multiple teams per venue.
  * pt_sr = senior PT (fixed days/week); pt = flexible PT (hours available).
  */
 export type StaffOrgRole = 'manager' | 'floor_manager' | 'ft' | 'pt_sr' | 'pt' | 'zzp'
@@ -70,6 +70,11 @@ export type StaffOrgRosterMember = {
    * Scenario-owned; survives roster sync when merged by memberId.
    */
   desiredWeeklyHours?: number | null
+  /**
+   * Planner override — target workdays per week (FT part-timers, stagair, etc.).
+   * When set, cards show Nd and Roster “fully scheduled” uses this.
+   */
+  desiredWeeklyDays?: number | null
   hourlyRate: number
   costPerHour: number
   homeLocationId: string | null
@@ -181,6 +186,11 @@ export type StaffOrgScenario = {
   executiveAssignments: StaffOrgExecutiveAssignment[]
   /** Not active in this scenario (leaving / long sick) — off board, slots free up. */
   inactiveMemberIds: string[]
+  /**
+   * Permanently hidden from Not active / Unassigned UI (will never return).
+   * Still treated like inactive for board/org pruning.
+   */
+  hiddenMemberIds: string[]
 }
 
 export type StaffOrgScenarioListItem = {

@@ -1,9 +1,9 @@
 /**
  * @registry-id: staffOrgSeedRoster
  * @created: 2026-07-22T18:00:00.000Z
- * @last-modified: 2026-07-23T02:25:00.000Z
+ * @last-modified: 2026-08-13T12:10:00.000Z
  * @description: Load FT/PT/ZZP roster — active OR worked in last 3 months
- * @last-fix: [2026-07-23] Include inactive members with recent venue hours (e.g. Inna)
+ * @last-fix: [2026-08-13] Always include Alvinio + Bas Butters as ZZP (even if inactive / missing contract)
  * @adr-ref: ADR-016
  *
  * @exports-to:
@@ -19,6 +19,19 @@ import { weeklyHoursFromContractType } from '~/utils/dailyOpsLeerlingWageFallbac
 
 /** Look-back for “worked at a venue recently”. */
 const RECENT_WORK_DAYS = 90
+
+/**
+ * Always on every planner roster as ZZP (fill gaps) — even if inactive,
+ * missing contract_type, or only present in unified_user.
+ */
+const FORCE_ZZP_ON_ROSTER: {
+  match: RegExp
+  displayName: string
+  defaultHourly: number
+}[] = [
+  { match: /alvinio/, displayName: 'Alvinio Molina', defaultHourly: 24 },
+  { match: /bas\s*butters|butters\s*ruben/, displayName: 'Bas Butters', defaultHourly: 45 },
+]
 
 function toNum(v: unknown): number {
   const n = typeof v === 'number' ? v : Number(v)
@@ -238,25 +251,10 @@ export async function seedRosterFromMembers(db: Db): Promise<StaffOrgRosterMembe
   const unifiedIds = new Set(locMap.values())
 
   const out: StaffOrgRosterMember[] = []
-  for (const row of rows) {
-    const nameKey = normName(String(row.name ?? ''))
-    const isActive = row.is_active !== false
-    const workedRecently = recent.names.has(nameKey)
-    // Active members, or inactive who still worked at a venue in the look-back
-    if (!isActive && !workedRecently) continue
 
-    let contractType = String(row.contract_type ?? '')
-    if (!classifyStaffContractType(contractType)) {
-      contractType = recent.contractByName.get(nameKey) ?? ''
-    }
-    if (!classifyStaffContractType(contractType)) continue
-
-    const id = row._id instanceof ObjectId ? row._id.toHexString() : String(row._id)
-    const hourlyRate = toNum(row.hourly_rate) || toNum(row.hourly_wage)
-    const costPerHour = toNum(row.cost_per_hour) || hourlyRate
-
+  const resolveHome = (id: string, nameKey: string, locationId: unknown): string | null => {
     let homeLocationId: string | null = null
-    const direct = asId(row.location_id)
+    const direct = asId(locationId)
     if (direct) {
       homeLocationId = unifiedIds.has(direct)
         ? direct
@@ -269,19 +267,100 @@ export async function seedRosterFromMembers(db: Db): Promise<StaffOrgRosterMembe
         ?? null
       if (locName) homeLocationId = locMap.get(normName(locName)) ?? null
     }
+    return homeLocationId
+  }
 
+  const pushFromRow = (
+    row: (typeof rows)[number],
+    opts?: { forceZzp?: boolean; displayName?: string; defaultHourly?: number },
+  ): void => {
+    const nameKey = normName(String(row.name ?? ''))
+    let contractType = String(row.contract_type ?? '')
+    if (!classifyStaffContractType(contractType)) {
+      contractType = recent.contractByName.get(nameKey) ?? ''
+    }
+    if (opts?.forceZzp) contractType = 'zzp'
+    if (!classifyStaffContractType(contractType)) return
+
+    const id = row._id instanceof ObjectId ? row._id.toHexString() : String(row._id)
+    if (out.some((m) => m.memberId === id)) return
+
+    const hourlyRate =
+      toNum(row.hourly_rate) || toNum(row.hourly_wage) || (opts?.defaultHourly ?? 0)
+    const costPerHour = toNum(row.cost_per_hour) || hourlyRate
     const teamHint = inferTeamHint(row.team_name ?? row.team)
       ?? inferTeamHint(hoursCtx.get(nameKey)?.team)
 
     out.push({
       memberId: id,
-      name: String(row.name ?? 'Unknown'),
+      name: opts?.displayName ?? String(row.name ?? 'Unknown'),
       teamHint,
       contractType,
       weeklyContractHours: weeklyHoursFromContractType(contractType),
       hourlyRate,
       costPerHour,
-      homeLocationId,
+      homeLocationId: resolveHome(id, nameKey, row.location_id),
+    })
+  }
+
+  for (const row of rows) {
+    const nameKey = normName(String(row.name ?? ''))
+    const isActive = row.is_active !== false
+    const workedRecently = recent.names.has(nameKey)
+    // Active members, or inactive who still worked at a venue in the look-back
+    if (!isActive && !workedRecently) continue
+    pushFromRow(row)
+  }
+
+  // Force ZZP planners (Alvinio, Bas Butters, …) even when members data is incomplete
+  for (const force of FORCE_ZZP_ON_ROSTER) {
+    if (out.some((m) => force.match.test(m.name))) {
+      for (const m of out) {
+        if (!force.match.test(m.name)) continue
+        m.contractType = 'zzp'
+        m.weeklyContractHours = weeklyHoursFromContractType('zzp')
+        if (!m.hourlyRate) m.hourlyRate = force.defaultHourly
+        if (!m.costPerHour) m.costPerHour = m.hourlyRate || force.defaultHourly
+      }
+      continue
+    }
+
+    const candidates = rows
+      .filter((r) => force.match.test(String(r.name ?? '')))
+      .sort((a, b) => String(b.name ?? '').length - String(a.name ?? '').length)
+    if (candidates[0]) {
+      pushFromRow(candidates[0], {
+        forceZzp: true,
+        displayName: force.displayName,
+        defaultHourly: force.defaultHourly,
+      })
+      continue
+    }
+
+    const uuRows = await db
+      .collection('unified_user')
+      .find(
+        { canonicalName: force.match },
+        { projection: { canonicalName: 1, hourly_rate: 1, contract_type: 1 } },
+      )
+      .toArray()
+    const uu = uuRows.sort(
+      (a, b) => toNum(b.hourly_rate) - toNum(a.hourly_rate)
+        || String(b.canonicalName ?? '').length - String(a.canonicalName ?? '').length,
+    )[0]
+    if (!uu) continue
+    const id = uu._id instanceof ObjectId ? uu._id.toHexString() : String(uu._id)
+    if (out.some((m) => m.memberId === id)) continue
+    const rate = toNum(uu.hourly_rate) || force.defaultHourly
+    out.push({
+      memberId: id,
+      name: force.displayName,
+      teamHint: null,
+      contractType: 'zzp',
+      weeklyContractHours: weeklyHoursFromContractType('zzp'),
+      hourlyRate: rate,
+      costPerHour: rate,
+      homeLocationId: null,
     })
   }
 

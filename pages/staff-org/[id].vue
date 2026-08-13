@@ -39,16 +39,16 @@
 
       <div v-if="mainTab === 'roster'" class="flex flex-wrap gap-2">
         <button
-          v-for="t in teams"
-          :key="t"
+          v-for="v in openVenues"
+          :key="v.locationId"
           type="button"
-          class="rounded-md px-3 py-1.5 text-sm font-medium capitalize"
-          :class="team === t
-            ? 'bg-gray-800 text-white'
+          class="rounded-md px-3 py-1.5 text-sm font-medium"
+          :class="locationId === v.locationId
+            ? 'bg-gray-900 text-white'
             : 'bg-gray-100 text-gray-700 hover:bg-gray-200'"
-          @click="team = t"
+          @click="locationId = v.locationId"
         >
-          {{ t }}
+          {{ v.short }}
         </button>
       </div>
 
@@ -59,6 +59,7 @@
         :org-assignments="scenario.orgAssignments ?? []"
         :executive-assignments="scenario.executiveAssignments ?? []"
         :inactive-member-ids="scenario.inactiveMemberIds ?? []"
+        :hidden-member-ids="scenario.hiddenMemberIds ?? []"
         :targets="scenario.locationTargets ?? []"
         :rules="scenario.locationRules"
         :slot-hours="slotHours"
@@ -69,44 +70,35 @@
         @update:org="onOrg"
         @update:executive="onExecutive"
         @update:inactive="onInactive"
+        @update:hidden="onHidden"
         @update:venues="onVenues"
         @update:desired-hours="onDesiredHours"
+        @update:desired-days="onDesiredDays"
         @save-targets="onSaveTargets"
         @save-rules="onSaveRules"
       />
 
-      <template v-else>
-        <div class="flex flex-wrap gap-2">
-          <button
-            v-for="v in openVenues"
-            :key="v.locationId"
-            type="button"
-            class="rounded-md px-3 py-1.5 text-sm font-medium"
-            :class="locationId === v.locationId
-              ? 'bg-gray-900 text-white'
-              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'"
-            @click="locationId = v.locationId"
-          >
-            {{ v.short }}
-          </button>
-        </div>
-
-        <StaffOrgBoard
-          :location-id="locationId"
-          :team="team"
-          :roster="rosterForBoard"
-          :full-roster="scenario.roster"
-          :org-assignments="scenario.orgAssignments ?? []"
-          :placements="scenario.placements"
-          :metrics="metrics"
-          :slot-hours="slotHours"
-          :location-targets="scenario.locationTargets ?? []"
-          :inactive-member-ids="scenario.inactiveMemberIds ?? []"
-          :weekday-shares="weekdayShares"
-          @update:placements="onPlacements"
-          @update:inactive="onInactive"
-        />
-      </template>
+      <StaffOrgBoard
+        v-else
+        :location-id="locationId"
+        :roster="rosterForBoard"
+        :full-roster="scenario.roster"
+        :org-assignments="scenario.orgAssignments ?? []"
+        :placements="scenario.placements"
+        :metrics="metrics"
+        :slot-hours="slotHours"
+        :location-targets="scenario.locationTargets ?? []"
+        :inactive-member-ids="scenario.inactiveMemberIds ?? []"
+        :hidden-member-ids="scenario.hiddenMemberIds ?? []"
+        :weekday-shares="weekdayShares"
+        :print-title="scenario.name"
+        :location-label="activeVenueLabel"
+        @update:placements="onPlacements"
+        @update:inactive="onInactive"
+        @update:hidden="onHidden"
+        @update:desired-days="onDesiredDays"
+        @update:desired-hours="onDesiredHours"
+      />
     </template>
   </div>
 </template>
@@ -115,9 +107,9 @@
 /**
  * @registry-id: pages/staff-org/[id]
  * @created: 2026-07-22T18:00:00.000Z
- * @last-modified: 2026-08-12T01:30:00.000Z
+ * @last-modified: 2026-08-13T14:34:30.000Z
  * @description: Staff Org — TeamBuilder + RosterPlanner tabs
- * @last-fix: [2026-08-12] Toast “Budget targets saved” after targets PATCH
+ * @last-fix: [2026-08-13] Pass scenario/venue labels into board PDF export
  * @adr-ref: ADR-016
  */
 
@@ -131,11 +123,16 @@ import type {
   StaffOrgPlacement,
   StaffOrgScenario,
   StaffOrgSlotHours,
-  StaffOrgTeam,
   StaffOrgVenue,
 } from '~/types/staff-org'
 import { defaultStaffOrgVenues } from '~/utils/staffOrg/defaultVenues'
 import { buildSlotMetrics } from '~/utils/staffOrg/buildSlotMetrics'
+import { isZzpRole, roleFromContractType } from '~/utils/staffOrg/seedOrgAssignments'
+import { classifyStaffContractType } from '~/utils/dailyOpsStaffContractBuckets'
+import {
+  isNeedMemberId,
+  needBucketFromMemberId,
+} from '~/utils/staffOrg/rosterPlaceholders'
 
 definePageMeta({ keepalive: false })
 
@@ -173,6 +170,10 @@ const openVenues = computed(() =>
     .filter((v) => v.status === 'open'),
 )
 const locationId = ref('')
+const activeVenueLabel = computed(() => {
+  const v = openVenues.value.find((x) => x.locationId === locationId.value)
+  return v?.short ?? v?.name ?? ''
+})
 watch(
   openVenues,
   (list) => {
@@ -183,20 +184,29 @@ watch(
   },
   { immediate: true },
 )
-const teams: StaffOrgTeam[] = ['keuken', 'bediening', 'bar']
-const team = ref<StaffOrgTeam>('bediening')
-
-/** Roster tab: only org-assigned staff at this venue × team (+ inactive for Not active). */
+/** RosterPlanner: FT by venue org; ZZP always (every location). Hidden out. */
 const rosterForBoard = computed(() => {
   const s = scenario.value
   if (!s) return []
   const inactive = new Set(s.inactiveMemberIds ?? [])
-  const allowed = new Set(
+  const hidden = new Set(s.hiddenMemberIds ?? [])
+  const assignedHere = new Set(
     (s.orgAssignments ?? [])
-      .filter((a) => a.locationId === locationId.value && a.team === team.value)
+      .filter((a) => a.locationId === locationId.value)
       .map((a) => a.memberId),
   )
-  return s.roster.filter((m) => allowed.has(m.memberId) || inactive.has(m.memberId))
+  const assignedAnywhere = new Set(
+    (s.orgAssignments ?? []).map((a) => a.memberId),
+  )
+  return s.roster.filter((m) => {
+    if (hidden.has(m.memberId)) return false
+    if (inactive.has(m.memberId)) return true
+    // ZZP fill gaps at any venue — ignore home-org location
+    if (classifyStaffContractType(m.contractType) === 'zzp') return true
+    if (assignedHere.has(m.memberId)) return true
+    if (!assignedAnywhere.has(m.memberId)) return true
+    return false
+  })
 })
 
 /** September weekday mix by default (historical 2024–2025). */
@@ -282,6 +292,7 @@ function prunePlacementsToOrg() {
   )
   s.placements = s.placements.filter((p) => {
     if (inactive.has(p.memberId)) return false
+    if (isNeedMemberId(p.memberId)) return true
     return allowed.has(`${p.memberId}|${p.locationId}|${p.team}`)
   })
 }
@@ -296,13 +307,21 @@ function boardPatchBody(extra: Record<string, unknown> = {}): Record<string, unk
       memberId: m.memberId,
       desiredWeeklyHours: m.desiredWeeklyHours ?? null,
     }))
+  const rosterDesiredDays = s.roster
+    .filter((m) => m.desiredWeeklyDays !== undefined)
+    .map((m) => ({
+      memberId: m.memberId,
+      desiredWeeklyDays: m.desiredWeeklyDays ?? null,
+    }))
   return {
     orgAssignments: s.orgAssignments ?? [],
     executiveAssignments: s.executiveAssignments ?? [],
     placements: s.placements ?? [],
     inactiveMemberIds: s.inactiveMemberIds ?? [],
+    hiddenMemberIds: s.hiddenMemberIds ?? [],
     venues: s.venues,
     ...(rosterDesiredHours.length ? { rosterDesiredHours } : {}),
+    ...(rosterDesiredDays.length ? { rosterDesiredDays } : {}),
     ...extra,
   }
 }
@@ -344,6 +363,14 @@ function onDesiredHours(memberId: string, hours: number | null) {
   scheduleBoardSave()
 }
 
+function onDesiredDays (memberId: string, days: number | null) {
+  if (!data.value?.data.scenario) return
+  data.value.data.scenario.roster = data.value.data.scenario.roster.map((m) =>
+    m.memberId === memberId ? { ...m, desiredWeeklyDays: days } : m,
+  )
+  scheduleBoardSave()
+}
+
 function onExecutive(executiveAssignments: StaffOrgExecutiveAssignment[]) {
   if (!data.value?.data.scenario) return
   data.value.data.scenario.executiveAssignments = executiveAssignments
@@ -381,6 +408,26 @@ function onInactive(inactiveMemberIds: string[]) {
   scheduleBoardSave()
 }
 
+function onHidden (hiddenMemberIds: string[]) {
+  if (!data.value?.data.scenario) return
+  data.value.data.scenario.hiddenMemberIds = hiddenMemberIds
+  const inactive = new Set([
+    ...(data.value.data.scenario.inactiveMemberIds ?? []),
+    ...hiddenMemberIds,
+  ])
+  data.value.data.scenario.inactiveMemberIds = [...inactive]
+  data.value.data.scenario.orgAssignments = (data.value.data.scenario.orgAssignments ?? [])
+    .filter((a) => !inactive.has(a.memberId))
+  data.value.data.scenario.executiveAssignments = (
+    data.value.data.scenario.executiveAssignments ?? []
+  ).filter((a) => !inactive.has(a.memberId))
+  data.value.data.scenario.placements = data.value.data.scenario.placements.filter(
+    (p) => !inactive.has(p.memberId),
+  )
+  recomputeLocalMetrics()
+  scheduleBoardSave()
+}
+
 async function patchScenario(body: Record<string, unknown>, targetId: string) {
   const seq = ++saveGen
   showSaveToast('Saving…', 'neutral', 0)
@@ -408,7 +455,40 @@ async function patchScenario(body: Record<string, unknown>, targetId: string) {
 
 function onPlacements(placements: StaffOrgPlacement[]) {
   if (!data.value?.data.scenario) return
-  data.value.data.scenario.placements = placements
+  const s = data.value.data.scenario
+  s.placements = placements
+
+  // Ensure TeamBuilder org row exists when someone is dropped on the roster
+  let org = [...(s.orgAssignments ?? [])]
+  let orgChanged = false
+  const rosterById = new Map(s.roster.map((m) => [m.memberId, m]))
+  for (const p of placements) {
+    if (p.locationId !== locationId.value) continue
+    if (isNeedMemberId(p.memberId)) continue
+    const has = org.some(
+      (a) => a.memberId === p.memberId && a.locationId === p.locationId && a.team === p.team,
+    )
+    if (has) continue
+    const member = rosterById.get(p.memberId)
+    const role = roleFromContractType(member?.contractType ?? '')
+      || (needBucketFromMemberId(p.memberId) === 'zzp' ? 'zzp' : 'ft')
+    if (!isZzpRole(role)) {
+      org = org.filter((a) => !(a.memberId === p.memberId && a.locationId === p.locationId))
+    }
+    org.push({
+      memberId: p.memberId,
+      locationId: p.locationId,
+      team: p.team,
+      role,
+    })
+    orgChanged = true
+  }
+  if (orgChanged) {
+    s.orgAssignments = org
+    const orgIds = new Set(org.map((a) => a.memberId))
+    s.executiveAssignments = (s.executiveAssignments ?? []).filter((e) => !orgIds.has(e.memberId))
+  }
+
   recomputeLocalMetrics()
   scheduleBoardSave()
 }

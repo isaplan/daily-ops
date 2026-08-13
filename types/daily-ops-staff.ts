@@ -1,14 +1,15 @@
 /**
  * @registry-id: dailyOpsStaffTypes
  * @created: 2026-06-10T12:00:00.000Z
- * @last-modified: 2026-06-10T12:00:00.000Z
+ * @last-modified: 2026-08-13T14:37:54.000Z
  * @description: Types for Daily Ops Staff hub + weekly hours KPI
- * @last-fix: [2026-06-10] Initial staff weekly hours types
+ * @last-fix: [2026-08-13] Year Gantt leave calendar span types
  *
  * @exports-to:
  * ✓ server/utils/memberWeeklyHours.ts
  * ✓ composables/useStaffWeeklyHours.ts
  * ✓ composables/useDailyOpsStaffMetrics.ts
+ * ✓ server/utils/dailyOpsStaff/buildLeaveCalendar.ts
  * ✓ components/daily-ops/staff/*
  */
 
@@ -181,4 +182,80 @@ export type DailyOpsStaffPlusminSummaryDto = {
   monthKpis: { over: DailyOpsStaffPlusminMemberRow[]; under: DailyOpsStaffPlusminMemberRow[] }
   weekKpis: { over: DailyOpsStaffPlusminMemberRow[]; under: DailyOpsStaffPlusminMemberRow[] }
   members: DailyOpsStaffPlusminMemberRow[]
+}
+
+export type DailyOpsStaffLeaveKind = 'vacation' | 'leave' | 'sick'
+export type DailyOpsStaffLeaveSource = 'leave_request' | 'sick_hours'
+export type DailyOpsStaffLeaveContractBucket = 'ft' | 'pt' | 'zzp'
+
+export type DailyOpsStaffLeaveCalendarEntryDto = {
+  date: string
+  kind: DailyOpsStaffLeaveKind
+  source: DailyOpsStaffLeaveSource
+  status: string
+  reason: string
+  userId: string
+  userName: string
+  locationId: string
+  locationName: string
+  hours: number
+  startDate: string
+  endDate: string
+  contractBucket: DailyOpsStaffLeaveContractBucket | null
+}
+
+export type DailyOpsStaffLeaveCalendarDayDto = {
+  date: string
+  entries: DailyOpsStaffLeaveCalendarEntryDto[]
+}
+
+/** One Gantt bar clipped to a single calendar month. */
+export type DailyOpsStaffLeaveSpanDto = {
+  id: string
+  kind: DailyOpsStaffLeaveKind
+  source: DailyOpsStaffLeaveSource
+  status: string
+  reason: string
+  label: string
+  userId: string
+  userName: string
+  locationId: string
+  locationName: string
+  contractBucket: DailyOpsStaffLeaveContractBucket | null
+  /** Full leave window (Amsterdam YMD). */
+  startDate: string
+  endDate: string
+  /** Month this bar is drawn in (YYYY-MM). */
+  month: string
+  /** Inclusive day-of-month 1–31 within `month`. */
+  dayStart: number
+  dayEnd: number
+  hours: number
+}
+
+export type DailyOpsStaffLeaveCalendarMonthDto = {
+  month: string
+  label: string
+  daysInMonth: number
+  spans: DailyOpsStaffLeaveSpanDto[]
+}
+
+export type DailyOpsStaffLeaveCalendarDto = {
+  year: number
+  range: { startDate: string; endDate: string }
+  locationId: string | null
+  totals: {
+    entry_count: number
+    vacation_count: number
+    leave_count: number
+    sick_count: number
+    pending_count: number
+    total_hours: number
+    ft_count: number
+    pt_count: number
+    zzp_count: number
+  }
+  months: DailyOpsStaffLeaveCalendarMonthDto[]
+  /** Flat day index for detail drill-down (optional consumers). */
+  days: DailyOpsStaffLeaveCalendarDayDto[]
 }

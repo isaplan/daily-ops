@@ -1,9 +1,9 @@
 /**
  * @registry-id: staffOrgScenarioRepo
  * @created: 2026-07-22T18:00:00.000Z
- * @last-modified: 2026-07-28T16:35:00.000Z
+ * @last-modified: 2026-08-13T14:15:00.000Z
  * @description: Mongo CRUD for staff_org_scenarios
- * @last-fix: [2026-07-28] pt_sr role + rosterDesiredHours merge
+ * @last-fix: [2026-08-13] Keep need-* TBD placements without org assignment
  * @adr-ref: ADR-016
  *
  * @exports-to:
@@ -41,9 +41,11 @@ import {
   normalizeLocationTargets,
 } from '~/utils/staffOrg/locationTargets'
 import { DAILY_OPS_VENUE_OPENING_HOURS } from '~/utils/dailyOpsVenueOpeningHours'
+import { applyPlannerDayNameDefaults } from '~/utils/staffOrg/contractHours'
+import { isNeedMemberId } from '~/utils/staffOrg/rosterPlaceholders'
 
 /** Bump when org seed rules change (home-location placement, PT/ZZP). */
-const ORG_SEED_VERSION = 7
+const ORG_SEED_VERSION = 8
 
 const COLLECTION = 'staff_org_scenarios'
 const ALL_TEAMS: StaffOrgTeam[] = ['bediening', 'keuken', 'bar']
@@ -131,18 +133,25 @@ function placementsForOrg(
   )
   return placements.filter((p) => {
     if (inactive.has(p.memberId)) return false
+    // TBD need-FT/PT/ZZP — no org row; keep on board
+    if (isNeedMemberId(p.memberId)) return true
     return allowed.has(`${p.memberId}|${p.locationId}|${p.team}`)
   })
 }
 
 function serialize(doc: Record<string, unknown>): StaffOrgScenario {
   const id = doc._id instanceof ObjectId ? doc._id.toHexString() : String(doc._id)
-  const roster = Array.isArray(doc.roster) ? (doc.roster as StaffOrgRosterMember[]) : []
+  const roster = applyPlannerDayNameDefaults(
+    Array.isArray(doc.roster) ? (doc.roster as StaffOrgRosterMember[]) : [],
+  )
   const inactiveMemberIds = Array.isArray(doc.inactiveMemberIds)
     ? (doc.inactiveMemberIds as string[]).map(String)
     : Array.isArray(doc.excludedMemberIds)
       ? (doc.excludedMemberIds as string[]).map(String)
       : []
+  const hiddenMemberIds = Array.isArray(doc.hiddenMemberIds)
+    ? (doc.hiddenMemberIds as string[]).map(String)
+    : []
   const venues = normalizeStaffOrgVenues(doc.venues)
   const closedIds = new Set(venues.filter((v) => v.status === 'closed').map((v) => v.locationId))
   let orgAssignments = normalizeAssignments(doc.orgAssignments)
@@ -179,6 +188,7 @@ function serialize(doc: Record<string, unknown>): StaffOrgScenario {
     orgAssignments,
     executiveAssignments,
     inactiveMemberIds,
+    hiddenMemberIds,
   }
 }
 
@@ -229,6 +239,7 @@ export async function createStaffOrgScenario(
     orgAssignments,
     executiveAssignments: [] as StaffOrgExecutiveAssignment[],
     inactiveMemberIds: [] as string[],
+    hiddenMemberIds: [] as string[],
     orgSeedVersion: ORG_SEED_VERSION,
   }
   const result = await db.collection(COLLECTION).insertOne(doc)
@@ -316,6 +327,11 @@ export type StaffOrgRosterDesiredHoursPatch = {
   desiredWeeklyHours: number | null
 }
 
+export type StaffOrgRosterDesiredDaysPatch = {
+  memberId: string
+  desiredWeeklyDays: number | null
+}
+
 export type StaffOrgScenarioPatch = {
   name?: string
   status?: StaffOrgScenarioStatus
@@ -326,8 +342,12 @@ export type StaffOrgScenarioPatch = {
   orgAssignments?: StaffOrgAssignment[]
   executiveAssignments?: StaffOrgExecutiveAssignment[]
   inactiveMemberIds?: string[]
+  /** Permanently hide from Not active / Unassigned UI. */
+  hiddenMemberIds?: string[]
   /** Merge PT/PT Sr available hours onto scenario roster (by memberId). */
   rosterDesiredHours?: StaffOrgRosterDesiredHoursPatch[]
+  /** Merge planner days/week onto scenario roster (by memberId). */
+  rosterDesiredDays?: StaffOrgRosterDesiredDaysPatch[]
   refreshRoster?: boolean
 }
 
@@ -350,21 +370,49 @@ function mergeDesiredHoursOntoRoster(
   })
 }
 
+function mergeDesiredDaysOntoRoster (
+  roster: StaffOrgRosterMember[],
+  patches: StaffOrgRosterDesiredDaysPatch[],
+): StaffOrgRosterMember[] {
+  if (!patches.length) return roster
+  const byId = new Map(
+    patches.map((p) => [
+      p.memberId,
+      p.desiredWeeklyDays == null || !Number.isFinite(p.desiredWeeklyDays)
+        ? null
+        : Math.min(7, Math.max(1, Math.round(Number(p.desiredWeeklyDays)))),
+    ]),
+  )
+  return roster.map((m) => {
+    if (!byId.has(m.memberId)) return m
+    return { ...m, desiredWeeklyDays: byId.get(m.memberId) ?? null }
+  })
+}
+
 function preserveDesiredHoursFromExisting(
   next: StaffOrgRosterMember[],
   existing: StaffOrgRosterMember[],
 ): StaffOrgRosterMember[] {
-  const prev = new Map(
+  const prevH = new Map(
     existing
       .filter((m) => m.desiredWeeklyHours != null && Number.isFinite(m.desiredWeeklyHours))
       .map((m) => [m.memberId, m.desiredWeeklyHours as number]),
   )
-  if (!prev.size) return next
-  return next.map((m) => {
-    const hours = prev.get(m.memberId)
-    if (hours == null) return m
-    return { ...m, desiredWeeklyHours: hours }
-  })
+  const prevD = new Map(
+    existing
+      .filter((m) => m.desiredWeeklyDays !== undefined)
+      .map((m) => [m.memberId, m.desiredWeeklyDays as number | null]),
+  )
+  if (!prevH.size && !prevD.size) return applyPlannerDayNameDefaults(next)
+  return applyPlannerDayNameDefaults(next.map((m) => {
+    let out = m
+    const hours = prevH.get(m.memberId)
+    if (hours != null) out = { ...out, desiredWeeklyHours: hours }
+    if (prevD.has(m.memberId)) {
+      out = { ...out, desiredWeeklyDays: prevD.get(m.memberId) ?? null }
+    }
+    return out
+  }))
 }
 
 export async function patchStaffOrgScenario(
@@ -379,6 +427,7 @@ export async function patchStaffOrgScenario(
       projection: {
         placements: 1,
         inactiveMemberIds: 1,
+        hiddenMemberIds: 1,
         orgAssignments: 1,
         executiveAssignments: 1,
         roster: 1,
@@ -407,6 +456,12 @@ export async function patchStaffOrgScenario(
       ? (existing.inactiveMemberIds as string[]).map(String)
       : []
 
+  let hidden = Array.isArray(patch.hiddenMemberIds)
+    ? [...new Set(patch.hiddenMemberIds.map(String))]
+    : Array.isArray(existing.hiddenMemberIds)
+      ? (existing.hiddenMemberIds as string[]).map(String)
+      : []
+
   let orgAssignments = Array.isArray(patch.orgAssignments)
     ? normalizeAssignments(patch.orgAssignments)
     : normalizeAssignments(existing.orgAssignments)
@@ -416,6 +471,12 @@ export async function patchStaffOrgScenario(
     : normalizeExecutive(existing.executiveAssignments)
 
   if (Array.isArray(patch.inactiveMemberIds)) {
+    $set.inactiveMemberIds = inactive
+  }
+  if (Array.isArray(patch.hiddenMemberIds)) {
+    // Hidden implies inactive for board pruning
+    inactive = [...new Set([...inactive, ...hidden])]
+    $set.hiddenMemberIds = hidden
     $set.inactiveMemberIds = inactive
   }
 
@@ -465,11 +526,20 @@ export async function patchStaffOrgScenario(
     }).filter((a) => !execIds.has(a.memberId))
     $set.orgAssignments = orgAssignments
     $set.orgSeedVersion = ORG_SEED_VERSION
-  } else if (Array.isArray(patch.rosterDesiredHours) && patch.rosterDesiredHours.length > 0) {
-    const existingRoster = Array.isArray(existing.roster)
+  } else if (
+    (Array.isArray(patch.rosterDesiredHours) && patch.rosterDesiredHours.length > 0)
+    || (Array.isArray(patch.rosterDesiredDays) && patch.rosterDesiredDays.length > 0)
+  ) {
+    let existingRoster = Array.isArray(existing.roster)
       ? (existing.roster as StaffOrgRosterMember[])
       : []
-    $set.roster = mergeDesiredHoursOntoRoster(existingRoster, patch.rosterDesiredHours)
+    if (Array.isArray(patch.rosterDesiredHours) && patch.rosterDesiredHours.length > 0) {
+      existingRoster = mergeDesiredHoursOntoRoster(existingRoster, patch.rosterDesiredHours)
+    }
+    if (Array.isArray(patch.rosterDesiredDays) && patch.rosterDesiredDays.length > 0) {
+      existingRoster = mergeDesiredDaysOntoRoster(existingRoster, patch.rosterDesiredDays)
+    }
+    $set.roster = existingRoster
   }
 
   let placements = Array.isArray(patch.placements)

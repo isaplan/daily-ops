@@ -18,8 +18,12 @@
         :member="m.member"
         compact
         :placed-days="m.placedDays"
+        :day-conflict="m.dayConflict"
+        :placeholder="m.placeholder"
+        :hide-wage="m.placeholder"
         :source-weekday="weekday"
-        :source-slot="slot"
+        :source-slot="m.slot ?? slot"
+        :source-team="team"
         :cell-hours="m.hours"
       />
     </div>
@@ -30,9 +34,9 @@
 /**
  * @registry-id: StaffOrgSlotCell
  * @created: 2026-07-22T18:00:00.000Z
- * @last-modified: 2026-07-23T02:50:00.000Z
- * @description: Drop target cell for weekday × day/evening slot
- * @last-fix: [2026-07-23] Pass Alt/⌥ copy flag on drop
+ * @last-modified: 2026-08-13T14:00:00.000Z
+ * @description: Drop target cell for weekday × team (day/evening combined)
+ * @last-fix: [2026-08-13] Pass dayConflict + placeholder to staff cards
  * @adr-ref: ADR-016
  */
 
@@ -42,11 +46,15 @@ const props = defineProps<{
   locationId: string
   team: StaffOrgTeam
   weekday: StaffOrgWeekday
+  /** Default slot used when dropping into this cell. */
   slot: StaffOrgSlot
   members: Array<{
     member: StaffOrgRosterMember
     hours?: number
     placedDays: number
+    slot?: StaffOrgSlot
+    dayConflict?: boolean
+    placeholder?: boolean
   }>
   openHours: number | null
   headcount: number
@@ -61,6 +69,7 @@ const emit = defineEmits<{
     memberId: string
     sourceWeekday?: StaffOrgWeekday
     sourceSlot?: StaffOrgSlot
+    sourceTeam?: StaffOrgTeam
     /** Keep source cell (Alt/⌥ or ZZP duplicate). */
     copy?: boolean
   }]
@@ -82,25 +91,29 @@ const headcountClass = computed(() => {
   return 'text-gray-500'
 })
 
-function onDragOver(e: DragEvent) {
+function onDragOver (e: DragEvent) {
   if (props.openHours == null) return
   e.dataTransfer && (e.dataTransfer.dropEffect = e.altKey || e.metaKey ? 'copy' : 'copy')
   draggingOver.value = true
 }
 
-function onDrop(e: DragEvent) {
+function onDrop (e: DragEvent) {
   draggingOver.value = false
   if (props.openHours == null) return
   const memberId = e.dataTransfer?.getData('application/x-staff-org-member')
   if (!memberId) return
   let sourceWeekday: StaffOrgWeekday | undefined
   let sourceSlot: StaffOrgSlot | undefined
+  let sourceTeam: StaffOrgTeam | undefined
   const raw = e.dataTransfer?.getData('application/x-staff-org-source')
   if (raw) {
     try {
-      const parsed = JSON.parse(raw) as { weekday?: number; slot?: string }
+      const parsed = JSON.parse(raw) as { weekday?: number; slot?: string; team?: string }
       if (typeof parsed.weekday === 'number') sourceWeekday = parsed.weekday as StaffOrgWeekday
       if (parsed.slot === 'day' || parsed.slot === 'evening') sourceSlot = parsed.slot
+      if (parsed.team === 'keuken' || parsed.team === 'bediening' || parsed.team === 'bar') {
+        sourceTeam = parsed.team
+      }
     } catch {
       // ignore
     }
@@ -109,6 +122,7 @@ function onDrop(e: DragEvent) {
     memberId,
     sourceWeekday,
     sourceSlot,
+    sourceTeam,
     copy: Boolean(e.altKey || e.metaKey),
   })
 }

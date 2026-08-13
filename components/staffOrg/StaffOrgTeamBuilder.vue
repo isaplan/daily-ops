@@ -2,7 +2,7 @@
   <div class="space-y-4">
     <div class="flex flex-wrap items-center justify-between gap-2">
       <p class="text-sm text-gray-600">
-        Open venues: Keuken / Bediening / Bar. ZZP can sit on multiple venues.
+        Open venues: Keuken / Bediening / Bar. Use + on a card for hours and multi-location pills.
       </p>
       <div class="flex flex-wrap items-center gap-2">
         <UButton
@@ -236,7 +236,11 @@
                     :member="m"
                     compact
                     :editable-desired-hours="isPtHoursLane(row.roles[teamCol]!)"
+                    :location-options="locationPillOptions"
+                    :active-location-ids="activeLocationsFor(m.memberId)"
                     @update:desired-hours="onDesiredHours"
+                    @update:desired-days="onDesiredDays"
+                    @toggle:location="onToggleLocation"
                   />
                   <p
                     v-if="!membersInLane(venue.locationId, teamCol, row.roles[teamCol]!).length"
@@ -321,6 +325,9 @@
             :key="`u-${m.memberId}`"
             :member="m"
             compact
+            :location-options="locationPillOptions"
+            :active-location-ids="activeLocationsFor(m.memberId)"
+            @toggle:location="onToggleLocation"
           />
           <p v-if="!unassigned.length" class="py-4 text-center text-[10px] text-gray-400">
             Drop staff here
@@ -403,6 +410,9 @@
             :key="`u-b-${m.memberId}`"
             :member="m"
             compact
+            :location-options="locationPillOptions"
+            :active-location-ids="activeLocationsFor(m.memberId)"
+            @toggle:location="onToggleLocation"
           />
           <p v-if="!unassigned.length" class="py-4 text-center text-[10px] text-gray-400">
             Drop staff here
@@ -418,7 +428,7 @@
         <h3 class="mb-1 text-xs font-semibold uppercase tracking-wide text-red-800">
           Not active ({{ inactiveMembers.length }})
         </h3>
-        <p class="mb-2 text-[10px] text-red-700/80">Leaving / contract end.</p>
+        <p class="mb-2 text-[10px] text-red-700/80">Leaving / contract end. Hide = never show again.</p>
         <div class="flex max-h-40 flex-col gap-1 overflow-y-auto">
           <div
             v-for="m in inactiveMembers"
@@ -433,6 +443,15 @@
               @click="reactivate(m.memberId)"
             >
               Restore
+            </button>
+            <button
+              v-show="!exportingPdf"
+              type="button"
+              class="shrink-0 rounded px-1.5 py-1 text-[10px] font-medium text-gray-600 hover:bg-gray-100"
+              title="Hide permanently"
+              @click="hideMember(m.memberId)"
+            >
+              Hide
             </button>
           </div>
         </div>
@@ -475,9 +494,9 @@
 /**
  * @registry-id: StaffOrgTeamBuilder
  * @created: 2026-07-23T01:10:00.000Z
- * @last-modified: 2026-08-12T13:35:00.000Z
+ * @last-modified: 2026-08-12T18:10:00.000Z
  * @description: Organogram — Executive + venues (Keuken/Bediening/Bar) + budget
- * @last-fix: [2026-08-12] Max 3 venue cols; Unassigned beside ≤2 venues else next to Not active
+ * @last-fix: [2026-08-12] Hide permanently from Not active (hiddenMemberIds)
  * @adr-ref: ADR-016
  */
 
@@ -494,7 +513,7 @@ import type {
   StaffOrgTeam,
   StaffOrgVenue,
 } from '~/types/staff-org'
-import { isZzpRole } from '~/utils/staffOrg/seedOrgAssignments'
+import { isZzpRole, roleFromContractType } from '~/utils/staffOrg/seedOrgAssignments'
 import {
   buildTeamColumnMetrics,
   type StaffOrgTeamColumnMetrics,
@@ -506,6 +525,7 @@ const props = defineProps<{
   orgAssignments: StaffOrgAssignment[]
   executiveAssignments: StaffOrgExecutiveAssignment[]
   inactiveMemberIds: string[]
+  hiddenMemberIds?: string[]
   targets?: StaffOrgLocationTargets[]
   rules?: StaffOrgLocationRule[]
   slotHours?: StaffOrgSlotHours[]
@@ -519,8 +539,10 @@ const emit = defineEmits<{
   'update:org': [orgAssignments: StaffOrgAssignment[]]
   'update:executive': [executiveAssignments: StaffOrgExecutiveAssignment[]]
   'update:inactive': [inactiveMemberIds: string[]]
+  'update:hidden': [hiddenMemberIds: string[]]
   'update:venues': [venues: StaffOrgVenue[]]
   'update:desiredHours': [memberId: string, hours: number | null]
+  'update:desiredDays': [memberId: string, days: number | null]
   'save-targets': [targets: StaffOrgLocationTargets[]]
   'save-rules': [rules: StaffOrgLocationRule[]]
 }>()
@@ -704,6 +726,48 @@ function onDesiredHours(memberId: string, hours: number | null) {
   emit('update:desiredHours', memberId, hours)
 }
 
+function onDesiredDays (memberId: string, days: number | null) {
+  emit('update:desiredDays', memberId, days)
+}
+
+/** Toggle venue activation — copies team/role from an existing assignment (or roster hint). */
+function onToggleLocation (memberId: string, locationId: string) {
+  const atLocation = props.orgAssignments.filter(
+    (a) => a.memberId === memberId && a.locationId === locationId,
+  )
+  if (atLocation.length) {
+    emit(
+      'update:org',
+      props.orgAssignments.filter(
+        (a) => !(a.memberId === memberId && a.locationId === locationId),
+      ),
+    )
+    return
+  }
+
+  if (props.executiveAssignments.some((e) => e.memberId === memberId)) {
+    emit(
+      'update:executive',
+      props.executiveAssignments.filter((e) => e.memberId !== memberId),
+    )
+  }
+
+  const template = props.orgAssignments.find((a) => a.memberId === memberId)
+  const member = rosterById.value.get(memberId)
+  const team: StaffOrgTeam = template?.team ?? member?.teamHint ?? 'bediening'
+  const role = template?.role ?? roleFromContractType(member?.contractType ?? '')
+  emit('update:org', [
+    ...props.orgAssignments,
+    { memberId, locationId, team, role },
+  ])
+  if (inactiveSet.value.has(memberId)) {
+    emit(
+      'update:inactive',
+      props.inactiveMemberIds.filter((id) => id !== memberId),
+    )
+  }
+}
+
 /** Empty vacancy highlight: Chef / Bedrijfsleider / Bar Hoofd / FT. */
 function isOpenVacancyLane(team: StaffOrgTeam, role: StaffOrgRole): boolean {
   if (role === 'ft') return true
@@ -717,6 +781,18 @@ const newShort = ref('')
 
 const openVenues = computed(() => props.venues.filter((v) => v.status === 'open'))
 const closedVenues = computed(() => props.venues.filter((v) => v.status === 'closed'))
+
+const locationPillOptions = computed(() =>
+  openVenues.value.map((v) => ({ locationId: v.locationId, short: v.short })),
+)
+
+function activeLocationsFor (memberId: string): string[] {
+  const ids = new Set<string>()
+  for (const a of props.orgAssignments) {
+    if (a.memberId === memberId) ids.add(a.locationId)
+  }
+  return [...ids]
+}
 
 /** ≤2 open venues → Unassigned in venue row; ≥3 → Unassigned below next to Not active. */
 const unassignedBesideVenues = computed(() => openVenues.value.length <= 2)
@@ -865,14 +941,15 @@ async function exportPdf() {
 
 const rosterById = computed(() => new Map(props.roster.map((m) => [m.memberId, m])))
 const inactiveSet = computed(() => new Set(props.inactiveMemberIds))
+const hiddenSet = computed(() => new Set(props.hiddenMemberIds ?? []))
 
 const assignedIds = computed(() => {
   const ids = new Set<string>()
   for (const a of props.orgAssignments) {
-    if (!inactiveSet.value.has(a.memberId)) ids.add(a.memberId)
+    if (!inactiveSet.value.has(a.memberId) && !hiddenSet.value.has(a.memberId)) ids.add(a.memberId)
   }
   for (const e of props.executiveAssignments) {
-    if (!inactiveSet.value.has(e.memberId)) ids.add(e.memberId)
+    if (!inactiveSet.value.has(e.memberId) && !hiddenSet.value.has(e.memberId)) ids.add(e.memberId)
   }
   return ids
 })
@@ -905,13 +982,17 @@ function membersInLane(
 
 const unassigned = computed(() =>
   props.roster
-    .filter((m) => !inactiveSet.value.has(m.memberId) && !assignedIds.value.has(m.memberId))
+    .filter((m) =>
+      !inactiveSet.value.has(m.memberId)
+      && !hiddenSet.value.has(m.memberId)
+      && !assignedIds.value.has(m.memberId),
+    )
     .sort((a, b) => a.name.localeCompare(b.name, 'nl')),
 )
 
 const inactiveMembers = computed(() =>
   props.roster
-    .filter((m) => inactiveSet.value.has(m.memberId))
+    .filter((m) => inactiveSet.value.has(m.memberId) && !hiddenSet.value.has(m.memberId))
     .sort((a, b) => a.name.localeCompare(b.name, 'nl')),
 )
 
@@ -953,12 +1034,15 @@ function upsertAssignment(
   let next: StaffOrgAssignment[]
 
   if (isZzpRole(role)) {
+    // ZZP: keep other venues/teams; replace only this location×team
     next = props.orgAssignments.filter(
       (a) => !(a.memberId === memberId && a.locationId === locationId && a.team === team),
     )
-    next = next.filter((a) => !(a.memberId === memberId && !isZzpRole(a.role)))
   } else {
-    next = props.orgAssignments.filter((a) => a.memberId !== memberId)
+    // Non-ZZP: one team per venue; keep assignments at other venues
+    next = props.orgAssignments.filter(
+      (a) => !(a.memberId === memberId && a.locationId === locationId),
+    )
   }
 
   if (role === 'manager') {
@@ -1030,6 +1114,13 @@ function reactivate(memberId: string) {
     'update:inactive',
     props.inactiveMemberIds.filter((id) => id !== memberId),
   )
+}
+
+function hideMember (memberId: string) {
+  emit('update:hidden', [...new Set([...(props.hiddenMemberIds ?? []), memberId])])
+  if (!props.inactiveMemberIds.includes(memberId)) {
+    emit('update:inactive', [...props.inactiveMemberIds, memberId])
+  }
 }
 
 const closeConfirmOpen = ref(false)

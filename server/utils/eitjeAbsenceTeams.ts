@@ -1,13 +1,14 @@
 /**
  * @registry-id: eitjeAbsenceTeams
  * @created: 2026-07-09T21:15:00.000Z
- * @last-modified: 2026-07-09T21:15:00.000Z
+ * @last-modified: 2026-08-13T14:13:52.000Z
  * @description: Eitje team_name buckets for ziek vs verlof/vakantie (matches Eitje uren UI)
- * @last-fix: [2026-07-09] SSOT for absence team classification
+ * @last-fix: [2026-08-13] Export used by staff leave calendar
  *
  * @exports-to:
  * ✓ server/utils/dailyOpsAttendanceKpis.ts
  * ✓ server/utils/dailyOpsWeeklyReport/buildWeeklyAttendance.ts
+ * ✓ server/utils/dailyOpsStaff/buildLeaveCalendar.ts
  */
 
 import { isOperationalTeamName } from './eitjeVenueLaborRollup'

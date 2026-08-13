@@ -1,13 +1,14 @@
 /**
  * @registry-id: staffOrgSeedOrgAssignments
  * @created: 2026-07-23T01:10:00.000Z
- * @last-modified: 2026-07-28T16:35:00.000Z
+ * @last-modified: 2026-08-12T18:00:00.000Z
  * @description: Seed TeamBuilder assignments from roster home location + contract
- * @last-fix: [2026-07-28] Seed still maps PT bucket → pt (pt_sr is manual drag)
+ * @last-fix: [2026-08-12] Multi-location for all roles — dedupe by member×location×team
  * @adr-ref: ADR-016
  *
  * @exports-to:
  * ✓ server/utils/staffOrg/scenarioRepo.ts
+ * ✓ components/staffOrg/StaffOrgTeamBuilder.vue
  */
 
 import type {
@@ -18,35 +19,27 @@ import type {
 } from '~/types/staff-org'
 import { classifyStaffContractType } from '~/utils/dailyOpsStaffContractBuckets'
 
-export function roleFromContractType(contractType: string): StaffOrgRole {
+export function roleFromContractType (contractType: string): StaffOrgRole {
   const bucket = classifyStaffContractType(contractType)
   if (bucket === 'pt') return 'pt'
   if (bucket === 'zzp') return 'zzp'
   return 'ft'
 }
 
-export function isZzpRole(role: StaffOrgRole): boolean {
+export function isZzpRole (role: StaffOrgRole): boolean {
   return role === 'zzp'
 }
 
-/** Dedupe: non-ZZP one per member; ZZP one per member×location×team. */
-export function dedupeOrgAssignments(list: StaffOrgAssignment[]): StaffOrgAssignment[] {
-  const nonZzp = new Map<string, StaffOrgAssignment>()
-  const zzp = new Map<string, StaffOrgAssignment>()
+/**
+ * Dedupe by member × location × team.
+ * Same person may work at multiple venues (location pills / ZZP).
+ */
+export function dedupeOrgAssignments (list: StaffOrgAssignment[]): StaffOrgAssignment[] {
+  const map = new Map<string, StaffOrgAssignment>()
   for (const a of list) {
-    if (isZzpRole(a.role)) {
-      zzp.set(`${a.memberId}|${a.locationId}|${a.team}`, a)
-    } else {
-      nonZzp.set(a.memberId, a)
-    }
+    map.set(`${a.memberId}|${a.locationId}|${a.team}`, a)
   }
-  // Non-ZZP wins if somehow both exist for same member
-  for (const id of nonZzp.keys()) {
-    for (const key of [...zzp.keys()]) {
-      if (key.startsWith(`${id}|`)) zzp.delete(key)
-    }
-  }
-  return [...nonZzp.values(), ...zzp.values()]
+  return [...map.values()]
 }
 
 /**
@@ -54,7 +47,7 @@ export function dedupeOrgAssignments(list: StaffOrgAssignment[]): StaffOrgAssign
  * - Has homeLocationId in openVenueIds → assign there (role from contract)
  * - No location / closed / unknown → unassigned (omitted)
  */
-export function rebuildOrgAssignmentsFromRoster(args: {
+export function rebuildOrgAssignmentsFromRoster (args: {
   roster: StaffOrgRosterMember[]
   inactiveMemberIds: string[]
   openVenueIds: string[]
@@ -80,7 +73,7 @@ export function rebuildOrgAssignmentsFromRoster(args: {
 }
 
 /** Add only brand-new roster members (never overwrite planner moves). */
-export function mergeOrgAssignmentsFromRoster(args: {
+export function mergeOrgAssignmentsFromRoster (args: {
   roster: StaffOrgRosterMember[]
   existing: StaffOrgAssignment[]
   inactiveMemberIds: string[]
