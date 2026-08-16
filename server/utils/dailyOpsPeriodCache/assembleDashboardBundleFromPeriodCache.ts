@@ -1,10 +1,11 @@
 /**
  * @registry-id: dailyOpsAssembleDashboardBundleFromPeriodCache
  * @created: 2026-08-09T17:30:00.000Z
- * @last-modified: 2026-08-09T17:30:00.000Z
+ * @last-modified: 2026-08-16T14:40:00.000Z
  * @description: Project DailyOpsDashboardBundleDto from period-cache day nodes (GET)
- * @last-fix: [2026-08-09] Phase 7 — replace dashboard-bundle read-cache on GET
- * @adr-ref: PERIOD_CACHE_ADR L2, L3
+ * @last-fix: [2026-08-16] Project profitByInterval cells + occupancy series from sealed day nodes
+ *   Prior: [2026-08-09] Phase 7 — replace dashboard-bundle read-cache on GET
+ * @adr-ref: PERIOD_CACHE_ADR L2, L3, ADR-004, ADR-013
  * @data-source: period-cache
  * @read-cache-json: daily_ops_period_cache · level=day
  *
@@ -18,6 +19,7 @@
 import type { Db } from 'mongodb'
 import type {
   DailyOpsLaborMetricsDto,
+  DailyOpsProfitByIntervalDto,
   DailyOpsRevenueBreakdownDto,
   DailyOpsSummaryDto,
   PeriodBreakdownDto,
@@ -28,6 +30,8 @@ import type {
 } from '~/types/daily-ops-dashboard'
 import type { DailyOpsPeriodNode } from '~/types/daily-ops-period-cache'
 import type {
+  DailyOpsOccupancySeriesPoint,
+  DailyOpsTableOccupancyDayDto,
   DailyOpsTableOccupancyHourDto,
   DailyOpsTableOccupancyKpisDto,
   DailyOpsTableOccupancyVenueDto,
@@ -38,6 +42,9 @@ import { enumerateUtcDatesInclusive } from '../dailyOpsMetrics/context'
 import { VAT_DISCLAIMER } from '../dailyOpsMetrics/dtoBuilders'
 import { emptyDashboardBundleForCacheMiss } from '../dailyOpsSnapshot/emptyDashboardBundleForCacheMiss'
 import type { DailyOpsDashboardBundleDto } from '../dailyOpsSnapshot/fetchDashboardBundle'
+import { buildProfitByIntervalFromSnapshotHourly } from '../dailyOpsSnapshot/buildProfitByIntervalFromSnapshot'
+import { snapshotLocDayKey } from '../dailyOpsSnapshot/dashboardBundle/shared'
+import { hourLabel } from '../dailyOpsSnapshot/drilldown/drilldownShared'
 import { VENUE_STRIP_LOCATIONS } from '../venueStrip/constants'
 import { productivityPerHour } from '../venueStrip/labor'
 import {
@@ -46,6 +53,10 @@ import {
   normalizeLocationId,
 } from '../dailyOpsVenueTables/collection'
 import { occupancyPct } from '../dailyOpsVenueTables/buildTableOccupancySummary'
+import {
+  buildOccupancySeriesByGrain,
+  combineDailyOccupancyPoints,
+} from '../dailyOpsVenueTables/buildOccupancySeries'
 import { loadPeriodDayNodesForRange } from './loadPeriodDayNodesForRange'
 
 function round2 (n: number): number {
@@ -312,6 +323,52 @@ async function loadTotalTablesByLocation (db: Db): Promise<Map<string, number>> 
   return map
 }
 
+function buildOrgHourSeries (
+  hourly: DailyOpsTableOccupancyHourDto[],
+): DailyOpsOccupancySeriesPoint[] {
+  const byHour = new Map<number, { active: number; total: number }>()
+  for (const row of hourly) {
+    const cur = byHour.get(row.calendarHour) ?? { active: 0, total: 0 }
+    cur.active += row.activeTables
+    cur.total += row.totalTables
+    byHour.set(row.calendarHour, cur)
+  }
+  return Array.from({ length: 24 }, (_, calendarHour) => {
+    const cur = byHour.get(calendarHour) ?? { active: 0, total: 0 }
+    return {
+      key: String(calendarHour),
+      label: hourLabel(calendarHour),
+      activeTables: cur.active,
+      totalTables: cur.total,
+      occupancyPct: occupancyPct(cur.active, cur.total),
+    }
+  })
+}
+
+function withOccupancySeries (
+  dto: DailyOpsTableOccupancyKpisDto,
+  hourly?: DailyOpsTableOccupancyHourDto[],
+): DailyOpsTableOccupancyKpisDto {
+  const dayPoints = dto.daily?.length
+    ? combineDailyOccupancyPoints(dto.daily)
+    : [{
+        key: dto.range.startDate,
+        label: dto.range.startDate,
+        activeTables: dto.activeTables,
+        totalTables: dto.totalTables,
+        occupancyPct: dto.occupancyPct,
+      }]
+  const series = buildOccupancySeriesByGrain(dayPoints)
+  if (hourly?.length) {
+    series.hour = buildOrgHourSeries(hourly)
+  }
+  return {
+    ...dto,
+    ...(hourly?.length ? { hourly } : {}),
+    series,
+  }
+}
+
 function buildTableOccupancyFromNodes (
   ctx: DailyOpsMetricsContext,
   nodes: DailyOpsPeriodNode[],
@@ -319,6 +376,7 @@ function buildTableOccupancyFromNodes (
 ): DailyOpsTableOccupancyKpisDto {
   const venues: DailyOpsTableOccupancyVenueDto[] = []
   const hourly: DailyOpsTableOccupancyHourDto[] = []
+  const daily: DailyOpsTableOccupancyDayDto[] = []
   const singleDay = ctx.startDate === ctx.endDate
 
   for (const venue of VENUE_STRIP_LOCATIONS) {
@@ -331,6 +389,14 @@ function buildTableOccupancyFromNodes (
     for (const n of locNodes) {
       const active = new Set((n.revenue.byTable ?? []).map((t) => t.tableNum)).size
       dailyActive.push(active)
+      daily.push({
+        date: n.periodKey,
+        locationId: venue.locationId,
+        locationName: venue.locationName,
+        activeTables: active,
+        totalTables,
+        occupancyPct: occupancyPct(active, totalTables),
+      })
       if (singleDay) {
         for (const h of n.revenue.tablesByHour ?? []) {
           hourly.push({
@@ -359,15 +425,19 @@ function buildTableOccupancyFromNodes (
 
   const activeTables = round2(venues.reduce((s, v) => s + v.activeTables, 0))
   const totalTables = venues.reduce((s, v) => s + v.totalTables, 0)
-  return {
-    range: { period: ctx.period, startDate: ctx.startDate, endDate: ctx.endDate },
-    activeTables,
-    totalTables,
-    occupancyPct: occupancyPct(activeTables, totalTables),
-    venues,
-    aggregation: singleDay ? 'day' : 'avg_daily',
-    hourly: singleDay && hourly.length > 0 ? hourly : undefined,
-  }
+  const hourlyOut = singleDay && hourly.length > 0 ? hourly : undefined
+  return withOccupancySeries(
+    {
+      range: { period: ctx.period, startDate: ctx.startDate, endDate: ctx.endDate },
+      activeTables,
+      totalTables,
+      occupancyPct: occupancyPct(activeTables, totalTables),
+      venues,
+      aggregation: singleDay ? 'day' : 'avg_daily',
+      daily: daily.length > 0 ? daily : undefined,
+    },
+    hourlyOut,
+  )
 }
 
 function buildSummary (
@@ -415,10 +485,55 @@ function buildSummary (
   }
 }
 
-function buildRevenueBreakdown (
+/** Map sealed day nodes → same profit-by-interval builder as snapshot GET (no live Bork). */
+async function buildProfitByIntervalFromNodes (
   ctx: DailyOpsMetricsContext,
   nodes: DailyOpsPeriodNode[],
-): DailyOpsRevenueBreakdownDto {
+): Promise<DailyOpsProfitByIntervalDto> {
+  const scoped =
+    ctx.locationId && ctx.locationId !== 'all'
+      ? nodes.filter((n) => n.locationId === ctx.locationId)
+      : nodes.filter((n) => n.locationId !== 'all')
+
+  const hourRows: { _id: { d: string; h: number; loc?: string }; revenue: number }[] = []
+  const laborByLocDay = new Map<string, { laborCost: number; hours: number; distinctWorkerCount: number }>()
+  const headlineRevenueByLocDay = new Map<string, number>()
+  let food = 0
+  let drinks = 0
+
+  for (const n of scoped) {
+    const key = snapshotLocDayKey(n.periodKey, n.locationId)
+    headlineRevenueByLocDay.set(key, round2((headlineRevenueByLocDay.get(key) ?? 0) + n.revenue.exVat))
+    const laborCur = laborByLocDay.get(key) ?? { laborCost: 0, hours: 0, distinctWorkerCount: 0 }
+    laborCur.laborCost += n.labor.loadedCost
+    laborCur.hours += n.labor.hours
+    laborCur.distinctWorkerCount += n.labor.staffCount
+    laborByLocDay.set(key, laborCur)
+    food += n.revenue.food
+    drinks += n.revenue.beverage
+    for (const h of n.revenue.byHour ?? []) {
+      hourRows.push({
+        _id: { d: n.periodKey, h: h.hour, loc: n.locationId },
+        revenue: h.exVat,
+      })
+    }
+  }
+
+  return buildProfitByIntervalFromSnapshotHourly(
+    ctx,
+    hourRows,
+    { food, drinks },
+    laborByLocDay,
+    headlineRevenueByLocDay,
+    undefined,
+    new Map(),
+  )
+}
+
+async function buildRevenueBreakdown (
+  ctx: DailyOpsMetricsContext,
+  nodes: DailyOpsPeriodNode[],
+): Promise<DailyOpsRevenueBreakdownDto> {
   const scoped =
     ctx.locationId && ctx.locationId !== 'all'
       ? nodes.filter((n) => n.locationId === ctx.locationId)
@@ -449,6 +564,8 @@ function buildRevenueBreakdown (
     }
   }
 
+  const profitByInterval = await buildProfitByIntervalFromNodes(ctx, nodes)
+
   return {
     range: { period: ctx.period, startDate: ctx.startDate, endDate: ctx.endDate },
     revenueByCategory,
@@ -462,13 +579,9 @@ function buildRevenueBreakdown (
       cogsCost: 0,
       fixedCost: 0,
       profit: bestRev,
-      estimatesNote: 'Period-cache projection (Phase 7)',
+      estimatesNote: 'Period-cache projection',
     },
-    profitByInterval: {
-      estimatesNote: 'Period-cache projection (Phase 7)',
-      dates: [],
-      cells: [],
-    },
+    profitByInterval,
   }
 }
 
@@ -620,16 +733,13 @@ export async function assembleDashboardBundleFromPeriodCache (
   const stripNodes = venueNodesForStrip(nodes)
   const totalByLoc = await loadTotalTablesByLocation(db)
 
+  const occNodes = stripNodes.length ? stripNodes : nodes
   return {
     summary: buildSummary(ctx, nodes, expectedDays),
-    revenue: buildRevenueBreakdown(ctx, nodes),
+    revenue: await buildRevenueBreakdown(ctx, nodes),
     labor: buildLaborMetrics(ctx, nodes),
-    venueStrip: buildVenueStripFromNodes(ctx, stripNodes.length ? stripNodes : nodes),
-    periodBreakdown: buildPeriodBreakdown(ctx, stripNodes.length ? stripNodes : nodes),
-    tableOccupancy: buildTableOccupancyFromNodes(
-      ctx,
-      stripNodes.length ? stripNodes : nodes,
-      totalByLoc,
-    ),
+    venueStrip: buildVenueStripFromNodes(ctx, occNodes),
+    periodBreakdown: buildPeriodBreakdown(ctx, occNodes),
+    tableOccupancy: buildTableOccupancyFromNodes(ctx, occNodes, totalByLoc),
   }
 }

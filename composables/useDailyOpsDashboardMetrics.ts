@@ -1,11 +1,10 @@
 /**
  * @registry-id: useDailyOpsDashboardMetrics
  * @created: 2026-05-18T00:00:00.000Z
- * @last-modified: 2026-07-22T15:30:00.000Z
- * @description: Dashboard metrics via single snapshot bundle (ADR-004). One HTTP round-trip; progressive UI gates on summary only.
- * @last-fix: [2026-07-22] Bump bundle key v8 — refetch after byVenue staff/productivity fix
- *   Prior: [2026-07-22] Expose sealed tableOccupancy from dashboard-bundle
- *   Prior: [2026-07-16] Restore stable asyncData key — default:null + getter key emptied all Daily Ops pages
+ * @last-modified: 2026-08-16T14:20:00.000Z
+ * @description: Dashboard metrics via snapshot bundle — deferred until venue-strip ready
+ * @last-fix: [2026-08-16] Optional enabled gate — fetch after strip (KPI→strip→rest)
+ *   Prior: [2026-07-22] Bump bundle key v8 — refetch after byVenue staff/productivity fix
  * @adr-ref: ADR-004, ADR-010, ADR-013
  * @data-source: read-cache
  * @read-cache-json: dashboard-bundle (via GET /api/daily-ops/metrics/bundle)
@@ -28,6 +27,7 @@ import type { DailyOpsTableOccupancyKpisDto } from '~/types/daily-ops-venue-tabl
 import type { ComputedRef, Ref } from 'vue'
 import { amsterdamOpenRegisterBusinessDateYmd } from '~/utils/dailyOpsBusinessDate'
 import { pollWindowState } from '~/utils/integrations/borkEitjeDailyCronSchedule'
+import { useDailyOpsDashboardRoute } from '~/composables/useDailyOpsDashboardRoute'
 
 export type DailyOpsDashboardMetrics = {
   summary: ComputedRef<DailyOpsSummaryDto | null>
@@ -68,19 +68,25 @@ const metricsKey = (
   return base
 }
 
-export function useDailyOpsDashboardMetrics(): DailyOpsDashboardMetrics {
+export function useDailyOpsDashboardMetrics (opts?: {
+  /** When false, skip bundle GET (wait for venue-strip first). */
+  enabled?: Ref<boolean> | ComputedRef<boolean>
+}): DailyOpsDashboardMetrics {
   const { dashboardQuery, period } = useDailyOpsDashboardRoute()
+  const enabled = computed(() => opts?.enabled?.value !== false)
 
   const snapshotBuiltAt = useState<string | null>(SNAPSHOT_BUILT_AT_STATE, () => null)
   const cacheKey = computed(() => metricsKey(dashboardQuery.value, snapshotBuiltAt.value))
 
   const { data: bundle, pending, error, refresh } = useAsyncData(
     'daily-ops-dashboard-bundle',
-    () =>
-      $fetch<DashboardBundleResponse>('/api/daily-ops/metrics/bundle', {
+    async (): Promise<DashboardBundleResponse | null> => {
+      if (!enabled.value) return null
+      return await $fetch<DashboardBundleResponse>('/api/daily-ops/metrics/bundle', {
         query: dashboardQuery.value,
-      }),
-    { watch: [cacheKey] },
+      })
+    },
+    { watch: [cacheKey, enabled] },
   )
 
   const summary = computed(() => bundle.value?.summary ?? null)
@@ -88,7 +94,9 @@ export function useDailyOpsDashboardMetrics(): DailyOpsDashboardMetrics {
   const labor = computed(() => bundle.value?.labor ?? null)
   const periodBreakdown = computed(() => bundle.value?.periodBreakdown ?? null)
   const tableOccupancy = computed(() => bundle.value?.tableOccupancy ?? null)
-  const summaryPending = computed(() => pending.value || !summary.value)
+  const summaryPending = computed(
+    () => (enabled.value && pending.value) || (enabled.value && !summary.value),
+  )
 
   if (import.meta.client) {
     let pollTimer: ReturnType<typeof setInterval> | null = null

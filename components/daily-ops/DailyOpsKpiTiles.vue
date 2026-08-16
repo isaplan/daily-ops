@@ -76,12 +76,13 @@
 <script setup lang="ts">
 /**
  * @description: Dashboard KPI tiles with lazy drawer fetches
- * @last-modified: 2026-08-05T10:50:00.000Z
- * @last-fix: [2026-08-05] Est. net: Finance badge only when sealed; else estimatedNet on ops revenue
+ * @last-modified: 2026-08-16T14:20:00.000Z
+ * @last-fix: [2026-08-16] Shared venue-strip composable (no double fetch with VenueStrip)
+ *   Prior: [2026-08-05] Est. net: Finance badge only when sealed; else estimatedNet on ops revenue
  * @adr-ref: ADR-004, ADR-010, ADR-013, ADR-014, ADR-019, ADR-022
  * @data-source: mixed
  * @read-cache-json: dashboard-bundle summary + tableOccupancy; lazy GET break-even, revenue-averages
- * @imports-data-from: props + GET /api/daily-ops/metrics/*
+ * @imports-data-from: props + useDailyOpsVenueStripMetrics + GET /api/daily-ops/metrics/*
  */
 
 import type {
@@ -93,7 +94,6 @@ import type {
   DailyOpsSummaryDto,
   DailyOpsTableOccupancyKpisDto,
   VenueStripCardDto,
-  VenueStripResponseDto,
 } from '~/types/daily-ops-dashboard'
 import type { DailyOpsBreakEvenDto } from '~/types/break-even'
 import { DAILY_OPS_RANGE_PERIOD_IDS } from '~/types/daily-ops-dashboard'
@@ -129,13 +129,17 @@ const props = defineProps<{
 
 const { formatEurWhole, formatHoursWhole, formatPctWhole, formatEurPerHourWhole } = useDashboardKpiFormat()
 
+const periodRef = computed(() => props.period)
+const anchorRef = computed(() => props.anchor ?? null)
+
 const stripQuery = computed(() => {
   const q: Record<string, string> = { period: props.period }
   if (props.anchor) q.anchor = props.anchor
   return q
 })
 
-const cacheKey = computed(() => `daily-ops-venue-strip-${props.period}-${props.anchor ?? ''}`)
+/** Stable key for attendance lazy load (not the strip HTTP key). */
+const cacheKey = computed(() => `daily-ops-kpi-attendance-${props.period}-${props.anchor ?? ''}`)
 
 type GmailStatusPayload = {
   connected: boolean
@@ -153,16 +157,10 @@ function goReconnectGmail(): void {
   window.location.href = '/api/auth/gmail/authorize'
 }
 
-const { data: stripData, pending } = useAsyncData(
-  cacheKey,
-  async (): Promise<VenueStripResponseDto | null> => {
-    const params = new URLSearchParams(stripQuery.value).toString()
-    return await $fetch<VenueStripResponseDto>(`/api/daily-ops/metrics/venue-strip?${params}`)
-  },
-  { watch: [cacheKey] }
-)
-
-const venues = computed(() => stripData.value?.venues ?? [])
+const { venues, pending } = useDailyOpsVenueStripMetrics({
+  period: periodRef,
+  anchor: anchorRef,
+})
 const attendanceData = ref<DailyOpsAttendanceKpisDto | null>(null)
 const attendancePending = ref(false)
 const attendanceError = ref<string | null>(null)
@@ -185,8 +183,6 @@ const venueRevenueByLocationId = computed(() => {
   return map
 })
 
-const periodRef = computed(() => props.period)
-const anchorRef = computed(() => props.anchor ?? null)
 const includeVenuesRef = computed(() => true)
 const { data: breakEvenData, byVenue: breakEvenByVenue, pending: breakEvenPending, formatPctVs } = useDailyOpsBreakEven({
   period: periodRef,

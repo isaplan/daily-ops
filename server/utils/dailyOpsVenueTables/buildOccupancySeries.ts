@@ -1,15 +1,16 @@
 /**
  * @registry-id: dailyOpsBuildOccupancySeries
  * @created: 2026-07-22T00:00:00.000Z
- * @last-modified: 2026-07-28T14:40:00.000Z
+ * @last-modified: 2026-08-16T14:40:00.000Z
  * @description: Build multi-grain occupancy series from per-day combined points (write-path)
- * @last-fix: [2026-07-28] Hour series keys match periodBreakdown bucketKey (unpadded)
- *   Prior: [2026-07-22] day / DOW / week / WOM / month / MOY / year grains
+ * @last-fix: [2026-08-16] Also used by period-cache assemble GET projection
+ *   Prior: [2026-07-28] Hour series keys match periodBreakdown bucketKey (unpadded)
  * @adr-ref: ADR-004, ADR-013
  *
  * @exports-to:
  * ✓ server/utils/dailyOpsVenueTables/buildTableOccupancySummary.ts
  * ✓ utils/dailyOpsPeriodBreakdownOccupancy.ts
+ * ✓ server/utils/dailyOpsPeriodCache/assembleDashboardBundleFromPeriodCache.ts
  */
 
 import type {

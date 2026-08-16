@@ -13,6 +13,7 @@
         </p>
       </header>
 
+      <!-- 1) KPI first (skeletons while strip pending) -->
       <DailyOpsKpiTiles
         :period="period"
         :anchor="anchor"
@@ -20,6 +21,7 @@
         :table-occupancy="tableOccupancy"
       />
 
+      <!-- 2) Venue strip second (same shared strip GET as KPI) -->
       <DailyOpsVenueStrip
         :period="period"
         :anchor="anchor"
@@ -27,42 +29,44 @@
         :table-occupancy="tableOccupancy"
       />
 
-      <UAlert
-        v-if="snapshotCoverageAlert"
-        color="warning"
-        variant="soft"
-        title="Partial period — incomplete data"
-        :description="snapshotCoverageAlert"
-      />
-
-      <UAlert v-if="error" color="error" variant="soft" title="Could not load dashboard" :description="String(error)" />
-
-      <!-- P&L / daypart deferred async so d3 doesn't block initial paint -->
-      <Suspense>
-        <DailyOpsRevenueMetricsSection
-          :period="period"
-          :revenue="revenue"
-          :table-occupancy="tableOccupancy"
-          :pending="pending && !revenue"
-          @refresh="() => void refreshMetrics()"
+      <!-- 3) Below-fold only after strip ready; bundle starts then -->
+      <template v-if="stripReady">
+        <UAlert
+          v-if="snapshotCoverageAlert"
+          color="warning"
+          variant="soft"
+          title="Partial period — incomplete data"
+          :description="snapshotCoverageAlert"
         />
-        <template #fallback>
-          <div class="h-48 animate-pulse rounded-lg bg-gray-100" />
-        </template>
-      </Suspense>
 
-      <DailyOpsProductivitySummary
-        v-if="isProductivityView && summary"
-        @select-team="selectTeam"
-        @select-contract="selectContract"
-      />
+        <UAlert v-if="error" color="error" variant="soft" title="Could not load dashboard" :description="String(error)" />
 
-      <DailyOpsProductivityLaborSection v-if="isProductivityView && labor" :labor="labor" />
+        <Suspense>
+          <DailyOpsRevenueMetricsSection
+            :period="period"
+            :revenue="revenue"
+            :table-occupancy="tableOccupancy"
+            :pending="pending && !revenue"
+            @refresh="() => void refreshMetrics()"
+          />
+          <template #fallback>
+            <div class="h-48 animate-pulse rounded-lg bg-gray-100" />
+          </template>
+        </Suspense>
 
-      <p v-if="summary" class="text-xs text-gray-400">
-        Range: {{ summary.range.startDate }} → {{ summary.range.endDate }} ({{ summary.range.period }}) · Dashboard metrics
-        load in parallel (summary, revenue, labor).
-      </p>
+        <DailyOpsProductivitySummary
+          v-if="isProductivityView && summary"
+          @select-team="selectTeam"
+          @select-contract="selectContract"
+        />
+
+        <DailyOpsProductivityLaborSection v-if="isProductivityView && labor" :labor="labor" />
+
+        <p v-if="summary" class="text-xs text-gray-400">
+          Range: {{ summary.range.startDate }} → {{ summary.range.endDate }} ({{ summary.range.period }}) · Strip first, then bundle.
+        </p>
+      </template>
+      <div v-else class="h-48 animate-pulse rounded-lg bg-gray-100" />
     </div>
 
     <!-- Worker Details Drawer (productivity page only) -->
@@ -80,15 +84,14 @@
 
 <script setup lang="ts">
 /**
- * @description: Home dashboard — KPI, venue strip, revenue + labor sections
- * @last-modified: 2026-07-22T00:00:00.000Z
- * @last-fix: [2026-07-22] Wire sealed tableOccupancy + Bezettingsgraad chart section
- *   Prior: [2026-07-16] Always mount revenue/P&L below strip — was hidden when pending stuck
- *   Prior: [2026-07-16] Pass bundle revenue into metrics section (single metrics instance)
+ * @description: Home dashboard — KPI → strip → deferred bundle / below-fold
+ * @last-modified: 2026-08-16T14:20:00.000Z
+ * @last-fix: [2026-08-16] Progressive load: shared strip first, then bundle; lazy below-fold
+ *   Prior: [2026-07-22] Wire sealed tableOccupancy + Bezettingsgraad chart section
  * @adr-ref: ADR-004, ADR-010, ADR-013
  * @data-source: read-cache
- * @read-cache-json: dashboard-bundle (via GET /api/daily-ops/metrics/bundle)
- * @imports-data-from: composables/useDailyOpsDashboardMetrics.ts
+ * @read-cache-json: venue-strip + dashboard-bundle
+ * @imports-data-from: useDailyOpsVenueStripMetrics · useDailyOpsDashboardMetrics
  */
 
 import WorkerDetailsDrawer from '~/components/daily-ops/WorkerDetailsDrawer.vue'
@@ -128,7 +131,25 @@ const locationTitle = computed(() => {
   return hit?.name ?? 'Selected Location'
 })
 
-const { summary: summaryRef, revenue: revenueRef, labor: laborRef, periodBreakdown: periodBreakdownRef, tableOccupancy: tableOccupancyRef, pending, error, refresh: refreshMetrics } = useDailyOpsDashboardMetrics()
+const stripPeriod = computed(() => period.value)
+const stripAnchor = computed(() => anchor.value ?? null)
+const { ready: stripReady } = useDailyOpsVenueStripMetrics({
+  period: stripPeriod,
+  anchor: stripAnchor,
+})
+
+const bundleEnabled = computed(() => stripReady.value)
+const {
+  summary: summaryRef,
+  revenue: revenueRef,
+  labor: laborRef,
+  periodBreakdown: periodBreakdownRef,
+  tableOccupancy: tableOccupancyRef,
+  pending,
+  error,
+  refresh: refreshMetrics,
+} = useDailyOpsDashboardMetrics({ enabled: bundleEnabled })
+
 const summary = computed(() => summaryRef.value ?? null)
 const revenue = computed(() => revenueRef.value ?? null)
 const labor = computed(() => laborRef.value ?? null)

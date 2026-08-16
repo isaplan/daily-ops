@@ -1,10 +1,10 @@
 /**
  * @registry-id: dailyOpsLoadDashboardBundleForGet
  * @created: 2026-08-09T00:30:00.000Z
- * @last-modified: 2026-08-10T15:50:00.000Z
+ * @last-modified: 2026-08-16T14:20:00.000Z
  * @description: Dashboard GET loader — sealed days = period-cache; open register Today = live snapshot path
- * @last-fix: [2026-08-10] Self-heal closed days still status=open (stale early labor) before assemble
- *   Prior: [2026-08-09] Today-only exception: fetchDailyOpsDashboardBundle + venue strip
+ * @last-fix: [2026-08-16] Today: no parallel strip (strip has own endpoint); in-flight dedupe
+ *   Prior: [2026-08-10] Self-heal closed days still status=open (stale early labor) before assemble
  * @adr-ref: ADR-004, ADR-010, ADR-013, PERIOD_CACHE_ADR L2
  * @data-source: period-cache | snapshot-today-live
  * @read-cache-json: daily_ops_period_cache · level=day (sealed); Today uses snapshots + check_ins
@@ -26,7 +26,6 @@ import { assembleDashboardBundleFromPeriodCache } from '../dailyOpsPeriodCache/a
 import { cascadePeriodRange } from '../dailyOpsPeriodCache/cascadePeriod'
 import { sealDayNodesForDate } from '../dailyOpsPeriodCache/sealDayNode'
 import { DAILY_OPS_PERIOD_CACHE_COLLECTION } from '../dailyOpsPeriodCache/store'
-import { buildVenueStripResponse } from '../dailyOpsVenueStrip'
 import {
   fetchDailyOpsDashboardBundle,
   type DailyOpsDashboardBundleDto,
@@ -58,6 +57,29 @@ async function healStaleOpenDayNodes (
   await cascadePeriodRange(db, businessDate, businessDate)
 }
 
+function getLoadKey (ctx: DailyOpsMetricsContext): string {
+  return `${ctx.period}|${ctx.startDate}|${ctx.endDate}|${ctx.locationId ?? 'all'}`
+}
+
+/** Coalesce concurrent identical GETs (strip+bundle race, double mount). */
+const inflightLoads = new Map<string, Promise<DailyOpsDashboardBundleDto>>()
+
+async function loadDashboardBundleForGetInner (
+  db: Db,
+  ctx: DailyOpsMetricsContext,
+): Promise<DailyOpsDashboardBundleDto> {
+  if (isOpenRegisterTodayContext(ctx)) {
+    // Strip is served by /venue-strip via buildVenueStripResponse — don't rebuild here
+    return await fetchDailyOpsDashboardBundle(db, ctx)
+  }
+
+  if (ctx.startDate === ctx.endDate) {
+    await healStaleOpenDayNodes(db, ctx.startDate)
+  }
+
+  return assembleDashboardBundleFromPeriodCache(db, ctx)
+}
+
 /**
  * GET path:
  * - **Today (open register day):** live snapshot + check_ins / open-shift overlays (not finished period-cache).
@@ -67,17 +89,13 @@ export async function loadDashboardBundleForGet (
   db: Db,
   ctx: DailyOpsMetricsContext,
 ): Promise<DailyOpsDashboardBundleDto> {
-  if (isOpenRegisterTodayContext(ctx)) {
-    const [bundle, venueStrip] = await Promise.all([
-      fetchDailyOpsDashboardBundle(db, ctx),
-      buildVenueStripResponse(db, ctx),
-    ])
-    return { ...bundle, venueStrip }
-  }
+  const key = getLoadKey(ctx)
+  const existing = inflightLoads.get(key)
+  if (existing) return existing
 
-  if (ctx.startDate === ctx.endDate) {
-    await healStaleOpenDayNodes(db, ctx.startDate)
-  }
-
-  return assembleDashboardBundleFromPeriodCache(db, ctx)
+  const pending = loadDashboardBundleForGetInner(db, ctx).finally(() => {
+    inflightLoads.delete(key)
+  })
+  inflightLoads.set(key, pending)
+  return pending
 }

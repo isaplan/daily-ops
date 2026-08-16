@@ -630,13 +630,13 @@
 <script setup lang="ts">
 /**
  * @description: Venue strip cards — fixed 3 locations
- * @last-modified: 2026-07-25T11:30:00.000Z
- * @last-fix: [2026-07-25] New Break-even card + lazy avg/YoY; removed BE under revenue
- *   Prior: [2026-07-24] Break-even on overview revenue tiles + detail revenue
+ * @last-modified: 2026-08-16T14:20:00.000Z
+ * @last-fix: [2026-08-16] Shared venue-strip composable (no double fetch with KPI tiles)
+ *   Prior: [2026-07-25] New Break-even card + lazy avg/YoY; removed BE under revenue
  * @adr-ref: ADR-004, ADR-010, ADR-013, ADR-014
  * @data-source: read-cache
- * @read-cache-json: dashboard-bundle venue-strip (via GET /api/daily-ops/metrics/venue-strip)
- * @imports-data-from: GET /api/daily-ops/metrics/venue-strip · break-even · revenue-averages
+ * @read-cache-json: venue-strip via useDailyOpsVenueStripMetrics
+ * @imports-data-from: useDailyOpsVenueStripMetrics · break-even · revenue-averages
  */
 
 import type {
@@ -645,7 +645,6 @@ import type {
   VenueStripCardDto,
   VenueStripContractRowDto,
   VenueStripLaborRowDto,
-  VenueStripResponseDto,
   DailyOpsAttendanceKpisDto,
   DailyOpsAttendanceVenueDto,
 } from '~/types/daily-ops-dashboard'
@@ -736,18 +735,13 @@ const fetchAttendanceKpis = computed(() => {
   return r.startDate === r.endDate
 })
 
-const cacheKey = computed(
-  () => `daily-ops-venue-strip-${props.period}-${props.anchor ?? ''}`
-)
+const periodRef = computed(() => props.period)
+const anchorRef = computed(() => props.anchor ?? null)
 
-const { data, pending, error: fetchError } = useAsyncData(
-  cacheKey,
-  async (): Promise<VenueStripResponseDto | null> =>
-    await $fetch<VenueStripResponseDto>('/api/daily-ops/metrics/venue-strip', {
-      query: stripQuery.value,
-    }),
-  { watch: [cacheKey] }
-)
+const { data, pending, error: fetchError } = useDailyOpsVenueStripMetrics({
+  period: periodRef,
+  anchor: anchorRef,
+})
 
 const attendanceCacheKey = computed(
   () => `daily-ops-attendance-kpis-${props.period}-${props.anchor ?? ''}`,
@@ -783,8 +777,6 @@ const stripVenueRevenueMap = computed(() => {
   for (const v of data.value?.venues ?? []) map[v.locationId] = v.revenue?.total ?? 0
   return map
 })
-const periodRef = computed(() => props.period)
-const anchorRef = computed(() => props.anchor ?? null)
 const includeVenuesRef = computed(() => true)
 const { byVenue: breakEvenByVenue, formatPctVs: formatBePct, pending: breakEvenPending } = useDailyOpsBreakEven({
   period: periodRef,
