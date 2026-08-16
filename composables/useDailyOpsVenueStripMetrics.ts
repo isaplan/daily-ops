@@ -1,11 +1,11 @@
 /**
  * @registry-id: useDailyOpsVenueStripMetrics
  * @created: 2026-08-16T14:20:00.000Z
- * @last-modified: 2026-08-16T14:20:00.000Z
- * @description: Shared venue-strip GET — one HTTP for KPI tiles + VenueStrip
- * @last-fix: [2026-08-16] Deduped strip fetch (was double-called by KPI + strip)
+ * @last-modified: 2026-08-16T15:55:00.000Z
+ * @description: Shared venue-strip GET — one HTTP for KPI tiles + VenueStrip + client session cache
+ * @last-fix: [2026-08-16] Client session cache with Today/week/archive freshness
  * @adr-ref: ADR-004, ADR-013
- * @data-source: read-cache | snapshot-today-live
+ * @data-source: read-cache | snapshot-today-live | client-session
  * @read-cache-json: venue-strip via GET /api/daily-ops/metrics/venue-strip
  * @imports-data-from: GET /api/daily-ops/metrics/venue-strip
  *
@@ -18,6 +18,14 @@
 import type { VenueStripCardDto, VenueStripResponseDto } from '~/types/daily-ops-dashboard'
 import type { ComputedRef, Ref } from 'vue'
 import { useDailyOpsDashboardRoute } from '~/composables/useDailyOpsDashboardRoute'
+import {
+  clientMetricsCacheKey,
+  freshnessTierForRange,
+  readClientMetricsCache,
+  shouldSkipMetricsFetch,
+  writeClientMetricsCache,
+} from '~/composables/useDailyOpsClientMetricsCache'
+import { resolveDailyOpsPeriod } from '~/utils/dailyOpsPeriod'
 
 type MaybeRefStr = Ref<string> | ComputedRef<string> | string
 type MaybeRefAnchor =
@@ -26,6 +34,11 @@ type MaybeRefAnchor =
   | string
   | null
   | undefined
+
+type StripResponse = VenueStripResponseDto & {
+  cacheVersion?: string | null
+  financeSealedMonths?: number | null
+}
 
 function unwrapStr (v: MaybeRefStr | undefined, fallback: string): string {
   if (v == null) return fallback
@@ -63,15 +76,37 @@ export function useDailyOpsVenueStripMetrics (opts?: {
 
   const { data, pending, error, refresh } = useAsyncData(
     () => asyncKey.value,
-    () =>
-      $fetch<VenueStripResponseDto>('/api/daily-ops/metrics/venue-strip', {
-        query: stripQuery.value,
-      }),
+    async () => {
+      const q = stripQuery.value
+      const range = resolveDailyOpsPeriod(q.period, q.anchor)
+      const tier = freshnessTierForRange(q.period, range.endDate)
+      const cacheKey = clientMetricsCacheKey('strip', q.period, q.anchor ?? null, null)
+      const cached = readClientMetricsCache<StripResponse>(cacheKey)
+
+      if (await shouldSkipMetricsFetch(cached, q)) {
+        return cached!.data
+      }
+
+      const [fresh, ver] = await Promise.all([
+        $fetch<StripResponse>('/api/daily-ops/metrics/venue-strip', { query: q }),
+        tier === 'today'
+          ? Promise.resolve({ version: null as string | null, financeSealedMonths: 0 })
+          : $fetch<{ version: string | null; financeSealedMonths: number }>(
+              '/api/daily-ops/metrics/period-cache-version',
+              { query: q },
+            ).catch(() => ({ version: null, financeSealedMonths: 0 })),
+      ])
+      writeClientMetricsCache(cacheKey, fresh, {
+        version: fresh.cacheVersion ?? ver.version,
+        financeSealedMonths: ver.financeSealedMonths,
+        tier,
+      })
+      return fresh
+    },
     { watch: [asyncKey] },
   )
 
   const venues = computed((): VenueStripCardDto[] => data.value?.venues ?? [])
-  /** True once the strip request settled (success or empty) — unlocks deferred bundle. */
   const ready = computed(() => !pending.value)
 
   return {

@@ -76,9 +76,9 @@
 <script setup lang="ts">
 /**
  * @description: Dashboard KPI tiles with lazy drawer fetches
- * @last-modified: 2026-08-16T14:20:00.000Z
- * @last-fix: [2026-08-16] Shared venue-strip composable (no double fetch with VenueStrip)
- *   Prior: [2026-08-05] Est. net: Finance badge only when sealed; else estimatedNet on ops revenue
+ * @last-modified: 2026-08-16T15:10:00.000Z
+ * @last-fix: [2026-08-16] Drop CM jargon in UI — BE + Result (Finance / est.)
+ *   Prior: [2026-08-16] Shared venue-strip composable (no double fetch with VenueStrip)
  * @adr-ref: ADR-004, ADR-010, ADR-013, ADR-014, ADR-019, ADR-022
  * @data-source: mixed
  * @read-cache-json: dashboard-bundle summary + tableOccupancy; lazy GET break-even, revenue-averages
@@ -205,14 +205,14 @@ const {
 })
 
 const revenueBeLine = computed(() => {
-  if (breakEvenPending.value && !breakEvenData.value) return 'CM BE —'
+  if (breakEvenPending.value && !breakEvenData.value) return 'BE —'
   const be = breakEvenData.value
-  if (!be || be.breakEven <= 0) return 'CM BE —'
+  if (!be || be.breakEven <= 0) return 'BE —'
   if (props.period === 'today' || be.pctVsBreakEven == null) {
-    return `CM BE ${formatEurWhole(be.breakEven)}`
+    return `BE ${formatEurWhole(be.breakEven)}`
   }
   const pct = formatPctVs(be.pctVsBreakEven)
-  return pct ? `CM BE ${formatEurWhole(be.breakEven)} · ${pct}` : `CM BE ${formatEurWhole(be.breakEven)}`
+  return pct ? `BE ${formatEurWhole(be.breakEven)} · ${pct}` : `BE ${formatEurWhole(be.breakEven)}`
 })
 
 const revenueAvgLine = computed(() => {
@@ -234,7 +234,7 @@ function breakEvenSourceLabel (source: string | undefined): string {
 
 /**
  * Prefer sealed Finance P&L when source is actual_month.
- * Else estimatedNet (ops revenue × CM) from API; fallback local CM on ops revenue.
+ * Else estimatedNet from API; fallback (rev − BE) × margin on ops revenue.
  */
 function estNetFromBreakEven (
   row: Pick<
@@ -255,11 +255,12 @@ function estNetFromBreakEven (
   if (!(row.breakEven > 0) || !Number.isFinite(row.revenue)) {
     return { amount: null, fromAccounting: false }
   }
-  const cm = 1 - row.cogsPct / 100 - row.flexLaborPct / 100
-  if (!(cm > 0)) return { amount: null, fromAccounting: false }
-  return { amount: (row.revenue - row.breakEven) * cm, fromAccounting: false }
+  const margin = 1 - row.cogsPct / 100 - row.flexLaborPct / 100
+  if (!(margin > 0)) return { amount: null, fromAccounting: false }
+  return { amount: (row.revenue - row.breakEven) * margin, fromAccounting: false }
 }
 
+/** UI: "Result" — Finance when sealed, else est. */
 function formatEstNetAmount (
   amount: number | null,
   fromAccounting = false,
@@ -267,7 +268,7 @@ function formatEstNetAmount (
   if (amount == null || !Number.isFinite(amount)) return '—'
   const sign = amount > 0 ? '+' : ''
   const body = `${sign}${formatEurWhole(amount)}`
-  return fromAccounting ? `${body} (Finance P&L)` : body
+  return fromAccounting ? `${body} (Finance)` : `${body} (est.)`
 }
 
 function formatBreakEvenCell (locationId: string): string {
@@ -775,14 +776,14 @@ const drawerContent = computed(() => {
       return {
         title: 'Total Revenue',
         intro: props.period === 'today'
-          ? 'Headline uses Bork order-time aggregates (ex VAT) for the open register day. CM break-even sums monthly targets for the period. Est. net uses sealed Finance P&L result when available; else (rev − BE) × contribution margin.'
+          ? 'Headline uses Bork order-time aggregates (ex VAT) for the open register day. Break-even sums monthly targets for the period. Result uses sealed Finance P&L when available; otherwise estimated from revenue vs break-even.'
           : s?.revenueLeadSource === 'inbox_basis_ex_vat'
-            ? 'Headline uses Inbox Basis Report (full business day, ex VAT) per venue when available. CM break-even sums monthly targets for the period. Est. net uses sealed Finance P&L result when available; else (rev − BE) × contribution margin.'
-            : 'Headline uses Bork paid-time business-day aggregates (ex VAT). CM break-even sums monthly targets for the period. Est. net uses sealed Finance P&L result when available; else (rev − BE) × contribution margin.',
+            ? 'Headline uses Inbox Basis Report (full business day, ex VAT) per venue when available. Break-even sums monthly targets for the period. Result uses sealed Finance P&L when available; otherwise estimated from revenue vs break-even.'
+            : 'Headline uses Bork paid-time business-day aggregates (ex VAT). Break-even sums monthly targets for the period. Result uses sealed Finance P&L when available; otherwise estimated from revenue vs break-even.',
         summaryRows: [
           { label: 'Combined (3 venues)', value: formatEurWhole(t.revenue) },
           {
-            label: 'CM break-even (combined)',
+            label: 'Break-even (combined)',
             value: breakEvenPending.value && !breakEvenData.value
               ? '—'
               : breakEvenData.value && breakEvenData.value.breakEven > 0
@@ -794,7 +795,7 @@ const drawerContent = computed(() => {
                 : '—',
           },
           {
-            label: 'Est. net result (combined)',
+            label: 'Result (combined)',
             value: (() => {
               if (breakEvenPending.value && !breakEvenData.value) return '—'
               if (!breakEvenData.value) return '—'
@@ -841,8 +842,8 @@ const drawerContent = computed(() => {
           'Total',
           'Food',
           'Beverage',
-          'CM break-even',
-          'Est. net',
+          'Break-even',
+          'Result',
           avgRevColumnLabel(),
         ],
         venueRows: venueRevenueRows(),

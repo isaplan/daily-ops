@@ -63,7 +63,7 @@
         <DailyOpsProductivityLaborSection v-if="isProductivityView && labor" :labor="labor" />
 
         <p v-if="summary" class="text-xs text-gray-400">
-          Range: {{ summary.range.startDate }} → {{ summary.range.endDate }} ({{ summary.range.period }}) · Strip first, then bundle.
+          Range: {{ summary.range.startDate }} → {{ summary.range.endDate }} ({{ summary.range.period }}) · Client cache: Today live · week soft · older versioned.
         </p>
       </template>
       <div v-else class="h-48 animate-pulse rounded-lg bg-gray-100" />
@@ -85,12 +85,12 @@
 <script setup lang="ts">
 /**
  * @description: Home dashboard — KPI → strip → deferred bundle / below-fold
- * @last-modified: 2026-08-16T14:20:00.000Z
- * @last-fix: [2026-08-16] Progressive load: shared strip first, then bundle; lazy below-fold
- *   Prior: [2026-07-22] Wire sealed tableOccupancy + Bezettingsgraad chart section
+ * @last-modified: 2026-08-16T15:55:00.000Z
+ * @last-fix: [2026-08-16] Client session cache + strip-only sealed GET; Today stays live
+ *   Prior: [2026-08-16] Progressive load: shared strip first, then bundle; lazy below-fold
  * @adr-ref: ADR-004, ADR-010, ADR-013
- * @data-source: read-cache
- * @read-cache-json: venue-strip + dashboard-bundle
+ * @data-source: read-cache | client-session
+ * @read-cache-json: venue-strip + dashboard-bundle (+ client useState)
  * @imports-data-from: useDailyOpsVenueStripMetrics · useDailyOpsDashboardMetrics
  */
 

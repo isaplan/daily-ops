@@ -1,12 +1,12 @@
 /**
  * @registry-id: useDailyOpsDashboardMetrics
  * @created: 2026-05-18T00:00:00.000Z
- * @last-modified: 2026-08-16T14:20:00.000Z
- * @description: Dashboard metrics via snapshot bundle — deferred until venue-strip ready
- * @last-fix: [2026-08-16] Optional enabled gate — fetch after strip (KPI→strip→rest)
- *   Prior: [2026-07-22] Bump bundle key v8 — refetch after byVenue staff/productivity fix
+ * @last-modified: 2026-08-16T15:55:00.000Z
+ * @description: Dashboard metrics via snapshot bundle — deferred until venue-strip ready + client cache
+ * @last-fix: [2026-08-16] Client session cache (Today live; week soft; archive versioned)
+ *   Prior: [2026-08-16] Optional enabled gate — fetch after strip (KPI→strip→rest)
  * @adr-ref: ADR-004, ADR-010, ADR-013
- * @data-source: read-cache
+ * @data-source: read-cache | client-session
  * @read-cache-json: dashboard-bundle (via GET /api/daily-ops/metrics/bundle)
  * @imports-data-from: GET /api/daily-ops/metrics/bundle
  *
@@ -28,6 +28,14 @@ import type { ComputedRef, Ref } from 'vue'
 import { amsterdamOpenRegisterBusinessDateYmd } from '~/utils/dailyOpsBusinessDate'
 import { pollWindowState } from '~/utils/integrations/borkEitjeDailyCronSchedule'
 import { useDailyOpsDashboardRoute } from '~/composables/useDailyOpsDashboardRoute'
+import {
+  clientMetricsCacheKey,
+  freshnessTierForRange,
+  readClientMetricsCache,
+  shouldSkipMetricsFetch,
+  writeClientMetricsCache,
+} from '~/composables/useDailyOpsClientMetricsCache'
+import { resolveDailyOpsPeriod } from '~/utils/dailyOpsPeriod'
 
 export type DailyOpsDashboardMetrics = {
   summary: ComputedRef<DailyOpsSummaryDto | null>
@@ -47,6 +55,8 @@ type DashboardBundleResponse = {
   labor: DailyOpsLaborMetricsDto
   periodBreakdown?: PeriodBreakdownDto
   tableOccupancy?: DailyOpsTableOccupancyKpisDto
+  cacheVersion?: string | null
+  financeSealedMonths?: number | null
 }
 
 type SnapshotVersionResponse = {
@@ -61,7 +71,7 @@ const metricsKey = (
   q: Record<string, string | undefined>,
   snapshotBuiltAt: string | null,
 ): string => {
-  const base = `daily-ops-bundle-v8-${q.period ?? 'today'}-${q.location ?? 'all'}-${q.anchor ?? ''}`
+  const base = `daily-ops-bundle-v9-${q.period ?? 'today'}-${q.location ?? 'all'}-${q.anchor ?? ''}`
   if ((q.period ?? 'today') === 'today') {
     return `${base}-${amsterdamOpenRegisterBusinessDateYmd()}-${snapshotBuiltAt ?? 'init'}`
   }
@@ -82,9 +92,41 @@ export function useDailyOpsDashboardMetrics (opts?: {
     'daily-ops-dashboard-bundle',
     async (): Promise<DashboardBundleResponse | null> => {
       if (!enabled.value) return null
-      return await $fetch<DashboardBundleResponse>('/api/daily-ops/metrics/bundle', {
-        query: dashboardQuery.value,
+
+      const q = dashboardQuery.value
+      const periodId = q.period ?? 'today'
+      const range = resolveDailyOpsPeriod(periodId, q.anchor)
+      const tier = freshnessTierForRange(periodId, range.endDate)
+      const clientKey = clientMetricsCacheKey(
+        'bundle',
+        periodId,
+        q.anchor ?? null,
+        q.location ?? null,
+      )
+      const cached = readClientMetricsCache<DashboardBundleResponse>(clientKey)
+      const versionQuery: Record<string, string> = { period: periodId }
+      if (q.anchor) versionQuery.anchor = q.anchor
+      if (q.location) versionQuery.location = q.location
+
+      if (await shouldSkipMetricsFetch(cached, versionQuery)) {
+        return cached!.data
+      }
+
+      const [fresh, ver] = await Promise.all([
+        $fetch<DashboardBundleResponse>('/api/daily-ops/metrics/bundle', { query: q }),
+        tier === 'today'
+          ? Promise.resolve({ version: null as string | null, financeSealedMonths: 0 })
+          : $fetch<{ version: string | null; financeSealedMonths: number }>(
+              '/api/daily-ops/metrics/period-cache-version',
+              { query: versionQuery },
+            ).catch(() => ({ version: null, financeSealedMonths: 0 })),
+      ])
+      writeClientMetricsCache(clientKey, fresh, {
+        version: fresh.cacheVersion ?? ver.version,
+        financeSealedMonths: ver.financeSealedMonths,
+        tier,
       })
+      return fresh
     },
     { watch: [cacheKey, enabled] },
   )

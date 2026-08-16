@@ -1,10 +1,10 @@
 /**
  * @registry-id: dailyOpsVenueStripGet
  * @created: 2026-05-16T23:30:00.000Z
- * @last-modified: 2026-08-16T14:20:00.000Z
- * @description: GET /api/daily-ops/metrics/venue-strip — Today live strip; sealed days period-cache
- * @last-fix: [2026-08-16] Today = strip-only build (no full dashboard bundle)
- *   Prior: [2026-08-09] Today via loadDashboardBundleForGet live exception (Active/open-shift)
+ * @last-modified: 2026-08-16T15:55:00.000Z
+ * @description: GET /api/daily-ops/metrics/venue-strip — Today live strip; sealed = strip-only period-cache
+ * @last-fix: [2026-08-16] Sealed periods: strip-only assemble (no full dashboard bundle)
+ *   Prior: [2026-08-16] Today = strip-only build (no full dashboard bundle)
  * @adr-ref: ADR-004, ADR-010, ADR-013, PERIOD_CACHE_ADR L2
  * @data-source: snapshot-today-live | period-cache
  * @read-cache-json: daily_ops_period_cache · level=day (sealed only)
@@ -18,10 +18,8 @@
 import { getDb } from '../../../utils/db'
 import { parseDailyOpsMetricsQuery } from '../../../utils/dailyOpsMetrics/context'
 import type { VenueStripResponseDto } from '~/types/daily-ops-dashboard'
-import {
-  isOpenRegisterTodayContext,
-  loadDashboardBundleForGet,
-} from '../../../utils/dailyOpsSnapshot/loadDashboardBundleForGet'
+import { assembleVenueStripFromPeriodCache } from '../../../utils/dailyOpsPeriodCache/assembleDashboardBundleFromPeriodCache'
+import { isOpenRegisterTodayContext } from '../../../utils/dailyOpsSnapshot/loadDashboardBundleForGet'
 import { buildVenueStripResponse } from '../../../utils/dailyOpsVenueStrip'
 import { snapshotCacheControl } from '../../../utils/dailyOpsSnapshot/dashboardBundle/snapshotCacheControl'
 import { VENUE_STRIP_LOCATIONS } from '../../../utils/venueStrip/constants'
@@ -60,22 +58,19 @@ function emptyStrip (ctx: { period: string; startDate: string; endDate: string }
   }
 }
 
-export default defineEventHandler(async (event): Promise<VenueStripResponseDto> => {
+export default defineEventHandler(async (event): Promise<VenueStripResponseDto & { cacheVersion?: string | null }> => {
   const q = getQuery(event) as Record<string, unknown>
   const ctx = parseDailyOpsMetricsQuery(q)
   setResponseHeader(event, 'Cache-Control', snapshotCacheControl(ctx))
 
   const db = await getDb()
 
-  // Today: strip-only — do not build the full dashboard bundle
   if (isOpenRegisterTodayContext(ctx)) {
-    return await buildVenueStripResponse(db, ctx)
+    const strip = await buildVenueStripResponse(db, ctx)
+    return { ...strip, cacheVersion: null }
   }
 
-  const bundle = await loadDashboardBundleForGet(db, ctx)
-  if (bundle.venueStrip?.venues?.length) {
-    return bundle.venueStrip
-  }
-
-  return emptyStrip(ctx)
+  const strip = await assembleVenueStripFromPeriodCache(db, ctx)
+  if (strip.venues?.length) return strip
+  return { ...emptyStrip(ctx), cacheVersion: null }
 })

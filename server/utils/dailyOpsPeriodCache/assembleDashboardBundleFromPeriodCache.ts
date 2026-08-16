@@ -1,11 +1,11 @@
 /**
  * @registry-id: dailyOpsAssembleDashboardBundleFromPeriodCache
  * @created: 2026-08-09T17:30:00.000Z
- * @last-modified: 2026-08-16T14:40:00.000Z
+ * @last-modified: 2026-08-16T16:05:00.000Z
  * @description: Project DailyOpsDashboardBundleDto from period-cache day nodes (GET)
- * @last-fix: [2026-08-16] Project profitByInterval cells + occupancy series from sealed day nodes
- *   Prior: [2026-08-09] Phase 7 — replace dashboard-bundle read-cache on GET
- * @adr-ref: PERIOD_CACHE_ADR L2, L3, ADR-004, ADR-013
+ * @last-fix: [2026-08-16] Fill periodBreakdown.byVenue (Locations graph was empty)
+ *   Prior: [2026-08-16] Export strip-only assemble (sealed venue-strip without full bundle)
+ * @adr-ref: PERIOD_CACHE_ADR L2, L3, ADR-004, ADR-013, ADR-014, ADR-022
  * @data-source: period-cache
  * @read-cache-json: daily_ops_period_cache · level=day
  *
@@ -57,7 +57,9 @@ import {
   buildOccupancySeriesByGrain,
   combineDailyOccupancyPoints,
 } from '../dailyOpsVenueTables/buildOccupancySeries'
+import { alignProfitByIntervalToSealedFinance } from './alignProfitByIntervalToSealedFinance'
 import { loadPeriodDayNodesForRange } from './loadPeriodDayNodesForRange'
+import { resolvePeriodRange, sumResolvedNodes } from './resolvePeriodRange'
 
 function round2 (n: number): number {
   return Math.round(n * 100) / 100
@@ -238,74 +240,127 @@ function buildVenueStripFromNodes (
   }
 }
 
+function finalizeBreakdownRow (
+  bucketKey: string,
+  bucketLabel: string,
+  cur: { revenue: number; laborCost: number; hours: number },
+): PeriodBreakdownRowDto {
+  const revenue = round2(cur.revenue)
+  const laborCost = round2(cur.laborCost)
+  const laborHours = round2(cur.hours)
+  return {
+    bucketKey,
+    bucketLabel,
+    revenue,
+    laborCost,
+    laborHours,
+    productivity: laborHours > 0 ? round2(revenue / laborHours) : null,
+    staffCount: 0,
+    profit: round2(revenue - laborCost),
+  }
+}
+
 function buildPeriodBreakdown (
   ctx: DailyOpsMetricsContext,
   nodes: DailyOpsPeriodNode[],
 ): PeriodBreakdownDto {
+  const venueNodes = nodes.filter((n) => n.locationId !== 'all')
+  const singleDay = ctx.startDate === ctx.endDate
+
+  if (singleDay) {
+    const hourMap = new Map<number, { revenue: number; laborCost: number; hours: number }>()
+    const byVenueHour = new Map<string, Map<number, { revenue: number; laborCost: number; hours: number }>>()
+
+    for (const venue of VENUE_STRIP_LOCATIONS) {
+      byVenueHour.set(venue.locationId, new Map())
+    }
+
+    for (const n of venueNodes) {
+      const dayHours = n.labor.hours
+      const dayLoaded = n.labor.loadedCost
+      const dayRev = n.revenue.exVat || 1
+      const locMap = byVenueHour.get(n.locationId) ?? new Map()
+      byVenueHour.set(n.locationId, locMap)
+
+      for (const h of n.revenue.byHour ?? []) {
+        const share = dayRev > 0 ? h.exVat / dayRev : 0
+        const laborCost = dayLoaded * share
+        const hours = dayHours * share
+
+        const allCur = hourMap.get(h.hour) ?? { revenue: 0, laborCost: 0, hours: 0 }
+        allCur.revenue += h.exVat
+        allCur.laborCost += laborCost
+        allCur.hours += hours
+        hourMap.set(h.hour, allCur)
+
+        const locCur = locMap.get(h.hour) ?? { revenue: 0, laborCost: 0, hours: 0 }
+        locCur.revenue += h.exVat
+        locCur.laborCost += laborCost
+        locCur.hours += hours
+        locMap.set(h.hour, locCur)
+      }
+    }
+
+    const rows: PeriodBreakdownRowDto[] = Array.from({ length: 24 }, (_, hour) => {
+      const cur = hourMap.get(hour) ?? { revenue: 0, laborCost: 0, hours: 0 }
+      return finalizeBreakdownRow(String(hour), `${String(hour).padStart(2, '0')}:00`, cur)
+    })
+
+    const byVenue = VENUE_STRIP_LOCATIONS.map((venue) => {
+      const locMap = byVenueHour.get(venue.locationId) ?? new Map()
+      return {
+        locationId: venue.locationId,
+        locationName: venue.locationName,
+        rows: Array.from({ length: 24 }, (_, hour) => {
+          const cur = locMap.get(hour) ?? { revenue: 0, laborCost: 0, hours: 0 }
+          return finalizeBreakdownRow(String(hour), `${String(hour).padStart(2, '0')}:00`, cur)
+        }),
+      }
+    })
+
+    return { granularity: 'hour', rows, byVenue }
+  }
+
   const byDate = new Map<string, { revenue: number; laborCost: number; hours: number }>()
-  for (const n of nodes) {
-    if (n.locationId === 'all') continue
+  const byVenueDate = new Map<string, Map<string, { revenue: number; laborCost: number; hours: number }>>()
+  for (const venue of VENUE_STRIP_LOCATIONS) {
+    byVenueDate.set(venue.locationId, new Map())
+  }
+
+  for (const n of venueNodes) {
     const cur = byDate.get(n.periodKey) ?? { revenue: 0, laborCost: 0, hours: 0 }
     cur.revenue += n.revenue.exVat
     cur.laborCost += n.labor.loadedCost
     cur.hours += n.labor.hours
     byDate.set(n.periodKey, cur)
+
+    const locMap = byVenueDate.get(n.locationId) ?? new Map()
+    byVenueDate.set(n.locationId, locMap)
+    const locCur = locMap.get(n.periodKey) ?? { revenue: 0, laborCost: 0, hours: 0 }
+    locCur.revenue += n.revenue.exVat
+    locCur.laborCost += n.labor.loadedCost
+    locCur.hours += n.labor.hours
+    locMap.set(n.periodKey, locCur)
   }
 
-  const singleDay = ctx.startDate === ctx.endDate
-  if (singleDay) {
-    const hourMap = new Map<number, { revenue: number; laborCost: number; hours: number }>()
-    for (const n of nodes) {
-      if (n.locationId === 'all') continue
-      const dayHours = n.labor.hours
-      const dayLoaded = n.labor.loadedCost
-      const dayRev = n.revenue.exVat || 1
-      for (const h of n.revenue.byHour ?? []) {
-        const cur = hourMap.get(h.hour) ?? { revenue: 0, laborCost: 0, hours: 0 }
-        cur.revenue += h.exVat
-        const share = dayRev > 0 ? h.exVat / dayRev : 0
-        cur.laborCost += dayLoaded * share
-        cur.hours += dayHours * share
-        hourMap.set(h.hour, cur)
-      }
+  const dates = [...byDate.keys()].sort((a, b) => a.localeCompare(b))
+  const rows: PeriodBreakdownRowDto[] = dates.map((date) =>
+    finalizeBreakdownRow(date, date, byDate.get(date) ?? { revenue: 0, laborCost: 0, hours: 0 }),
+  )
+
+  const byVenue = VENUE_STRIP_LOCATIONS.map((venue) => {
+    const locMap = byVenueDate.get(venue.locationId) ?? new Map()
+    const venueDates = dates.length > 0 ? dates : [...locMap.keys()].sort((a, b) => a.localeCompare(b))
+    return {
+      locationId: venue.locationId,
+      locationName: venue.locationName,
+      rows: venueDates.map((date) =>
+        finalizeBreakdownRow(date, date, locMap.get(date) ?? { revenue: 0, laborCost: 0, hours: 0 }),
+      ),
     }
-    const rows: PeriodBreakdownRowDto[] = Array.from({ length: 24 }, (_, hour) => {
-      const cur = hourMap.get(hour) ?? { revenue: 0, laborCost: 0, hours: 0 }
-      const revenue = round2(cur.revenue)
-      const laborCost = round2(cur.laborCost)
-      const laborHours = round2(cur.hours)
-      return {
-        bucketKey: String(hour),
-        bucketLabel: `${String(hour).padStart(2, '0')}:00`,
-        revenue,
-        laborCost,
-        laborHours,
-        productivity: laborHours > 0 ? round2(revenue / laborHours) : null,
-        staffCount: 0,
-        profit: round2(revenue - laborCost),
-      }
-    })
-    return { granularity: 'hour', rows, byVenue: [] }
-  }
+  })
 
-  const rows: PeriodBreakdownRowDto[] = [...byDate.entries()]
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([date, cur]) => {
-      const revenue = round2(cur.revenue)
-      const laborCost = round2(cur.laborCost)
-      const laborHours = round2(cur.hours)
-      return {
-        bucketKey: date,
-        bucketLabel: date,
-        revenue,
-        laborCost,
-        laborHours,
-        productivity: laborHours > 0 ? round2(revenue / laborHours) : null,
-        staffCount: 0,
-        profit: round2(revenue - laborCost),
-      }
-    })
-  return { granularity: 'day', rows, byVenue: [] }
+  return { granularity: 'day', rows, byVenue }
 }
 
 async function loadTotalTablesByLocation (db: Db): Promise<Map<string, number>> {
@@ -440,11 +495,12 @@ function buildTableOccupancyFromNodes (
   )
 }
 
-function buildSummary (
+async function buildSummary (
+  db: Db,
   ctx: DailyOpsMetricsContext,
   nodes: DailyOpsPeriodNode[],
   expectedDays: number,
-): DailyOpsSummaryDto {
+): Promise<DailyOpsSummaryDto> {
   const scoped =
     ctx.locationId && ctx.locationId !== 'all'
       ? nodes.filter((n) => n.locationId === ctx.locationId)
@@ -453,7 +509,15 @@ function buildSummary (
         : nodes.filter((n) => n.locationId !== 'all')
 
   const sums = sumNodes(scoped.length ? scoped : nodes)
-  const profit = round2(sums.revenue - sums.loadedCost - scoped.reduce((s, n) => s + n.cogs.amount, 0))
+  const coverLoc =
+    ctx.locationId && ctx.locationId !== 'all' ? ctx.locationId : 'all'
+  const cover = await resolvePeriodRange(db, {
+    startDate: ctx.startDate,
+    endDate: ctx.endDate,
+    locationId: coverLoc,
+  })
+  // ADR-022: greedy month/week/day cover — sealed months use Finance result via ratios.netProfit
+  const profit = sumResolvedNodes(cover.nodes).netProfit
   const foundDates = new Set(scoped.map((n) => n.periodKey))
   const expected = enumerateUtcDatesInclusive(ctx.startDate, ctx.endDate)
   const missingDates = expected.filter((d) => !foundDates.has(d))
@@ -531,6 +595,7 @@ async function buildProfitByIntervalFromNodes (
 }
 
 async function buildRevenueBreakdown (
+  db: Db,
   ctx: DailyOpsMetricsContext,
   nodes: DailyOpsPeriodNode[],
 ): Promise<DailyOpsRevenueBreakdownDto> {
@@ -564,7 +629,11 @@ async function buildRevenueBreakdown (
     }
   }
 
-  const profitByInterval = await buildProfitByIntervalFromNodes(ctx, nodes)
+  const profitByIntervalRaw = await buildProfitByIntervalFromNodes(ctx, nodes)
+  const profitByInterval = await alignProfitByIntervalToSealedFinance(db, profitByIntervalRaw, {
+    startDate: ctx.startDate,
+    endDate: ctx.endDate,
+  })
 
   return {
     range: { period: ctx.period, startDate: ctx.startDate, endDate: ctx.endDate },
@@ -692,11 +761,86 @@ function buildLaborMetrics (
   }
 }
 
+function emptyVenueStrip (ctx: DailyOpsMetricsContext): VenueStripResponseDto {
+  return {
+    range: {
+      period: ctx.period as VenueStripResponseDto['range']['period'],
+      startDate: ctx.startDate,
+      endDate: ctx.endDate,
+    },
+    venues: VENUE_STRIP_LOCATIONS.map((v) => ({
+      locationId: v.locationId,
+      locationName: v.locationName,
+      revenue: {
+        total: 0,
+        food: 0,
+        beverage: 0,
+        totalIncVat: 0,
+        foodIncVat: 0,
+        beverageIncVat: 0,
+      },
+      labor: {
+        all: emptyLaborRow(),
+        gewerkt: emptyLaborRow(),
+        keuken: emptyLaborRow(),
+        bediening: emptyLaborRow(),
+        other: emptyLaborRow(),
+      },
+      workers: [],
+      active: { workers: 0, rows: [] },
+      productivity: { totalPerHour: null, keukenPerHour: null, bedieningPerHour: null },
+      contractsByTeam: { keuken: [], bediening: [], other: [] },
+      coverage: { hasRevenue: false, hasLabor: false, snapshotBuilt: false },
+    })),
+  }
+}
+
+export function periodCacheVersionFromNodes (nodes: DailyOpsPeriodNode[]): string | null {
+  let latest = 0
+  for (const n of nodes) {
+    const t = Date.parse(n.provenance?.lastBuiltAt ?? '')
+    if (Number.isFinite(t) && t > latest) latest = t
+  }
+  return latest > 0 ? new Date(latest).toISOString() : null
+}
+
+async function loadVenueDayNodesForStrip (
+  db: Db,
+  ctx: DailyOpsMetricsContext,
+): Promise<DailyOpsPeriodNode[]> {
+  const venueLists = await Promise.all(
+    VENUE_STRIP_LOCATIONS.map((v) =>
+      loadPeriodDayNodesForRange(db, {
+        startDate: ctx.startDate,
+        endDate: ctx.endDate,
+        locationId: v.locationId,
+      }),
+    ),
+  )
+  return venueLists.flat()
+}
+
+/**
+ * Sealed venue-strip only — no summary/revenue/labor/occupancy assemble.
+ * Used by GET /venue-strip so bundle can load once separately.
+ */
+export async function assembleVenueStripFromPeriodCache (
+  db: Db,
+  ctx: DailyOpsMetricsContext,
+): Promise<VenueStripResponseDto & { cacheVersion: string | null }> {
+  const nodes = await loadVenueDayNodesForStrip(db, ctx)
+  if (nodes.length === 0) {
+    return { ...emptyVenueStrip(ctx), cacheVersion: null }
+  }
+  const strip = buildVenueStripFromNodes(ctx, nodes)
+  return { ...strip, cacheVersion: periodCacheVersionFromNodes(nodes) }
+}
+
 /** Project dashboard bundle from period-cache day nodes. Miss → empty + dataGap shape. */
 export async function assembleDashboardBundleFromPeriodCache (
   db: Db,
   ctx: DailyOpsMetricsContext,
-): Promise<DailyOpsDashboardBundleDto> {
+): Promise<DailyOpsDashboardBundleDto & { cacheVersion: string | null }> {
   const locationId = ctx.locationId ?? 'all'
   const loadLoc = locationId === 'all' ? 'all' : locationId
 
@@ -726,7 +870,7 @@ export async function assembleDashboardBundleFromPeriodCache (
   }
 
   if (nodes.length === 0) {
-    return emptyDashboardBundleForCacheMiss(ctx)
+    return { ...emptyDashboardBundleForCacheMiss(ctx), cacheVersion: null }
   }
 
   const expectedDays = enumerateUtcDatesInclusive(ctx.startDate, ctx.endDate).length
@@ -735,11 +879,12 @@ export async function assembleDashboardBundleFromPeriodCache (
 
   const occNodes = stripNodes.length ? stripNodes : nodes
   return {
-    summary: buildSummary(ctx, nodes, expectedDays),
-    revenue: await buildRevenueBreakdown(ctx, nodes),
+    summary: await buildSummary(db, ctx, nodes, expectedDays),
+    revenue: await buildRevenueBreakdown(db, ctx, nodes),
     labor: buildLaborMetrics(ctx, nodes),
     venueStrip: buildVenueStripFromNodes(ctx, occNodes),
     periodBreakdown: buildPeriodBreakdown(ctx, occNodes),
     tableOccupancy: buildTableOccupancyFromNodes(ctx, occNodes, totalByLoc),
+    cacheVersion: periodCacheVersionFromNodes(nodes),
   }
 }

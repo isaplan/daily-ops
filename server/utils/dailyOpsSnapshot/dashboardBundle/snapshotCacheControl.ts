@@ -1,9 +1,9 @@
 /**
  * @registry-id: dailyOpsSnapshotCacheControl
  * @created: 2026-07-16T00:00:00.000Z
- * @last-modified: 2026-07-16T00:00:00.000Z
+ * @last-modified: 2026-08-16T15:55:00.000Z
  * @description: Cache-Control headers for Daily Ops dashboard bundle GETs (ADR-010)
- * @last-fix: [2026-07-16] Extracted from fetchDashboardBundle to stay under monolith budget
+ * @last-fix: [2026-08-16] Align HTTP cache with Today/week/archive freshness tiers
  * @adr-ref: ADR-004, ADR-010, ADR-013
  *
  * @exports-to:
@@ -20,15 +20,26 @@ import { addCalendarDaysYmd, amsterdamOpenRegisterBusinessDateYmd } from '~/util
 
 export function snapshotCacheControl(ctx: DailyOpsMetricsContext): string {
   const openRegister = amsterdamOpenRegisterBusinessDateYmd()
-  const sealedSingleDay = ctx.period !== 'today' && ctx.startDate === ctx.endDate && ctx.endDate < openRegister
 
-  if (sealedSingleDay) {
-    const yesterday = addCalendarDaysYmd(openRegister, -1)
-    if (ctx.endDate === yesterday) {
-      return 'public, max-age=3600, stale-while-revalidate=86400'
-    }
-    return 'public, max-age=86400, stale-while-revalidate=604800, immutable'
+  if (ctx.period === 'today' || ctx.endDate >= openRegister) {
+    return 'no-store'
   }
 
-  return 'no-store'
+  // This week / recent days — short browser cache
+  if (
+    ctx.period === 'this-week'
+    || ctx.period === 'yesterday'
+    || ctx.period === 'last-week'
+    || /^d[2-7]$/.test(ctx.period)
+  ) {
+    return 'private, max-age=600, stale-while-revalidate=3600'
+  }
+
+  const monthAgo = addCalendarDaysYmd(openRegister, -31)
+  if (ctx.endDate >= monthAgo) {
+    return 'private, max-age=3600, stale-while-revalidate=86400'
+  }
+
+  // Older than a month — sticky until Finance/rebuild (client also version-checks)
+  return 'private, max-age=86400, stale-while-revalidate=604800'
 }

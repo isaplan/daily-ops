@@ -95,7 +95,7 @@ export async function loadDashboardBundleForGet (
 
   const pending = loadDashboardBundleForGetInner(db, ctx).finally(() => {
     inflightLoads.delete(key)
-  })
+  }) as Promise<DailyOpsDashboardBundleDto & { cacheVersion?: string | null }>
   inflightLoads.set(key, pending)
   return pending
 }
