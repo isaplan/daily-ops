@@ -1,5 +1,5 @@
 /**
- * Accounting P&L benchmarks — sourced from *Analyse* exports (2024/2025 full year, 2026 Jan–May monthly + YTD).
+ * Accounting P&L benchmarks — sourced from *Analyse* exports (2024/2025 full year, 2026 Jan–Jul monthly + YTD).
  * Fixed parent = overige + afschrijving + financieel when children present; legacy docs = overige only.
  * Grandchildren: Analyse GL lines under Food/Bev revenue & COGS and under Labor Lonen.
  */
@@ -220,7 +220,7 @@ const MONTHLY_2025: Record<AccountingPnlVenueId, PnlTuple[]> = {
   ],
 }
 
-/** Jan–Jun 2026 monthly — [revenue, cogs, labor, fixed, result]. */
+/** Jan–Jul 2026 monthly — [revenue, cogs, labor, fixed, result]. Jul BEA/LAT placeholders until Analyse fill. */
 const MONTHLY_2026: Record<AccountingPnlVenueId, PnlTuple[]> = {
   vkb: [
     [113144, 44847, 65533, 41901, -39137],
@@ -229,6 +229,7 @@ const MONTHLY_2026: Record<AccountingPnlVenueId, PnlTuple[]> = {
     [173806, 58310, 57691, 46315, 11490],
     [159724, 52648, 70951, 46753, -10628],
     [161342, 57166, 72935, 48179, -16938],
+    [174780, 53969, 58528, 41351, 20932],
   ],
   bea: [
     [92241, 30687, 36091, 36902, -11439],
@@ -237,6 +238,7 @@ const MONTHLY_2026: Record<AccountingPnlVenueId, PnlTuple[]> = {
     [166792, 54832, 43523, 41801, 26636],
     [144408, 44949, 49093, 49416, 950],
     [122032, 43463, 49888, 40966, -12285],
+    [0, 0, 0, 0, 0],
   ],
   lat: [
     [85081, 28120, 45116, 48402, -36557],
@@ -245,6 +247,7 @@ const MONTHLY_2026: Record<AccountingPnlVenueId, PnlTuple[]> = {
     [94860, 29698, 54714, 46220, -35772],
     [80295, 36098, 51833, 45364, -53000],
     [61667, 23743, 36889, 37576, -36541],
+    [0, 0, 0, 0, 0],
   ],
 }
 
@@ -300,12 +303,12 @@ function monthlyForYear (year: AccountingPnlYear): Record<AccountingPnlVenueId, 
 }
 
 export function accountingPnlYearLabel (year: AccountingPnlYear): string {
-  if (year === 2026) return '2026 (Jan–Jun YTD)'
+  if (year === 2026) return '2026 (Jan–Jul YTD)'
   return String(year)
 }
 
 export function accountingPnlMonthsForYear (year: AccountingPnlYear): number[] {
-  if (year === 2026) return [1, 2, 3, 4, 5, 6]
+  if (year === 2026) return [1, 2, 3, 4, 5, 6, 7]
   return Array.from({ length: 12 }, (_, i) => i + 1)
 }
 

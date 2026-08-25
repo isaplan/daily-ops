@@ -71,7 +71,7 @@ const metricsKey = (
   q: Record<string, string | undefined>,
   snapshotBuiltAt: string | null,
 ): string => {
-  const base = `daily-ops-bundle-v9-${q.period ?? 'today'}-${q.location ?? 'all'}-${q.anchor ?? ''}`
+  const base = `daily-ops-bundle-v10-${q.period ?? 'today'}-${q.location ?? 'all'}-${q.anchor ?? ''}`
   if ((q.period ?? 'today') === 'today') {
     return `${base}-${amsterdamOpenRegisterBusinessDateYmd()}-${snapshotBuiltAt ?? 'init'}`
   }

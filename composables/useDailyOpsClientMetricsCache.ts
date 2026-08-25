@@ -30,7 +30,7 @@ type VersionResponse = {
   financeSealedMonths: number
 }
 
-const STORE_KEY = 'daily-ops-client-metrics-cache-v2'
+const STORE_KEY = 'daily-ops-client-metrics-cache-v3'
 
 /** Soft TTL before we bother the version endpoint. */
 const TTL_MS: Record<ClientMetricsFreshnessTier, number> = {

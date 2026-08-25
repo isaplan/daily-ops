@@ -1,10 +1,10 @@
 /**
  * @registry-id: dailyOpsAssembleDashboardBundleFromPeriodCache
  * @created: 2026-08-09T17:30:00.000Z
- * @last-modified: 2026-08-16T16:05:00.000Z
+ * @last-modified: 2026-08-20T11:50:00.000Z
  * @description: Project DailyOpsDashboardBundleDto from period-cache day nodes (GET)
- * @last-fix: [2026-08-16] Fill periodBreakdown.byVenue (Locations graph was empty)
- *   Prior: [2026-08-16] Export strip-only assemble (sealed venue-strip without full bundle)
+ * @last-fix: [2026-08-20] Fill periodBreakdown staffCount/staffByTeam + labor byTeamDay
+ *   Prior: [2026-08-16] Fill periodBreakdown.byVenue (Locations graph was empty)
  * @adr-ref: PERIOD_CACHE_ADR L2, L3, ADR-004, ADR-013, ADR-014, ADR-022
  * @data-source: period-cache
  * @read-cache-json: daily_ops_period_cache · level=day
@@ -24,6 +24,7 @@ import type {
   DailyOpsSummaryDto,
   PeriodBreakdownDto,
   PeriodBreakdownRowDto,
+  PeriodBreakdownStaffByTeamDto,
   VenueStripCardDto,
   VenueStripLaborRowDto,
   VenueStripResponseDto,
@@ -240,14 +241,40 @@ function buildVenueStripFromNodes (
   }
 }
 
+function emptyStaffByTeam (): PeriodBreakdownStaffByTeamDto {
+  return { keuken: 0, bediening: 0 }
+}
+
+function staffCountFromTeam (team: PeriodBreakdownStaffByTeamDto): number {
+  return team.keuken + team.bediening
+}
+
+/** Keuken + Bediening headcount from sealed day node workers (excludes ziek/verlof). */
+function staffByTeamFromNode (node: DailyOpsPeriodNode): PeriodBreakdownStaffByTeamDto {
+  const out = emptyStaffByTeam()
+  const seen = { keuken: new Set<string>(), bediening: new Set<string>() }
+  for (const w of node.staff.workers ?? []) {
+    if (w.sick || w.leave || !(w.hours > 0)) continue
+    const bucket = bucketTeamFromName(w.team)
+    if (bucket !== 'keuken' && bucket !== 'bediening') continue
+    const id = w.memberId || `${w.team}|${w.hours}`
+    if (seen[bucket].has(id)) continue
+    seen[bucket].add(id)
+    out[bucket] += 1
+  }
+  return out
+}
+
 function finalizeBreakdownRow (
   bucketKey: string,
   bucketLabel: string,
   cur: { revenue: number; laborCost: number; hours: number },
+  staffByTeam: PeriodBreakdownStaffByTeamDto = emptyStaffByTeam(),
 ): PeriodBreakdownRowDto {
   const revenue = round2(cur.revenue)
   const laborCost = round2(cur.laborCost)
   const laborHours = round2(cur.hours)
+  const staffCount = staffCountFromTeam(staffByTeam)
   return {
     bucketKey,
     bucketLabel,
@@ -255,8 +282,26 @@ function finalizeBreakdownRow (
     laborCost,
     laborHours,
     productivity: laborHours > 0 ? round2(revenue / laborHours) : null,
-    staffCount: 0,
+    staffByTeam,
+    staffCount,
     profit: round2(revenue - laborCost),
+  }
+}
+
+/**
+ * Allocate day keuken/bediening headcount across hours by labor-hour share
+ * (sealed period-cache has no hourly staff; live Today uses shift overlap).
+ */
+function allocateStaffByHourShare (
+  dayStaff: PeriodBreakdownStaffByTeamDto,
+  hourHours: number,
+  dayHours: number,
+): PeriodBreakdownStaffByTeamDto {
+  if (!(dayHours > 0) || !(hourHours > 0)) return emptyStaffByTeam()
+  const share = hourHours / dayHours
+  return {
+    keuken: Math.round(dayStaff.keuken * share),
+    bediening: Math.round(dayStaff.bediening * share),
   }
 }
 
@@ -270,9 +315,13 @@ function buildPeriodBreakdown (
   if (singleDay) {
     const hourMap = new Map<number, { revenue: number; laborCost: number; hours: number }>()
     const byVenueHour = new Map<string, Map<number, { revenue: number; laborCost: number; hours: number }>>()
+    const dayStaffByVenue = new Map<string, PeriodBreakdownStaffByTeamDto>()
+    const dayHoursByVenue = new Map<string, number>()
 
     for (const venue of VENUE_STRIP_LOCATIONS) {
       byVenueHour.set(venue.locationId, new Map())
+      dayStaffByVenue.set(venue.locationId, emptyStaffByTeam())
+      dayHoursByVenue.set(venue.locationId, 0)
     }
 
     for (const n of venueNodes) {
@@ -281,6 +330,8 @@ function buildPeriodBreakdown (
       const dayRev = n.revenue.exVat || 1
       const locMap = byVenueHour.get(n.locationId) ?? new Map()
       byVenueHour.set(n.locationId, locMap)
+      dayStaffByVenue.set(n.locationId, staffByTeamFromNode(n))
+      dayHoursByVenue.set(n.locationId, dayHours)
 
       for (const h of n.revenue.byHour ?? []) {
         const share = dayRev > 0 ? h.exVat / dayRev : 0
@@ -301,19 +352,40 @@ function buildPeriodBreakdown (
       }
     }
 
+    const orgDayStaff = emptyStaffByTeam()
+    let orgDayHours = 0
+    for (const venue of VENUE_STRIP_LOCATIONS) {
+      const s = dayStaffByVenue.get(venue.locationId) ?? emptyStaffByTeam()
+      orgDayStaff.keuken += s.keuken
+      orgDayStaff.bediening += s.bediening
+      orgDayHours += dayHoursByVenue.get(venue.locationId) ?? 0
+    }
+
     const rows: PeriodBreakdownRowDto[] = Array.from({ length: 24 }, (_, hour) => {
       const cur = hourMap.get(hour) ?? { revenue: 0, laborCost: 0, hours: 0 }
-      return finalizeBreakdownRow(String(hour), `${String(hour).padStart(2, '0')}:00`, cur)
+      return finalizeBreakdownRow(
+        String(hour),
+        `${String(hour).padStart(2, '0')}:00`,
+        cur,
+        allocateStaffByHourShare(orgDayStaff, cur.hours, orgDayHours),
+      )
     })
 
     const byVenue = VENUE_STRIP_LOCATIONS.map((venue) => {
       const locMap = byVenueHour.get(venue.locationId) ?? new Map()
+      const dayStaff = dayStaffByVenue.get(venue.locationId) ?? emptyStaffByTeam()
+      const dayHours = dayHoursByVenue.get(venue.locationId) ?? 0
       return {
         locationId: venue.locationId,
         locationName: venue.locationName,
         rows: Array.from({ length: 24 }, (_, hour) => {
           const cur = locMap.get(hour) ?? { revenue: 0, laborCost: 0, hours: 0 }
-          return finalizeBreakdownRow(String(hour), `${String(hour).padStart(2, '0')}:00`, cur)
+          return finalizeBreakdownRow(
+            String(hour),
+            `${String(hour).padStart(2, '0')}:00`,
+            cur,
+            allocateStaffByHourShare(dayStaff, cur.hours, dayHours),
+          )
         }),
       }
     })
@@ -321,32 +393,48 @@ function buildPeriodBreakdown (
     return { granularity: 'hour', rows, byVenue }
   }
 
-  const byDate = new Map<string, { revenue: number; laborCost: number; hours: number }>()
-  const byVenueDate = new Map<string, Map<string, { revenue: number; laborCost: number; hours: number }>>()
+  type Acc = { revenue: number; laborCost: number; hours: number; staff: PeriodBreakdownStaffByTeamDto }
+  const byDate = new Map<string, Acc>()
+  const byVenueDate = new Map<string, Map<string, Acc>>()
   for (const venue of VENUE_STRIP_LOCATIONS) {
     byVenueDate.set(venue.locationId, new Map())
   }
 
   for (const n of venueNodes) {
-    const cur = byDate.get(n.periodKey) ?? { revenue: 0, laborCost: 0, hours: 0 }
+    const staff = staffByTeamFromNode(n)
+    const cur = byDate.get(n.periodKey) ?? {
+      revenue: 0,
+      laborCost: 0,
+      hours: 0,
+      staff: emptyStaffByTeam(),
+    }
     cur.revenue += n.revenue.exVat
     cur.laborCost += n.labor.loadedCost
     cur.hours += n.labor.hours
+    cur.staff.keuken += staff.keuken
+    cur.staff.bediening += staff.bediening
     byDate.set(n.periodKey, cur)
 
     const locMap = byVenueDate.get(n.locationId) ?? new Map()
     byVenueDate.set(n.locationId, locMap)
-    const locCur = locMap.get(n.periodKey) ?? { revenue: 0, laborCost: 0, hours: 0 }
+    const locCur = locMap.get(n.periodKey) ?? {
+      revenue: 0,
+      laborCost: 0,
+      hours: 0,
+      staff: emptyStaffByTeam(),
+    }
     locCur.revenue += n.revenue.exVat
     locCur.laborCost += n.labor.loadedCost
     locCur.hours += n.labor.hours
+    locCur.staff = staff
     locMap.set(n.periodKey, locCur)
   }
 
   const dates = [...byDate.keys()].sort((a, b) => a.localeCompare(b))
-  const rows: PeriodBreakdownRowDto[] = dates.map((date) =>
-    finalizeBreakdownRow(date, date, byDate.get(date) ?? { revenue: 0, laborCost: 0, hours: 0 }),
-  )
+  const rows: PeriodBreakdownRowDto[] = dates.map((date) => {
+    const cur = byDate.get(date)!
+    return finalizeBreakdownRow(date, date, cur, cur.staff)
+  })
 
   const byVenue = VENUE_STRIP_LOCATIONS.map((venue) => {
     const locMap = byVenueDate.get(venue.locationId) ?? new Map()
@@ -354,9 +442,15 @@ function buildPeriodBreakdown (
     return {
       locationId: venue.locationId,
       locationName: venue.locationName,
-      rows: venueDates.map((date) =>
-        finalizeBreakdownRow(date, date, locMap.get(date) ?? { revenue: 0, laborCost: 0, hours: 0 }),
-      ),
+      rows: venueDates.map((date) => {
+        const cur = locMap.get(date) ?? {
+          revenue: 0,
+          laborCost: 0,
+          hours: 0,
+          staff: emptyStaffByTeam(),
+        }
+        return finalizeBreakdownRow(date, date, cur, cur.staff)
+      }),
     }
   })
 
@@ -667,6 +761,10 @@ function buildLaborMetrics (
     string,
     { locationId: string; locationName: string; teamName: string; hours: number; cost: number; workers: Set<string> }
   >()
+  const teamDayMap = new Map<
+    string,
+    { date: string; locationId: string; locationName: string; teamName: string; hours: number; cost: number; workers: Set<string> }
+  >()
   const dailyMap = new Map<string, { revenue: number; laborCost: number; hours: number; workers: Set<string> }>()
   const revByLocDay: DailyOpsLaborMetricsDto['revenueByLocationDay'] = []
   const locLaborPct: DailyOpsLaborMetricsDto['locationLaborPctByDay'] = []
@@ -697,11 +795,12 @@ function buildLaborMetrics (
     day.hours += n.labor.hours
     for (const w of n.staff.workers ?? []) {
       if (w.memberId) day.workers.add(w.memberId)
-      const key = `${n.locationId}|${w.team}`
+      const teamName = w.team || 'Other'
+      const key = `${n.locationId}|${teamName}`
       const cur = teamMap.get(key) ?? {
         locationId: n.locationId,
         locationName: n.locationName,
-        teamName: w.team || 'Other',
+        teamName,
         hours: 0,
         cost: 0,
         workers: new Set<string>(),
@@ -710,6 +809,21 @@ function buildLaborMetrics (
       cur.cost += w.wage
       if (w.memberId) cur.workers.add(w.memberId)
       teamMap.set(key, cur)
+
+      const dayKey = `${n.periodKey}|${n.locationId}|${teamName}`
+      const dayCur = teamDayMap.get(dayKey) ?? {
+        date: n.periodKey,
+        locationId: n.locationId,
+        locationName: n.locationName,
+        teamName,
+        hours: 0,
+        cost: 0,
+        workers: new Set<string>(),
+      }
+      dayCur.hours += w.hours
+      dayCur.cost += w.wage
+      if (w.memberId) dayCur.workers.add(w.memberId)
+      teamDayMap.set(dayKey, dayCur)
     }
     dailyMap.set(n.periodKey, day)
   }
@@ -732,7 +846,19 @@ function buildLaborMetrics (
       totalHours: round2(t.hours),
       totalCost: round2(t.cost),
     })),
-    workersByTeamLocationByDay: [],
+    workersByTeamLocationByDay: [...teamDayMap.values()]
+      .sort((a, b) => a.date.localeCompare(b.date) || a.locationId.localeCompare(b.locationId))
+      .map((t) => ({
+        date: t.date,
+        locationId: t.locationId,
+        locationName: t.locationName,
+        teamId: t.teamName,
+        teamName: t.teamName,
+        workerCount: t.workers.size,
+        totalHours: round2(t.hours),
+        totalCost: round2(t.cost),
+        laborCostPctOfRevenue: null,
+      })),
     locationLaborPctByDay: locLaborPct,
     revenueByLocationDay: revByLocDay,
     hoursCostByContractType: [],
